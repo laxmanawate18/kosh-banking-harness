@@ -8,6 +8,7 @@
 |---|---|---|
 | End-to-end checks (real browser + API) | 74 checks: 47 passed · 27 failed | **76 checks: 76 passed · 0 failed** |
 | Python test suites (17 files) | 96 passed · 36 failed | 130 passed · 0 failed |
+| **Final retest after the velocity-policy change** | | **76/76 end-to-end · 132/132 Python** |
 | Frontend unit tests · type check | 12/12 · clean | 12/12 · clean |
 | Auth-server type check · tests | clean · 1/1 | clean · 1/1 |
 
@@ -199,6 +200,7 @@ Severity reflects impact on customers or the bank. Each fix was verified by the 
 | 23 | Sign-in screen promised "session ends after **5** minutes idle"; the server uses **10**. | Copy aligned (English, Hindi, Marathi). | D13 |
 | 24 | Hindi replies sometimes called the bank "कोशी" / "कोश"; the logo says **कोष**. | Explicit naming rule in Mitra's instructions. | A09b |
 | 25 | Smaller regressions: re-issue sent the *masked* phone to the identity server; the local step-up never pre-filled (`is_local` missing); the chat ignored the website language; the companion cross-sell card was dropped. | All restored. | B09, C07, A09 |
+| 27 | *(Policy change, your decision)* Attempts blocked only for incomplete KYC counted toward Sentinel's velocity rule, turning a legitimate post-KYC transfer into a denial. | Such attempts are excluded from the count; genuine repeats still count. | P08, P04, unit tests |
 | 26 | Async tests couldn't run: `pytest` and `pytest-asyncio` were missing from `requirements-dev.txt`. | Added (plus `pytest-timeout`). | Python suites |
 
 The 36 failing Python tests in pass 1 were mostly **stale tests** for removed login and OTP routes. They were rewritten for the current design (Firebase step-up, officer-approved onboarding), not weakened. Two tests for routes that no longer exist were removed (password change, OTP lockout). Their protections are covered by new route-level tests.
@@ -216,7 +218,7 @@ The 36 failing Python tests in pass 1 were mostly **stale tests** for removed lo
 
 ## 6. Open items and recommendations (not changed)
 
-1. **Sentinel velocity policy question.** Payment attempts blocked because KYC was incomplete still count toward Sentinel's 10-minute velocity rule. A customer who tries to pay before KYC, gets approved, and then sends ₹75,000 to a new payee within 10 minutes is **denied** (score 80), not asked to approve. That can be sound fraud policy (check P08 records it), but it's a policy decision for you. The test waits out the window before the approval scenario.
+1. **Sentinel velocity policy: resolved (your decision).** Payment attempts refused only because KYC was incomplete no longer count toward the 10-minute velocity rule. Genuine repeated attempts still do. Unit tests cover both sides, and the first one fails on the old code. In the final retest, check P08 confirms the post-KYC ₹75,000 transfer gets a normal approval challenge (reason codes had no `VELOCITY_LIMIT`), and 76/76 checks passed with no 10-minute wait.
 2. **Deployed Cloud Run is still on the old code and config.** Before redeploying:
    - set `GOOGLE_CLOUD_LOCATION=global`
    - set a strong `AUTH_INTERNAL_TOKEN` on both Kosh and the auth-server
@@ -243,6 +245,7 @@ The 36 failing Python tests in pass 1 were mostly **stale tests** for removed lo
   - `362e4d5` prefill-queue fix
   - `e0f068c` harness timing
   - this report and the final harness step
+  - `d954872` velocity policy change
 - **`.env`:** only `SMTP_FROM_NAME` (now "Kosh Digital Banking Operations") and `GOOGLE_CLOUD_LOCATION` (now `global`) changed.
 - **Installed locally:**
   - `venv/` (Python deps plus pytest, pytest-asyncio, pytest-timeout, aiosmtpd, websockets)
