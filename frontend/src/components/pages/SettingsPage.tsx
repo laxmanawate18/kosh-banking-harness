@@ -28,6 +28,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     payment_alerts: true,
     monthly_statement: true,
     whatsapp_updates: false,
+    marketing_offers: false,
   });
   const [prefStatus, setPrefStatus] = useState<string | null>(null);
   const savedPreferences = (overview as any)?.preferences;
@@ -260,6 +261,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 checked={preferences.whatsapp_updates}
                 onChange={(e) =>
                   setPreferences((p) => ({ ...p, whatsapp_updates: e.target.checked }))
+                }
+              />
+            </label>
+            <label className="check-row">
+              <span>
+                <strong>{t('Personalised offers')}</strong>
+                <small style={{ display: 'block' }}>{t('Let Kosh use your balances, salary credits and spending to suggest products. Separate from your banking consent; off by default.')}</small>
+              </span>
+              <input
+                type="checkbox"
+                name="marketing_offers"
+                checked={preferences.marketing_offers}
+                onChange={(e) =>
+                  setPreferences((p) => ({ ...p, marketing_offers: e.target.checked }))
                 }
               />
             </label>

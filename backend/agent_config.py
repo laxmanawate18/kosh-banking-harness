@@ -77,6 +77,7 @@ When a customer expresses interest in or asks about loans, credit cards, fixed d
 2. Lead Capture: Once customer requirements or preferences are clarified, call record_customer_lead to log the qualified opportunity into Kosh CRM and generate an interactive pre-approved offer card. Record each product at most once per conversation; never re-send the same offer card after the customer has seen, accepted or declined it.
 3. Fulfillment Action: When the customer agrees or says 'yes', immediately guide them to the action/application step instead of repeating previous questions.
 4. Returning Customer Follow-Up: If prior active lead inquiries or re-engagement directives are provided in your context, warmly welcome the customer back and proactively pitch an updated offer or rate reduction (e.g. rate dropped to 10.25% p.a. or exclusive complimentary Taj luxury voucher) to cross-sell and convert!
+Personalised offers: after the customer's own request is fully handled, you may call get_next_best_offer once per conversation. Pitch only the offer it returns, using its why_this_offer text; never invent eligibility, pre-approval or rates. If it returns has_offer false, do not pitch any product. If the customer says they are not interested, call decline_offer with that product_id, accept it politely and do not raise that product again.
 5. Dynamic Contextual Suggestion Chips: At the very end of your response, on a new final line, provide 2 to 4 contextual suggestion chips that directly facilitate the customer's next response:
 SUGGESTIONS: ["Option 1", "Option 2", "Option 3"]
 This is a simulated environment with no real money.
@@ -170,6 +171,8 @@ _BANKING_TOOL_ARGUMENTS = {
         "employment_type", "monthly_income_minor", "preferences_summary", "notes"
     },
     "get_lead_reengagement_offer": set(),
+    "get_next_best_offer": set(),
+    "decline_offer": {"product_id"},
     "query_bank_knowledge": {"query", "category"},
 }
 

@@ -10,6 +10,7 @@ import {
   wipeOfficerCustomer,
   resendOfficerCustomerCredentials,
 } from '../../services/banking';
+import { get } from '../../services/api';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 
@@ -73,6 +74,41 @@ const KYC_REQUIRED_CHECKS = [
     description: 'FATCA, tax residency, and digital banking declarations verified',
   },
 ];
+
+type FunnelRow = { product_id: string; title: string; channel: string; shown: number; clicked: number; applied: number;
+  approved: number; dismissed: number; click_rate: number; conversion_rate: number };
+
+/** Personalised-offer funnel: distinct customers shown -> clicked -> applied -> approved, last 30 days. */
+const OfferFunnel: React.FC = () => {
+  const [data, setData] = useState<{ rows: FunnelRow[]; totals: Record<string, number> } | null>(null);
+  useEffect(() => { get('/api/officer/offers/funnel').then(setData).catch(() => setData(null)); }, []);
+  if (!data) return null;
+  const tot = data.totals;
+  return (
+    <section className="panel" aria-label="Offer conversion funnel" style={{ marginBottom: 16 }}>
+      <h2 style={{ marginTop: 0 }}>Personalised offer funnel · last 30 days</h2>
+      <p style={{ marginTop: 0 }}>
+        Shown {tot.shown} → clicked {tot.clicked} → applied {tot.applied} → approved {tot.approved} · dismissed {tot.dismissed} ·
+        conversion {tot.conversion_rate}%
+      </p>
+      {data.rows.length ? (
+        <div className="table-scroll">
+          <table className="table">
+            <thead><tr><th>Offer</th><th>Channel</th><th>Shown</th><th>Clicked</th><th>Applied</th><th>Approved</th><th>Dismissed</th><th>Click rate</th><th>Conversion</th></tr></thead>
+            <tbody>
+              {data.rows.map(r => (
+                <tr key={r.product_id + r.channel}>
+                  <td>{r.title}</td><td>{r.channel === 'MITRA' ? 'Mitra chat' : 'Dashboard'}</td><td>{r.shown}</td><td>{r.clicked}</td>
+                  <td>{r.applied}</td><td>{r.approved}</td><td>{r.dismissed}</td><td>{r.click_rate}%</td><td>{r.conversion_rate}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : <p>No personalised offers shown yet.</p>}
+    </section>
+  );
+};
 
 const terminalRpaStatuses = new Set(['COMPLETED', 'FAILED']);
 
@@ -511,6 +547,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
         ))}
       </div>
 
+      {filter === 'leads' && <OfferFunnel />}
       <section className="panel">
         {filter === 'leads' ? (
           leads.length ? (

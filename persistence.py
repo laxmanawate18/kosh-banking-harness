@@ -281,6 +281,20 @@ class NotificationRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
 
 
+class OfferEventRecord(Base):
+    """One step of a personalised offer's life: SHOWN, CLICKED, APPLIED or DISMISSED, on a channel."""
+
+    __tablename__ = "offer_events"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    customer_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    product_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    event: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    reason_code: Mapped[str | None] = mapped_column(String(60))
+    reference: Mapped[str | None] = mapped_column(String(80), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt, index=True)
+
+
 class DatabaseRuntime:
     def __init__(self, url: str | None = None) -> None:
         self.url = url or os.getenv("SENTINEL_DATABASE_URL") or DEFAULT_DATABASE_URL

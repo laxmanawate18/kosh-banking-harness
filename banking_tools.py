@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from banking_db import BankingDatabase, db, new_id, utc_now
-from product_service import inr
+from product_service import get_product_by_id, inr
 from sentinel import AGENT_ID, CUSTOMER_ID, KNOWN_DEVICE_ID, SentinelService, sentinel
 
 
@@ -1082,6 +1082,8 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
             notes=notes or f"Customer expressed interest in {category} {sub_type or ''}".strip(),
         )
 
+        from backend.offers import attribute_lead
+        attribute_lead(banking_service.db, cid, prod_id, lead["id"])
         amount_display = inr(amount_minor / 100, 2) if amount_minor > 0 else "Flexible amount"
         return {
             "success": True,
@@ -1104,6 +1106,40 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
                 "options": options,
             },
         }
+
+    def get_next_best_offer() -> dict:
+        """Get the one personalised offer that best fits this customer's own banking data, after consent and frequency rules."""
+        from backend.offers import next_best_offers
+        cid = context_provider().get("customer_id")
+        if not cid:
+            return {"has_offer": False}
+        result = next_best_offers(banking_service.db, cid, "MITRA")
+        if not result["offers"]:
+            reason = {"MARKETING_CONSENT_REQUIRED": "The customer has not turned on personalised offers (Settings). Do not pitch products.",
+                      "KYC_NOT_VERIFIED": "KYC is not verified yet. Help with KYC first; do not pitch products.",
+                      "DAILY_CAP": "An offer was already shown today. Do not pitch another one."}.get(result["blocked"], "No suitable offer right now.")
+            return {"has_offer": False, "reason": reason}
+        o = result["offers"][0]
+        return {
+            "has_offer": True, "product_id": o["product_id"], "title": o["title"], "why_this_offer": o["reason"],
+            "presentation": {
+                "type": "CROSS_SELL_OFFER", "product_id": o["product_id"], "title": o["title"], "badge": "Picked for you",
+                "headline_rate": o["headline_rate"], "special_offer": o["reason"], "amount_display": "",
+                "key_perks": o["features"],
+                "options": [{"label": "Apply now", "prompt": f"I want to apply for the {o['title']}"},
+                            {"label": "Not interested", "prompt": f"I'm not interested in the {o['title']}"}],
+            },
+        }
+
+    def decline_offer(product_id: str) -> dict:
+        """Record that the customer is not interested in an offered product, so it is not offered again for 90 days."""
+        from backend.offers import record_event
+        cid = context_provider().get("customer_id")
+        product = get_product_by_id(product_id)
+        if not cid or not product:
+            return {"recorded": False}
+        record_event(banking_service.db, cid, product["id"], "MITRA", "DISMISSED")
+        return {"recorded": True, "message": f"{product['title']} will not be offered again for 90 days."}
 
     def get_lead_reengagement_offer() -> dict:
         """Retrieve active prior customer leads and special promotional offers to greet returning customers."""
@@ -1144,6 +1180,8 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
         check_account_opening_status,
         record_customer_lead,
         get_lead_reengagement_offer,
+        get_next_best_offer,
+        decline_offer,
         query_bank_knowledge,
     ]
 
@@ -1165,5 +1203,7 @@ BANKING_TOOL_NAMES = {
     "check_account_opening_status",
     "record_customer_lead",
     "get_lead_reengagement_offer",
+    "get_next_best_offer",
+    "decline_offer",
     "query_bank_knowledge",
 }

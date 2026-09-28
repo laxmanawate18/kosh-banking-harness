@@ -12,6 +12,7 @@ from sqlalchemy import select
 from backend.api_models import ApprovalDecisionRequest, ServiceRequestCreate, SessionCreateRequest, SessionUpdateRequest
 from backend.conversations import create_session_data, list_sessions_metadata, load_session, sanitized_session, save_session
 from backend.email_service import email_service
+from backend.offers import funnel as offer_funnel
 from backend.notifications import notify, recent as recent_notifications
 from persistence import UserRecord, utc_dt
 from product_service import get_product_by_id
@@ -320,6 +321,11 @@ def make_session_router(
     async def officer_notifications(context=Depends(require_officer)):
         del context
         return {"notifications": recent_notifications(db)}
+
+    @router.get("/api/officer/offers/funnel")
+    async def officer_offer_funnel(days: int = 30, context=Depends(require_officer)):
+        del context
+        return offer_funnel(db, max(1, min(days, 365)))
 
     @router.get("/api/officer/customers")
     async def get_officer_customers(context=Depends(require_officer)):

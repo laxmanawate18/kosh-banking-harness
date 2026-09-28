@@ -3,7 +3,7 @@ import { useBanking } from '../../context/BankingContext';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { useI18n } from '../../i18n';
-import { get } from '../../services/api';
+import { get, post } from '../../services/api';
 import { RecentTransactions } from './RecentTransactions';
 import { SpendingBreakdown } from './SpendingBreakdown';
 import { formatMoney, formatDate, formatDateTime } from '../common/Formatters';
@@ -60,6 +60,54 @@ function useLastLogin() {
       .catch(() => setWhen(null));
   }, []);
   return when;
+}
+
+type Offer = { product_id: string; title: string; headline_rate: string; reason: string };
+
+/** Personalised offers from the bank's rules (consent, KYC, caps and suppression are enforced server-side). */
+function PersonalOffers({ onNavigate, ask }: { onNavigate: (r: string) => void; ask: (q: string) => void }) {
+  const { t } = useI18n();
+  const [state, setState] = useState<{ offers: Offer[]; blocked: string | null } | null>(null);
+  const [done, setDone] = useState<Record<string, string>>({});
+  useEffect(() => { get('/api/portal/offers').then(setState).catch(() => setState(null)); }, []);
+  if (!state) return null;
+  if (state.blocked === 'MARKETING_CONSENT_REQUIRED') {
+    return (
+      <button type="button" className="k-offer" onClick={() => onNavigate('settings')}>
+        <Icon name="sparkles" /><span><strong>{t('Offers picked for you')}</strong>
+          <small>{t('Turn on personalised offers in Settings to see offers based on your own banking. You can turn it off any time.')}</small></span>
+      </button>
+    );
+  }
+  const act = async (o: Offer, action: 'CLICKED' | 'DISMISSED' | 'APPLY') => {
+    try {
+      await post(`/api/portal/offers/${o.product_id}`, { action });
+      if (action === 'CLICKED') ask(t('Tell me more about the {title} and why it suits me.', { title: o.title }));
+      else setDone(d => ({ ...d, [o.product_id]: action === 'APPLY' ? t('Applied. A Kosh officer will contact you shortly.') : t('Okay, we will not show this offer again.') }));
+    } catch {
+      setDone(d => ({ ...d, [o.product_id]: t('This offer is no longer available.') }));
+    }
+  };
+  return (
+    <>
+      {state.offers.map(o => (
+        <article key={o.product_id} className="k-offer nbo" aria-label={o.title}>
+          <Icon name="gift" />
+          <span>
+            <strong>{o.title} · {o.headline_rate}</strong>
+            <small>{o.reason}</small>
+            {done[o.product_id] ? <small role="status"><b>{done[o.product_id]}</b></small> : (
+              <span className="k-offer-actions">
+                <button type="button" className="k-btn primary sm" onClick={() => act(o, 'APPLY')}>{t('Apply')}</button>
+                <button type="button" className="k-btn sm" onClick={() => act(o, 'CLICKED')}>{t('Ask Mitra')}</button>
+                <button type="button" className="k-link" onClick={() => act(o, 'DISMISSED')}>{t('Not interested')}</button>
+              </span>
+            )}
+          </span>
+        </article>
+      ))}
+    </>
+  );
 }
 
 export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
@@ -163,12 +211,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
               <Icon name="sparkles" /><span><strong>{t('Festive cashback')}</strong><small>{t('10% back on shopping with Kosh cards this festival week, up to ₹1,500.')}</small></span>
             </button>
           )}
-          <button type="button" className="k-offer" onClick={() => onNavigate('deposits')}>
-            <Icon name="deposits" /><span><strong>{t('Vriddhi FD at 8.10%')}</strong><small>{t('Lock in the special 444-day rate before it changes.')}</small></span>
-          </button>
-          <button type="button" className="k-offer" onClick={() => ask(t('Do I have a pre-approved personal loan?'))}>
-            <Icon name="gift" /><span><strong>{t('Pre-approved personal loan')}</strong><small>{t('Check your offer with Mitra. No documents for eligible customers.')}</small></span>
-          </button>
+          <PersonalOffers onNavigate={onNavigate} ask={ask} />
           <button type="button" className="k-offer" onClick={() => onNavigate('upi')}>
             <Icon name="qr" /><span><strong>{t('Share your UPI QR')}</strong><small>{t('Get paid by anyone, on any UPI app, straight into your account.')}</small></span>
           </button>

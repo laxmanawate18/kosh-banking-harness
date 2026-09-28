@@ -50,5 +50,45 @@
   "Also receive SMS alerts on WhatsApp.": {
     "hi": "SMS अलर्ट व्हाट्सऐप पर भी पाएँ।",
     "mr": "SMS सूचना व्हॉट्सअॅपवरही मिळवा."
+  },
+  "Offers picked for you": {
+    "hi": "आपके लिए चुने गए ऑफ़र",
+    "mr": "तुमच्यासाठी निवडलेल्या ऑफर"
+  },
+  "Turn on personalised offers in Settings to see offers based on your own banking. You can turn it off any time.": {
+    "hi": "अपनी बैंकिंग के आधार पर ऑफ़र देखने के लिए सेटिंग्स में व्यक्तिगत ऑफ़र चालू करें। आप इसे कभी भी बंद कर सकते हैं।",
+    "mr": "तुमच्या बँकिंगवर आधारित ऑफर पाहण्यासाठी सेटिंग्जमध्ये वैयक्तिक ऑफर सुरू करा. तुम्ही ते कधीही बंद करू शकता."
+  },
+  "Tell me more about the {title} and why it suits me.": {
+    "hi": "मुझे {title} के बारे में और बताइए और यह मेरे लिए क्यों सही है।",
+    "mr": "मला {title} बद्दल अधिक सांगा आणि ते माझ्यासाठी का योग्य आहे."
+  },
+  "Applied. A Kosh officer will contact you shortly.": {
+    "hi": "आवेदन हो गया। Kosh अधिकारी जल्द ही आपसे संपर्क करेंगे।",
+    "mr": "अर्ज झाला. Kosh अधिकारी लवकरच तुमच्याशी संपर्क साधतील."
+  },
+  "Okay, we will not show this offer again.": {
+    "hi": "ठीक है, हम यह ऑफ़र दोबारा नहीं दिखाएँगे।",
+    "mr": "ठीक आहे, आम्ही ही ऑफर पुन्हा दाखवणार नाही."
+  },
+  "This offer is no longer available.": {
+    "hi": "यह ऑफ़र अब उपलब्ध नहीं है।",
+    "mr": "ही ऑफर आता उपलब्ध नाही."
+  },
+  "Apply": {
+    "hi": "आवेदन करें",
+    "mr": "अर्ज करा"
+  },
+  "Not interested": {
+    "hi": "रुचि नहीं",
+    "mr": "स्वारस्य नाही"
+  },
+  "Personalised offers": {
+    "hi": "व्यक्तिगत ऑफ़र",
+    "mr": "वैयक्तिक ऑफर"
+  },
+  "Let Kosh use your balances, salary credits and spending to suggest products. Separate from your banking consent; off by default.": {
+    "hi": "Kosh को उत्पाद सुझाने के लिए आपके बैलेंस, वेतन जमा और खर्च का उपयोग करने दें। यह आपकी बैंकिंग सहमति से अलग है; डिफ़ॉल्ट रूप से बंद।",
+    "mr": "उत्पादने सुचवण्यासाठी Kosh ला तुमची शिल्लक, पगार जमा आणि खर्च वापरू द्या. हे तुमच्या बँकिंग संमतीपेक्षा वेगळे आहे; सुरुवातीला बंद."
   }
 }

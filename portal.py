@@ -23,6 +23,8 @@ from persistence import (
     utc_dt,
 )
 from service_requests import CATALOGUE_BY_ID
+from backend.offers import LEAD_CATEGORY, next_best_offers, record_event as record_offer_event
+from product_service import get_product_by_id
 
 
 class StrictBody(BaseModel):
@@ -54,6 +56,11 @@ class PreferenceBody(StrictBody):
     payment_alerts: bool
     monthly_statement: bool
     whatsapp_updates: bool = False  # opt-in to WhatsApp alerts in addition to SMS
+    marketing_offers: bool = False  # separate consent purpose: personalised offers from my banking data
+
+
+class OfferActionBody(StrictBody):
+    action: Literal["CLICKED", "DISMISSED", "APPLY"]
 
 
 class ServiceBody(StrictBody):
@@ -245,10 +252,36 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
     @router.patch("/preferences")
     def preferences(body: PreferenceBody, context=Depends(customer_csrf)):
         def mutate(data):
+            before = (data.get("preferences", {}).get(context.customer_id) or {}).get("marketing_offers", False)
             data.setdefault("preferences", {})[context.customer_id] = body.model_dump()
             audit(data, context, "PREFERENCES_UPDATED", "Notification preferences updated")
+            if body.marketing_offers != before:
+                audit(data, context, "MARKETING_CONSENT_GRANTED" if body.marketing_offers else "MARKETING_CONSENT_WITHDRAWN",
+                      "Personalised offers " + ("turned on" if body.marketing_offers else "turned off"))
             return body.model_dump()
         return db.transaction(mutate)
+
+    @router.get("/offers")
+    def offers(context=Depends(customer)):
+        return next_best_offers(db, context.customer_id, "DASHBOARD")
+
+    @router.post("/offers/{product_id}")
+    def offer_action(product_id: str, body: OfferActionBody, context=Depends(customer_csrf)):
+        if body.action != "APPLY":
+            if not get_product_by_id(product_id):
+                raise HTTPException(404, "Offer not found")
+            record_offer_event(db, context.customer_id, product_id, "DASHBOARD", body.action)
+            return {"ok": True}
+        offer = next((o for o in next_best_offers(db, context.customer_id, "DASHBOARD", record=False)["offers"]
+                      if o["product_id"] == product_id), None)
+        if not offer:
+            raise HTTPException(409, "This offer is no longer available to you")
+        lead = db.record_lead(customer_id=context.customer_id, session_id=context.session_id,
+                              category=LEAD_CATEGORY[offer["category"]], status="APPLIED", recommended_product_id=product_id,
+                              special_offer_note=offer["headline_rate"], follow_up_pitch=offer["reason"],
+                              notes=f"Applied from a personalised dashboard offer ({offer['reason_code']})")
+        record_offer_event(db, context.customer_id, product_id, "DASHBOARD", "APPLIED", reference=lead["id"])
+        return {"ok": True, "lead_id": lead["id"], "title": offer["title"]}
 
     @router.post("/service-requests", status_code=201)
     def create_request(body: ServiceBody, context=Depends(customer_csrf)):
