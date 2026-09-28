@@ -15,8 +15,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypeVar
 
 from sqlalchemy import delete, select
-from sqlalchemy.orm.attributes import flag_modified
 
+import banking_store
+from banking_store import TYPED_MARKER
 from persistence import (
     ApprovalActionRecord,
     AuditEventRecord,
@@ -93,13 +94,20 @@ class BankingDatabase:
         return seed
 
     def _ensure_seeded(self) -> None:
-        with self.runtime.sessions.begin() as session:
-            row = session.get(BankingStateRecord, 1)
+        with self._lock, self.runtime.sessions.begin() as session:
+            row = session.execute(select(BankingStateRecord).where(BankingStateRecord.id == 1).with_for_update()).scalar_one_or_none()
             seed = copy.deepcopy(self._seed())
             if row is None:
-                session.add(BankingStateRecord(id=1, schema_version=2, version=1, payload=seed))
+                session.add(BankingStateRecord(id=1, schema_version=2, version=1, payload=dict(TYPED_MARKER)))
+                session.flush()
+                banking_store.replace(session, seed)
             else:
-                payload = dict(row.payload)
+                if row.payload.get("storage") != "typed":  # one-time move off the legacy single JSON record
+                    banking_store.replace(session, row.payload)
+                    row.payload = dict(TYPED_MARKER)
+                    row.version += 1
+                payload = banking_store.load(session)
+                before = copy.deepcopy(payload)
                 changed = False
                 if "customers" in seed:
                     payload.setdefault("customers", {})
@@ -149,8 +157,7 @@ class BankingDatabase:
                         payload.setdefault("security_alerts", []).append(a)
                         changed = True
                 if changed:
-                    row.payload = payload
-                    flag_modified(row, "payload")
+                    banking_store.save(session, before, payload)
                     row.version += 1
 
     def _persist_audit(self, session: Any, event: Dict[str, Any]) -> None:
@@ -191,36 +198,50 @@ class BankingDatabase:
     def reset_to_seed(self) -> Dict[str, Any]:
         seed = copy.deepcopy(self._seed())
         with self._lock, self.runtime.sessions.begin() as session:
-            row = session.execute(select(BankingStateRecord).where(BankingStateRecord.id == 1).with_for_update()).scalar_one()
-            row.payload = seed
-            flag_modified(row, "payload")
-            row.schema_version = 2
+            row = self._lock_state(session)
+            banking_store.replace(session, seed)
             row.version += 1
             row.updated_at = utc_dt()
         return self.dashboard()
 
+    @staticmethod
+    def _lock_state(session: Any) -> BankingStateRecord:
+        # ponytail: one lock row serialises every banking write; per-customer locks if write throughput matters
+        return session.execute(select(BankingStateRecord).where(BankingStateRecord.id == 1).with_for_update()).scalar_one()
+
     def snapshot(self) -> Dict[str, Any]:
-        with self.runtime.sessions() as session:
-            row = session.get(BankingStateRecord, 1)
-            if row is None:
-                raise RuntimeError("Banking state is not initialized")
-            return copy.deepcopy(row.payload)
+        # A snapshot must never see half a transaction: one REPEATABLE READ read on Postgres; on SQLite (one
+        # process) the process lock keeps writers out while the tables are read.
+        if self.runtime.engine.dialect.name == "postgresql":
+            with self.runtime.sessions() as session:
+                session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+                return banking_store.load(session)
+        with self._lock, self.runtime.sessions() as session:
+            return banking_store.load(session)
+
+    def open_state(self, session: Any) -> Dict[str, Any]:
+        """Lock and load the state inside the caller's session; finish with save_state(session, before, after)."""
+        self._lock_state(session)
+        return banking_store.load(session)
+
+    def save_state(self, session: Any, before: Dict[str, Any], after: Dict[str, Any]) -> None:
+        if after.get("schema_version") != 2:
+            raise RuntimeError("Banking transaction attempted to change schema")
+        banking_store.save(session, before, after)
+        row = self._lock_state(session)
+        row.version += 1
+        row.updated_at = utc_dt()
+        existing_audit_ids = {item.get("id") for item in before.get("audit_events", [])}
+        for event in after.get("audit_events", []):
+            if event.get("id") not in existing_audit_ids:
+                self._persist_audit(session, event)
 
     def transaction(self, mutator: Callable[[Dict[str, Any]], T]) -> T:
         with self._lock, self.runtime.sessions.begin() as session:
-            row = session.execute(select(BankingStateRecord).where(BankingStateRecord.id == 1).with_for_update()).scalar_one()
-            candidate = copy.deepcopy(row.payload)
-            existing_audit_ids = {item.get("id") for item in candidate.get("audit_events", [])}
+            before = self.open_state(session)
+            candidate = copy.deepcopy(before)
             result = mutator(candidate)
-            if candidate.get("schema_version") != 2:
-                raise RuntimeError("Banking transaction attempted to change schema")
-            row.payload = candidate
-            flag_modified(row, "payload")
-            row.version += 1
-            row.updated_at = utc_dt()
-            for event in candidate.get("audit_events", []):
-                if event.get("id") not in existing_audit_ids:
-                    self._persist_audit(session, event)
+            self.save_state(session, before, candidate)
             return copy.deepcopy(result)
 
     def get_customer(self, customer_id: str = "CUST-1001") -> Optional[Dict[str, Any]]:

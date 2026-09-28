@@ -42,7 +42,12 @@ from persistence import (
     ModelRegistryRecord,
     BankingWorkflowRecord,
     CrossSellLeadRecord,
+    NotificationRecord,
+    OfferEventRecord,
+    EkycSessionRecord,
+    BankDocumentRecord,
 )
+import banking_store
 
 DEFAULT_CLOUD_URL = os.getenv(
     "CLOUD_SQL_DATABASE_URL",
@@ -66,7 +71,13 @@ MODELS = [
     DocumentRecord,
     ModelRegistryRecord,
     AuditEventRecord,
+    NotificationRecord,
+    OfferEventRecord,
+    EkycSessionRecord,
+    BankDocumentRecord,
+    *[spec.model for spec in banking_store.SPECS.values()],
 ]
+STATE_MODELS = {BankDocumentRecord, *(spec.model for spec in banking_store.SPECS.values())}
 
 
 def get_engines(cloud_url: str = DEFAULT_CLOUD_URL, local_url: str = DEFAULT_LOCAL_URL):
@@ -142,6 +153,8 @@ def push_to_cloud(c_engine, l_engine, batch_size: int = 200):
                 print(f"  ⚠️ Could not read local {table_name}: {e}")
                 continue
 
+            if model in STATE_MODELS:  # banking state mirrors exactly, deletions included (the old JSON row did too)
+                c_conn.execute(table.delete())
             if not rows:
                 continue
 

@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import select
 
 from banking_db import BankingDatabase
-from persistence import ApprovalActionRecord, BankingStateRecord, BankingWorkflowRecord, ServiceRequestRecord, utc_dt
+from persistence import ApprovalActionRecord, BankingWorkflowRecord, ServiceRequestRecord, utc_dt
 
 
 def _service(service_id: str, name: str, level: str, mode: str, phase: str = "P1") -> dict[str, str]:
@@ -139,8 +139,8 @@ class ServiceRequestService:
                                             override_justification=(override_justification or "").strip() or None)
             session.add(decision)
             if row.service_id == "P1-17" and action in {"APPROVE", "REJECT"}:
-                bank = session.scalar(select(BankingStateRecord).where(BankingStateRecord.id == 1).with_for_update())
-                state = copy.deepcopy(bank.payload)
+                before = self.db.open_state(session)
+                state = copy.deepcopy(before)
                 customer = state.get("customers", {}).get(row.customer_id) or state.get("customer")
                 profile = customer.setdefault("kyc", {})
                 if action == "APPROVE":
@@ -152,7 +152,7 @@ class ServiceRequestService:
                 else:
                     profile.update(status="NOT_DONE" if profile.get("kyc_type") == "INITIAL_KYC" else "PENDING_RE_KYC",
                         pending_request_id=None)
-                bank.payload, bank.version = state, bank.version + 1
+                self.db.save_state(session, before, state)
             if row.service_id == "P1-25" and action == "APPROVE":
                 row.status = "QUEUED_FOR_CBS"
                 rpa_payload = copy.deepcopy(row.collected_data)
@@ -212,9 +212,8 @@ class ServiceRequestService:
                     "cbs_status": result.get("cbs_status", "PENDING_CHECKER_APPROVAL"),
                     "rpa_completed": True,
                 }
-                bank = session.scalar(select(BankingStateRecord).where(
-                    BankingStateRecord.id == 1).with_for_update())
-                state = copy.deepcopy(bank.payload)
+                before = self.db.open_state(session)
+                state = copy.deepcopy(before)
                 accounts = state.setdefault("accounts", {})
                 existing = next((account for account in accounts.values()
                                  if account.get("source_request_id") == request_id), None)
@@ -235,7 +234,7 @@ class ServiceRequestService:
                         "source_request_id": request_id,
                         "cif_number": cif,
                     }
-                    bank.payload, bank.version = state, bank.version + 1
+                    self.db.save_state(session, before, state)
             else:
                 row.status = "RPA_FAILED"
                 row.collected_data = {**row.collected_data, "rpa_completed": False,

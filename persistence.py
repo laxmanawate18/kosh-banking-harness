@@ -11,7 +11,7 @@ if os.getenv("SKIP_DOTENV") != "1":
     load_dotenv()
 
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, JSON, String, Text, create_engine
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, JSON, String, Text, create_engine
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
@@ -309,6 +309,159 @@ class EkycSessionRecord(Base):
     result: Mapped[dict[str, Any]] = mapped_column(JSON_DOCUMENT, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
+
+
+# ---- Banking state, one typed table per entity (see banking_store.py) --------------------------------------
+# Typed columns carry the fields the bank queries, indexes and reports on; `data` keeps the complete record so
+# the domain code reads back exactly what it wrote. banking_state (id=1) remains the lock and version row.
+
+class _BankRow:
+    seq: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)  # insertion order
+    data: Mapped[Any] = mapped_column(JSON_DOCUMENT, nullable=False)
+
+
+class BankCustomerRecord(_BankRow, Base):
+    __tablename__ = "bank_customers"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    display_name: Mapped[str | None] = mapped_column(String(200))
+    email: Mapped[str | None] = mapped_column(String(255), index=True)
+    tier: Mapped[str | None] = mapped_column(String(40))
+    kyc_status: Mapped[str | None] = mapped_column(String(32), index=True)
+
+
+class BankAccountRecord(_BankRow, Base):
+    __tablename__ = "bank_accounts"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    type: Mapped[str | None] = mapped_column(String(40))
+    status: Mapped[str | None] = mapped_column(String(32), index=True)
+    currency: Mapped[str | None] = mapped_column(String(3))
+    balance_minor: Mapped[int | None] = mapped_column(BigInteger)
+    available_balance_minor: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class BankCardRecord(_BankRow, Base):
+    __tablename__ = "bank_cards"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    account_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    type: Mapped[str | None] = mapped_column(String(20))
+    status: Mapped[str | None] = mapped_column(String(32))
+
+
+class BankBillRecord(_BankRow, Base):
+    __tablename__ = "bank_bills"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    biller_id: Mapped[str | None] = mapped_column(String(80))
+    status: Mapped[str | None] = mapped_column(String(32), index=True)
+    amount_minor: Mapped[int | None] = mapped_column(BigInteger)
+    due_date: Mapped[str | None] = mapped_column(String(10))
+
+
+class BankBeneficiaryRecord(_BankRow, Base):
+    __tablename__ = "bank_beneficiaries"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    kind: Mapped[str | None] = mapped_column(String(32))
+    risk_status: Mapped[str | None] = mapped_column(String(32))
+
+
+class BankDelegationRecord(_BankRow, Base):
+    __tablename__ = "bank_delegations"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    agent_id: Mapped[str | None] = mapped_column(String(80))
+    status: Mapped[str | None] = mapped_column(String(32))
+
+
+class BankDeviceRecord(_BankRow, Base):
+    __tablename__ = "bank_devices"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    status: Mapped[str | None] = mapped_column(String(32))
+
+
+class BankPreferenceRecord(_BankRow, Base):
+    __tablename__ = "bank_preferences"
+    customer_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    whatsapp_updates: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    marketing_offers: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class BankTransactionRecord(_BankRow, Base):
+    __tablename__ = "bank_transactions"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    account_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    category: Mapped[str | None] = mapped_column(String(40))
+    amount_minor: Mapped[int | None] = mapped_column(BigInteger)
+    status: Mapped[str | None] = mapped_column(String(32))
+
+
+class BankSecurityAlertRecord(_BankRow, Base):
+    __tablename__ = "bank_security_alerts"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    card_id: Mapped[str | None] = mapped_column(String(80))
+    severity: Mapped[str | None] = mapped_column(String(16))
+    status: Mapped[str | None] = mapped_column(String(32))
+
+
+class BankIntentRecord(_BankRow, Base):
+    __tablename__ = "bank_intents"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    session_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    status: Mapped[str | None] = mapped_column(String(32))
+
+
+class BankPaymentIntentRecord(_BankRow, Base):
+    __tablename__ = "bank_payment_intents"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    session_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    action: Mapped[str | None] = mapped_column(String(32))
+    status: Mapped[str | None] = mapped_column(String(32), index=True)
+
+
+class BankSentinelDecisionRecord(_BankRow, Base):
+    __tablename__ = "bank_sentinel_decisions"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    payment_intent_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    decision: Mapped[str | None] = mapped_column(String(32), index=True)
+    policy_version: Mapped[str | None] = mapped_column(String(80))
+
+
+class BankChallengeRecord(_BankRow, Base):
+    __tablename__ = "bank_challenges"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    payment_intent_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    status: Mapped[str | None] = mapped_column(String(32))
+
+
+class BankIdempotencyRecord(_BankRow, Base):
+    __tablename__ = "bank_idempotency"
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)
+
+
+class BankStateAuditRecord(_BankRow, Base):
+    """The operational audit log the app reads; audit_events keeps the tamper-evident hash chain."""
+
+    __tablename__ = "bank_audit_log"
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    event_type: Mapped[str | None] = mapped_column(String(80), index=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BankDocumentRecord(_BankRow, Base):
+    """Smaller collections (policy config, cheque books, standing instructions, ...) and any new ones."""
+
+    __tablename__ = "bank_documents"
+    collection: Mapped[str] = mapped_column(String(80), primary_key=True)
+    key: Mapped[str] = mapped_column(String(160), primary_key=True)
 
 
 class DatabaseRuntime:

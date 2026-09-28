@@ -370,13 +370,13 @@ class WorkflowService:
                         findings=checks, discrepancy_flags=[c["code"] for c in checks if c["status"] == "OFFICER_REVIEW"], confidence_scores={})
                     session.add(request)
                 if row.skill_id == "kyc":
-                    bank = session.scalar(select(BankingStateRecord).where(BankingStateRecord.id==1).with_for_update())
-                    state = copy.deepcopy(bank.payload)
+                    before = self.db.open_state(session)
+                    state = copy.deepcopy(before)
                     customer = state.get("customers", {}).get(row.customer_id) or state.get("customer")
                     profile = customer.setdefault("kyc", {})
                     if profile.get("pending_request_id") not in {None, request_id}: raise HTTPException(409, "A KYC request is already awaiting review")
                     profile.update(status="SUBMITTED_FOR_REVIEW", pending_request_id=request_id)
-                    bank.payload, bank.version = state, bank.version+1
+                    self.db.save_state(session, before, state)
                 row.request_id, row.status = request_id, "SUBMITTED"
             row.payload, row.updated_at = p, utc_dt()
             self.audit(session, row, "WORKFLOW_SUBMITTED", "Customer reviewed and submitted banking workflow")
