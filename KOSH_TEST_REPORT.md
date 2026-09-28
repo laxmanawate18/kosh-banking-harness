@@ -300,3 +300,40 @@ Verified by end-to-end stage V (7/7, through officer approval, the emailed crede
 - **Next step if needed:** Gemini's streaming audio API would cut time-to-first-sound further.
 
 **Totals after these changes:** 142 Python tests pass; the full end-to-end run (with stage V) was 82/83. The one flag was the TTS model name, now an explicit exception in check E04. Stage A reran at 20/20 with voice.
+
+## 10. Phase 2 and Phase 3 (built after the report)
+
+Each item has its own commit, unit tests, and a check in a real browser.
+
+| # | Feature | What the customer / bank gets | How it is kept safe | Proof |
+|---|---|---|---|---|
+| 1 | **Application status tracking** | `#/track/<reference>` page, footer link, and Mitra's `check_application_status`. Shows *Under review / Approved / Not approved / Withdrawn*. | Needs the reference **and** the mobile used to apply. A wrong reference and a wrong mobile give the same answer, so references can't be guessed. Rate-limited, with a masked email. Also fixed: a customer could act on another customer's lead (IDOR). | 5 unit tests |
+| 2 | **Persistent visitor chat** | A visitor who reloads or comes back within 24 h keeps the conversation and Mitra's memory of it. | Strong random chat IDs. Chats that belong to a signed-in user are never restored to a visitor. Forgotten on sign-in. | 3 unit tests |
+| 3 | **SMS / WhatsApp notifications** | Messages for: application received, approved or rejected; money debited; card frozen; service-request updates; KYC result. WhatsApp only after the customer opts in (Settings). | Every message is written to an outbox first. Twilio (SMS + WhatsApp) and MSG91 (SMS, DLT templates) adapters send only when keys are set; otherwise nothing leaves the machine. Officers can see the outbox. | 5 unit tests |
+| 4 | **Straight-through processing** | Cheque book, stop cheque, fixed and recurring deposits, standing instructions, and interest/TDS certificates (CSV download) **complete instantly** when every rule passes. | Rules include: one cheque book per 30 days, FD ≤ ₹10 lakh, RD ≤ ₹1 lakh, KYC verified, sufficient balance, only trusted payees. Anything outside the rules goes to the officer queue with the reason. Ledger changes are atomic and audited. | 6 unit tests |
+| 5 | **Streaming voice** | Listen starts speaking in **~1.2–2.3 s** (was 5–9 s). | Falls back to chunked audio, then to the device voice. Also: Mitra thinking level set to LOW, and a stalled turn is retried once on a fresh agent. | 3 route tests; A18 now requires ≤ 3 s |
+| 6 | **Next-best offer** | Up to 2 dashboard cards and 1 Mitra pitch a day, chosen from the customer's own data (idle savings, salary credits, spending, holdings, rent payee, KYC), each with a plain reason, e.g. *"About ₹2,82,570 sits in savings beyond two months of your spending… could earn about ₹22,888 a year."* | Reasons use only real figures. Loans say "subject to a credit check". Mitra may pitch only what the engine returns. | 7 unit tests; N02 |
+| 7 | **Offer governance** | A **"Personalised offers"** switch in Settings, separate from banking consent and **off by default**. | No offers until KYC is verified. Suppressed if the customer holds the product, has an open application, dismissed it in the last 90 days, or was declined in the last 180 days. A product rests for 30 days after being shown on 3 days without a click. Consent changes are audited. | N01, N03 |
+| 8 | **Conversion funnel** | Officer view (AI Sales Leads tab): **shown → clicked → applied → approved** per offer and channel, with click and conversion rates, and a `GET /api/officer/offers/funnel` endpoint. | Counts distinct customers. "Approved" means an officer approved the offer's lead. | N04 |
+| 9 | **Video KYC (V-CIP)** | "Video KYC now" on the dashboard and a Mitra card hand the customer to the KYC provider. On success KYC is verified at once and an SMS is sent. | Only a **signed** provider result (HMAC webhook) changes KYC, and each result is applied once. Default provider is a **sandbox**, labelled on every screen, that records its method as "sandbox, not a real verification". It is refused in production. A real vendor needs `EKYC_PROVIDER=vendor` plus 3 keys. | 4 unit tests; N05–N07 |
+| 10 | **Typed banking tables** | Banking state moved off the single JSON record into 17 typed tables (`bank_accounts`, `bank_transactions`, …), with typed, indexed columns for ids, customer, status, amounts and dates. | Each transaction writes only the rows it changed. The migration (`alembic 20260928_06`, also run automatically at startup) was verified lossless on the real E2E data, on SQLite and on Postgres, including downgrade. | 3 unit tests; 7 test files re-run on Postgres; N08 |
+
+**Honest limits:**
+- **Offer text:** the offer reason is English-only; the UI around it is translated.
+- **FD offer:** "Apply" on the FD offer creates an officer lead, although deposits can already complete instantly through the deposit form.
+- **Video KYC:** the sandbox does not use the camera.
+- **Typed tables:**
+  - They keep the full record alongside the typed columns, so the existing banking code runs unchanged.
+  - Small collections (policy config, cheque books, standing instructions) share one `bank_documents` table.
+  - Writes are serialised by one lock row. Per-customer locks come later, if volume needs them.
+- **Pre-existing, not changed:** migration `20260912_01` creates every table from today's models, so running the whole Alembic chain on an **empty** database fails at `20260912_02`. Existing databases upgrade fine.
+
+**Totals after Phase 2 and 3:**
+- **Unit tests:** 178 Python tests pass; 7 of those files were also re-run on Postgres.
+- **Frontend:** 12/12 tests pass; typecheck and build are clean.
+- **Full end-to-end run** (fresh database, real browser, stages A V B C T P Q R D N E): **93/93 PASS**. Results are in `.local/e2e-results/run5/`.
+  - A18 now streams audio: first sound in 2.9 s, within its 3 s limit.
+  - Stage N covers the new offers, funnel, video KYC and storage.
+- **Harness fixes:**
+  - An earlier attempt failed B08 because the harness waited a fixed 9 s for a document scan that took longer that once. The harness now waits for the upload to finish; normal scans take 1.6–4.8 s.
+  - The harness now reads banking state from the typed tables.
