@@ -175,6 +175,12 @@ class SentinelAppTests(unittest.TestCase):
         self.assertNotIn("tool_calls", raw)
         self.client.delete(f"/api/sessions/{stored['id']}", headers={"X-CSRF-Token": self.csrf})
 
+    def test_voice_and_qr_camera_are_allowed_for_this_origin(self):
+        policy = self.client.get("/").headers["permissions-policy"]
+        self.assertIn("microphone=(self)", policy)
+        self.assertIn("camera=(self)", policy)
+        self.assertIn("media-src 'self' blob:", self.client.get("/").headers["content-security-policy"])
+
     def test_demo_config_does_not_advertise_an_otp(self):
         data = self.client.get("/api/demo/config").json()
         self.assertTrue(data["simulated"])

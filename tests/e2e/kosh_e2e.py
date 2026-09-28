@@ -1192,6 +1192,9 @@ def stage_d(b, R):
     need = {"content-security-policy": "default-src", "x-frame-options": "DENY", "x-content-type-options": "nosniff", "referrer-policy": "no-referrer"}
     missing = [k for k, v in need.items() if v not in h.get(k, "")]
     R.check("D11", area, "Security headers (CSP, X-Frame-Options, nosniff, Referrer-Policy) are set", not missing, f"missing={missing}")
+    pp = h.get("permissions-policy", "")
+    R.check("D11b", area, "Microphone (Mitra voice) and camera (UPI QR) are allowed for Kosh itself, not for embedded sites",
+            "microphone=(self)" in pp and "camera=(self)" in pp, f"Permissions-Policy: {pp}")
     r = anon.options("/api/portal/overview", headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "GET"})
     R.check("D12", area, "CORS does not allow arbitrary origins", "evil.example" not in r.headers.get("access-control-allow-origin", ""),
             f"ACAO={r.headers.get('access-control-allow-origin')}")
