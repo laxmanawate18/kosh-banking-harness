@@ -242,6 +242,7 @@ The 36 failing Python tests in pass 1 were mostly **stale tests** for removed lo
   - `9a453d3` fixes
   - `362e4d5` prefill-queue fix
   - `e0f068c` harness timing
+  - this report and the final harness step
 - **`.env`:** only `SMTP_FROM_NAME` (now "Kosh Digital Banking Operations") and `GOOGLE_CLOUD_LOCATION` (now `global`) changed.
 - **Installed locally:**
   - `venv/` (Python deps plus pytest, pytest-asyncio, pytest-timeout, aiosmtpd, websockets)
