@@ -158,6 +158,22 @@ class SentinelBankingTests(unittest.TestCase):
         self.assertEqual(approved["receipt"]["reference"], replay["receipt"]["reference"])
         self.assertEqual(len([t for t in self.repo.snapshot()["transactions"] if t.get("reference") == approved["receipt"]["reference"]]), 1)
 
+    def test_kyc_blocked_attempts_do_not_count_toward_velocity(self):
+        self.repo.update_kyc_status(CUSTOMER_ID, "NOT_DONE")
+        for amount in (500_000, 600_000, 700_000):
+            blocked = self.service.propose_transfer(self.context(f"Transfer ₹{amount // 100:,} to Vikram"), "BEN-VIKRAM", amount, "ACC-SAL-001")
+            self.assertEqual(blocked["sentinel"]["reason_codes"], ["KYC_NON_COMPLIANT"])
+        self.repo.update_kyc_status(CUSTOMER_ID, "VERIFIED")
+        result = self.service.propose_transfer(self.context("Transfer ₹75,000 to Vikram"), "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")
+        self.assertEqual(result["status"], "CHALLENGE_REQUIRED")
+        self.assertNotIn("VELOCITY_LIMIT", result["sentinel"]["reason_codes"])
+
+    def test_repeated_real_payment_attempts_still_trigger_velocity(self):
+        for amount in (100_000, 110_000, 120_000):
+            self.service.propose_transfer(self.context(f"Transfer ₹{amount // 100:,} to Vikram"), "BEN-VIKRAM", amount, "ACC-SAL-001")
+        result = self.service.propose_transfer(self.context("Transfer ₹75,000 to Vikram"), "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")
+        self.assertIn("VELOCITY_LIMIT", result["sentinel"]["reason_codes"])
+
     def test_challenge_digest_tampering_denied_without_debit(self):
         before = self.repo.get_account("ACC-SAL-001")["available_balance_minor"]
         result = self.service.propose_transfer(self.context("Transfer ₹75,000 to Vikram"), "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")

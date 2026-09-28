@@ -421,11 +421,16 @@ class SentinelService:
 
             recent_attempts = 0
             now = datetime.now(timezone.utc)
-            for proposal in self.db.snapshot().get("payment_intents", []):
+            state = self.db.snapshot()
+            # Attempts refused only because initial KYC was incomplete are compliance blocks, not fraud signals.
+            kyc_blocked = {d["id"] for d in state.get("sentinel_decisions", []) if d.get("reason_codes") == ["KYC_NON_COMPLIANT"]}
+            for proposal in state.get("payment_intents", []):
                 try:
                     age = (now - _parse_time(proposal["created_at"])).total_seconds()
                     # Only money movement counts; protective actions such as freezing a card must not raise payment risk.
                     moves_money = (proposal.get("action") or {}).get("action_type") in {"PAY_BILL", "TRANSFER"}
+                    if proposal.get("decision_id") in kyc_blocked:
+                        continue
                     if moves_money and proposal.get("customer_id") == context.get("customer_id") and 0 <= age <= int(policy.get("velocity_window_seconds", 600)):
                         recent_attempts += 1
                 except Exception:

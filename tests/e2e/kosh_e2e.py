@@ -815,6 +815,23 @@ def sentinel_reasons():
     return decisions[-1]["reason_codes"] if decisions else []
 
 
+def window_attempts(window=600):
+    """Money-movement attempts in Sentinel's velocity window: (counted, kyc_blocked_only)."""
+    from datetime import datetime
+    st = _state_payload()
+    kyc_only = {d["id"] for d in st.get("sentinel_decisions", []) if d.get("reason_codes") == ["KYC_NON_COMPLIANT"]}
+    now, counted, blocked = time.time(), 0, 0
+    for i in st.get("payment_intents", []):
+        if (i.get("action") or {}).get("action_type") not in ("PAY_BILL", "TRANSFER"):
+            continue
+        if now - datetime.fromisoformat(i["created_at"].replace("Z", "+00:00")).timestamp() <= window:
+            if i.get("decision_id") in kyc_only:
+                blocked += 1
+            else:
+                counted += 1
+    return counted, blocked
+
+
 def last_money_attempt():
     from datetime import datetime
     times = [datetime.fromisoformat(i["created_at"].replace("Z", "+00:00")).timestamp() for i in _state_payload().get("payment_intents", [])
@@ -844,21 +861,18 @@ def stage_p(b, R):
     R.check("P03", area, "Repeating the bill payment does not charge twice", delta2 == 0,
             f"second debit ₹{delta2/100:,.2f}; reply={frames_text(fr)[:200]!r}")
 
-    # P08: rapid repeat attempts are a fraud signal — Sentinel's velocity rule should escalate them.
-    fr = chat_turn(pg, w, "Transfer ₹75,000 to Vikram from my Rent Reserve account.")
-    codes = sentinel_reasons()
-    if "VELOCITY_LIMIT" in codes:
-        R.check("P08", area, "Several payment attempts within 10 minutes escalate a high-value new-payee transfer (Sentinel VELOCITY_LIMIT → DENY)",
-                "SENTINEL_DENIAL" in frames_presentations(fr), f"reason codes={codes}")
     ctx.close()
 
 
 def stage_q(b, R):
     """README approval scenario: no payment attempts in the last 10 minutes, fresh sign-in, ₹75,000 to Vikram."""
     area = "P. Payments & Sentinel risk decisions"
-    wait = max(0, 610 - (time.time() - last_money_attempt()))
-    print(f"   waiting {int(wait)}s for Sentinel's velocity window to clear (then signing in fresh)", flush=True)
-    time.sleep(wait)
+    counted, _ = window_attempts()
+    if counted >= 2:  # genuine repeated attempts would (correctly) escalate the next one; the README scenario assumes none
+        wait = max(0, 610 - (time.time() - last_money_attempt()))
+        print(f"   waiting {int(wait)}s for Sentinel's velocity window to clear (then signing in fresh)", flush=True)
+        time.sleep(wait)
+    _, kyc_blocked_in_window = window_attempts()
     ctx, pg, w, step_up_statuses, _ = customer_context(b, R)
     api = Api(ctx); resync(pg)
     bal = lambda: {a["id"]: a.get("available_balance_minor") for a in api.get("/api/portal/overview").json()["accounts"]}
@@ -866,6 +880,9 @@ def stage_q(b, R):
     before = bal()
     fr = chat_turn(pg, w, "Transfer ₹75,000 to Vikram from my Rent Reserve account.")
     pres = frames_presentations(fr)
+    codes = sentinel_reasons()
+    R.check("P08", area, "Payment attempts refused only for incomplete KYC do not count toward Sentinel's velocity rule",
+            "VELOCITY_LIMIT" not in codes, f"reason codes={codes}; KYC-blocked attempts still inside the 10-minute window={kyc_blocked_in_window}")
     R.check("P04", area, "₹75,000 to a new beneficiary triggers a Sentinel CHALLENGE and an approval card",
             "PAYMENT_CHALLENGE" in pres, f"presentations={pres} reply={frames_text(fr)[:200]!r}", shot(R, pg, "P04_challenge"))
     opened = False
