@@ -13,6 +13,7 @@ except ImportError:
 
 
 from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
 
 from backend import voice
 from backend.agent_config import create_agent_config, visitor_reply
@@ -101,6 +102,27 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
         except Exception as exc:
             raise HTTPException(502, "Mitra's voice is unavailable right now.") from exc
         return Response(audio, media_type="audio/wav", headers={"Cache-Control": "private, max-age=3600"})
+
+    @router.post("/api/chat/speak/stream")
+    @limiter.limit("30/minute")
+    async def speak_reply_stream(req: SpeakRequest, request: Request, response: Response):
+        """Stream Mitra's spoken reply as raw 16-bit PCM (24 kHz mono) while Gemini generates it."""
+        del request, response
+        chunks = voice.synthesize_stream(req.text)
+        try:
+            first = await chunks.__anext__()  # fail before headers are sent if Gemini is unavailable
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(502, "Mitra's voice is unavailable right now.") from exc
+
+        async def body():
+            yield first
+            async for chunk in chunks:
+                yield chunk
+
+        return StreamingResponse(body(), media_type="audio/L16; rate=24000; channels=1",
+                                 headers={"Cache-Control": "no-store", "X-Sample-Rate": str(voice.STREAM_RATE)})
 
     @router.post("/api/chat/transcribe")
     @limiter.limit("20/minute")

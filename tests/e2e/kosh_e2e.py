@@ -296,7 +296,7 @@ def stage_a(b, R):
             len(txt) > 60 and fr[-1].get("type") == "turn_complete",
             f"model={turn_model(fr)} reply={txt[:300]!r}", shot(R, pg, "A05_visitor_product"))
     speak = []
-    pg.on("response", lambda r: "/api/chat/speak" in r.url and speak.append((r.status, r.headers.get("content-type"), time.time())))
+    pg.on("response", lambda r: "/api/chat/speak" in r.url and speak.append((r.status, r.headers.get("content-type", "").split(";")[0], time.time())))
     clicked = time.time()
     pg.locator("dialog[open] button.ai-listen").last.click()
     for _ in range(60):
@@ -306,8 +306,8 @@ def stage_a(b, R):
     pg.wait_for_timeout(1500)
     playing = pg.evaluate("() => [...document.querySelectorAll('button.ai-listen')].some(b => b.classList.contains('is-speaking'))")
     wait_s = round(speak[0][2] - clicked, 1) if speak else None
-    R.check("A18", area, "Listen reads Mitra's reply aloud with Gemini text-to-speech (audio starts within ~15 s)",
-            bool(speak) and speak[0][:2] == (200, "audio/wav") and playing and wait_s <= 15,
+    R.check("A18", area, "Listen streams Mitra's reply with Gemini text-to-speech (first audio within 3 s)",
+            bool(speak) and speak[0][0] == 200 and speak[0][1] in ("audio/L16", "audio/wav") and playing and wait_s <= 3,
             f"/api/chat/speak → {[x[:2] for x in speak]}; seconds to first audio={wait_s}; playing={playing}")
     if playing:
         pg.locator("dialog[open] button.ai-listen.is-speaking").first.click()

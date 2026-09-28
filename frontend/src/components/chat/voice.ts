@@ -175,6 +175,63 @@ const playUrl = (url: string) => new Promise<void>((resolve, reject) => {
   audio.play().catch(reject);
 });
 
+/** Stream Gemini TTS: 16-bit PCM arrives in chunks and plays through Web Audio as it comes (~2 s to first sound). */
+let audioCtx: AudioContext | null = null;
+
+async function speakStreaming(id: string, words: string, signal: AbortSignal): Promise<boolean> {
+  const res = await fetch('/api/chat/speak/stream', {
+    method: 'POST', credentials: 'same-origin', signal,
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: words }),
+  });
+  if (!res.ok || !res.body) throw new Error(`speak stream ${res.status}`);
+  const rate = Number(res.headers.get('X-Sample-Rate')) || 24000;
+  const ctx = new AudioContext({ sampleRate: rate });
+  audioCtx = ctx;
+  const reader = res.body.getReader();
+  let leftover = new Uint8Array(0);
+  let pending: Float32Array<ArrayBuffer>[] = [];
+  let pendingSamples = 0;
+  let playAt = 0;
+  let lastSource: AudioBufferSourceNode | null = null;
+  let started = false;
+  const flush = () => {
+    if (!pendingSamples) return;
+    const buffer = ctx.createBuffer(1, pendingSamples, rate);
+    let offset = 0;
+    for (const piece of pending) { buffer.copyToChannel(piece, 0, offset); offset += piece.length; }
+    pending = []; pendingSamples = 0;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    playAt = Math.max(playAt, ctx.currentTime + (started ? 0 : 0.05));
+    source.start(playAt);
+    playAt += buffer.duration;
+    lastSource = source;
+    started = true;
+  };
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done || signal.aborted || speakingId !== id) break;
+    const bytes = new Uint8Array(leftover.length + value.length);
+    bytes.set(leftover); bytes.set(value, leftover.length);
+    const usable = bytes.length - (bytes.length % 2);
+    leftover = bytes.slice(usable);
+    const view = new DataView(bytes.buffer, 0, usable);
+    const samples = new Float32Array(usable / 2);
+    for (let i = 0; i < samples.length; i++) samples[i] = view.getInt16(i * 2, true) / 32768;
+    pending.push(samples); pendingSamples += samples.length;
+    // Start after ~0.25 s of audio, then schedule ~0.5 s buffers back-to-back so playback never starves.
+    if (pendingSamples >= rate * (started ? 0.5 : 0.25)) flush();
+  }
+  if (signal.aborted || speakingId !== id) return started;
+  flush();
+  if (!lastSource) return false;
+  await new Promise<void>(resolve => { lastSource!.onended = () => resolve(); });
+  if (audioCtx === ctx) { audioCtx = null; ctx.close(); }
+  if (speakingId === id) announce(null);
+  return true;
+}
+
 /** Read a reply aloud with Gemini TTS (same voice on every device, natural Hindi and Marathi). */
 export async function speak(id: string, text: string) {
   if (!canSpeak()) return;
@@ -182,6 +239,20 @@ export async function speak(id: string, text: string) {
   const words = speakable(text);
   if (!words) return;
   announce(id);
+  const controller = new AbortController();
+  aborter = controller;
+  try {
+    if (typeof AudioContext !== 'undefined' && await speakStreaming(id, words, controller.signal)) return;
+  } catch {
+    if (controller.signal.aborted || speakingId !== id) return;
+  } finally {
+    if (aborter === controller && !controller.signal.aborted) aborter = null;
+  }
+  if (speakingId === id && !controller.signal.aborted) await speakInPieces(id, words);
+}
+
+/** Fallback: sentence-sized WAV pieces, next one prefetched while the current plays. */
+async function speakInPieces(id: string, words: string) {
   const controller = new AbortController();
   aborter = controller;
   const chunks = speechChunks(words);
@@ -211,6 +282,7 @@ export async function speak(id: string, text: string) {
 export function stopSpeaking() {
   aborter?.abort();
   aborter = null;
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
   if (player) { player.pause(); player = null; }
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
   announce(null);

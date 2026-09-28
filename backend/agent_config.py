@@ -30,6 +30,10 @@ from workflow_catalogue import skill_instructions
 
 logger = logging.getLogger(__name__)
 
+# Gemini 3.8 Flash "thinks" before answering; at the default depth a detailed question sometimes stalled a turn
+# for over a minute. Banking chat needs quick, tool-grounded answers, so thinking is kept LOW (override via env).
+MODEL_OPTIONS = types.GeminiModelOptions(thinking_level=types.ThinkingLevel[os.getenv("GEMINI_THINKING_LEVEL", "LOW").upper()])
+
 # Standing multilingual rule shared by the visitor and customer agents.
 LANGUAGE_RULE = (
     "You are Mitra and you understand English, Hindi and Marathi, including romanized Hindi (Hinglish) and romanized Marathi. "
@@ -291,7 +295,7 @@ def create_agent_config(
         agent_behavior=types.AgentBehavior.INTERACTIVE,
     )
     if USE_VERTEXAI or bool(resolved_project and not resolved_api_key):
-        endpoint = models.VertexEndpoint(project=resolved_project, location=resolved_location)
+        endpoint = models.VertexEndpoint(project=resolved_project, location=resolved_location, options=MODEL_OPTIONS)
         target = models.ModelTarget(name=DEFAULT_MODEL, endpoint=endpoint)
         provider_args: Dict[str, Any] = {
             "vertex": True,
@@ -305,7 +309,7 @@ def create_agent_config(
             },
         }
     else:
-        target = models.ModelTarget(name=DEFAULT_MODEL, endpoint=models.GeminiAPIEndpoint(api_key=resolved_api_key))
+        target = models.ModelTarget(name=DEFAULT_MODEL, endpoint=models.GeminiAPIEndpoint(api_key=resolved_api_key, options=MODEL_OPTIONS))
         provider_args = {"api_key": resolved_api_key, "project": resolved_project}
 
     sales_context = context.get("sales_context")
@@ -392,7 +396,7 @@ except ImportError:
 
 async def visitor_reply(agent: Agent, prompt: str, sales_context: SalesSessionContext, language: str = "en"):
     """Yield validated public answer text without reasoning or raw tool events."""
-    async with async_timeout(90):
+    async with async_timeout(60):
 
         trusted_context = json.dumps(sales_context.snapshot(), ensure_ascii=False)
         response = await agent.chat(

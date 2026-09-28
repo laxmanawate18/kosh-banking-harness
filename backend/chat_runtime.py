@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import dataclasses
 import re
 import secrets
@@ -42,6 +43,8 @@ from product_service import (
     sales_advisor,
 )
 
+logger = logging.getLogger("kosh.chat")
+logger.setLevel(logging.INFO)  # turn timings are operational metrics; keep them in the server log
 VISITOR_CHAT_ID = re.compile(r"GUEST-[A-Za-z0-9_-]{32}")
 VISITOR_CHAT_TTL_SECONDS = 24 * 60 * 60
 
@@ -243,7 +246,7 @@ async def serve_visitor_websocket(
                 await websocket.send_json({"type": "text_delta", "text": combined_reply, "turn_id": turn_id})
                 await present({**auth_challenge_presentation(language), "action_url": sign_in_url})
             else:
-                if agent is None:
+                async def fresh_agent():
                     candidate = agent_factory(create_agent_config(
                         guest_id,
                         visitor=True,
@@ -255,9 +258,21 @@ async def serve_visitor_websocket(
                     except BaseException:
                         await candidate.__aexit__(None, None, None)
                         raise
-                    agent = candidate
+                    return candidate
+
+                agent_started = time.time()
+                if agent is None:
+                    agent = await fresh_agent()
+                reply_started = time.time()
                 submitted_before = set(sales_context.submitted_applications)
-                full_reply = [text async for text in visitor_reply(agent, prompt, sales_context, language)]
+                try:
+                    full_reply = [text async for text in visitor_reply(agent, prompt, sales_context, language)]
+                    logger.info("visitor turn timing: agent_start=%.1fs reply=%.1fs", reply_started - agent_started, time.time() - reply_started)
+                except TimeoutError:
+                    # The agent connection occasionally stalls; retry once on a fresh one (submissions are idempotent).
+                    await agent.__aexit__(None, None, None)
+                    agent = await fresh_agent()
+                    full_reply = [text async for text in visitor_reply(agent, prompt, sales_context, language)]
                 for product_id in set(sales_context.submitted_applications) - submitted_before:
                     record = sales_context.submitted_applications[product_id]
                     await present({"type": "APPLICATION_SUBMITTED", "title": record["product_title"],

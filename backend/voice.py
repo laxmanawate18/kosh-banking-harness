@@ -96,3 +96,29 @@ async def synthesize(text: str) -> bytes:
         _speech_cache.clear()
     _speech_cache[words] = audio
     return audio
+
+
+STREAM_RATE = 24000  # Gemini TTS PCM sample rate (16-bit mono)
+
+
+async def synthesize_stream(text: str):
+    """Yield raw 16-bit PCM chunks as Gemini produces them, so playback can start within ~2 seconds."""
+    from google.genai import types
+
+    words = _trim(text)
+    if not words:
+        raise ValueError("Nothing to read aloud")
+    stream = await _client().aio.models.generate_content_stream(
+        model=TTS_MODEL,
+        contents=words,
+        config=types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(voice_config=types.VoiceConfig(
+                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=TTS_VOICE))),
+        ),
+    )
+    async for chunk in stream:
+        content = chunk.candidates[0].content if chunk.candidates else None
+        for part in (content.parts if content and content.parts else []):
+            if part.inline_data and part.inline_data.data:
+                yield part.inline_data.data
