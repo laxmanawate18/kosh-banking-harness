@@ -817,13 +817,21 @@ def stage_c_takeover(b, R):
 
 
 # ================================================================ STAGE P: payments (after KYC approval)
+E2E_DB_URL = f"sqlite+pysqlite:///{ROOT / '.local' / 'e2e.sqlite3'}"
+
+
 def _state_payload():
-    import sqlite3
-    con = sqlite3.connect(str(ROOT / ".local" / "e2e.sqlite3"))
+    """Read-only view of the banking state as the app sees it (typed bank_* tables)."""
+    sys.path.insert(0, str(ROOT))
+    import banking_store
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    engine = create_engine(E2E_DB_URL)
     try:
-        return json.loads(con.execute("select payload from banking_state where id=1").fetchone()[0])
+        with Session(engine) as session:
+            return banking_store.load(session)
     finally:
-        con.close()
+        engine.dispose()
 
 
 def sentinel_reasons():
@@ -1220,6 +1228,73 @@ def iter_lines(rel):
             yield f.relative_to(ROOT), n, line
 
 
+def stage_n(b, R):
+    """Phase 3: personalised offers + governance + funnel, video KYC (sandbox), typed storage."""
+    area = "N. Offers, video KYC & storage"
+    sys.path.insert(0, str(ROOT))
+    import os
+    os.environ.setdefault("ENABLE_CLOUD_SQL_SYNC", "false")
+    from sqlalchemy import create_engine, delete, func, select, text
+    from persistence import BankTransactionRecord, CrossSellLeadRecord, OfferEventRecord
+    engine = create_engine(E2E_DB_URL)
+    with engine.begin() as c:  # fixture: start this customer's offer history from zero
+        c.execute(delete(OfferEventRecord.__table__).where(OfferEventRecord.customer_id == "CUST-1001"))
+        c.execute(delete(CrossSellLeadRecord.__table__).where(CrossSellLeadRecord.customer_id == "CUST-1001"))
+    ctx, pg, w, _, _ = customer_context(b, R, "offers")
+    prefs = {"email_updates": True, "payment_alerts": True, "monthly_statement": True, "whatsapp_updates": False}
+    pg.evaluate("p => fetch('/api/auth/session').then(r => r.json()).then(s => fetch('/api/portal/preferences', {method: 'PATCH', "
+                "headers: {'Content-Type': 'application/json', 'X-CSRF-Token': s.csrf_token}, body: JSON.stringify(p)}))", {**prefs, "marketing_offers": False})
+    resync(pg)
+    pg.goto(APP + "/#overview"); pg.wait_for_selector(".k-offers"); pg.wait_for_timeout(1200)
+    offers_text = pg.locator(".k-offers").inner_text()
+    R.check("N01", area, "Without marketing consent the dashboard pushes no personalised offer, only an opt-in prompt",
+            "Offers picked for you" in offers_text and pg.locator(".k-offer.nbo").count() == 0, offers_text[:300], shot(R, pg, "N01-consent-prompt"))
+    pg.goto(APP + "/#settings"); pg.wait_for_timeout(1500)
+    pg.locator("input[name=marketing_offers]").check()
+    pg.locator("#preferencesForm button[type=submit]").click(); pg.wait_for_timeout(1500)
+    pg.goto(APP + "/#overview"); pg.reload(); pg.wait_for_selector(".k-offer.nbo", timeout=15000); pg.wait_for_timeout(800)
+    cards = pg.locator(".k-offer.nbo")
+    first = cards.first.inner_text()
+    R.check("N02", area, "After opting in, offers are based on the customer's own data and say why",
+            cards.count() >= 1 and "₹" in first, f"{cards.count()} offers; first: {first[:260]}", shot(R, pg, "N02-offers"))
+    title = cards.first.get_attribute("aria-label")
+    cards.first.get_by_role("button", name="Apply").click(); pg.wait_for_timeout(1500)
+    applied = "officer will contact you" in cards.first.inner_text()
+    pg.reload(); pg.wait_for_timeout(2500)
+    still = [c.get_attribute("aria-label") for c in pg.locator(".k-offer.nbo").all()]
+    R.check("N03", area, "Apply creates a lead and the offer is suppressed while the application is open",
+            applied and title not in still, f"applied={applied}; applied offer={title}; offers now={still}")
+    octx, opg = b.new_context(viewport=VP), None
+    opg = octx.new_page(); login_password(opg, "officer.mumbai", "Officer@2468"); opg.wait_for_timeout(1200)
+    funnel = opg.evaluate("fetch('/api/officer/offers/funnel').then(r => r.json())")
+    opg.goto(APP + "/#leads"); opg.wait_for_timeout(2500)
+    R.check("N04", area, "Officer funnel counts the offer as shown → clicked → applied",
+            funnel["totals"]["shown"] >= 1 and funnel["totals"]["applied"] >= 1 and opg.get_by_text("Personalised offer funnel").count() > 0,
+            json.dumps(funnel["totals"]), shot(R, opg, "N04-funnel"))
+    from banking_db import BankingDatabase
+    BankingDatabase(E2E_DB_URL).update_kyc_status("CUST-1001", "NOT_DONE")  # fixture: KYC due again
+    pg.goto(APP + "/#overview"); pg.reload(); pg.wait_for_selector(".k-alert", timeout=15000)
+    pg.get_by_role("button", name="Video KYC now").click()
+    pg.wait_for_url(re.compile("/ekyc/sandbox/"), timeout=15000)
+    banner = pg.locator(".banner").inner_text()
+    R.check("N05", area, "Video KYC opens the provider page, clearly labelled SANDBOX", banner.startswith("SANDBOX"), banner[:160], shot(R, pg, "N05-sandbox"))
+    pg.get_by_role("button", name="Simulate: all checks pass").click()
+    pg.wait_for_url(re.compile("#overview"), timeout=15000); pg.wait_for_timeout(2000)
+    kyc = pg.evaluate("fetch('/api/portal/overview').then(r => r.json()).then(o => o.kyc)")
+    R.check("N06", area, "A passing (sandbox) V-CIP result verifies KYC and records the method as sandbox",
+            kyc["status"] == "VERIFIED" and "sandbox" in (kyc.get("verification") or {}).get("method", ""), json.dumps(kyc.get("verification")))
+    sms = opg.evaluate("fetch('/api/officer/notifications').then(r => r.json())")["notifications"]
+    R.check("N07", area, "The customer is told by SMS that KYC is verified (outbox)", any(n["event"] == "kyc_verified" for n in sms[:10]),
+            json.dumps([(n["event"], n["status"]) for n in sms[:5]]))
+    with engine.connect() as c:
+        marker = c.execute(text("select payload from banking_state where id=1")).scalar()
+        rows = c.execute(select(func.count()).select_from(BankTransactionRecord)).scalar()
+    R.check("N08", area, "Banking state lives in typed tables (the JSON row is only the lock/version row)",
+            json.loads(marker) == {"schema_version": 2, "storage": "typed"} and rows == len(_state_payload()["transactions"]) and rows > 0,
+            f"banking_state.payload={marker}; bank_transactions rows={rows}")
+    engine.dispose(); ctx.close(); octx.close()
+
+
 def stage_e(b, R):
     area = "E. Brand (Kosh) & model (Gemini 3.8 Flash)"
     product, fraud = [], []
@@ -1248,13 +1323,13 @@ def stage_e(b, R):
     R.check("E05", area, "Mitra actually runs on gemini-3.8-flash at runtime", rt == "gemini-3.8-flash", f"turn_start.model={rt}")
 
 
-STAGES = {"A": stage_a, "V": stage_v, "B": stage_b, "C": stage_c, "T": stage_c_takeover, "P": stage_p, "Q": stage_q, "R": stage_r, "D": stage_d, "E": stage_e}
+STAGES = {"A": stage_a, "V": stage_v, "B": stage_b, "C": stage_c, "T": stage_c_takeover, "P": stage_p, "Q": stage_q, "R": stage_r, "D": stage_d, "N": stage_n, "E": stage_e}
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
-    ap.add_argument("--stages", default="A,V,B,C,T,P,Q,R,D,E")
+    ap.add_argument("--stages", default="A,V,B,C,T,P,Q,R,D,N,E")
     ap.add_argument("--headed", action="store_true")
     args = ap.parse_args()
     R = Results(pathlib.Path(args.out))
