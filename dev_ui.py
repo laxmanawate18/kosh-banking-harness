@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import mimetypes
 import os
 from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
@@ -75,6 +76,7 @@ app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credenti
                    allow_methods=["GET", "POST", "PATCH", "DELETE"],
                    allow_headers=["Content-Type", "X-CSRF-Token", "Authorization"])
 
+mimetypes.add_type("image/webp", ".webp")  # slim Linux images lack it; with nosniff, Safari would refuse the photos
 # Everything Vite copies into dist/ (hashed assets, public/ photos, favicon, icon sprite) is served as-is.
 for _item in sorted(FRONTEND_DIST.iterdir()) if FRONTEND_DIST.exists() else []:
     if _item.is_dir():

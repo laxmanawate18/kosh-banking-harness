@@ -52,6 +52,7 @@ class SentinelAppTests(unittest.TestCase):
         for path in ("/img/people/family-800.webp", "/favicon.svg", "/icons.svg"):
             response = self.client.get(path)
             self.assertEqual(response.status_code, 200, path)
+        self.assertEqual(self.client.get("/img/people/family-800.webp").headers["content-type"], "image/webp")
         self.assertEqual(self.client.get("/img/people/../../../.env").status_code, 404)
 
     def test_banking_portal_has_no_developer_controls_or_thoughts(self):
