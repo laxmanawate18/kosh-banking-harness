@@ -454,8 +454,11 @@ def upload_doc(pg, d, kind, fixture):
     d.locator("select").first.select_option(kind)
     d.locator("input[type=file]").set_input_files(str(FX / fixture))
     d.locator("input[type=checkbox]").first.check()
-    d.get_by_role("button", name=re.compile("Scan & prefill")).click()
-    pg.wait_for_timeout(9000)
+    started = time.time()
+    with pg.expect_response(lambda r: r.request.method == "POST" and "/documents" in r.url, timeout=120000) as res:
+        d.get_by_role("button", name=re.compile("Scan & prefill")).click()
+    print(f"   upload {kind}: HTTP {res.value.status} after {time.time() - started:.1f}s", flush=True)
+    pg.wait_for_timeout(2500)  # let the form re-render with the prefilled values
 
 
 def wait_for_field(api, skill_id, field, timeout):
