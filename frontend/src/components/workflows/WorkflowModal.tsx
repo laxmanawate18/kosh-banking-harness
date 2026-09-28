@@ -467,7 +467,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'kosh-statement.csv';
+      a.download = workflow.skill_id === 'certificate' ? 'kosh-certificate.csv' : 'kosh-statement.csv';
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e: any) {
@@ -594,10 +594,12 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
               /* Stage 3: Completed / Submitted */
               <div className="wf-receipt">
                 <span className="badge neutral" style={{ display: 'inline-block', marginBottom: '12px' }}>
-                  {workflow?.status === 'COMPLETED' ? 'Ready to download' : 'Submitted for review'}
+                  {workflow?.status === 'COMPLETED' ? (workflow?.fulfilment_summary ? 'Done instantly' : 'Ready to download') : 'Submitted for review'}
                 </span>
-                <h3>{workflow?.status === 'COMPLETED' ? 'Your statement is ready.' : 'Your request is with the bank.'}</h3>
-                <p style={{ marginTop: '8px', lineHeight: 1.6 }}>{workflow?.outcome}.</p>
+                <h3>{workflow?.status === 'COMPLETED'
+                  ? (workflow?.fulfilment_summary ? 'Done. No branch visit or wait needed.' : 'Your statement is ready.')
+                  : 'Your request is with the bank.'}</h3>
+                <p style={{ marginTop: '8px', lineHeight: 1.6 }}>{workflow?.fulfilment_summary || workflow?.outcome}.</p>
 
                 {workflow?.request_id && (
                   <div className="wf-review-row" style={{ marginTop: '16px' }}>
@@ -608,14 +610,15 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
 
                 <p className="form-hint" style={{ fontSize: '11px', color: '#66746c', marginTop: '14px' }}>
                   {workflow?.status === 'COMPLETED'
-                    ? 'Generated securely from your recorded bank account transactions.'
+                    ? (workflow?.fulfilment_summary ? 'Processed automatically and recorded in My requests. An SMS confirmation is on its way.'
+                      : 'Generated securely from your recorded bank account transactions.')
                     : 'Track updates in Your Requests. The bank may verify supporting evidence before finalizing the service.'}
                 </p>
 
                 <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
                   {workflow?.download ? (
                     <button type="button" className="button primary" onClick={handleDownloadStatement}>
-                      Download statement ↗
+                      {workflow?.skill_id === 'certificate' ? 'Download certificate ↗' : 'Download statement ↗'}
                     </button>
                   ) : null}
                   <button type="button" className="button" onClick={onClose}>

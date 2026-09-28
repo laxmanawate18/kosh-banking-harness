@@ -51,6 +51,7 @@ export interface BankingWorkflow {
   review_expires_at?: string;
   outcome?: string;
   download?: string;
+  fulfilment_summary?: string;
   updated_at: string;
   presentation?: {
     type: string;

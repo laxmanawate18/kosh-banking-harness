@@ -143,6 +143,27 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
         return Response(stream.getvalue(), media_type="text/csv", headers={
             "Content-Disposition": f'attachment; filename="statement-{account_id}-{start}-{end}.csv"'})
 
+    @router.get("/certificates/{request_id}.csv")
+    def certificate(request_id: str, context=Depends(customer)):
+        with db.runtime.sessions() as session:
+            row = session.get(ServiceRequestRecord, request_id)
+            cert = ((row.collected_data or {}).get("fulfilment") or {}).get("certificate") if row else None
+            if not cert or row.customer_id != context.customer_id:
+                raise HTTPException(404, "Certificate not found")
+        stream = io.StringIO()
+        writer = csv.writer(stream)
+        writer.writerow([f"Kosh {cert['type'].title()} Certificate", f"FY {cert['financial_year']}", f"Account {cert['account_masked']}"])
+        writer.writerow(["Date", "Description", "Amount INR"])
+        for line in cert["lines"]:
+            description = line["description"]
+            if description.lstrip().startswith(("=", "+", "-", "@")):
+                description = "'" + description
+            writer.writerow([line["date"], description, f"{line['amount_minor'] / 100:.2f}"])
+        writer.writerow(["Total interest credited", "", f"{cert['interest_credited_minor'] / 100:.2f}"])
+        writer.writerow(["Total TDS deducted", "", f"{cert['tds_deducted_minor'] / 100:.2f}"])
+        return Response(stream.getvalue(), media_type="text/csv", headers={
+            "Content-Disposition": f'attachment; filename="kosh-{cert["type"].lower()}-certificate-{cert["financial_year"]}.csv"'})
+
     @router.post("/payments")
     def payment(body: PaymentBody, context=Depends(customer_csrf)):
         consent(context)

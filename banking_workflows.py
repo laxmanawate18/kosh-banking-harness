@@ -15,6 +15,7 @@ from sqlalchemy import select
 from banking_db import new_id
 from document_processing import CloudDocumentScanner, DOCUMENT_TYPES, basic_fields, cipher, redact, validate_file
 from persistence import BankingStateRecord, BankingWorkflowRecord, ServiceRequestRecord, utc_dt
+from backend.stp import STP_SKILLS, fulfil as stp_fulfil
 from workflow_catalogue import WORKFLOWS, catalogue
 
 POLICY_VERSION = "workflow-2026-09-v1"
@@ -79,6 +80,7 @@ class WorkflowService:
                 "documents": documents, "checks": self.checks(row), "request_id": row.request_id,
                 "review_digest": payload.get("review_digest"), "review_expires_at": payload.get("review_expires_at"),
                 "outcome": WORKFLOWS[row.skill_id]["outcome"], "download": payload.get("download"),
+                "fulfilment_summary": (payload.get("fulfilment") or {}).get("summary"),
                 "updated_at": row.updated_at.isoformat(), "presentation": {"type": "BANKING_WORKFLOW", "workflow_id": row.id}}
 
     def audit(self, session, row, event_type, summary):
@@ -378,7 +380,34 @@ class WorkflowService:
                 row.request_id, row.status = request_id, "SUBMITTED"
             row.payload, row.updated_at = p, utc_dt()
             self.audit(session, row, "WORKFLOW_SUBMITTED", "Customer reviewed and submitted banking workflow")
-            return self.view(row)
+            view = self.view(row)
+            stp = (row.id, request_id, row.skill_id, row.customer_id, f) if row.skill_id in STP_SKILLS else None
+        # Straight-through processing runs after the submission is committed (its ledger change is its own transaction).
+        return self.straight_through(*stp) if stp else view
+
+    def straight_through(self, workflow_id, request_id, skill_id, customer_id, fields):
+        from backend.notifications import notify, phone_for
+        fulfilment, referral = stp_fulfil(self.db, skill_id, customer_id, fields, request_id)
+        with self.db._lock, self.db.runtime.sessions.begin() as session:
+            request = session.get(ServiceRequestRecord, request_id)
+            row = session.get(BankingWorkflowRecord, workflow_id)
+            data = dict(request.collected_data or {})
+            if fulfilment:
+                data["fulfilment"] = fulfilment
+                request.status, request.resolution_reason, request.approver_id = "COMPLETED", fulfilment["summary"], "STP"
+                row.status = "COMPLETED"
+                row.payload = {**row.payload, "fulfilment": fulfilment, **({"download": fulfilment["download"]} if fulfilment.get("download") else {})}
+                self.audit(session, row, "STP_COMPLETED", f"Straight-through: {fulfilment['summary']}")
+            else:
+                data["stp_referral"] = referral
+                request.discrepancy_flags = list(dict.fromkeys([*(request.discrepancy_flags or []), "STP_REFERRED"]))
+                self.audit(session, row, "STP_REFERRED", f"Sent to officer review: {referral}")
+            request.collected_data, request.updated_at, row.updated_at = data, utc_dt(), utc_dt()
+            view = self.view(row)
+        if fulfilment:
+            notify(self.db, "service_request_update", phone_for(self.db, customer_id), customer_id=customer_id,
+                   reference=request_id, service=WORKFLOWS[skill_id]["name"], status="completed")
+        return view
 
 
 def make_workflow_router(service, customer, customer_csrf, consent, officer, limiter):
