@@ -99,6 +99,7 @@ async def security_headers(request: Request, call_next):
         "connect-src 'self' ws: wss: https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.google.com https://www.gstatic.com https://recaptchaenterprise.googleapis.com; "
         "frame-src 'self' https://www.google.com https://www.recaptcha.net https://*.firebaseapp.com; "
         "img-src 'self' data: https://www.gstatic.com; "
+        "media-src 'self' blob:; "  # Mitra's Gemini voice replies play from same-origin blob URLs
         "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     )
     return response

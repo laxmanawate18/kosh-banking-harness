@@ -71,3 +71,7 @@ class ApprovalDecisionRequest(BaseModel):
     override_justification: Optional[str] = None
     verification_checks: List[str] = Field(default_factory=list)
     verification_reference: str = Field(default="", max_length=300)
+
+
+class SpeakRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=6000)

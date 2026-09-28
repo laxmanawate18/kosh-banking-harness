@@ -14,8 +14,9 @@ except ImportError:
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
+from backend import voice
 from backend.agent_config import create_agent_config, visitor_reply
-from backend.api_models import ProductApplyRequest, PublicChatRequest
+from backend.api_models import ProductApplyRequest, PublicChatRequest, SpeakRequest
 from backend.applications import bind as bind_applications, submit_application
 from auth_service import AuthService
 from product_service import (
@@ -76,6 +77,42 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
         del response
         return submit_application(db, auth_service, req)
 
+
+    @router.post("/api/chat/speak")
+    @limiter.limit("30/minute")
+    async def speak_reply(req: SpeakRequest, request: Request, response: Response):
+        """Read one Mitra reply aloud with Gemini text-to-speech (WAV)."""
+        del request, response
+        try:
+            async with async_timeout(45):
+                audio = await voice.synthesize(req.text)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(502, "Mitra's voice is unavailable right now.") from exc
+        return Response(audio, media_type="audio/wav", headers={"Cache-Control": "private, max-age=3600"})
+
+    @router.post("/api/chat/transcribe")
+    @limiter.limit("20/minute")
+    async def transcribe_voice_message(request: Request, response: Response):
+        """Voice message → text for Mitra. Raw audio body; the transcript is then sent like typed text."""
+        del response
+        mime_type = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+        if mime_type not in voice.AUDIO_TYPES:
+            raise HTTPException(415, "Send the voice message as audio.")
+        audio = await request.body()
+        if not audio:
+            raise HTTPException(422, "The recording was empty. Please try again.")
+        if len(audio) > voice.MAX_AUDIO_BYTES:
+            raise HTTPException(413, "Voice messages can be up to about one minute long.")
+        try:
+            async with async_timeout(30):
+                text = await voice.transcribe(audio, mime_type)
+        except Exception as exc:
+            raise HTTPException(502, "Mitra could not listen to that just now. Please try again or type your message.") from exc
+        if not text:
+            raise HTTPException(422, "Mitra could not hear any speech. Please try again closer to the microphone.")
+        return {"text": text[:4000]}
 
     @router.post("/api/public/chat")
     @limiter.limit("30/minute")

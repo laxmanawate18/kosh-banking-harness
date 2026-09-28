@@ -295,6 +295,22 @@ def stage_a(b, R):
     R.check("A05", area, "Visitor Mitra answers a product question",
             len(txt) > 60 and fr[-1].get("type") == "turn_complete",
             f"model={turn_model(fr)} reply={txt[:300]!r}", shot(R, pg, "A05_visitor_product"))
+    speak = []
+    pg.on("response", lambda r: "/api/chat/speak" in r.url and speak.append((r.status, r.headers.get("content-type"), time.time())))
+    clicked = time.time()
+    pg.locator("dialog[open] button.ai-listen").last.click()
+    for _ in range(60):
+        if speak:
+            break
+        pg.wait_for_timeout(500)
+    pg.wait_for_timeout(1500)
+    playing = pg.evaluate("() => [...document.querySelectorAll('button.ai-listen')].some(b => b.classList.contains('is-speaking'))")
+    wait_s = round(speak[0][2] - clicked, 1) if speak else None
+    R.check("A18", area, "Listen reads Mitra's reply aloud with Gemini text-to-speech (audio starts within ~15 s)",
+            bool(speak) and speak[0][:2] == (200, "audio/wav") and playing and wait_s <= 15,
+            f"/api/chat/speak → {[x[:2] for x in speak]}; seconds to first audio={wait_s}; playing={playing}")
+    if playing:
+        pg.locator("dialog[open] button.ai-listen.is-speaking").first.click()
     R.check("A06", area, "Visitor Mitra hides internal SUGGESTIONS markup from the customer",
             "SUGGESTIONS:" not in ui, "raw 'SUGGESTIONS:' visible in drawer" if "SUGGESTIONS:" in ui else "clean")
     fr = chat_turn(pg, w, "What is my account balance right now?")
@@ -1220,10 +1236,10 @@ def stage_e(b, R):
     R.check("E03", area, "Brand is fixed at the source (no runtime Sentinel→Kosh text rewriting in the browser)",
             not (ROOT / "frontend/src/branding.ts").exists(), "frontend/src/branding.ts rewrites text at runtime" if (ROOT / "frontend/src/branding.ts").exists() else "removed")
     olds = [f"{f}:{n}" for rel in USER_FACING + ["test_dev_ui.py", "tests", ".env.example", "Dockerfile", "docker-compose.yml"]
-            for f, n, l in iter_lines(rel) if re.search(r"gemini-2\.5|gemini-2\.0|gemini-1\.5", l)]
+            for f, n, l in iter_lines(rel) if re.search(r"gemini-(2\.5|2\.0|1\.5)-(?!\w*-?tts)", l)]  # TTS has no 3.8 model yet
     settings = (ROOT / "backend/settings.py").read_text()
     default = re.search(r'DEFAULT_MODEL\s*=\s*"([^"]+)"', settings)
-    R.check("E04", area, "Configured model is gemini-3.8-flash everywhere (no 2.5 references)",
+    R.check("E04", area, "Chat and transcription use gemini-3.8-flash everywhere (only the dedicated TTS voice model differs)",
             default and default.group(1) == "gemini-3.8-flash" and not olds, f"DEFAULT_MODEL={default and default.group(1)}; old refs={olds}")
     rt = R.state.get("runtime_model")
     R.check("E05", area, "Mitra actually runs on gemini-3.8-flash at runtime", rt == "gemini-3.8-flash", f"turn_start.model={rt}")

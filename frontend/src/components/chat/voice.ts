@@ -114,7 +114,7 @@ export const speakable = (md: string) => md
   .replace(/\s+/g, ' ')
   .trim();
 
-export const canSpeak = () => typeof window !== 'undefined' && 'speechSynthesis' in window;
+export const canSpeak = () => typeof window !== 'undefined' && (typeof Audio !== 'undefined' || 'speechSynthesis' in window);
 
 function voiceFor(lang: string) {
   const voices = window.speechSynthesis.getVoices();
@@ -127,25 +127,92 @@ function voiceFor(lang: string) {
 }
 
 let speakingId: string | null = null;
+let player: HTMLAudioElement | null = null;
 const listeners = new Set<(id: string | null) => void>();
 const announce = (id: string | null) => { speakingId = id; listeners.forEach(l => l(id)); };
 
-export function speak(id: string, text: string) {
-  if (!canSpeak()) return;
-  window.speechSynthesis.cancel();
-  const words = speakable(text);
-  if (!words) return;
+/** Device voice, used only when Gemini text-to-speech is unreachable. */
+function speakWithBrowser(id: string, words: string) {
+  if (!('speechSynthesis' in window)) { announce(null); return; }
   const u = new SpeechSynthesisUtterance(words);
   u.lang = speechLang(words);
   const v = voiceFor(u.lang);
   if (v) u.voice = v;
   u.onend = u.onerror = () => { if (speakingId === id) announce(null); };
-  announce(id);
   window.speechSynthesis.speak(u);
 }
 
+/** Sentence-sized pieces: a short first piece so audio starts quickly, longer ones after it. */
+export function speechChunks(words: string): string[] {
+  const sentences = words.match(/[^.!?।]+[.!?।]*\s*/g) || [words];
+  const chunks: string[] = [];
+  let current = '';
+  for (const sentence of sentences) {
+    const limit = chunks.length === 0 ? 110 : 420;
+    if (current && (current + sentence).length > limit) { chunks.push(current.trim()); current = ''; }
+    current += sentence;
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
+let aborter: AbortController | null = null;
+
+async function fetchSpeech(text: string, signal: AbortSignal): Promise<string> {
+  const res = await fetch('/api/chat/speak', {
+    method: 'POST', credentials: 'same-origin', signal,
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
+  });
+  if (!res.ok) throw new Error(`speak ${res.status}`);
+  return URL.createObjectURL(await res.blob());
+}
+
+const playUrl = (url: string) => new Promise<void>((resolve, reject) => {
+  const audio = new Audio(url);
+  player = audio;
+  audio.onended = () => resolve();
+  audio.onerror = () => reject(new Error('audio'));
+  audio.play().catch(reject);
+});
+
+/** Read a reply aloud with Gemini TTS (same voice on every device, natural Hindi and Marathi). */
+export async function speak(id: string, text: string) {
+  if (!canSpeak()) return;
+  stopSpeaking();
+  const words = speakable(text);
+  if (!words) return;
+  announce(id);
+  const controller = new AbortController();
+  aborter = controller;
+  const chunks = speechChunks(words);
+  // Keep the next piece downloading while the current one plays.
+  const pending = chunks.map(() => null as Promise<string> | null);
+  const load = (i: number) => (pending[i] ??= fetchSpeech(chunks[i], controller.signal));
+  let started = false;
+  try {
+    for (let i = 0; i < chunks.length; i++) {
+      const url = await load(i);
+      if (i + 1 < chunks.length) load(i + 1);
+      if (controller.signal.aborted || speakingId !== id) { URL.revokeObjectURL(url); return; }
+      started = true;
+      try { await playUrl(url); } finally { URL.revokeObjectURL(url); }
+    }
+    if (speakingId === id) announce(null);
+  } catch {
+    if (controller.signal.aborted || speakingId !== id) return;
+    if (!started) speakWithBrowser(id, words);  // Gemini voice unreachable: fall back to the device voice
+    else announce(null);
+  } finally {
+    if (aborter === controller) aborter = null;
+    player = null;
+  }
+}
+
 export function stopSpeaking() {
-  if (canSpeak()) window.speechSynthesis.cancel();
+  aborter?.abort();
+  aborter = null;
+  if (player) { player.pause(); player = null; }
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
   announce(null);
 }
 

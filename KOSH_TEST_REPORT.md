@@ -265,3 +265,38 @@ venv/bin/python tests/e2e/report_table.py .local/e2e-results/run1-final/results.
 
 Python suites, one file at a time, isolated from real data:
 `SENTINEL_DATABASE_URL=sqlite+pysqlite:////tmp/kosh-unit.sqlite3 SMTP_HOST= BETTER_AUTH_URL=http://127.0.0.1:9 venv/bin/python -m pytest -q <file>`
+
+## 9. Follow-up changes after the report
+
+### 9.1 Mitra conversation fix (from your chat transcript)
+
+**What was wrong:**
+- The companion "Pre-Approved Card" appeared on every reply.
+- Mitra invented a video-KYC, SMS-link and appointment process that Kosh doesn't have.
+- It created three anonymous "leads" with no contact details, and never submitted the real application.
+
+**Now:**
+- **Mitra takes the application in chat.** It uses the details already typed, shows a summary, and submits only after the visitor's own "confirm" (detected in code).
+- **One application per product.** It goes through the same path as the website form and shows an "Application submitted" card with the real reference.
+- **Only the real process:** officer review → credentials by email → sign in → KYC with Mitra.
+- **Cross-selling:** one relevant companion offer per chat; never shown again after "no thanks"; an accepted offer goes through the same confirm-and-submit flow.
+- **Other fixes:**
+  - The sales filter compares rates by value (2% = 2.0%).
+  - The fallback reply moves the journey forward.
+  - Startup no longer crashes when a real profile owns a demo mobile.
+
+Verified by end-to-end stage V (7/7, through officer approval, the emailed credentials and the customer's sign-in) and 6 unit tests.
+
+### 9.2 Voice: Gemini text-to-speech
+
+- **Listen** now reads Mitra's replies with **Gemini TTS** (`gemini-2.5-flash-tts`, voice "Kore"): the same natural voice on every device, including Hindi and Marathi. Gemini 3.8 Flash can't produce audio and there's no 3.8 TTS model yet, so this is the one deliberate exception to the 3.8 rule. It's configurable via `GEMINI_TTS_MODEL` / `GEMINI_TTS_VOICE`.
+- **Speed:** replies are spoken in sentence-sized pieces, with the next piece prefetched, so the first audio arrives in ~5–9 s instead of ~70 s for a long reply. A device-voice fallback covers outages.
+- **Voice input:** the restored `/api/chat/transcribe` (Gemini 3.8 Flash) makes it work again on browsers without live speech recognition.
+- **Playback blocker fixed:** the page's security policy blocked audio playback entirely (`media-src` was missing). It now allows same-origin `blob:` media only.
+- **Verified:**
+  - an English, Hindi and Marathi round trip (TTS → transcription matches the text)
+  - browser check A18 (audio playing, 8.6 s to first sound)
+  - 4 route tests
+- **Next step if needed:** Gemini's streaming audio API would cut time-to-first-sound further.
+
+**Totals after these changes:** 142 Python tests pass; the full end-to-end run (with stage V) was 82/83. The one flag was the TTS model name, now an explicit exception in check E04. Stage A reran at 20/20 with voice.
