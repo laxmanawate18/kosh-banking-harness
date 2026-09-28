@@ -1,0 +1,365 @@
+import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import type {
+  PortalOverview,
+  Challenge,
+  AuditEvent,
+  Account,
+  Transaction,
+  Beneficiary,
+  Bill,
+  Card,
+  CustomerProfile,
+  CustomerKYC,
+  ServiceRequestItem,
+} from '../types/banking';
+import * as bankingService from '../services/banking';
+import { startWorkflow as startWorkflowApi } from '../services/workflows';
+import { useAuth } from './AuthContext';
+import { brandAuditEvent, brandDisplayText } from '../branding';
+
+interface BankingContextValue {
+  overview: PortalOverview | null;
+  accounts: Account[];
+  transactions: Transaction[];
+  beneficiaries: Beneficiary[];
+  bills: Bill[];
+  cards: Card[];
+  profile: CustomerProfile | null;
+  kyc: CustomerKYC | null;
+  serviceRequests: ServiceRequestItem[];
+  auditEvents: AuditEvent[];
+  events: AuditEvent[];
+  isLoading: boolean;
+  isActionPending: boolean;
+  activeChallenge: Challenge | null;
+  setActiveChallenge: (c: Challenge | null) => void;
+  activeWorkflowId: string | null;
+  setActiveWorkflowId: (id: string | null) => void;
+  openWorkflow: (id: string) => void;
+  startWorkflowById: (skillId: string) => Promise<void>;
+  refreshOverview: () => Promise<void>;
+  transfer: (fromAccountId: string, toAccountId: string, amountPaise: number, remarks?: string) => Promise<any>;
+  transferMoney: (payload: { source_account_id: string; beneficiary_id?: string; amount_minor: number; note?: string }) => Promise<any>;
+  addBeneficiary: (payload: { name: string; account_number: string; ifsc_code?: string; bank_name?: string; nickname?: string; transfer_limit_paise?: number }) => Promise<any>;
+  payBill: (billId: string, sourceAccountId?: string) => Promise<any>;
+  toggleCardFreeze: (cardId: string, freeze: boolean) => Promise<void>;
+  verifyChallenge: () => Promise<any>;
+  decideChallenge: (challengeId: string, decision: 'APPROVE' | 'REJECT', rationale?: string) => Promise<any>;
+}
+
+
+const BankingContext = createContext<BankingContextValue | undefined>(undefined);
+
+export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { auth, user } = useAuth();
+  const [overview, setOverview] = useState<PortalOverview | null>(null);
+  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequestItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isActionPending, setIsActionPending] = useState<boolean>(false);
+  const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
+
+  const openWorkflow = useCallback((id: string) => {
+    setActiveWorkflowId(id);
+  }, []);
+
+  const startWorkflowById = useCallback(async (skillId: string) => {
+    try {
+      setIsActionPending(true);
+      const wf = await startWorkflowApi(skillId);
+      if (wf && wf.id) {
+        setActiveWorkflowId(wf.id);
+      }
+    } catch (e) {
+      console.error('Could not start workflow', e);
+    } finally {
+      setIsActionPending(false);
+    }
+  }, []);
+
+
+  const normalizeOverview = (data: any): PortalOverview => {
+    if (!data) return data;
+    const accounts: Account[] = (data.accounts || []).map((a: any) => ({
+      ...a,
+      name: brandDisplayText(a.name ?? a.account_name),
+      account_name: brandDisplayText(a.account_name ?? a.name),
+      balance_paise: a.balance_paise ?? a.available_balance_minor ?? 0,
+      account_type: a.account_type ?? a.type ?? 'SAVINGS',
+      account_number: a.account_number ?? a.account_number_masked ?? '10920000001',
+    }));
+
+    const transactions: Transaction[] = (data.transactions || []).map((t: any) => ({
+      ...t,
+      description: brandDisplayText(t.description),
+      counterparty: brandDisplayText(t.counterparty),
+      amount_paise: t.amount_paise ?? t.amount_minor ?? 0,
+      type: t.type ?? t.direction ?? 'DEBIT',
+      reference_number: t.reference_number ?? t.reference ?? t.id,
+      created_at: t.created_at ?? t.posted_at ?? new Date().toISOString(),
+    }));
+
+    const bills: Bill[] = (data.bills || []).map((b: any) => ({
+      ...b,
+      amount_paise: b.amount_paise ?? b.amount_minor ?? 0,
+      category: b.category ?? 'Utility',
+      status: b.status ?? 'PENDING',
+    }));
+
+    const cards: Card[] = (data.cards || []).map((c: any) => ({
+      ...c,
+      card_number: c.card_number ?? c.card_number_masked ?? '•••• •••• •••• 9821',
+      card_type: brandDisplayText(c.card_type ?? 'KOSH PLATINUM DEBIT'),
+      cardholder_name: c.cardholder_name ?? data.customer?.full_name ?? 'VALUED CUSTOMER',
+      daily_limit_paise: c.daily_limit_paise ?? c.daily_limit_minor ?? 20000000,
+      is_frozen: c.is_frozen ?? (c.status === 'FROZEN'),
+      status: c.status ?? (c.is_frozen ? 'FROZEN' : 'ACTIVE'),
+    }));
+
+    const beneficiaries: Beneficiary[] = (data.beneficiaries || []).map((b: any) => ({
+      ...b,
+      account_number: b.account_number ?? b.account_number_masked ?? '10920000002',
+      ifsc_code: b.ifsc_code ?? b.ifsc ?? 'SNTL0001092',
+    }));
+
+    const customer = data.customer ? {
+      ...data.customer,
+      email: brandDisplayText(data.customer.email),
+    } : data.customer;
+
+    return {
+      ...data,
+      customer,
+      accounts,
+      transactions,
+      bills,
+      cards,
+      beneficiaries,
+      security_alerts: (data.security_alerts || []).map((alert: any) => ({
+        ...alert,
+        title: brandDisplayText(alert.title),
+        description: brandDisplayText(alert.description),
+      })),
+      total_available_minor: data.total_available_minor ?? accounts.reduce((s, a) => s + a.balance_paise, 0),
+    };
+  };
+
+  const refreshOverview = useCallback(async () => {
+    if (!auth && !user) return;
+    setIsLoading(true);
+    try {
+      if (user?.role === 'OFFICER') {
+        const ops = await bankingService.fetchOperationsQueue().catch(() => null);
+        if (ops) {
+          const reqs = (ops as any).requests || (ops as any).cases || [];
+          setOverview({
+            requests: reqs,
+            operations: reqs,
+          } as any);
+          setEvents((((ops as any).events || []) as AuditEvent[]).map(event => brandAuditEvent(event)));
+        }
+      } else {
+        const [ovData, evData] = await Promise.all([
+          bankingService.fetchOverview().catch(() => null),
+          bankingService.fetchEvents().catch(() => ({ events: [] })),
+        ]);
+        if (ovData) {
+          setOverview(normalizeOverview(ovData));
+        }
+        setEvents(((evData?.events || []) as AuditEvent[]).map(event => brandAuditEvent(event)));
+      }
+    } catch (e) {
+      console.error('Failed to load banking overview:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [auth, user]);
+
+  useEffect(() => {
+    if (auth || user) {
+      refreshOverview();
+    } else {
+      setOverview(null);
+      setEvents([]);
+    }
+  }, [auth, user, refreshOverview]);
+
+  const transfer = async (fromAccountId: string, toAccountId: string, amountPaise: number, remarks?: string) => {
+    setIsActionPending(true);
+    try {
+      const res = await bankingService.transferMoney({
+        source_account_id: fromAccountId,
+        beneficiary_id: toAccountId,
+        amount_minor: amountPaise,
+        note: remarks,
+      });
+      if (res?.challenge) {
+        setActiveChallenge(res.challenge);
+      } else {
+        await refreshOverview();
+      }
+      return res;
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  const transferMoney = async (payload: { source_account_id: string; beneficiary_id?: string; amount_minor: number; note?: string }) => {
+    setIsActionPending(true);
+    try {
+      const res = await bankingService.transferMoney(payload);
+      if (res?.challenge) {
+        setActiveChallenge(res.challenge);
+      } else {
+        await refreshOverview();
+      }
+      return res;
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  const addBeneficiary = async (payload: { name: string; account_number: string; ifsc_code?: string; bank_name?: string; nickname?: string; transfer_limit_paise?: number }) => {
+    setIsActionPending(true);
+    try {
+      const res = await bankingService.addBeneficiary({
+        name: payload.name,
+        account_number: payload.account_number,
+        ifsc: payload.ifsc_code || 'SNTL0001092',
+        bank_name: payload.bank_name || 'Kosh Bank',
+        nickname: payload.nickname,
+      });
+      await refreshOverview();
+      return res;
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  const payBill = async (billId: string, sourceAccountId?: string) => {
+    setIsActionPending(true);
+    try {
+      const accId = sourceAccountId || overview?.accounts[0]?.id || '';
+      const res = await bankingService.payBill({ bill_id: billId, source_account_id: accId });
+      if (res?.challenge) {
+        setActiveChallenge(res.challenge);
+      } else {
+        await refreshOverview();
+      }
+      return res;
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  const toggleCardFreeze = async (cardId: string, freeze: boolean) => {
+    setIsActionPending(true);
+    try {
+      const nextStatus = freeze ? 'FROZEN' : 'ACTIVE';
+      await bankingService.setCardStatus(cardId, nextStatus);
+      await refreshOverview();
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  const verifyChallenge = async () => {
+    if (!activeChallenge) throw new Error('No active challenge');
+    setIsActionPending(true);
+    try {
+      const res = await bankingService.verifyChallenge(activeChallenge.id, {
+        transaction_digest: activeChallenge.transaction_digest || '',
+      });
+      if (res.success || res.status === 'SUCCESS' || res.status === 'APPROVED') {
+        setActiveChallenge(null);
+        await refreshOverview();
+      }
+      return res;
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  const decideChallenge = async (challengeId: string, decision: 'APPROVE' | 'REJECT', rationale?: string) => {
+    setIsActionPending(true);
+    try {
+      const res = await bankingService.decideChallenge(challengeId, decision, rationale);
+      await refreshOverview();
+      return res;
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  return (
+    <BankingContext.Provider
+      value={{
+        overview,
+        accounts: overview?.accounts || [],
+        transactions: overview?.transactions || [],
+        beneficiaries: overview?.beneficiaries || [],
+        bills: overview?.bills || [],
+        cards: overview?.cards || [],
+        profile: overview?.customer || null,
+        kyc: overview?.customer?.kyc || null,
+        serviceRequests,
+        auditEvents: events,
+        events,
+        isLoading,
+        isActionPending,
+        activeChallenge,
+        setActiveChallenge,
+        activeWorkflowId,
+        setActiveWorkflowId,
+        openWorkflow,
+        startWorkflowById,
+        refreshOverview,
+        transfer,
+        transferMoney,
+        addBeneficiary,
+        payBill,
+        toggleCardFreeze,
+        verifyChallenge,
+        decideChallenge,
+      }}
+    >
+      {children}
+    </BankingContext.Provider>
+  );
+};
+export const useBanking = () => {
+  const context = useContext(BankingContext);
+  if (!context) {
+    return {
+      overview: null,
+      accounts: [],
+      transactions: [],
+      beneficiaries: [],
+      bills: [],
+      cards: [],
+      profile: null,
+      kyc: null,
+      serviceRequests: [],
+      auditEvents: [],
+      events: [],
+      isLoading: false,
+      isActionPending: false,
+      activeChallenge: null,
+      setActiveChallenge: () => {},
+      activeWorkflowId: null,
+      setActiveWorkflowId: () => {},
+      openWorkflow: () => {},
+      startWorkflowById: async () => {},
+      refreshOverview: async () => {},
+      transfer: async () => {},
+      transferMoney: async () => {},
+      addBeneficiary: async () => {},
+      payBill: async () => {},
+      toggleCardFreeze: async () => {},
+      verifyChallenge: async () => {},
+      decideChallenge: async () => {},
+    };
+  }
+  return context;
+};

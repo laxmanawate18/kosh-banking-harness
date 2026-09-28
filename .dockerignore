@@ -1,0 +1,14 @@
+venv
+.venv
+__pycache__
+*.pyc
+.git
+.gitignore
+.env.local
+node_modules
+**/node_modules
+dist
+**/dist
+.pytest_cache
+tests/__pycache__
+sentinel_laxman

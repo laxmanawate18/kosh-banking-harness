@@ -1,0 +1,17 @@
+google-antigravity==0.1.16
+rich>=13.0.0
+python-dotenv>=1.0.0
+fastapi>=0.100.0
+uvicorn>=0.20.0
+sqlalchemy>=2.0,<2.1
+psycopg[binary]>=3.2,<3.3
+alembic>=1.14,<2
+slowapi>=0.1.9,<0.2
+firebase-admin>=6.5.0
+google-cloud-documentai>=3.0,<4
+google-cloud-vision>=3.9,<4
+cryptography>=43
+PyJWT[crypto]>=2.9,<3
+Pillow>=11,<13
+pypdf>=5,<7
+playwright>=1.40.0

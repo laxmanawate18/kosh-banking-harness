@@ -1,0 +1,15 @@
+.gcloudignore
+.git
+.gitignore
+venv/
+__pycache__/
+*.pyc
+.env
+data/*.key
+data/*.sqlite3*
+frontend/node_modules/
+frontend/dist/
+auth-server/node_modules/
+auth-server/dist/
+.pytest_cache/
+sentinel_laxman/

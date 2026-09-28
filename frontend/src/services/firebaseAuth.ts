@@ -1,0 +1,75 @@
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import {
+  getAuth,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  type Auth,
+  type ConfirmationResult,
+} from 'firebase/auth';
+import type { PublicAuthConfig } from '../types/auth';
+
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let recaptchaVerifier: RecaptchaVerifier | null = null;
+
+export function formatE164(phone: string): string {
+  let cleaned = phone.replace(/[^\d+]/g, '');
+  if (cleaned.startsWith('+')) {
+    return cleaned;
+  }
+  if (cleaned.startsWith('0') && cleaned.length === 11) {
+    cleaned = cleaned.slice(1);
+  }
+  if (cleaned.length === 10) {
+    return `+91${cleaned}`;
+  }
+  return `+${cleaned}`;
+}
+
+export function getFirebaseAuth(config: PublicAuthConfig): Auth {
+  if (!app) {
+    const firebaseConfig = {
+      apiKey: config.firebase_api_key,
+      authDomain: config.firebase_auth_domain,
+      projectId: config.gcp_project_id,
+    };
+    app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    auth = getAuth(app);
+  }
+  return auth!;
+}
+
+export function setupRecaptcha(containerId: string, authInstance: Auth): RecaptchaVerifier {
+  if (recaptchaVerifier) {
+    try {
+      recaptchaVerifier.clear();
+    } catch {}
+    recaptchaVerifier = null;
+  }
+  recaptchaVerifier = new RecaptchaVerifier(authInstance, containerId, {
+    size: 'invisible',
+    callback: () => {
+      // reCAPTCHA solved, phone OTP request allowed
+    },
+    'expired-callback': () => {
+      console.warn('reCAPTCHA expired');
+    },
+  });
+  return recaptchaVerifier;
+}
+
+export async function sendRealPhoneOtp(
+  phoneNumber: string,
+  config: PublicAuthConfig,
+  containerId: string = 'recaptcha-container',
+  allowConfiguredLocalTest: boolean = false,
+): Promise<ConfirmationResult> {
+  const formatted = formatE164(phoneNumber);
+  const authInstance = getFirebaseAuth(config);
+  const local = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+  if (allowConfiguredLocalTest && local && formatted === formatE164(config.firebase_test_phone)) {
+    authInstance.settings.appVerificationDisabledForTesting = true;
+  }
+  const verifier = setupRecaptcha(containerId, authInstance);
+  return signInWithPhoneNumber(authInstance, formatted, verifier);
+}

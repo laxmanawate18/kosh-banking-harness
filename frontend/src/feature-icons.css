@@ -1,0 +1,223 @@
+/* Kosh feature icons (FeatureIcon.tsx). Transform / opacity / stroke-dashoffset only.
+   Each animated part carries .fi-a plus .fi-p-<motion>, which sets --a (keyframes), --t (duration),
+   --e (easing), --o (transform-origin); per-element delay comes in inline as --d. */
+
+.fi { display: inline-block; flex: none; vertical-align: middle; overflow: visible; }
+.fi--tile { filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.32)); }
+
+.fi-a { transform-box: fill-box; transform-origin: var(--o, center); }
+
+.fi.fi-in .fi-a,
+.fi-host:focus-visible .fi .fi-a {
+  animation: var(--a) var(--t, 900ms) var(--e, cubic-bezier(0.23, 1, 0.32, 1)) var(--d, 0ms) 1 both;
+}
+@media (hover: hover) and (pointer: fine) {
+  .fi:hover .fi-a,
+  .fi-host:hover .fi .fi-a {
+    animation: var(--a) var(--t, 900ms) var(--e, cubic-bezier(0.23, 1, 0.32, 1)) var(--d, 0ms) 1 both;
+  }
+}
+.fi-loop .fi-art { animation: fi-float 4s ease-in-out infinite; }
+
+/* Parts: resting state is always the finished pose (transient extras rest at opacity 0). */
+.fi-p-coin { --a: fi-coin; --t: 1000ms; --e: ease-in-out; }
+.fi-p-squish { --a: fi-squish; --t: 1000ms; --o: 50% 100%; --e: ease-out; }
+.fi-p-lift { --a: fi-lift; --t: 900ms; --o: 50% 100%; }
+.fi-p-glint { --a: fi-glint; --t: 900ms; opacity: 0; }
+.fi-p-stack { --a: fi-stack; --t: 420ms; }
+.fi-p-rise { --a: fi-rise; --t: 700ms; }
+.fi-p-door { --a: fi-door; --t: 1100ms; --o: 0% 50%; --e: ease-in-out; }
+.fi-p-scan { --a: fi-scan; --t: 1100ms; --e: ease-in-out; opacity: 0; }
+.fi-p-draw { --a: fi-draw; --t: 650ms; }
+.fi-p-ring { --a: fi-ring; --t: 900ms; --d: 450ms; opacity: 0; }
+.fi-p-dot { --a: fi-dot; --t: 900ms; --e: ease-in-out; }
+.fi-p-print { --a: fi-print; --t: 800ms; }
+.fi-p-grow { --a: fi-grow; --t: 700ms; --o: 50% 100%; }
+.fi-p-spin { --a: fi-spin; --t: 1100ms; --e: ease-in-out; }
+.fi-p-fly { --a: fi-fly; --t: 1100ms; --e: cubic-bezier(0.5, 0, 0.2, 1); }
+.fi-p-fade { --a: fi-fade; --t: 500ms; }
+.fi-p-orbit { --a: fi-orbit; --t: 1100ms; --e: cubic-bezier(0.45, 0, 0.2, 1); }
+.fi-p-sprout { --a: fi-sprout; --t: 800ms; --o: 50% 100%; }
+.fi-p-leaf { --a: fi-leaf; --t: 800ms; }
+.fi-p-toss { --a: fi-toss; --t: 1000ms; --o: 50% 100%; --e: ease-in-out; }
+.fi-p-beat { --a: fi-beat; --t: 1000ms; --e: ease-in-out; }
+.fi-p-twinkle { --a: fi-twinkle; --t: 900ms; }
+.fi-p-bob { --a: fi-bob; --t: 900ms; --o: 50% 100%; --e: ease-in-out; }
+.fi-p-arrow { --a: fi-arrow; --t: 900ms; --e: ease-in-out; }
+.fi-p-pop { --a: fi-pop; --t: 550ms; }
+.fi-p-press { --a: fi-press; --t: 280ms; --e: ease-in-out; }
+.fi-p-lid { --a: fi-lid; --t: 1000ms; --o: 0% 100%; --e: ease-in-out; }
+.fi-p-shackle { --a: fi-shackle; --t: 900ms; --e: ease-in-out; }
+.fi-p-click { --a: fi-click; --t: 900ms; }
+.fi-p-tilt { --a: fi-tilt; --t: 800ms; --o: 50% 100%; --e: ease-in-out; }
+.fi-p-open { --a: fi-open; --t: 800ms; --o: 50% 0%; }
+.fi-p-bell { --a: fi-bell; --t: 1000ms; --o: 50% 0%; --e: ease-in-out; }
+.fi-p-clap { --a: fi-clap; --t: 1000ms; --e: ease-in-out; }
+.fi-p-emit { --a: fi-emit; --t: 500ms; }
+.fi-p-write { --a: fi-write; --t: 380ms; --o: 0% 50%; }
+
+@keyframes fi-coin {
+  0% { transform: none; opacity: 1; }
+  40% { transform: translateY(10px) scale(0.75); opacity: 0; }
+  41% { transform: translateY(-9px); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+@keyframes fi-squish {
+  0%, 38% { transform: none; }
+  50% { transform: scale(1.05, 0.94); }
+  66% { transform: scale(0.98, 1.03); }
+  82%, 100% { transform: none; }
+}
+@keyframes fi-lift {
+  0% { transform: none; }
+  45% { transform: translate(-1px, -6px) rotate(-7deg); }
+  100% { transform: none; }
+}
+@keyframes fi-glint {
+  0%, 30% { opacity: 0; transform: scale(0); }
+  55% { opacity: 1; transform: scale(1) rotate(45deg); }
+  100% { opacity: 0; transform: scale(0) rotate(90deg); }
+}
+@keyframes fi-stack { from { opacity: 0; transform: translateY(-7px); } }
+@keyframes fi-rise {
+  from { opacity: 0; transform: translateY(6px) scale(0.4); }
+  60% { opacity: 1; transform: translateY(-2px) scale(1.1); }
+}
+@keyframes fi-door {
+  0% { transform: none; }
+  40%, 60% { transform: scaleX(0.18); }
+  100% { transform: none; }
+}
+@keyframes fi-scan {
+  0% { opacity: 0; transform: none; }
+  12%, 88% { opacity: 1; }
+  50% { transform: translateY(27px); }
+  100% { opacity: 0; transform: none; }
+}
+@keyframes fi-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes fi-ring {
+  from { opacity: 0.9; transform: scale(0.95); }
+  to { opacity: 0; transform: scale(1.32); }
+}
+@keyframes fi-dot {
+  0%, 70%, 100% { transform: none; }
+  35% { transform: translateY(-4px); }
+}
+@keyframes fi-print { from { transform: translateY(-36px); } }
+@keyframes fi-grow { from { transform: scaleY(0.15); } }
+@keyframes fi-spin {
+  0% { transform: none; }
+  50% { transform: scaleX(-1); }
+  100% { transform: none; }
+}
+@keyframes fi-fly {
+  0% { transform: none; opacity: 1; }
+  42% { transform: translate(18px, -14px) scale(0.55); opacity: 0; }
+  43% { transform: translate(-16px, 12px) scale(0.6); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+@keyframes fi-fade { from { opacity: 0; } }
+@keyframes fi-orbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes fi-sprout {
+  from { transform: scale(0.15); opacity: 0; }
+  65% { transform: scale(1.06); opacity: 1; }
+  to { transform: none; }
+}
+@keyframes fi-leaf {
+  0% { transform: scale(0) rotate(var(--r, -25deg)); }
+  75% { transform: scale(1.08); }
+  100% { transform: none; }
+}
+@keyframes fi-toss {
+  0% { transform: none; }
+  35% { transform: translateY(-10px) rotate(-12deg); }
+  62% { transform: translateY(0) rotate(3deg); }
+  76% { transform: scale(1.05, 0.94); }
+  100% { transform: none; }
+}
+@keyframes fi-beat {
+  0%, 60%, 100% { transform: none; }
+  14% { transform: scale(1.1); }
+  28% { transform: scale(0.97); }
+  42% { transform: scale(1.06); }
+}
+@keyframes fi-twinkle {
+  0% { transform: none; }
+  35% { transform: scale(0.45) rotate(45deg); opacity: 0.6; }
+  70% { transform: scale(1.15) rotate(90deg); opacity: 1; }
+  100% { transform: rotate(90deg); }
+}
+@keyframes fi-bob {
+  0%, 100% { transform: none; }
+  40% { transform: translateY(-3px); }
+  70% { transform: translateY(0.8px); }
+}
+@keyframes fi-arrow {
+  0% { transform: none; opacity: 1; }
+  40% { transform: translate(4px, -4px); opacity: 0; }
+  41% { transform: translate(-4px, 4px); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+@keyframes fi-pop {
+  from { transform: scale(0.3); opacity: 0; }
+  65% { transform: scale(1.15); opacity: 1; }
+  to { transform: none; }
+}
+@keyframes fi-press {
+  0%, 100% { transform: none; }
+  45% { transform: scale(0.78); }
+}
+@keyframes fi-lid {
+  0% { transform: none; }
+  30%, 55% { transform: translateY(-8px) rotate(-10deg); }
+  80% { transform: translateY(1px); }
+  100% { transform: none; }
+}
+@keyframes fi-shackle {
+  0% { transform: none; }
+  30%, 50% { transform: translateY(-5px); }
+  66% { transform: translateY(0.6px); }
+  100% { transform: none; }
+}
+@keyframes fi-click {
+  0%, 62% { transform: none; }
+  70% { transform: translateY(1.2px) scale(1.02, 0.97); }
+  100% { transform: none; }
+}
+@keyframes fi-tilt {
+  0% { transform: none; }
+  35% { transform: rotate(-8deg); }
+  65% { transform: rotate(3deg); }
+  100% { transform: none; }
+}
+@keyframes fi-open {
+  from { transform: scale(0.3, 0.85); }
+  70% { transform: scale(1.06, 1); }
+  to { transform: none; }
+}
+@keyframes fi-bell {
+  0%, 100% { transform: none; }
+  12% { transform: rotate(16deg); }
+  28% { transform: rotate(-14deg); }
+  44% { transform: rotate(9deg); }
+  60% { transform: rotate(-5deg); }
+  76% { transform: rotate(2deg); }
+}
+@keyframes fi-clap {
+  0%, 100% { transform: none; }
+  14% { transform: translateX(-2.5px); }
+  30% { transform: translateX(2.5px); }
+  46% { transform: translateX(-1.5px); }
+  62% { transform: translateX(1px); }
+}
+@keyframes fi-emit { from { opacity: 0; transform: scale(0.6); } }
+@keyframes fi-write { from { transform: scaleX(0); } }
+@keyframes fi-float {
+  0%, 100% { transform: none; }
+  50% { transform: translateY(-1.5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fi .fi-a,
+  .fi .fi-art { animation: none !important; }
+}

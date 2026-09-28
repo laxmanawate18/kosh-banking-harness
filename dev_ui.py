@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""Kosh: secure agentic banking powered by Mitra and Kavach."""
+
+from __future__ import annotations
+
+import os
+from contextlib import asynccontextmanager
+from typing import Any, Dict, Optional
+
+from dotenv import load_dotenv
+if os.getenv("SKIP_DOTENV") != "1":
+    load_dotenv()
+
+from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+import uvicorn
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+
+from google.antigravity import Agent
+
+from backend.auth_routes import make_auth_router
+from backend.oauth_routes import make_oauth_router
+from backend.chat_runtime import serve_chat_websocket
+from backend.public_routes import make_public_router
+from backend.session_routes import make_session_router
+from backend.settings import ALLOWED_ORIGINS, FRONTEND_DIST
+from banking_db import db
+from banking_tools import banking_service
+from auth_service import AuthContext, AuthService, COOKIE_NAME
+from oauth_service import OAuthService
+from service_requests import ServiceRequestService
+from banking_workflows import WorkflowService, make_workflow_router
+from rpa.cbs_mock_server import cbs_router
+from rpa.job_dispatcher import get_job_queue
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    del application
+    try:
+        from knowledge_service import ingest_documents
+        ingest_documents()
+    except Exception as exc:
+        print(f"Bank knowledge ingestion warning: {exc}")
+    port = int(os.getenv("PORT", "8000"))
+    cbs_base_url = os.getenv("CBS_BASE_URL", f"http://127.0.0.1:{port}")
+    sync_worker = None
+    if os.getenv("ENABLE_CLOUD_SQL_SYNC", "false").lower() in ("1", "true", "yes"):
+        try:
+            from scripts.sync_db import start_background_replicator
+            cloud_url = os.getenv("CLOUD_SQL_DATABASE_URL")
+            local_url = os.getenv("SENTINEL_DATABASE_URL")
+            if cloud_url and local_url and cloud_url != local_url:
+                sync_worker = start_background_replicator(cloud_url=cloud_url, local_url=local_url, interval=10)
+        except Exception as exc:
+            print(f"Cloud SQL replicator notice: {exc}")
+
+    yield
+    if sync_worker:
+        sync_worker.stop()
+    get_job_queue().stop_worker()
+
+
+app = FastAPI(title="Kosh Digital Banking", lifespan=lifespan)
+app.include_router(cbs_router)
+limiter = Limiter(key_func=get_remote_address, headers_enabled=True)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True,
+                   allow_methods=["GET", "POST", "PATCH", "DELETE"],
+                   allow_headers=["Content-Type", "X-CSRF-Token", "Authorization"])
+
+if (FRONTEND_DIST / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="react_assets")
+auth_service = AuthService(db.runtime)
+oauth_service = OAuthService(auth_service)
+
+request_service = ServiceRequestService(db)
+workflow_service = WorkflowService(db)
+app.include_router(make_public_router(db, auth_service, limiter, lambda config: Agent(config)))
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://www.recaptcha.net https://apis.google.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "connect-src 'self' ws: wss: https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.google.com https://www.gstatic.com https://recaptchaenterprise.googleapis.com; "
+        "frame-src 'self' https://www.google.com https://www.recaptcha.net https://*.firebaseapp.com; "
+        "img-src 'self' data: https://www.gstatic.com; "
+        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    )
+    return response
+
+
+def _resolve_request_auth(request: Request, sentinel_session: Optional[str]) -> AuthContext | None:
+    authorization = request.headers.get("authorization", "")
+    if authorization:
+        scheme, _, credential = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not credential or not oauth_service.oidc_enabled:
+            return None
+        try:
+            return oauth_service.context_from_access_token(credential)
+        except PermissionError:
+            return None
+    if not sentinel_session:
+        return None
+    context = auth_service.resolve(sentinel_session)
+    if not context:
+        return None
+    context = oauth_service.enrich_cookie_context(context)
+    if not context.client_id or context.auth_source != "oidc":
+        return None
+    return context
+
+
+def require_auth(request: Request, sentinel_session: Optional[str] = Cookie(default=None, alias=COOKIE_NAME)) -> AuthContext:
+    context = _resolve_request_auth(request, sentinel_session)
+    if not context:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return context
+
+
+def require_customer(context: AuthContext = Depends(require_auth)) -> AuthContext:
+    if context.role != "CUSTOMER" or not context.customer_id:
+        raise HTTPException(status_code=403, detail="Customer access required")
+    if context.auth_source == "oidc" and "banking.read" not in context.scopes:
+        raise HTTPException(status_code=403, detail="banking.read scope required")
+    return context
+
+
+def require_officer(context: AuthContext = Depends(require_auth)) -> AuthContext:
+    if context.role != "OFFICER":
+        raise HTTPException(status_code=403, detail="Officer access required")
+    return context
+
+
+def require_csrf(request: Request,
+                 sentinel_session: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
+                 x_csrf_token: Optional[str] = Header(default=None, alias="X-CSRF-Token")) -> AuthContext:
+    context = _resolve_request_auth(request, sentinel_session)
+    if not context:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if context.auth_source == "oidc" and "banking.propose" not in context.scopes:
+        raise HTTPException(status_code=403, detail="banking.propose scope required")
+    if not request.headers.get("authorization") and (
+        not sentinel_session or not auth_service.verify_csrf(sentinel_session, x_csrf_token)
+    ):
+        raise HTTPException(status_code=403, detail="CSRF validation failed")
+    return context
+
+
+def require_customer_csrf(context: AuthContext = Depends(require_csrf)) -> AuthContext:
+    return require_customer(context)
+
+
+def active_consent(context: AuthContext) -> Dict[str, Any]:
+    consent = auth_service.active_consent(context.customer_id)
+    if not consent:
+        raise HTTPException(status_code=403, detail={"code": "CONSENT_REQUIRED", "message": "Explicit digital banking consent is required"})
+    return consent
+
+
+app.include_router(make_auth_router(
+    db,
+    banking_service,
+    auth_service,
+    limiter,
+    require_auth,
+    require_csrf,
+    require_customer,
+    require_customer_csrf,
+    active_consent,
+    oauth_service,
+))
+app.include_router(make_oauth_router(oauth_service, db, limiter))
+app.include_router(make_session_router(
+    db,
+    request_service,
+    require_auth,
+    require_csrf,
+    require_customer,
+    require_customer_csrf,
+    require_officer,
+    active_consent,
+    auth_service=auth_service,
+))
+
+
+@app.get("/")
+async def get_index(request: Request):
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+    host = request.url.hostname or "localhost"
+    return RedirectResponse(f"http://{host}:3000/", status_code=307)
+
+from portal import make_portal_router
+app.include_router(make_portal_router(db, banking_service, auth_service, request_service,
+    require_customer, require_customer_csrf, require_officer, active_consent, limiter))
+app.include_router(make_workflow_router(workflow_service, require_customer, require_customer_csrf,
+    active_consent, require_officer, limiter))
+
+
+@app.websocket("/ws/chat")
+async def chat_websocket(
+    websocket: WebSocket,
+    session_id: Optional[str] = None,
+    ws_ticket: Optional[str] = None,
+    visitor: Optional[str] = None,
+):
+    await serve_chat_websocket(
+        websocket,
+        session_id,
+        db=db,
+        auth_service=auth_service,
+        workflow_service=workflow_service,
+        agent_factory=lambda config: Agent(config),
+        oauth_service=oauth_service,
+        ws_ticket=ws_ticket,
+        visitor=(str(visitor).lower() in ("true", "1", "yes") if visitor else False),
+    )
+
+def main() -> None:
+    port = int(os.getenv("PORT", "8000"))
+    host = os.getenv("HOST", "0.0.0.0" if os.getenv("K_SERVICE") else "127.0.0.1")
+    print(f"\nKosh digital banking: http://{host}:{port}\n")
+    uvicorn.run(app, host=host, port=port)
+
+
+if __name__ == "__main__":
+    main()

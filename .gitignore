@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.env
+node_modules/
+dist/
+data/*.key
+data/*.sqlite3*
+sentinel_laxman/
+.DS_Store
+.local/

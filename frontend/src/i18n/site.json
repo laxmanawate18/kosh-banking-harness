@@ -1,0 +1,1710 @@
+{
+  "Bharosa,": {
+    "hi": "भरोसा,",
+    "mr": "विश्वास,"
+  },
+  "har kadam.": {
+    "hi": "हर कदम।",
+    "mr": "प्रत्येक पावलावर."
+  },
+  "Bharosa, har kadam.": {
+    "hi": "भरोसा, हर कदम।",
+    "mr": "विश्वास, प्रत्येक पावलावर."
+  },
+  "Welcome to Kosh": {
+    "hi": "कोष में आपका स्वागत है",
+    "mr": "कोषमध्ये आपले स्वागत आहे"
+  },
+  "Savings, cards, deposits and loans with Mitra, your AI banker, and Kavach checking every payment.": {
+    "hi": "बचत, कार्ड, जमा और ऋण, आपके AI बैंकर मित्र के साथ और हर भुगतान पर कवच की जाँच के साथ।",
+    "mr": "बचत, कार्ड, ठेवी आणि कर्जे, तुमचा AI बँकर मित्र सोबत आणि प्रत्येक पेमेंटवर कवचची तपासणी."
+  },
+  "Open an account": {
+    "hi": "खाता खोलें",
+    "mr": "खाते उघडा"
+  },
+  "Login": {
+    "hi": "लॉग इन",
+    "mr": "लॉग इन"
+  },
+  "₹2,500 received": {
+    "hi": "₹2,500 प्राप्त हुए",
+    "mr": "₹2,500 मिळाले"
+  },
+  "Kavach verified": {
+    "hi": "कवच ने सत्यापित किया",
+    "mr": "कवचने पडताळले"
+  },
+  "Electricity bill · ₹1,240": {
+    "hi": "बिजली बिल · ₹1,240",
+    "mr": "वीज बिल · ₹1,240"
+  },
+  "Your FD matures on 12 Oct": {
+    "hi": "आपकी FD 12 अक्टूबर को परिपक्व होगी",
+    "mr": "तुमची FD 12 ऑक्टोबरला परिपक्व होईल"
+  },
+  "Why bank with Kosh": {
+    "hi": "कोष के साथ बैंकिंग क्यों",
+    "mr": "कोषसोबत बँकिंग का"
+  },
+  "Deposits insured up to ₹5 lakh by DICGC": {
+    "hi": "DICGC द्वारा ₹5 लाख तक की जमा राशि बीमित",
+    "mr": "DICGC कडून ₹5 लाखांपर्यंतच्या ठेवी विमाकृत"
+  },
+  "₹0 account opening fee": {
+    "hi": "खाता खोलने का शुल्क ₹0",
+    "mr": "खाते उघडण्याचे शुल्क ₹0"
+  },
+  "Mitra answers 24×7 in English, हिन्दी and मराठी": {
+    "hi": "मित्र 24×7 English, हिन्दी और मराठी में जवाब देता है",
+    "mr": "मित्र 24×7 English, हिन्दी आणि मराठीत उत्तर देतो"
+  },
+  "Kavach checks every payment": {
+    "hi": "कवच हर भुगतान की जाँच करता है",
+    "mr": "कवच प्रत्येक पेमेंट तपासतो"
+  },
+  "What would you like to do today?": {
+    "hi": "आज आप क्या करना चाहेंगे?",
+    "mr": "आज तुम्हाला काय करायचे आहे?"
+  },
+  "Namaste! Can you help me find the right Kosh product for me?": {
+    "hi": "नमस्ते! क्या आप मेरे लिए सही कोष प्रोडक्ट चुनने में मदद करेंगे?",
+    "mr": "नमस्कार! माझ्यासाठी योग्य कोष प्रॉडक्ट निवडायला मदत कराल का?"
+  },
+  "Not sure where to start?": {
+    "hi": "समझ नहीं आ रहा कहाँ से शुरू करें?",
+    "mr": "कुठून सुरुवात करावी कळत नाही?"
+  },
+  "Tell Mitra what you need in your own words. It compares products and explains the fine print.": {
+    "hi": "मित्र को अपने शब्दों में बताइए कि आपको क्या चाहिए। वह प्रोडक्ट्स की तुलना करता है और शर्तें समझाता है।",
+    "mr": "तुम्हाला काय हवे ते मित्रला तुमच्या शब्दांत सांगा. तो प्रॉडक्ट्सची तुलना करतो आणि अटी समजावून सांगतो."
+  },
+  "Ask Mitra": {
+    "hi": "मित्र से पूछें",
+    "mr": "मित्रला विचारा"
+  },
+  "Open a savings account": {
+    "hi": "बचत खाता खोलें",
+    "mr": "बचत खाते उघडा"
+  },
+  "Zero balance, instant account number": {
+    "hi": "ज़ीरो बैलेंस, तुरंत खाता संख्या",
+    "mr": "शून्य शिल्लक, लगेच खाते क्रमांक"
+  },
+  "Get a credit card": {
+    "hi": "क्रेडिट कार्ड पाएँ",
+    "mr": "क्रेडिट कार्ड मिळवा"
+  },
+  "Rewards, cashback and metal cards": {
+    "hi": "रिवॉर्ड, कैशबैक और मेटल कार्ड",
+    "mr": "रिवॉर्ड, कॅशबॅक आणि मेटल कार्ड"
+  },
+  "Grow a fixed deposit": {
+    "hi": "सावधि जमा से पैसा बढ़ाएँ",
+    "mr": "मुदत ठेवीने पैसे वाढवा"
+  },
+  "Up to 8.10% p.a. for 444 days": {
+    "hi": "444 दिनों के लिए 8.10% वार्षिक तक",
+    "mr": "444 दिवसांसाठी वार्षिक 8.10% पर्यंत"
+  },
+  "Home and personal loans": {
+    "hi": "होम और पर्सनल लोन",
+    "mr": "गृह आणि वैयक्तिक कर्ज"
+  },
+  "In-principle approval in minutes": {
+    "hi": "मिनटों में सैद्धांतिक मंज़ूरी",
+    "mr": "काही मिनिटांत तत्त्वतः मंजुरी"
+  },
+  "Today's rates": {
+    "hi": "आज की दरें",
+    "mr": "आजचे दर"
+  },
+  "Rates that help your money grow.": {
+    "hi": "ऐसी दरें जो आपका पैसा बढ़ाएँ।",
+    "mr": "तुमचे पैसे वाढवणारे दर."
+  },
+  "Illustrative rates for this demo bank. Tap a card to see what it means for you.": {
+    "hi": "इस डेमो बैंक की उदाहरण दरें। अपने लिए इसका मतलब देखने के लिए कार्ड पर टैप करें।",
+    "mr": "या डेमो बँकेचे उदाहरणादाखल दर. तुमच्यासाठी याचा अर्थ पाहण्यासाठी कार्डवर टॅप करा."
+  },
+  "See all rates": {
+    "hi": "सभी दरें देखें",
+    "mr": "सर्व दर पाहा"
+  },
+  "Savings account": {
+    "hi": "बचत खाता",
+    "mr": "बचत खाते"
+  },
+  "Interest credited quarterly. Free UPI, IMPS and NEFT.": {
+    "hi": "ब्याज हर तिमाही जमा होता है। UPI, IMPS और NEFT मुफ़्त।",
+    "mr": "व्याज दर तिमाहीला जमा होते. UPI, IMPS आणि NEFT मोफत."
+  },
+  "Explain the Kosh savings account interest and fees.": {
+    "hi": "कोष बचत खाते का ब्याज और शुल्क समझाइए।",
+    "mr": "कोष बचत खात्याचे व्याज आणि शुल्क समजावून सांगा."
+  },
+  "Fixed deposit": {
+    "hi": "सावधि जमा",
+    "mr": "मुदत ठेव"
+  },
+  "Lock in for 1 to 5 years. Senior citizens earn 0.50% more.": {
+    "hi": "1 से 5 साल के लिए लॉक करें। वरिष्ठ नागरिकों को 0.50% अधिक मिलता है।",
+    "mr": "1 ते 5 वर्षांसाठी गुंतवा. ज्येष्ठ नागरिकांना 0.50% जास्त मिळते."
+  },
+  "What returns would I get from a Kosh fixed deposit?": {
+    "hi": "कोष सावधि जमा से मुझे कितना रिटर्न मिलेगा?",
+    "mr": "कोष मुदत ठेवीतून मला किती परतावा मिळेल?"
+  },
+  "Home loan": {
+    "hi": "होम लोन",
+    "mr": "गृहकर्ज"
+  },
+  "Starting rate linked to the repo rate. Eligibility applies.": {
+    "hi": "शुरुआती दर रेपो दर से जुड़ी है। पात्रता लागू।",
+    "mr": "सुरुवातीचा दर रेपो दराशी जोडलेला आहे. पात्रता लागू."
+  },
+  "Am I eligible for a Kosh home loan and what would the EMI be?": {
+    "hi": "क्या मैं कोष होम लोन के लिए पात्र हूँ और EMI कितनी होगी?",
+    "mr": "मी कोष गृहकर्जासाठी पात्र आहे का आणि EMI किती असेल?"
+  },
+  "Illustrative, per year": {
+    "hi": "उदाहरण, प्रति वर्ष",
+    "mr": "उदाहरणादाखल, प्रति वर्ष"
+  },
+  "{label}: {value}. Show details.": {
+    "hi": "{label}: {value}. विवरण देखें।",
+    "mr": "{label}: {value}. तपशील पाहा."
+  },
+  "Back": {
+    "hi": "वापस",
+    "mr": "मागे"
+  },
+  "A protective armour around every rupee.": {
+    "hi": "हर रुपये के चारों ओर एक सुरक्षा कवच।",
+    "mr": "प्रत्येक रुपयाभोवती एक संरक्षक कवच."
+  },
+  "Before money leaves your account, Kavach checks who you are paying, how much, and whether it looks like you. Anything unusual waits for your approval.": {
+    "hi": "पैसा आपके खाते से निकलने से पहले कवच जाँचता है कि आप किसे और कितना भुगतान कर रहे हैं, और क्या यह आपके सामान्य व्यवहार जैसा है। कुछ भी असामान्य हो तो वह आपकी मंज़ूरी का इंतज़ार करता है।",
+    "mr": "पैसे तुमच्या खात्यातून जाण्यापूर्वी कवच तपासतो की तुम्ही कोणाला आणि किती पैसे देत आहात आणि ते तुमच्या नेहमीच्या व्यवहारासारखे आहे का. काहीही असामान्य असल्यास ते तुमच्या मंजुरीची वाट पाहते."
+  },
+  "You instruct": {
+    "hi": "आप निर्देश दें",
+    "mr": "तुम्ही सूचना द्या"
+  },
+  "Pay a bill, send money or ask Mitra to do it for you.": {
+    "hi": "बिल भरें, पैसे भेजें या मित्र से यह करने को कहें।",
+    "mr": "बिल भरा, पैसे पाठवा किंवा मित्रला ते करायला सांगा."
+  },
+  "Kavach checks": {
+    "hi": "कवच जाँच करता है",
+    "mr": "कवच तपासतो"
+  },
+  "Payee, amount, limits and patterns are verified in milliseconds.": {
+    "hi": "लाभार्थी, राशि, सीमाएँ और पैटर्न मिलीसेकंड में सत्यापित होते हैं।",
+    "mr": "लाभार्थी, रक्कम, मर्यादा आणि पॅटर्न काही मिलिसेकंदांत पडताळले जातात."
+  },
+  "You approve": {
+    "hi": "आप मंज़ूरी दें",
+    "mr": "तुम्ही मंजुरी द्या"
+  },
+  "OTPs go only into a trusted Kosh dialog, never into chat.": {
+    "hi": "OTP केवल भरोसेमंद कोष डायलॉग में डाला जाता है, चैट में कभी नहीं।",
+    "mr": "OTP फक्त विश्वासार्ह कोष डायलॉगमध्ये टाकला जातो, चॅटमध्ये कधीच नाही."
+  },
+  "Mitra, your AI banker who speaks your language.": {
+    "hi": "मित्र, आपका AI बैंकर जो आपकी भाषा बोलता है।",
+    "mr": "मित्र, तुमची भाषा बोलणारा तुमचा AI बँकर."
+  },
+  "Compare products, understand fees, check your balance or pay a bill. Ask in English, Hindi or Marathi and Mitra replies the same way.": {
+    "hi": "प्रोडक्ट्स की तुलना करें, शुल्क समझें, बैलेंस देखें या बिल भरें। English, हिन्दी या मराठी में पूछें, मित्र उसी भाषा में जवाब देगा।",
+    "mr": "प्रॉडक्ट्सची तुलना करा, शुल्क समजून घ्या, शिल्लक पाहा किंवा बिल भरा. English, हिन्दी किंवा मराठीत विचारा, मित्र त्याच भाषेत उत्तर देईल."
+  },
+  "Namaste Mitra! What can you help me with?": {
+    "hi": "नमस्ते मित्र! आप मेरी किन चीज़ों में मदद कर सकते हैं?",
+    "mr": "नमस्कार मित्र! तुम्ही मला कशात मदत करू शकता?"
+  },
+  "Online · Kavach protected": {
+    "hi": "ऑनलाइन · कवच से सुरक्षित",
+    "mr": "ऑनलाइन · कवच-संरक्षित"
+  },
+  "Plan your loan before you apply": {
+    "hi": "आवेदन से पहले अपने लोन की योजना बनाएँ",
+    "mr": "अर्ज करण्यापूर्वी तुमच्या कर्जाचे नियोजन करा"
+  },
+  "Move the sliders to see your monthly EMI. More calculators for FD, RD and eligibility are one tap away.": {
+    "hi": "अपनी मासिक EMI देखने के लिए स्लाइडर खिसकाएँ। FD, RD और पात्रता के कैलकुलेटर बस एक टैप दूर हैं।",
+    "mr": "तुमचा मासिक EMI पाहण्यासाठी स्लायडर सरकवा. FD, RD आणि पात्रतेचे कॅल्क्युलेटर एका टॅपवर आहेत."
+  },
+  "All calculators": {
+    "hi": "सभी कैलकुलेटर",
+    "mr": "सर्व कॅल्क्युलेटर"
+  },
+  "Banking for everyone": {
+    "hi": "सभी के लिए बैंकिंग",
+    "mr": "सर्वांसाठी बँकिंग"
+  },
+  "Senior citizens": {
+    "hi": "वरिष्ठ नागरिक",
+    "mr": "ज्येष्ठ नागरिक"
+  },
+  "Women": {
+    "hi": "महिलाएँ",
+    "mr": "महिला"
+  },
+  "Students": {
+    "hi": "छात्र",
+    "mr": "विद्यार्थी"
+  },
+  "NRI banking": {
+    "hi": "NRI बैंकिंग",
+    "mr": "NRI बँकिंग"
+  },
+  "Kisan (farmers)": {
+    "hi": "किसान",
+    "mr": "शेतकरी"
+  },
+  "Small business": {
+    "hi": "छोटा व्यवसाय",
+    "mr": "लघु व्यवसाय"
+  },
+  "Kosh will never ask for your OTP, PIN or password on call, SMS or chat.": {
+    "hi": "कोष कभी भी कॉल, SMS या चैट पर आपका OTP, PIN या पासवर्ड नहीं माँगेगा।",
+    "mr": "कोष कधीही कॉल, SMS किंवा चॅटवर तुमचा OTP, PIN किंवा पासवर्ड मागणार नाही."
+  },
+  "Cyber fraud? Call 1930 or report at cybercrime.gov.in.": {
+    "hi": "साइबर धोखाधड़ी? 1930 पर कॉल करें या cybercrime.gov.in पर रिपोर्ट करें।",
+    "mr": "सायबर फसवणूक? 1930 वर कॉल करा किंवा cybercrime.gov.in वर तक्रार करा."
+  },
+  "Digital arrest is a scam. No police or court asks for money on a video call.": {
+    "hi": "डिजिटल अरेस्ट एक धोखा है। कोई पुलिस या अदालत वीडियो कॉल पर पैसे नहीं माँगती।",
+    "mr": "डिजिटल अरेस्ट ही फसवणूक आहे. कोणतेही पोलीस किंवा न्यायालय व्हिडिओ कॉलवर पैसे मागत नाही."
+  },
+  "Demo banking environment. No real money moves.": {
+    "hi": "डेमो बैंकिंग वातावरण। कोई असली पैसा नहीं जाता।",
+    "mr": "डेमो बँकिंग वातावरण. खरे पैसे हलत नाहीत."
+  },
+  "Skip to main content": {
+    "hi": "मुख्य सामग्री पर जाएँ",
+    "mr": "मुख्य मजकुरावर जा"
+  },
+  "Safety notices": {
+    "hi": "सुरक्षा सूचनाएँ",
+    "mr": "सुरक्षा सूचना"
+  },
+  "Play notices": {
+    "hi": "सूचनाएँ चलाएँ",
+    "mr": "सूचना चालू करा"
+  },
+  "Pause notices": {
+    "hi": "सूचनाएँ रोकें",
+    "mr": "सूचना थांबवा"
+  },
+  "Display settings": {
+    "hi": "डिस्प्ले सेटिंग्स",
+    "mr": "डिस्प्ले सेटिंग्ज"
+  },
+  "Display": {
+    "hi": "डिस्प्ले",
+    "mr": "डिस्प्ले"
+  },
+  "Accounts": {
+    "hi": "खाते",
+    "mr": "खाती"
+  },
+  "Cards": {
+    "hi": "कार्ड",
+    "mr": "कार्ड"
+  },
+  "Loans": {
+    "hi": "ऋण",
+    "mr": "कर्जे"
+  },
+  "Rates": {
+    "hi": "दरें",
+    "mr": "दर"
+  },
+  "Calculators": {
+    "hi": "कैलकुलेटर",
+    "mr": "कॅल्क्युलेटर"
+  },
+  "Help": {
+    "hi": "मदद",
+    "mr": "मदत"
+  },
+  "Kosh home": {
+    "hi": "कोष होम",
+    "mr": "कोष मुख्यपृष्ठ"
+  },
+  "Primary": {
+    "hi": "मुख्य",
+    "mr": "मुख्य"
+  },
+  "Menu": {
+    "hi": "मेनू",
+    "mr": "मेनू"
+  },
+  "Kosh is a demonstration digital bank. Rates are illustrative and no real money moves.": {
+    "hi": "कोष एक डेमो डिजिटल बैंक है। दरें उदाहरण हैं और कोई असली पैसा नहीं जाता।",
+    "mr": "कोष ही डेमो डिजिटल बँक आहे. दर उदाहरणादाखल आहेत आणि खरे पैसे हलत नाहीत."
+  },
+  "Bank with us": {
+    "hi": "हमारे साथ बैंकिंग",
+    "mr": "आमच्यासोबत बँकिंग"
+  },
+  "Savings accounts": {
+    "hi": "बचत खाते",
+    "mr": "बचत खाती"
+  },
+  "Credit cards": {
+    "hi": "क्रेडिट कार्ड",
+    "mr": "क्रेडिट कार्ड"
+  },
+  "Fixed deposits": {
+    "hi": "सावधि जमा",
+    "mr": "मुदत ठेवी"
+  },
+  "Interest rates": {
+    "hi": "ब्याज दरें",
+    "mr": "व्याजदर"
+  },
+  "Fees and charges": {
+    "hi": "फीस और शुल्क",
+    "mr": "फी आणि शुल्क"
+  },
+  "Help and grievances": {
+    "hi": "मदद और शिकायतें",
+    "mr": "मदत आणि तक्रारी"
+  },
+  "FAQs": {
+    "hi": "अक्सर पूछे जाने वाले प्रश्न",
+    "mr": "नेहमीचे प्रश्न"
+  },
+  "Safe banking guide": {
+    "hi": "सुरक्षित बैंकिंग गाइड",
+    "mr": "सुरक्षित बँकिंग मार्गदर्शक"
+  },
+  "I need help with my banking.": {
+    "hi": "मुझे अपनी बैंकिंग में मदद चाहिए।",
+    "mr": "मला माझ्या बँकिंगमध्ये मदत हवी आहे."
+  },
+  "Deposit insurance": {
+    "hi": "जमा बीमा",
+    "mr": "ठेव विमा"
+  },
+  "Deposits in Indian banks are insured by DICGC up to ₹5 lakh per depositor. Kosh is a demo and holds no real deposits.": {
+    "hi": "भारतीय बैंकों में जमा राशि प्रति जमाकर्ता ₹5 लाख तक DICGC द्वारा बीमित होती है। कोष एक डेमो है और इसमें कोई असली जमा नहीं है।",
+    "mr": "भारतीय बँकांमधील ठेवी प्रति ठेवीदार ₹5 लाखांपर्यंत DICGC कडून विमाकृत असतात. कोष डेमो आहे आणि त्यात खऱ्या ठेवी नाहीत."
+  },
+  "Regulated banking": {
+    "hi": "विनियमित बैंकिंग",
+    "mr": "नियमन असलेले बँकिंग"
+  },
+  "Indian banks are regulated by the Reserve Bank of India. Unresolved complaints can go to the RBI Integrated Ombudsman at cms.rbi.org.in.": {
+    "hi": "भारतीय बैंक भारतीय रिज़र्व बैंक द्वारा विनियमित हैं। अनसुलझी शिकायतें cms.rbi.org.in पर RBI एकीकृत लोकपाल तक ले जाई जा सकती हैं।",
+    "mr": "भारतीय बँकांचे नियमन भारतीय रिझर्व्ह बँक करते. न सुटलेल्या तक्रारी cms.rbi.org.in वर RBI एकात्मिक लोकपालाकडे नेता येतात."
+  },
+  "Report cyber fraud": {
+    "hi": "साइबर धोखाधड़ी की रिपोर्ट करें",
+    "mr": "सायबर फसवणुकीची तक्रार करा"
+  },
+  "Call 1930 or visit cybercrime.gov.in. Never share OTP, PIN, CVV or passwords.": {
+    "hi": "1930 पर कॉल करें या cybercrime.gov.in पर जाएँ। OTP, PIN, CVV या पासवर्ड कभी साझा न करें।",
+    "mr": "1930 वर कॉल करा किंवा cybercrime.gov.in ला भेट द्या. OTP, PIN, CVV किंवा पासवर्ड कधीही शेअर करू नका."
+  },
+  "Demo environment": {
+    "hi": "डेमो वातावरण",
+    "mr": "डेमो वातावरण"
+  },
+  "Home": {
+    "hi": "होम",
+    "mr": "मुख्यपृष्ठ"
+  },
+  "Loan EMI calculator": {
+    "hi": "लोन EMI कैलकुलेटर",
+    "mr": "कर्ज EMI कॅल्क्युलेटर"
+  },
+  "Loan amount": {
+    "hi": "लोन राशि",
+    "mr": "कर्जाची रक्कम"
+  },
+  "Interest rate per year": {
+    "hi": "वार्षिक ब्याज दर",
+    "mr": "वार्षिक व्याजदर"
+  },
+  "Tenure": {
+    "hi": "अवधि",
+    "mr": "कालावधी"
+  },
+  "{n} years": {
+    "hi": "{n} साल",
+    "mr": "{n} वर्षे"
+  },
+  "{n} months": {
+    "hi": "{n} महीने",
+    "mr": "{n} महिने"
+  },
+  "Interest is {pct}% of what you repay": {
+    "hi": "आपके कुल भुगतान में ब्याज {pct}% है",
+    "mr": "तुम्ही परत करत असलेल्या रकमेत व्याज {pct}% आहे"
+  },
+  "Monthly EMI": {
+    "hi": "मासिक EMI",
+    "mr": "मासिक EMI"
+  },
+  "Principal": {
+    "hi": "मूलधन",
+    "mr": "मुद्दल"
+  },
+  "Total interest": {
+    "hi": "कुल ब्याज",
+    "mr": "एकूण व्याज"
+  },
+  "Total payable": {
+    "hi": "कुल देय",
+    "mr": "एकूण देय"
+  },
+  "I want a loan of {amount} for {years} years at about {rate}%. Can you check my eligibility?": {
+    "hi": "मुझे {years} साल के लिए लगभग {rate}% पर {amount} का लोन चाहिए। क्या आप मेरी पात्रता जाँच सकते हैं?",
+    "mr": "मला {years} वर्षांसाठी सुमारे {rate}% दराने {amount} कर्ज हवे आहे. माझी पात्रता तपासाल का?"
+  },
+  "Check eligibility with Mitra": {
+    "hi": "मित्र से पात्रता जाँचें",
+    "mr": "मित्रकडून पात्रता तपासा"
+  },
+  "Fixed deposit calculator": {
+    "hi": "सावधि जमा कैलकुलेटर",
+    "mr": "मुदत ठेव कॅल्क्युलेटर"
+  },
+  "Deposit amount": {
+    "hi": "जमा राशि",
+    "mr": "ठेवीची रक्कम"
+  },
+  "Senior citizen": {
+    "hi": "वरिष्ठ नागरिक",
+    "mr": "ज्येष्ठ नागरिक"
+  },
+  "Adds 0.50% to the rate": {
+    "hi": "दर में 0.50% जुड़ता है",
+    "mr": "दरात 0.50% वाढ"
+  },
+  "Maturity amount": {
+    "hi": "परिपक्वता राशि",
+    "mr": "परिपक्वता रक्कम"
+  },
+  "You invest": {
+    "hi": "आपका निवेश",
+    "mr": "तुमची गुंतवणूक"
+  },
+  "Interest earned": {
+    "hi": "अर्जित ब्याज",
+    "mr": "मिळालेले व्याज"
+  },
+  "Effective rate": {
+    "hi": "प्रभावी दर",
+    "mr": "प्रभावी दर"
+  },
+  "Compounded quarterly. TDS may apply if interest exceeds the yearly limit.": {
+    "hi": "तिमाही चक्रवृद्धि। ब्याज वार्षिक सीमा से अधिक होने पर TDS लग सकता है।",
+    "mr": "तिमाही चक्रवाढ. व्याज वार्षिक मर्यादेपेक्षा जास्त झाल्यास TDS लागू होऊ शकतो."
+  },
+  "I want to open an FD of {amount} for {years} years. What would I earn?": {
+    "hi": "मैं {years} साल के लिए {amount} की FD खोलना चाहता हूँ। मुझे कितना मिलेगा?",
+    "mr": "मला {years} वर्षांसाठी {amount} ची FD उघडायची आहे. मला किती मिळेल?"
+  },
+  "Open an FD with Mitra": {
+    "hi": "मित्र के साथ FD खोलें",
+    "mr": "मित्रसोबत FD उघडा"
+  },
+  "Recurring deposit calculator": {
+    "hi": "आवर्ती जमा कैलकुलेटर",
+    "mr": "आवर्ती ठेव कॅल्क्युलेटर"
+  },
+  "Monthly instalment": {
+    "hi": "मासिक किस्त",
+    "mr": "मासिक हप्ता"
+  },
+  "I want to start an RD of {amount} a month for {months} months.": {
+    "hi": "मैं {months} महीनों के लिए हर महीने {amount} की RD शुरू करना चाहता हूँ।",
+    "mr": "मला {months} महिन्यांसाठी दरमहा {amount} ची RD सुरू करायची आहे."
+  },
+  "Start an RD with Mitra": {
+    "hi": "मित्र के साथ RD शुरू करें",
+    "mr": "मित्रसोबत RD सुरू करा"
+  },
+  "Home loan eligibility": {
+    "hi": "होम लोन पात्रता",
+    "mr": "गृहकर्ज पात्रता"
+  },
+  "Monthly take-home income": {
+    "hi": "मासिक इन-हैंड आय",
+    "mr": "मासिक हातात येणारे उत्पन्न"
+  },
+  "Existing EMIs per month": {
+    "hi": "मौजूदा मासिक EMI",
+    "mr": "सध्याचे मासिक EMI"
+  },
+  "You may be eligible for up to": {
+    "hi": "आप इतनी राशि तक के लिए पात्र हो सकते हैं",
+    "mr": "तुम्ही इतक्या रकमेपर्यंत पात्र असू शकता"
+  },
+  "EMI you can afford": {
+    "hi": "आप कितनी EMI दे सकते हैं",
+    "mr": "तुम्हाला परवडणारा EMI"
+  },
+  "Based on up to 50% of income going to EMIs. The final amount depends on your credit score and documents.": {
+    "hi": "आय का अधिकतम 50% EMI में जाने के आधार पर। अंतिम राशि आपके क्रेडिट स्कोर और दस्तावेज़ों पर निर्भर करती है।",
+    "mr": "उत्पन्नाच्या जास्तीत जास्त 50% रक्कम EMI मध्ये जाईल यावर आधारित. अंतिम रक्कम तुमचा क्रेडिट स्कोअर आणि कागदपत्रांवर अवलंबून असते."
+  },
+  "My take-home income is {income} a month. How much home loan can I get?": {
+    "hi": "मेरी मासिक इन-हैंड आय {income} है। मुझे कितना होम लोन मिल सकता है?",
+    "mr": "माझे मासिक हातात येणारे उत्पन्न {income} आहे. मला किती गृहकर्ज मिळू शकते?"
+  },
+  "Loan EMI": {
+    "hi": "लोन EMI",
+    "mr": "कर्ज EMI"
+  },
+  "Recurring deposit": {
+    "hi": "आवर्ती जमा",
+    "mr": "आवर्ती ठेव"
+  },
+  "Loan eligibility": {
+    "hi": "लोन पात्रता",
+    "mr": "कर्ज पात्रता"
+  },
+  "Plan loans and savings with the same formulas Indian banks use. Results are estimates, not offers.": {
+    "hi": "भारतीय बैंकों के समान फ़ॉर्मूलों से लोन और बचत की योजना बनाएँ। परिणाम अनुमान हैं, ऑफ़र नहीं।",
+    "mr": "भारतीय बँका वापरतात त्याच सूत्रांनी कर्ज आणि बचतीचे नियोजन करा. निकाल अंदाज आहेत, ऑफर नाहीत."
+  },
+  "Interest rates for the demo": {
+    "hi": "डेमो की ब्याज दरें",
+    "mr": "डेमोचे व्याजदर"
+  },
+  "Illustrative rates for the Kosh demo bank, effective 1 September 2026. Real banks publish rates like these and revise them when the RBI changes the repo rate.": {
+    "hi": "कोष डेमो बैंक की उदाहरण दरें, 1 सितंबर 2026 से प्रभावी। असली बैंक ऐसी दरें प्रकाशित करते हैं और RBI के रेपो दर बदलने पर इन्हें संशोधित करते हैं।",
+    "mr": "कोष डेमो बँकेचे उदाहरणादाखल दर, 1 सप्टेंबर 2026 पासून लागू. खऱ्या बँका असे दर प्रसिद्ध करतात आणि RBI रेपो दर बदलल्यावर ते सुधारतात."
+  },
+  "Account": {
+    "hi": "खाता",
+    "mr": "खाते"
+  },
+  "Balance": {
+    "hi": "बैलेंस",
+    "mr": "शिल्लक"
+  },
+  "Rate per year": {
+    "hi": "वार्षिक दर",
+    "mr": "वार्षिक दर"
+  },
+  "Kosh Digital Smart Savings": {
+    "hi": "कोष डिजिटल स्मार्ट सेविंग्स",
+    "mr": "कोष डिजिटल स्मार्ट सेव्हिंग्ज"
+  },
+  "Kosh Suvarna Premier Savings": {
+    "hi": "कोष सुवर्ण प्रीमियर सेविंग्स",
+    "mr": "कोष सुवर्ण प्रीमियर सेव्हिंग्ज"
+  },
+  "Any balance": {
+    "hi": "कोई भी बैलेंस",
+    "mr": "कोणतीही शिल्लक"
+  },
+  "Fixed deposits (below ₹3 crore)": {
+    "hi": "सावधि जमा (₹3 करोड़ से कम)",
+    "mr": "मुदत ठेवी (₹3 कोटींपेक्षा कमी)"
+  },
+  "General": {
+    "hi": "सामान्य",
+    "mr": "सामान्य"
+  },
+  "7 to 45 days": {
+    "hi": "7 से 45 दिन",
+    "mr": "7 ते 45 दिवस"
+  },
+  "46 to 179 days": {
+    "hi": "46 से 179 दिन",
+    "mr": "46 ते 179 दिवस"
+  },
+  "180 days to under 1 year": {
+    "hi": "180 दिन से 1 साल से कम",
+    "mr": "180 दिवस ते 1 वर्षापेक्षा कमी"
+  },
+  "1 year to under 2 years": {
+    "hi": "1 साल से 2 साल से कम",
+    "mr": "1 वर्ष ते 2 वर्षांपेक्षा कमी"
+  },
+  "Kosh Vriddhi special, 444 days": {
+    "hi": "कोष वृद्धि विशेष, 444 दिन",
+    "mr": "कोष वृद्धी विशेष, 444 दिवस"
+  },
+  "2 years to 5 years": {
+    "hi": "2 से 5 साल",
+    "mr": "2 ते 5 वर्षे"
+  },
+  "Above 5 years to 10 years": {
+    "hi": "5 साल से अधिक से 10 साल तक",
+    "mr": "5 वर्षांपेक्षा जास्त ते 10 वर्षे"
+  },
+  "Loan": {
+    "hi": "लोन",
+    "mr": "कर्ज"
+  },
+  "Starting rate per year": {
+    "hi": "शुरुआती वार्षिक दर",
+    "mr": "सुरुवातीचा वार्षिक दर"
+  },
+  "Kosh Griha Green Home Loan": {
+    "hi": "कोष गृह ग्रीन होम लोन",
+    "mr": "कोष गृह ग्रीन गृहकर्ज"
+  },
+  "Kosh Express Personal Loan": {
+    "hi": "कोष एक्सप्रेस पर्सनल लोन",
+    "mr": "कोष एक्सप्रेस वैयक्तिक कर्ज"
+  },
+  "Up to 30 years": {
+    "hi": "30 साल तक",
+    "mr": "30 वर्षांपर्यंत"
+  },
+  "1 to 5 years": {
+    "hi": "1 से 5 साल",
+    "mr": "1 ते 5 वर्षे"
+  },
+  "Interest on savings is calculated on the daily balance and credited quarterly. TDS applies to deposit interest above the yearly limit unless you submit Form 15G or 15H.": {
+    "hi": "बचत पर ब्याज दैनिक बैलेंस पर गिना जाता है और हर तिमाही जमा होता है। वार्षिक सीमा से अधिक जमा ब्याज पर TDS लगता है, जब तक आप फ़ॉर्म 15G या 15H जमा न करें।",
+    "mr": "बचतीवरील व्याज दैनंदिन शिलकीवर मोजले जाते आणि दर तिमाहीला जमा होते. फॉर्म 15G किंवा 15H सादर न केल्यास वार्षिक मर्यादेपेक्षा जास्त ठेव व्याजावर TDS लागतो."
+  },
+  "Everything we charge, in one place. GST at 18% applies on top of these illustrative fees.": {
+    "hi": "हमारे सभी शुल्क, एक ही जगह। इन उदाहरण शुल्कों पर 18% GST अतिरिक्त लगता है।",
+    "mr": "आमचे सर्व शुल्क एकाच ठिकाणी. या उदाहरणादाखल शुल्कांवर 18% GST अतिरिक्त लागतो."
+  },
+  "Account and payments": {
+    "hi": "खाता और भुगतान",
+    "mr": "खाते आणि पेमेंट"
+  },
+  "Service": {
+    "hi": "सेवा",
+    "mr": "सेवा"
+  },
+  "Charge": {
+    "hi": "शुल्क",
+    "mr": "शुल्क"
+  },
+  "Account opening": {
+    "hi": "खाता खोलना",
+    "mr": "खाते उघडणे"
+  },
+  "Minimum balance (zero-balance accounts)": {
+    "hi": "न्यूनतम बैलेंस (ज़ीरो-बैलेंस खाते)",
+    "mr": "किमान शिल्लक (शून्य-शिल्लक खाती)"
+  },
+  "UPI, IMPS, NEFT and RTGS transfers": {
+    "hi": "UPI, IMPS, NEFT और RTGS ट्रांसफ़र",
+    "mr": "UPI, IMPS, NEFT आणि RTGS ट्रान्सफर"
+  },
+  "SMS and email alerts": {
+    "hi": "SMS और ईमेल अलर्ट",
+    "mr": "SMS आणि ईमेल अलर्ट"
+  },
+  "Duplicate physical statement": {
+    "hi": "डुप्लिकेट भौतिक स्टेटमेंट",
+    "mr": "डुप्लिकेट छापील स्टेटमेंट"
+  },
+  "Cheques": {
+    "hi": "चेक",
+    "mr": "धनादेश"
+  },
+  "First 25 cheque leaves each year": {
+    "hi": "हर साल पहले 25 चेक पन्ने",
+    "mr": "दरवर्षी पहिली 25 धनादेश पाने"
+  },
+  "Additional cheque leaves": {
+    "hi": "अतिरिक्त चेक पन्ने",
+    "mr": "अतिरिक्त धनादेश पाने"
+  },
+  "₹4 per leaf": {
+    "hi": "₹4 प्रति पन्ना",
+    "mr": "₹4 प्रति पान"
+  },
+  "Stop cheque": {
+    "hi": "चेक रोकें",
+    "mr": "धनादेश थांबवा"
+  },
+  "Cheque return (insufficient funds)": {
+    "hi": "चेक वापसी (अपर्याप्त राशि)",
+    "mr": "धनादेश परत (अपुरी शिल्लक)"
+  },
+  "Debit cards and ATMs": {
+    "hi": "डेबिट कार्ड और ATM",
+    "mr": "डेबिट कार्ड आणि ATM"
+  },
+  "Debit card annual fee, first year": {
+    "hi": "डेबिट कार्ड वार्षिक शुल्क, पहला साल",
+    "mr": "डेबिट कार्ड वार्षिक शुल्क, पहिले वर्ष"
+  },
+  "Debit card annual fee, from second year": {
+    "hi": "डेबिट कार्ड वार्षिक शुल्क, दूसरे साल से",
+    "mr": "डेबिट कार्ड वार्षिक शुल्क, दुसऱ्या वर्षापासून"
+  },
+  "Card replacement": {
+    "hi": "कार्ड बदलना",
+    "mr": "कार्ड बदलणे"
+  },
+  "Kosh ATM withdrawals": {
+    "hi": "कोष ATM निकासी",
+    "mr": "कोष ATM मधून पैसे काढणे"
+  },
+  "5 free a month, then ₹21": {
+    "hi": "महीने में 5 मुफ़्त, फिर ₹21",
+    "mr": "महिन्याला 5 मोफत, नंतर ₹21"
+  },
+  "Other bank ATM withdrawals": {
+    "hi": "अन्य बैंक ATM निकासी",
+    "mr": "इतर बँकेच्या ATM मधून पैसे काढणे"
+  },
+  "3 free in metros, 5 elsewhere, then ₹21": {
+    "hi": "मेट्रो शहरों में 3 मुफ़्त, अन्य जगह 5, फिर ₹21",
+    "mr": "मेट्रो शहरांत 3 मोफत, इतरत्र 5, नंतर ₹21"
+  },
+  "Reach us any time. If a complaint is not resolved, you can escalate step by step, up to the RBI Ombudsman.": {
+    "hi": "हमसे कभी भी संपर्क करें। शिकायत हल न हो तो आप चरण-दर-चरण RBI लोकपाल तक जा सकते हैं।",
+    "mr": "आमच्याशी कधीही संपर्क साधा. तक्रार सुटली नाही तर तुम्ही टप्प्याटप्प्याने RBI लोकपालापर्यंत जाऊ शकता."
+  },
+  "24×7 customer care, toll free (demo number)": {
+    "hi": "24×7 ग्राहक सेवा, टोल फ़्री (डेमो नंबर)",
+    "mr": "24×7 ग्राहक सेवा, टोल फ्री (डेमो क्रमांक)"
+  },
+  "Replies within one working day (demo address)": {
+    "hi": "एक कार्य दिवस में जवाब (डेमो पता)",
+    "mr": "एका कामकाजाच्या दिवसात उत्तर (डेमो पत्ता)"
+  },
+  "National cyber crime helpline for fraud. Also cybercrime.gov.in": {
+    "hi": "धोखाधड़ी के लिए राष्ट्रीय साइबर अपराध हेल्पलाइन। साथ ही cybercrime.gov.in",
+    "mr": "फसवणुकीसाठी राष्ट्रीय सायबर गुन्हे हेल्पलाइन. तसेच cybercrime.gov.in"
+  },
+  "How to raise a complaint": {
+    "hi": "शिकायत कैसे दर्ज करें",
+    "mr": "तक्रार कशी नोंदवावी"
+  },
+  "Talk to us": {
+    "hi": "हमसे बात करें",
+    "mr": "आमच्याशी बोला"
+  },
+  "Call, email, visit a branch or ask Mitra. Most issues are fixed on the first contact.": {
+    "hi": "कॉल करें, ईमेल करें, शाखा आएँ या मित्र से पूछें। ज़्यादातर समस्याएँ पहली बार में हल हो जाती हैं।",
+    "mr": "कॉल करा, ईमेल करा, शाखेत या किंवा मित्रला विचारा. बहुतेक समस्या पहिल्याच संपर्कात सुटतात."
+  },
+  "Grievance Redressal Officer": {
+    "hi": "शिकायत निवारण अधिकारी",
+    "mr": "तक्रार निवारण अधिकारी"
+  },
+  "Not happy with the answer? Write to grievance@kosh.bank. We reply within 7 working days.": {
+    "hi": "जवाब से संतुष्ट नहीं? grievance@kosh.bank पर लिखें। हम 7 कार्य दिवसों में जवाब देते हैं।",
+    "mr": "उत्तराने समाधान झाले नाही? grievance@kosh.bank वर लिहा. आम्ही 7 कामकाजाच्या दिवसांत उत्तर देतो."
+  },
+  "Principal Nodal Officer": {
+    "hi": "प्रधान नोडल अधिकारी",
+    "mr": "प्रधान नोडल अधिकारी"
+  },
+  "Still unresolved after 14 days? Escalate to nodal.officer@kosh.bank.": {
+    "hi": "14 दिनों बाद भी हल नहीं? nodal.officer@kosh.bank पर आगे बढ़ाएँ।",
+    "mr": "14 दिवसांनंतरही सुटले नाही? nodal.officer@kosh.bank कडे पुढे न्या."
+  },
+  "RBI Integrated Ombudsman": {
+    "hi": "RBI एकीकृत लोकपाल",
+    "mr": "RBI एकात्मिक लोकपाल"
+  },
+  "If we do not resolve it within 30 days, or you disagree with our reply, file a free complaint at cms.rbi.org.in or call 14448.": {
+    "hi": "अगर हम 30 दिनों में हल न करें या आप हमारे जवाब से असहमत हों, तो cms.rbi.org.in पर मुफ़्त शिकायत करें या 14448 पर कॉल करें।",
+    "mr": "आम्ही 30 दिवसांत तक्रार सोडवली नाही किंवा आमचे उत्तर मान्य नसेल, तर cms.rbi.org.in वर मोफत तक्रार करा किंवा 14448 वर कॉल करा."
+  },
+  "I want to raise a complaint.": {
+    "hi": "मैं शिकायत दर्ज करना चाहता हूँ।",
+    "mr": "मला तक्रार नोंदवायची आहे."
+  },
+  "Raise it with Mitra": {
+    "hi": "मित्र के पास दर्ज करें",
+    "mr": "मित्रकडे नोंदवा"
+  },
+  "Read FAQs": {
+    "hi": "FAQs पढ़ें",
+    "mr": "नेहमीचे प्रश्न वाचा"
+  },
+  "Branches": {
+    "hi": "शाखाएँ",
+    "mr": "शाखा"
+  },
+  "Mon to Sat, 10 to 4": {
+    "hi": "सोम से शनि, 10 से 4",
+    "mr": "सोम ते शनि, 10 ते 4"
+  },
+  "Frequently asked questions": {
+    "hi": "अक्सर पूछे जाने वाले प्रश्न",
+    "mr": "नेहमी विचारले जाणारे प्रश्न"
+  },
+  "Quick answers to what customers ask most. Ask Mitra for anything else.": {
+    "hi": "ग्राहकों के सबसे आम सवालों के त्वरित जवाब। बाकी कुछ भी मित्र से पूछें।",
+    "mr": "ग्राहक सर्वाधिक विचारतात त्या प्रश्नांची झटपट उत्तरे. इतर काहीही मित्रला विचारा."
+  },
+  "I have a question about Kosh.": {
+    "hi": "मेरा कोष के बारे में एक सवाल है।",
+    "mr": "मला कोषबद्दल एक प्रश्न आहे."
+  },
+  "Accounts and KYC": {
+    "hi": "खाते और KYC",
+    "mr": "खाती आणि KYC"
+  },
+  "How long does it take to open an account?": {
+    "hi": "खाता खोलने में कितना समय लगता है?",
+    "mr": "खाते उघडायला किती वेळ लागतो?"
+  },
+  "About five minutes online. You get your account number immediately and full access after video or document KYC.": {
+    "hi": "ऑनलाइन लगभग पाँच मिनट। खाता संख्या तुरंत मिलती है और वीडियो या दस्तावेज़ KYC के बाद पूरी सुविधा।",
+    "mr": "ऑनलाइन सुमारे पाच मिनिटे. खाते क्रमांक लगेच मिळतो आणि व्हिडिओ किंवा कागदपत्र KYC नंतर पूर्ण सुविधा."
+  },
+  "Why do I need to complete KYC again?": {
+    "hi": "मुझे KYC दोबारा क्यों करना होगा?",
+    "mr": "मला पुन्हा KYC का करावे लागेल?"
+  },
+  "RBI rules ask banks to refresh KYC periodically. Until it is done, some outward transfers may be paused.": {
+    "hi": "RBI नियमों के अनुसार बैंकों को समय-समय पर KYC अपडेट करना होता है। तब तक कुछ बाहरी ट्रांसफ़र रुक सकते हैं।",
+    "mr": "RBI नियमांनुसार बँकांना ठरावीक काळाने KYC अद्ययावत करावे लागते. ते होईपर्यंत काही बाहेरचे ट्रान्सफर थांबू शकतात."
+  },
+  "Is there a minimum balance?": {
+    "hi": "क्या कोई न्यूनतम बैलेंस है?",
+    "mr": "किमान शिल्लक आहे का?"
+  },
+  "Kosh Digital Smart Savings has no minimum balance. Premier accounts list their requirements on the rates page.": {
+    "hi": "कोष डिजिटल स्मार्ट सेविंग्स में कोई न्यूनतम बैलेंस नहीं है। प्रीमियर खातों की शर्तें दरों वाले पेज पर हैं।",
+    "mr": "कोष डिजिटल स्मार्ट सेव्हिंग्जमध्ये किमान शिल्लक नाही. प्रीमियर खात्यांच्या अटी दरांच्या पानावर आहेत."
+  },
+  "Payments and UPI": {
+    "hi": "भुगतान और UPI",
+    "mr": "पेमेंट आणि UPI"
+  },
+  "Why was my payment held for approval?": {
+    "hi": "मेरा भुगतान मंज़ूरी के लिए क्यों रोका गया?",
+    "mr": "माझे पेमेंट मंजुरीसाठी का थांबवले गेले?"
+  },
+  "Kavach holds payments that look unusual, such as a new payee or a large amount, until you confirm them with an OTP in the secure dialog.": {
+    "hi": "कवच असामान्य दिखने वाले भुगतान, जैसे नया लाभार्थी या बड़ी राशि, तब तक रोकता है जब तक आप सुरक्षित डायलॉग में OTP से पुष्टि न करें।",
+    "mr": "नवीन लाभार्थी किंवा मोठी रक्कम यांसारखी असामान्य पेमेंट्स तुम्ही सुरक्षित डायलॉगमध्ये OTP ने पुष्टी करेपर्यंत कवच थांबवतो."
+  },
+  "Is there a limit after adding a new payee?": {
+    "hi": "नया लाभार्थी जोड़ने के बाद कोई सीमा है?",
+    "mr": "नवीन लाभार्थी जोडल्यानंतर मर्यादा आहे का?"
+  },
+  "Yes. For the first 24 hours a new payee can receive up to ₹25,000. This cooling period protects you from fraud.": {
+    "hi": "हाँ। पहले 24 घंटों में नया लाभार्थी ₹25,000 तक पा सकता है। यह कूलिंग अवधि आपको धोखाधड़ी से बचाती है।",
+    "mr": "हो. पहिल्या 24 तासांत नवीन लाभार्थीला ₹25,000 पर्यंत पाठवता येतात. हा कूलिंग कालावधी तुमचे फसवणुकीपासून संरक्षण करतो."
+  },
+  "How do I find my UPI ID?": {
+    "hi": "मैं अपनी UPI ID कैसे देखूँ?",
+    "mr": "माझा UPI ID कसा शोधू?"
+  },
+  "Open UPI in the app. Your UPI ID and QR code are at the top, ready to share.": {
+    "hi": "ऐप में UPI खोलें। आपकी UPI ID और QR कोड सबसे ऊपर हैं, साझा करने के लिए तैयार।",
+    "mr": "ॲपमध्ये UPI उघडा. तुमचा UPI ID आणि QR कोड सर्वात वर आहेत, शेअर करण्यासाठी तयार."
+  },
+  "How do I block my card?": {
+    "hi": "मैं अपना कार्ड कैसे ब्लॉक करूँ?",
+    "mr": "माझे कार्ड कसे ब्लॉक करू?"
+  },
+  "Can I turn off international use?": {
+    "hi": "क्या मैं अंतरराष्ट्रीय उपयोग बंद कर सकता हूँ?",
+    "mr": "मी आंतरराष्ट्रीय वापर बंद करू शकतो का?"
+  },
+  "Yes. Card controls let you switch international, online and contactless use on or off.": {
+    "hi": "हाँ। कार्ड कंट्रोल से आप अंतरराष्ट्रीय, ऑनलाइन और कॉन्टैक्टलेस उपयोग चालू या बंद कर सकते हैं।",
+    "mr": "हो. कार्ड कंट्रोलद्वारे आंतरराष्ट्रीय, ऑनलाइन आणि कॉन्टॅक्टलेस वापर चालू किंवा बंद करता येतो."
+  },
+  "Safety and Mitra": {
+    "hi": "सुरक्षा और मित्र",
+    "mr": "सुरक्षा आणि मित्र"
+  },
+  "Will Kosh ever ask for my OTP?": {
+    "hi": "क्या कोष कभी मेरा OTP माँगेगा?",
+    "mr": "कोष कधी माझा OTP मागेल का?"
+  },
+  "Never on a call, SMS or chat. OTPs are entered only in the trusted Kosh dialog on your own screen.": {
+    "hi": "कॉल, SMS या चैट पर कभी नहीं। OTP केवल आपकी अपनी स्क्रीन पर भरोसेमंद कोष डायलॉग में डाले जाते हैं।",
+    "mr": "कॉल, SMS किंवा चॅटवर कधीच नाही. OTP फक्त तुमच्या स्क्रीनवरील विश्वासार्ह कोष डायलॉगमध्ये टाकला जातो."
+  },
+  "Which languages does Mitra understand?": {
+    "hi": "मित्र कौन-सी भाषाएँ समझता है?",
+    "mr": "मित्रला कोणत्या भाषा समजतात?"
+  },
+  "English, Hindi and Marathi, including Hinglish. Mitra replies in the language you write in.": {
+    "hi": "English, हिन्दी और मराठी, हिंग्लिश सहित। मित्र उसी भाषा में जवाब देता है जिसमें आप लिखते हैं।",
+    "mr": "English, हिन्दी आणि मराठी, हिंग्लिशसह. तुम्ही ज्या भाषेत लिहाल त्या भाषेत मित्र उत्तर देतो."
+  },
+  "Accounts and services designed around where you are in life.": {
+    "hi": "जीवन के हर पड़ाव के अनुसार बने खाते और सेवाएँ।",
+    "mr": "आयुष्याच्या प्रत्येक टप्प्यानुसार तयार केलेली खाती आणि सेवा."
+  },
+  "Extra interest, doorstep help and a calmer way to bank, for customers aged 60 and above.": {
+    "hi": "60 वर्ष और उससे अधिक उम्र के ग्राहकों के लिए अतिरिक्त ब्याज, घर पर सेवा और आसान बैंकिंग।",
+    "mr": "60 आणि त्यापेक्षा जास्त वयाच्या ग्राहकांसाठी अतिरिक्त व्याज, घरपोच सेवा आणि निवांत बँकिंग."
+  },
+  "0.50% extra on fixed deposits": {
+    "hi": "सावधि जमा पर 0.50% अतिरिक्त",
+    "mr": "मुदत ठेवींवर 0.50% अतिरिक्त"
+  },
+  "Doorstep cash and cheque pickup": {
+    "hi": "घर से नकद और चेक पिकअप",
+    "mr": "घरपोच रोख आणि धनादेश पिकअप"
+  },
+  "Priority queue at branches": {
+    "hi": "शाखाओं में प्राथमिकता कतार",
+    "mr": "शाखांमध्ये प्राधान्य रांग"
+  },
+  "Form 15H support to avoid unnecessary TDS": {
+    "hi": "अनावश्यक TDS से बचने के लिए फ़ॉर्म 15H सहायता",
+    "mr": "अनावश्यक TDS टाळण्यासाठी फॉर्म 15H मदत"
+  },
+  "Aadhaar or passport": {
+    "hi": "आधार या पासपोर्ट",
+    "mr": "आधार किंवा पासपोर्ट"
+  },
+  "PAN card": {
+    "hi": "PAN कार्ड",
+    "mr": "PAN कार्ड"
+  },
+  "Age proof if not on Aadhaar": {
+    "hi": "आयु प्रमाण, अगर आधार पर नहीं है",
+    "mr": "आधारवर नसल्यास वयाचा पुरावा"
+  },
+  "A savings account and card built around financial independence, with safety features on by default.": {
+    "hi": "आर्थिक आत्मनिर्भरता के लिए बना बचत खाता और कार्ड, सुरक्षा सुविधाएँ पहले से चालू।",
+    "mr": "आर्थिक स्वातंत्र्यासाठी तयार केलेले बचत खाते आणि कार्ड, सुरक्षा सुविधा आधीपासूनच चालू."
+  },
+  "Zero-balance savings account": {
+    "hi": "ज़ीरो-बैलेंस बचत खाता",
+    "mr": "शून्य-शिल्लक बचत खाते"
+  },
+  "Free accident insurance cover": {
+    "hi": "मुफ़्त दुर्घटना बीमा कवर",
+    "mr": "मोफत अपघात विमा संरक्षण"
+  },
+  "Lower processing fee on home loans": {
+    "hi": "होम लोन पर कम प्रोसेसिंग शुल्क",
+    "mr": "गृहकर्जावर कमी प्रक्रिया शुल्क"
+  },
+  "Card controls and instant freeze": {
+    "hi": "कार्ड कंट्रोल और तुरंत फ़्रीज़",
+    "mr": "कार्ड कंट्रोल आणि त्वरित फ्रीझ"
+  },
+  "Aadhaar": {
+    "hi": "आधार",
+    "mr": "आधार"
+  },
+  "Your first bank account, with UPI, a debit card and no minimum balance.": {
+    "hi": "आपका पहला बैंक खाता, UPI, डेबिट कार्ड के साथ और बिना न्यूनतम बैलेंस।",
+    "mr": "तुमचे पहिले बँक खाते, UPI आणि डेबिट कार्डसह आणि किमान शिलकीशिवाय."
+  },
+  "No minimum balance until you turn 25": {
+    "hi": "25 वर्ष की उम्र तक कोई न्यूनतम बैलेंस नहीं",
+    "mr": "25 वर्षांचे होईपर्यंत किमान शिल्लक नाही"
+  },
+  "Free UPI and debit card": {
+    "hi": "मुफ़्त UPI और डेबिट कार्ड",
+    "mr": "मोफत UPI आणि डेबिट कार्ड"
+  },
+  "Education loan guidance with Mitra": {
+    "hi": "मित्र के साथ शिक्षा ऋण मार्गदर्शन",
+    "mr": "मित्रसोबत शैक्षणिक कर्ज मार्गदर्शन"
+  },
+  "Spending insights to build good habits": {
+    "hi": "अच्छी आदतें बनाने के लिए खर्च की जानकारी",
+    "mr": "चांगल्या सवयींसाठी खर्चाची माहिती"
+  },
+  "PAN card or Form 60": {
+    "hi": "PAN कार्ड या फ़ॉर्म 60",
+    "mr": "PAN कार्ड किंवा फॉर्म 60"
+  },
+  "College ID for education loans": {
+    "hi": "शिक्षा ऋण के लिए कॉलेज ID",
+    "mr": "शैक्षणिक कर्जासाठी महाविद्यालय ओळखपत्र"
+  },
+  "NRE and NRO accounts to manage money in India while you live abroad.": {
+    "hi": "विदेश में रहते हुए भारत में पैसा सँभालने के लिए NRE और NRO खाते।",
+    "mr": "परदेशात राहताना भारतातील पैसे सांभाळण्यासाठी NRE आणि NRO खाती."
+  },
+  "Tax-free interest on NRE deposits": {
+    "hi": "NRE जमा पर कर-मुक्त ब्याज",
+    "mr": "NRE ठेवींवर करमुक्त व्याज"
+  },
+  "Repatriate NRE balances freely": {
+    "hi": "NRE बैलेंस आसानी से विदेश भेजें",
+    "mr": "NRE शिल्लक मुक्तपणे परदेशी पाठवा"
+  },
+  "Dedicated relationship manager": {
+    "hi": "समर्पित रिलेशनशिप मैनेजर",
+    "mr": "समर्पित रिलेशनशिप मॅनेजर"
+  },
+  "Pay family bills in India from abroad": {
+    "hi": "विदेश से भारत में परिवार के बिल भरें",
+    "mr": "परदेशातून भारतातील कुटुंबाची बिले भरा"
+  },
+  "Passport with valid visa": {
+    "hi": "वैध वीज़ा के साथ पासपोर्ट",
+    "mr": "वैध व्हिसासह पासपोर्ट"
+  },
+  "Overseas address proof": {
+    "hi": "विदेशी पते का प्रमाण",
+    "mr": "परदेशातील पत्त्याचा पुरावा"
+  },
+  "Credit and savings that follow the crop cycle, not the calendar.": {
+    "hi": "ऐसा ऋण और बचत जो कैलेंडर नहीं, फ़सल चक्र के अनुसार चले।",
+    "mr": "कॅलेंडरनुसार नव्हे, पीक चक्रानुसार चालणारे कर्ज आणि बचत."
+  },
+  "Kisan Credit Card with flexible repayment": {
+    "hi": "लचीले भुगतान के साथ किसान क्रेडिट कार्ड",
+    "mr": "लवचीक परतफेडीसह किसान क्रेडिट कार्ड"
+  },
+  "Interest subvention on eligible crop loans": {
+    "hi": "पात्र फ़सल ऋण पर ब्याज सहायता",
+    "mr": "पात्र पीक कर्जावर व्याज सवलत"
+  },
+  "Direct benefit transfers credited quickly": {
+    "hi": "प्रत्यक्ष लाभ अंतरण जल्दी जमा",
+    "mr": "थेट लाभ हस्तांतरण लवकर जमा"
+  },
+  "Help in Marathi and Hindi with Mitra": {
+    "hi": "मित्र के साथ मराठी और हिन्दी में मदद",
+    "mr": "मित्रसोबत मराठी आणि हिन्दीत मदत"
+  },
+  "Land records (7/12 extract)": {
+    "hi": "भूमि अभिलेख (7/12 उतारा)",
+    "mr": "जमिनीचे अभिलेख (7/12 उतारा)"
+  },
+  "PAN card if available": {
+    "hi": "PAN कार्ड, यदि उपलब्ध हो",
+    "mr": "PAN कार्ड, उपलब्ध असल्यास"
+  },
+  "A current account, QR payments and working capital for shops and small firms.": {
+    "hi": "दुकानों और छोटी फ़र्मों के लिए चालू खाता, QR भुगतान और कार्यशील पूँजी।",
+    "mr": "दुकाने आणि लहान फर्मसाठी चालू खाते, QR पेमेंट आणि खेळते भांडवल."
+  },
+  "Free UPI QR for your shop": {
+    "hi": "आपकी दुकान के लिए मुफ़्त UPI QR",
+    "mr": "तुमच्या दुकानासाठी मोफत UPI QR"
+  },
+  "Current account with high transaction limits": {
+    "hi": "ऊँची लेनदेन सीमा वाला चालू खाता",
+    "mr": "उच्च व्यवहार मर्यादेसह चालू खाते"
+  },
+  "Working capital and MSME loans": {
+    "hi": "कार्यशील पूँजी और MSME ऋण",
+    "mr": "खेळते भांडवल आणि MSME कर्जे"
+  },
+  "GST-ready statements": {
+    "hi": "GST के लिए तैयार स्टेटमेंट",
+    "mr": "GST साठी तयार स्टेटमेंट"
+  },
+  "Business registration or Udyam certificate": {
+    "hi": "व्यवसाय पंजीकरण या उद्यम प्रमाणपत्र",
+    "mr": "व्यवसाय नोंदणी किंवा उद्यम प्रमाणपत्र"
+  },
+  "GST certificate if registered": {
+    "hi": "GST प्रमाणपत्र, यदि पंजीकृत हों",
+    "mr": "नोंदणीकृत असल्यास GST प्रमाणपत्र"
+  },
+  "Owner Aadhaar and PAN": {
+    "hi": "मालिक का आधार और PAN",
+    "mr": "मालकाचे आधार आणि PAN"
+  },
+  "See products": {
+    "hi": "प्रोडक्ट देखें",
+    "mr": "प्रॉडक्ट पाहा"
+  },
+  "Tell me about Kosh banking for {segment}.": {
+    "hi": "{segment} के लिए कोष बैंकिंग के बारे में बताइए।",
+    "mr": "{segment} साठी कोष बँकिंगबद्दल सांगा."
+  },
+  "What you need": {
+    "hi": "आपको क्या चाहिए",
+    "mr": "तुम्हाला काय लागेल"
+  },
+  "Short, practical guides to protect your money and make it grow.": {
+    "hi": "आपके पैसे को सुरक्षित रखने और बढ़ाने के लिए छोटे, व्यावहारिक गाइड।",
+    "mr": "तुमचे पैसे सुरक्षित ठेवण्यासाठी आणि वाढवण्यासाठी छोटे, व्यवहारी मार्गदर्शक."
+  },
+  "Scam alert": {
+    "hi": "धोखाधड़ी चेतावनी",
+    "mr": "फसवणूक इशारा"
+  },
+  "Savings": {
+    "hi": "बचत",
+    "mr": "बचत"
+  },
+  "Credit": {
+    "hi": "क्रेडिट",
+    "mr": "क्रेडिट"
+  },
+  "Investing": {
+    "hi": "निवेश",
+    "mr": "गुंतवणूक"
+  },
+  "Spot a UPI scam in five seconds": {
+    "hi": "पाँच सेकंड में UPI धोखाधड़ी पहचानें",
+    "mr": "पाच सेकंदांत UPI फसवणूक ओळखा"
+  },
+  "You never need to enter your UPI PIN to receive money. A request that asks for your PIN is taking money out.": {
+    "hi": "पैसे पाने के लिए कभी UPI PIN डालने की ज़रूरत नहीं होती। जो रिक्वेस्ट PIN माँगे, वह पैसे निकाल रही है।",
+    "mr": "पैसे मिळवण्यासाठी UPI PIN कधीच टाकावा लागत नाही. PIN मागणारी विनंती पैसे काढून घेत असते."
+  },
+  "Entering your PIN always sends money, it never receives it": {
+    "hi": "PIN डालने से हमेशा पैसे जाते हैं, कभी आते नहीं",
+    "mr": "PIN टाकल्याने नेहमी पैसे जातात, कधीच येत नाहीत"
+  },
+  "Check the name that appears before you approve a collect request": {
+    "hi": "कलेक्ट रिक्वेस्ट मंज़ूर करने से पहले दिख रहा नाम जाँचें",
+    "mr": "कलेक्ट विनंती मंजूर करण्यापूर्वी दिसणारे नाव तपासा"
+  },
+  "Report suspicious requests to 1930 immediately": {
+    "hi": "संदिग्ध रिक्वेस्ट की तुरंत 1930 पर रिपोर्ट करें",
+    "mr": "संशयास्पद विनंत्यांची लगेच 1930 वर तक्रार करा"
+  },
+  "Digital arrest is not real": {
+    "hi": "डिजिटल अरेस्ट असली नहीं है",
+    "mr": "डिजिटल अरेस्ट खरे नसते"
+  },
+  "Police, CBI or customs never question you on a video call or ask you to transfer money to clear your name.": {
+    "hi": "पुलिस, CBI या कस्टम कभी वीडियो कॉल पर पूछताछ नहीं करते और नाम साफ़ करने के लिए पैसे ट्रांसफ़र करने को नहीं कहते।",
+    "mr": "पोलीस, CBI किंवा कस्टम्स कधीही व्हिडिओ कॉलवर चौकशी करत नाहीत किंवा नाव स्वच्छ करण्यासाठी पैसे पाठवायला सांगत नाहीत."
+  },
+  "Hang up and call the agency on its official number": {
+    "hi": "कॉल काटें और एजेंसी को उसके आधिकारिक नंबर पर कॉल करें",
+    "mr": "कॉल बंद करा आणि त्या संस्थेला अधिकृत क्रमांकावर कॉल करा"
+  },
+  "Never move money to a \"safe account\"": {
+    "hi": "कभी भी \"सुरक्षित खाते\" में पैसे न भेजें",
+    "mr": "कधीही \"सुरक्षित खात्यात\" पैसे पाठवू नका"
+  },
+  "Tell a family member; scammers rely on isolation": {
+    "hi": "परिवार के किसी सदस्य को बताएँ; ठग आपको अकेला करके ठगते हैं",
+    "mr": "कुटुंबातील कोणाला तरी सांगा; फसवणूक करणारे तुम्हाला एकटे पाडतात"
+  },
+  "Build an emergency fund": {
+    "hi": "आपातकालीन कोष बनाएँ",
+    "mr": "आपत्कालीन निधी तयार करा"
+  },
+  "Aim for three to six months of expenses in a savings account or sweep FD you can reach quickly.": {
+    "hi": "तीन से छह महीने के खर्च जितनी राशि बचत खाते या स्वीप FD में रखें जिसे जल्दी निकाल सकें।",
+    "mr": "तीन ते सहा महिन्यांच्या खर्चाइतकी रक्कम बचत खात्यात किंवा लगेच काढता येणाऱ्या स्वीप FD मध्ये ठेवा."
+  },
+  "Start with one month and grow it with a small RD": {
+    "hi": "एक महीने से शुरू करें और छोटी RD से बढ़ाएँ",
+    "mr": "एका महिन्यापासून सुरुवात करा आणि छोट्या RD ने वाढवा"
+  },
+  "Keep it separate from spending money": {
+    "hi": "इसे खर्च वाले पैसे से अलग रखें",
+    "mr": "ते खर्चाच्या पैशांपासून वेगळे ठेवा"
+  },
+  "Top it up after every bonus or salary hike": {
+    "hi": "हर बोनस या वेतन वृद्धि के बाद इसे बढ़ाएँ",
+    "mr": "प्रत्येक बोनस किंवा पगारवाढीनंतर त्यात भर घाला"
+  },
+  "What moves your credit score": {
+    "hi": "आपका क्रेडिट स्कोर किससे बदलता है",
+    "mr": "तुमचा क्रेडिट स्कोअर कशामुळे बदलतो"
+  },
+  "Paying EMIs and card bills on time matters most. Using less than 30% of your card limit helps too.": {
+    "hi": "EMI और कार्ड बिल समय पर भरना सबसे ज़रूरी है। कार्ड सीमा का 30% से कम उपयोग भी मदद करता है।",
+    "mr": "EMI आणि कार्ड बिले वेळेवर भरणे सर्वात महत्त्वाचे. कार्ड मर्यादेच्या 30% पेक्षा कमी वापरही मदत करतो."
+  },
+  "Set up autopay for card bills": {
+    "hi": "कार्ड बिलों के लिए ऑटोपे सेट करें",
+    "mr": "कार्ड बिलांसाठी ऑटोपे सेट करा"
+  },
+  "Avoid many loan applications in a short time": {
+    "hi": "कम समय में कई लोन आवेदन न करें",
+    "mr": "कमी वेळेत अनेक कर्ज अर्ज टाळा"
+  },
+  "Check your report once a year for errors": {
+    "hi": "साल में एक बार अपनी रिपोर्ट में गलतियाँ जाँचें",
+    "mr": "वर्षातून एकदा तुमच्या अहवालातील चुका तपासा"
+  },
+  "FD, RD or SIP?": {
+    "hi": "FD, RD या SIP?",
+    "mr": "FD, RD की SIP?"
+  },
+  "FDs lock a lump sum at a fixed rate, RDs build savings monthly, and SIPs invest in markets with higher risk and potential returns.": {
+    "hi": "FD एकमुश्त राशि को तय दर पर लॉक करती है, RD हर महीने बचत बनाती है, और SIP ज़्यादा जोखिम और संभावित रिटर्न के साथ बाज़ार में निवेश करती है।",
+    "mr": "FD एकरकमी रक्कम ठरावीक दराने गुंतवते, RD दरमहा बचत वाढवते आणि SIP जास्त जोखीम व संभाव्य परताव्यासह बाजारात गुंतवणूक करते."
+  },
+  "Use FDs for money you need in 1 to 3 years": {
+    "hi": "1 से 3 साल में ज़रूरी पैसे के लिए FD चुनें",
+    "mr": "1 ते 3 वर्षांत लागणाऱ्या पैशांसाठी FD वापरा"
+  },
+  "Use RDs to form a monthly saving habit": {
+    "hi": "मासिक बचत की आदत के लिए RD चुनें",
+    "mr": "मासिक बचतीच्या सवयीसाठी RD वापरा"
+  },
+  "Consider SIPs for goals more than 5 years away": {
+    "hi": "5 साल से दूर के लक्ष्यों के लिए SIP पर विचार करें",
+    "mr": "5 वर्षांहून दूरच्या उद्दिष्टांसाठी SIP चा विचार करा"
+  },
+  "This page took a wrong turn": {
+    "hi": "यह पेज रास्ता भटक गया",
+    "mr": "हे पान वाट चुकले"
+  },
+  "The link may be old or mistyped. Your money is safe, and everything else is one tap away.": {
+    "hi": "लिंक पुराना या गलत हो सकता है। आपका पैसा सुरक्षित है, और बाकी सब एक टैप दूर है।",
+    "mr": "दुवा जुना किंवा चुकीचा असू शकतो. तुमचे पैसे सुरक्षित आहेत आणि बाकी सर्व एका टॅपवर आहे."
+  },
+  "Go to home": {
+    "hi": "होम पर जाएँ",
+    "mr": "मुख्यपृष्ठावर जा"
+  },
+  "Get help": {
+    "hi": "मदद लें",
+    "mr": "मदत मिळवा"
+  },
+  "Login to Kosh": {
+    "hi": "कोष में लॉग इन करें",
+    "mr": "कोषमध्ये लॉग इन करा"
+  },
+  "Your session ends after 5 minutes idle": {
+    "hi": "5 मिनट निष्क्रिय रहने पर सत्र समाप्त होता है",
+    "mr": "5 मिनिटे निष्क्रिय राहिल्यास सत्र संपते"
+  },
+  "Kosh never asks for OTP on call": {
+    "hi": "कोष कभी कॉल पर OTP नहीं माँगता",
+    "mr": "कोष कधीही कॉलवर OTP मागत नाही"
+  },
+  "Close": {
+    "hi": "बंद करें",
+    "mr": "बंद करा"
+  },
+  "Login method": {
+    "hi": "लॉग इन का तरीका",
+    "mr": "लॉग इन पद्धत"
+  },
+  "Mobile OTP": {
+    "hi": "मोबाइल OTP",
+    "mr": "मोबाइल OTP"
+  },
+  "Password": {
+    "hi": "पासवर्ड",
+    "mr": "पासवर्ड"
+  },
+  "MOBILE SIGN IN": {
+    "hi": "मोबाइल से लॉग इन",
+    "mr": "मोबाइलने लॉग इन"
+  },
+  "Namaste! Let’s sign you in.": {
+    "hi": "नमस्ते! आइए आपको लॉग इन करें।",
+    "mr": "नमस्कार! चला लॉग इन करूया."
+  },
+  "Enter your registered mobile number and we will send a one-time code.": {
+    "hi": "अपना पंजीकृत मोबाइल नंबर डालें, हम एक वन-टाइम कोड भेजेंगे।",
+    "mr": "तुमचा नोंदणीकृत मोबाइल क्रमांक टाका, आम्ही एक वन-टाइम कोड पाठवू."
+  },
+  "Mobile number": {
+    "hi": "मोबाइल नंबर",
+    "mr": "मोबाइल क्रमांक"
+  },
+  "Could not send the code. Please try again.": {
+    "hi": "कोड नहीं भेजा जा सका। कृपया फिर कोषिश करें।",
+    "mr": "कोड पाठवता आला नाही. कृपया पुन्हा प्रयत्न करा."
+  },
+  "That code did not work. Check it and try again.": {
+    "hi": "यह कोड काम नहीं किया। जाँचकर फिर कोषिश करें।",
+    "mr": "हा कोड चालला नाही. तपासून पुन्हा प्रयत्न करा."
+  },
+  "Sending code…": {
+    "hi": "कोड भेजा जा रहा है…",
+    "mr": "कोड पाठवत आहोत…"
+  },
+  "Get OTP": {
+    "hi": "OTP पाएँ",
+    "mr": "OTP मिळवा"
+  },
+  "Code sent to": {
+    "hi": "कोड भेजा गया",
+    "mr": "कोड पाठवला"
+  },
+  "Change": {
+    "hi": "बदलें",
+    "mr": "बदला"
+  },
+  "Demo code": {
+    "hi": "डेमो कोड",
+    "mr": "डेमो कोड"
+  },
+  "Verification code": {
+    "hi": "सत्यापन कोड",
+    "mr": "पडताळणी कोड"
+  },
+  "Resend code in {s}s": {
+    "hi": "{s} सेकंड में कोड फिर भेजें",
+    "mr": "{s} सेकंदांत कोड पुन्हा पाठवा"
+  },
+  "Resend OTP": {
+    "hi": "OTP फिर भेजें",
+    "mr": "OTP पुन्हा पाठवा"
+  },
+  "Verifying…": {
+    "hi": "सत्यापित हो रहा है…",
+    "mr": "पडताळणी सुरू आहे…"
+  },
+  "Verify and login": {
+    "hi": "सत्यापित करें और लॉग इन करें",
+    "mr": "पडताळा आणि लॉग इन करा"
+  },
+  "Demo numbers": {
+    "hi": "डेमो नंबर",
+    "mr": "डेमो क्रमांक"
+  },
+  "Code": {
+    "hi": "कोड",
+    "mr": "कोड"
+  },
+  "CUSTOMER ID AND PASSWORD": {
+    "hi": "ग्राहक ID और पासवर्ड",
+    "mr": "ग्राहक ID आणि पासवर्ड"
+  },
+  "Welcome back.": {
+    "hi": "फिर से स्वागत है।",
+    "mr": "पुन्हा स्वागत आहे."
+  },
+  "Customers and bank officers can sign in here.": {
+    "hi": "ग्राहक और बैंक अधिकारी यहाँ लॉग इन कर सकते हैं।",
+    "mr": "ग्राहक आणि बँक अधिकारी येथे लॉग इन करू शकतात."
+  },
+  "Username": {
+    "hi": "यूज़रनेम",
+    "mr": "यूजरनेम"
+  },
+  "Hide password": {
+    "hi": "पासवर्ड छुपाएँ",
+    "mr": "पासवर्ड लपवा"
+  },
+  "Show password": {
+    "hi": "पासवर्ड दिखाएँ",
+    "mr": "पासवर्ड दाखवा"
+  },
+  "Incorrect username or password.": {
+    "hi": "गलत यूज़रनेम या पासवर्ड।",
+    "mr": "चुकीचे यूजरनेम किंवा पासवर्ड."
+  },
+  "Signing in…": {
+    "hi": "लॉग इन हो रहा है…",
+    "mr": "लॉग इन होत आहे…"
+  },
+  "Login securely": {
+    "hi": "सुरक्षित लॉग इन करें",
+    "mr": "सुरक्षितपणे लॉग इन करा"
+  },
+  "Demo accounts": {
+    "hi": "डेमो खाते",
+    "mr": "डेमो खाती"
+  },
+  "Find the right account, card or loan": {
+    "hi": "सही खाता, कार्ड या लोन चुनें",
+    "mr": "योग्य खाते, कार्ड किंवा कर्ज निवडा"
+  },
+  "Loading products…": {
+    "hi": "प्रोडक्ट लोड हो रहे हैं…",
+    "mr": "प्रॉडक्ट लोड होत आहेत…"
+  },
+  "{n} products. Illustrative rates, eligibility applies.": {
+    "hi": "{n} प्रोडक्ट। उदाहरण दरें, पात्रता लागू।",
+    "mr": "{n} प्रॉडक्ट. उदाहरणादाखल दर, पात्रता लागू."
+  },
+  "Product categories": {
+    "hi": "प्रोडक्ट श्रेणियाँ",
+    "mr": "प्रॉडक्ट श्रेणी"
+  },
+  "All Products": {
+    "hi": "सभी प्रोडक्ट",
+    "mr": "सर्व प्रॉडक्ट"
+  },
+  "Savings Accounts": {
+    "hi": "बचत खाते",
+    "mr": "बचत खाती"
+  },
+  "Credit Cards": {
+    "hi": "क्रेडिट कार्ड",
+    "mr": "क्रेडिट कार्ड"
+  },
+  "Fixed Deposits": {
+    "hi": "सावधि जमा",
+    "mr": "मुदत ठेवी"
+  },
+  "Loans & Credit": {
+    "hi": "ऋण और क्रेडिट",
+    "mr": "कर्ज आणि क्रेडिट"
+  },
+  "Investments & Demat": {
+    "hi": "निवेश और डीमैट",
+    "mr": "गुंतवणूक आणि डिमॅट"
+  },
+  "Tell me about {product}, including important terms and tradeoffs, and help me decide whether it matches my needs.": {
+    "hi": "{product} के बारे में बताइए, ज़रूरी शर्तों और फ़ायदे-नुकसान सहित, और तय करने में मदद कीजिए कि यह मेरी ज़रूरतों के अनुकूल है या नहीं।",
+    "mr": "{product} बद्दल महत्त्वाच्या अटी आणि फायदे-तोट्यांसह सांगा आणि ते माझ्या गरजांना जुळते का हे ठरवायला मदत करा."
+  },
+  "Rate or benefit": {
+    "hi": "दर या लाभ",
+    "mr": "दर किंवा लाभ"
+  },
+  "How Kosh compares": {
+    "hi": "कोष की तुलना",
+    "mr": "कोषची तुलना"
+  },
+  "Reviewed {date}.": {
+    "hi": "{date} को समीक्षा की गई।",
+    "mr": "{date} रोजी आढावा घेतला."
+  },
+  "Apply now": {
+    "hi": "अभी आवेदन करें",
+    "mr": "आता अर्ज करा"
+  },
+  "Enter your full name as on PAN.": {
+    "hi": "PAN के अनुसार अपना पूरा नाम डालें।",
+    "mr": "PAN प्रमाणे तुमचे पूर्ण नाव टाका."
+  },
+  "Enter a 10-digit Indian mobile number.": {
+    "hi": "10 अंकों का भारतीय मोबाइल नंबर डालें।",
+    "mr": "10 अंकी भारतीय मोबाइल क्रमांक टाका."
+  },
+  "Enter a valid email address.": {
+    "hi": "सही ईमेल पता डालें।",
+    "mr": "योग्य ईमेल पत्ता टाका."
+  },
+  "Enter a valid PAN, for example ABCDE1234F.": {
+    "hi": "सही PAN डालें, जैसे ABCDE1234F।",
+    "mr": "योग्य PAN टाका, उदा. ABCDE1234F."
+  },
+  "Enter a valid 6-digit PIN code.": {
+    "hi": "सही 6 अंकों का पिन कोड डालें।",
+    "mr": "योग्य 6 अंकी पिन कोड टाका."
+  },
+  "Enter your monthly income.": {
+    "hi": "अपनी मासिक आय डालें।",
+    "mr": "तुमचे मासिक उत्पन्न टाका."
+  },
+  "Minimum loan amount is ₹50,000.": {
+    "hi": "न्यूनतम लोन राशि ₹50,000 है।",
+    "mr": "किमान कर्ज रक्कम ₹50,000 आहे."
+  },
+  "We could not submit your application. Please try again.": {
+    "hi": "आपका आवेदन जमा नहीं हो सका। कृपया फिर कोषिश करें।",
+    "mr": "तुमचा अर्ज सादर करता आला नाही. कृपया पुन्हा प्रयत्न करा."
+  },
+  "Card application approved in principle": {
+    "hi": "कार्ड आवेदन सैद्धांतिक रूप से मंज़ूर",
+    "mr": "कार्ड अर्ज तत्त्वतः मंजूर"
+  },
+  "Loan approved in principle": {
+    "hi": "लोन सैद्धांतिक रूप से मंज़ूर",
+    "mr": "कर्ज तत्त्वतः मंजूर"
+  },
+  "Your account is ready": {
+    "hi": "आपका खाता तैयार है",
+    "mr": "तुमचे खाते तयार आहे"
+  },
+  "Account number": {
+    "hi": "खाता संख्या",
+    "mr": "खाते क्रमांक"
+  },
+  "Customer ID": {
+    "hi": "ग्राहक ID",
+    "mr": "ग्राहक ID"
+  },
+  "Debit card": {
+    "hi": "डेबिट कार्ड",
+    "mr": "डेबिट कार्ड"
+  },
+  "Complete KYC with Mitra to start sending money. Change this demo password after you log in.": {
+    "hi": "पैसे भेजना शुरू करने के लिए मित्र के साथ KYC पूरा करें। लॉग इन के बाद यह डेमो पासवर्ड बदलें।",
+    "mr": "पैसे पाठवायला सुरुवात करण्यासाठी मित्रसोबत KYC पूर्ण करा. लॉग इन केल्यावर हा डेमो पासवर्ड बदला."
+  },
+  "Copied": {
+    "hi": "कॉपी हो गया",
+    "mr": "कॉपी झाले"
+  },
+  "Copy details": {
+    "hi": "विवरण कॉपी करें",
+    "mr": "तपशील कॉपी करा"
+  },
+  "Go to my account": {
+    "hi": "मेरे खाते पर जाएँ",
+    "mr": "माझ्या खात्यावर जा"
+  },
+  "Done": {
+    "hi": "हो गया",
+    "mr": "झाले"
+  },
+  "Reference": {
+    "hi": "संदर्भ",
+    "mr": "संदर्भ"
+  },
+  "Credit limit": {
+    "hi": "क्रेडिट सीमा",
+    "mr": "क्रेडिट मर्यादा"
+  },
+  "Status": {
+    "hi": "स्थिति",
+    "mr": "स्थिती"
+  },
+  "Estimated EMI": {
+    "hi": "अनुमानित EMI",
+    "mr": "अंदाजे EMI"
+  },
+  "Apply for this too": {
+    "hi": "इसके लिए भी आवेदन करें",
+    "mr": "यासाठीही अर्ज करा"
+  },
+  "Open {product}": {
+    "hi": "{product} खोलें",
+    "mr": "{product} उघडा"
+  },
+  "Apply for {product}": {
+    "hi": "{product} के लिए आवेदन करें",
+    "mr": "{product} साठी अर्ज करा"
+  },
+  "No Kosh account needed. We check your eligibility instantly.": {
+    "hi": "कोष खाते की ज़रूरत नहीं। हम तुरंत आपकी पात्रता जाँचते हैं।",
+    "mr": "कोष खात्याची गरज नाही. आम्ही लगेच तुमची पात्रता तपासतो."
+  },
+  "Paperless approval. Money can go to any bank account.": {
+    "hi": "कागज़ रहित मंज़ूरी। पैसा किसी भी बैंक खाते में जा सकता है।",
+    "mr": "कागदविरहित मंजुरी. पैसे कोणत्याही बँक खात्यात जाऊ शकतात."
+  },
+  "Takes about two minutes. You get your account number right away.": {
+    "hi": "लगभग दो मिनट लगते हैं। खाता संख्या तुरंत मिलती है।",
+    "mr": "सुमारे दोन मिनिटे लागतात. खाते क्रमांक लगेच मिळतो."
+  },
+  "Full name as on PAN": {
+    "hi": "PAN के अनुसार पूरा नाम",
+    "mr": "PAN प्रमाणे पूर्ण नाव"
+  },
+  "We send a one-time code to this number.": {
+    "hi": "हम इस नंबर पर वन-टाइम कोड भेजते हैं।",
+    "mr": "आम्ही या क्रमांकावर वन-टाइम कोड पाठवतो."
+  },
+  "Email (optional)": {
+    "hi": "ईमेल (वैकल्पिक)",
+    "mr": "ईमेल (पर्यायी)"
+  },
+  "PAN": {
+    "hi": "PAN",
+    "mr": "PAN"
+  },
+  "PAN (optional)": {
+    "hi": "PAN (वैकल्पिक)",
+    "mr": "PAN (पर्यायी)"
+  },
+  "Employment": {
+    "hi": "रोज़गार",
+    "mr": "रोजगार"
+  },
+  "Salaried": {
+    "hi": "वेतनभोगी",
+    "mr": "पगारदार"
+  },
+  "Self-employed or business owner": {
+    "hi": "स्व-रोज़गार या व्यवसाय मालिक",
+    "mr": "स्वयंरोजगार किंवा व्यवसाय मालक"
+  },
+  "Student": {
+    "hi": "छात्र",
+    "mr": "विद्यार्थी"
+  },
+  "Freelancer": {
+    "hi": "फ़्रीलांसर",
+    "mr": "फ्रीलान्सर"
+  },
+  "Monthly allowance (₹)": {
+    "hi": "मासिक भत्ता (₹)",
+    "mr": "मासिक भत्ता (₹)"
+  },
+  "Monthly take-home income (₹)": {
+    "hi": "मासिक इन-हैंड आय (₹)",
+    "mr": "मासिक हातात येणारे उत्पन्न (₹)"
+  },
+  "College": {
+    "hi": "कॉलेज",
+    "mr": "महाविद्यालय"
+  },
+  "Employer": {
+    "hi": "नियोक्ता",
+    "mr": "नियोक्ता"
+  },
+  "PIN code": {
+    "hi": "पिन कोड",
+    "mr": "पिन कोड"
+  },
+  "Loan details": {
+    "hi": "लोन विवरण",
+    "mr": "कर्जाचा तपशील"
+  },
+  "Loan amount (₹)": {
+    "hi": "लोन राशि (₹)",
+    "mr": "कर्जाची रक्कम (₹)"
+  },
+  "Purpose": {
+    "hi": "उद्देश्य",
+    "mr": "उद्देश"
+  },
+  "Home renovation": {
+    "hi": "घर का नवीनीकरण",
+    "mr": "घराचे नूतनीकरण"
+  },
+  "Medical emergency": {
+    "hi": "चिकित्सा आपातकाल",
+    "mr": "वैद्यकीय आणीबाणी"
+  },
+  "Education": {
+    "hi": "शिक्षा",
+    "mr": "शिक्षण"
+  },
+  "Business working capital": {
+    "hi": "व्यवसाय कार्यशील पूँजी",
+    "mr": "व्यवसायाचे खेळते भांडवल"
+  },
+  "Electric vehicle or solar": {
+    "hi": "इलेक्ट्रिक वाहन या सोलर",
+    "mr": "इलेक्ट्रिक वाहन किंवा सोलर"
+  },
+  "Debt consolidation": {
+    "hi": "कर्ज समेकन",
+    "mr": "कर्ज एकत्रीकरण"
+  },
+  "Wedding or personal": {
+    "hi": "शादी या निजी",
+    "mr": "लग्न किंवा वैयक्तिक"
+  },
+  "per month": {
+    "hi": "प्रति माह",
+    "mr": "दरमहा"
+  },
+  "Please fix the highlighted fields.": {
+    "hi": "कृपया चिह्नित फ़ील्ड ठीक करें।",
+    "mr": "कृपया चिन्हांकित फील्ड दुरुस्त करा."
+  },
+  "Submitting…": {
+    "hi": "जमा हो रहा है…",
+    "mr": "सादर होत आहे…"
+  },
+  "Submit card application": {
+    "hi": "कार्ड आवेदन जमा करें",
+    "mr": "कार्ड अर्ज सादर करा"
+  },
+  "Check my loan offer": {
+    "hi": "मेरा लोन ऑफ़र देखें",
+    "mr": "माझी कर्ज ऑफर पाहा"
+  },
+  "Open my account": {
+    "hi": "मेरा खाता खोलें",
+    "mr": "माझे खाते उघडा"
+  },
+  "Demo bank: no real account, card or loan is created and no credit check is done.": {
+    "hi": "डेमो बैंक: कोई असली खाता, कार्ड या लोन नहीं बनता और कोई क्रेडिट जाँच नहीं होती।",
+    "mr": "डेमो बँक: खरे खाते, कार्ड किंवा कर्ज तयार होत नाही आणि क्रेडिट तपासणी होत नाही."
+  },
+  "Freeze it instantly from Cards, or ask Mitra. To unfreeze, raise a request and the bank confirms it within minutes.": {
+    "hi": "कार्ड सेक्शन से तुरंत फ़्रीज़ करें या मित्र से कहें। अनफ़्रीज़ के लिए अनुरोध करें, बैंक कुछ मिनटों में पुष्टि करता है।",
+    "mr": "कार्ड विभागातून लगेच फ्रीझ करा किंवा मित्रला सांगा. अनफ्रीझसाठी विनंती करा, बँक काही मिनिटांत पुष्टी करते."
+  }
+}

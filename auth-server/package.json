@@ -1,0 +1,32 @@
+{
+  "name": "sentinel-auth-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "node scripts/patch-oauth-refresh-scope.mjs",
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/server.js",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "db:migrate": "npx auth migrate --config src/auth.ts",
+    "clients:bootstrap": "tsx src/bootstrap-clients.ts"
+  },
+  "dependencies": {
+    "@better-auth/oauth-provider": "1.7.6",
+    "better-auth": "1.7.6",
+    "firebase-admin": "^14.5.0",
+    "pg": "^8.16.3",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/pg": "^8.15.6",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  }
+}

@@ -1,0 +1,69 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sentinel
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - sentinel_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d sentinel"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  auth-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sentinel_auth
+      POSTGRES_USER: sentinel_auth
+      POSTGRES_PASSWORD: ${AUTH_POSTGRES_PASSWORD:-sentinel_auth_dev}
+    ports:
+      - "5434:5432"
+    volumes:
+      - sentinel_auth_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel_auth -d sentinel_auth"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  auth-server:
+    build:
+      context: ./auth-server
+    environment:
+      NODE_ENV: development
+      AUTH_PORT: 8020
+      AUTH_AUTO_MIGRATE: "true"
+      AUTH_DATABASE_URL: postgresql://sentinel_auth:${AUTH_POSTGRES_PASSWORD:-sentinel_auth_dev}@auth-postgres:5432/sentinel_auth
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://127.0.0.1:8020}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-sentinel-auth-development-secret-change-me}
+      SENTINEL_WEB_URL: ${SENTINEL_PUBLIC_URL:-http://127.0.0.1:8017}
+      SENTINEL_API_AUDIENCE: ${OAUTH_AUDIENCE:-http://127.0.0.1:8017/api}
+      SENTINEL_WEB_CLIENT_ID: ${OAUTH_WEB_CLIENT_ID:-sentinel-web}
+      SENTINEL_WEB_CLIENT_SECRET: ${OAUTH_WEB_CLIENT_SECRET:-sentinel-web-development-secret}
+      SENTINEL_CHAT_CLIENT_ID: ${OAUTH_CHAT_CLIENT_ID:-sentinel-chat}
+      SENTINEL_CHAT_CLIENT_SECRET: ${OAUTH_CHAT_CLIENT_SECRET:-sentinel-chat-development-secret}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+      FIREBASE_WEB_API_KEY: ${FIREBASE_WEB_API_KEY:-}
+      FIREBASE_AUTH_DOMAIN: ${FIREBASE_AUTH_DOMAIN:-}
+      AUTH_FIREBASE_IDENTITIES: ${AUTH_FIREBASE_IDENTITIES:-}
+      AUTH_STAFF_USERNAME: ${AUTH_STAFF_USERNAME:-officer.mumbai}
+      AUTH_STAFF_PASSWORD: ${AUTH_STAFF_PASSWORD:-Officer@2468}
+    ports:
+      - "8020:8020"
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "node dist/src/bootstrap-clients.js && node dist/src/server.js"]
+    restart: unless-stopped
+
+volumes:
+  sentinel_postgres:
+  sentinel_auth_postgres:

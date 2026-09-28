@@ -1,0 +1,68 @@
+{
+  "Our promise": { "hi": "हमारा वादा", "mr": "आमचे वचन" },
+  "Not just a bank": { "hi": "सिर्फ़ एक बैंक नहीं", "mr": "फक्त एक बँक नाही" },
+  "The story of Kosh begins with *bharosa*. We believe every Indian deserves a bank that speaks *their language*, protects *every rupee* and never hides the fine print. Zero balance. Zero jargon. *Mitra* by your side, *Kavach* at your gate. This is banking that feels like *home*.": {
+    "hi": "कोष की कहानी *भरोसे* से शुरू होती है। हम मानते हैं कि हर भारतीय को ऐसा बैंक मिलना चाहिए जो *उसकी भाषा* बोले, *हर रुपये* की रक्षा करे और कोई शर्त न छिपाए। ज़ीरो बैलेंस। ज़ीरो उलझन। साथ में *मित्र*, दरवाज़े पर *कवच*। यह ऐसी बैंकिंग है जो *घर* जैसी लगे।",
+    "mr": "कोषची गोष्ट *विश्वासाने* सुरू होते. प्रत्येक भारतीयाला असे बँक मिळायला हवे जे *त्याची भाषा* बोलेल, *प्रत्येक रुपयाचे* रक्षण करेल आणि कोणतीही अट लपवणार नाही. शून्य शिल्लक. शून्य गोंधळ. सोबत *मित्र*, दारावर *कवच*. ही बँकिंग *घरासारखी* वाटते."
+  },
+  "One app for everything": { "hi": "हर काम के लिए एक ऐप", "mr": "प्रत्येक कामासाठी एक ॲप" },
+  "Spend, save and *grow*, all in one app.": { "hi": "खर्च करें, बचाएँ और *बढ़ाएँ*, सब एक ऐप में।", "mr": "खर्च करा, बचत करा आणि *वाढवा*, सर्व एकाच ॲपमध्ये." },
+  "UPI": { "hi": "UPI", "mr": "UPI" },
+  "Kavach": { "hi": "कवच", "mr": "कवच" },
+  "Pay anyone in a second": { "hi": "किसी को भी पल भर में पैसे भेजें", "mr": "कोणालाही क्षणात पैसे पाठवा" },
+  "Scan any UPI QR or pick a saved payee. Money moves instantly, with a receipt you can share.": {
+    "hi": "कोई भी UPI QR स्कैन करें या सेव किया हुआ प्राप्तकर्ता चुनें। पैसा तुरंत पहुँचता है, और रसीद आप शेयर कर सकते हैं।",
+    "mr": "कोणताही UPI QR स्कॅन करा किंवा जतन केलेला लाभार्थी निवडा. पैसे लगेच पोहोचतात, आणि पावती शेअर करता येते."
+  },
+  "Your card, your rules": { "hi": "आपका कार्ड, आपके नियम", "mr": "तुमचे कार्ड, तुमचे नियम" },
+  "Freeze it in one tap, turn off international use and set a daily limit. Changes apply within minutes.": {
+    "hi": "एक टैप में फ़्रीज़ करें, अंतरराष्ट्रीय उपयोग बंद करें और दैनिक सीमा तय करें। बदलाव कुछ ही मिनटों में लागू होते हैं।",
+    "mr": "एका टॅपमध्ये फ्रीझ करा, आंतरराष्ट्रीय वापर बंद करा आणि दैनिक मर्यादा ठरवा. बदल काही मिनिटांत लागू होतात."
+  },
+  "Watch your savings grow": { "hi": "अपनी बचत को बढ़ते देखें", "mr": "तुमची बचत वाढताना पाहा" },
+  "Open an FD or RD in under a minute and see the maturity amount before you commit.": {
+    "hi": "एक मिनट से कम में FD या RD खोलें और तय करने से पहले परिपक्वता राशि देखें।",
+    "mr": "एका मिनिटापेक्षा कमी वेळात FD किंवा RD उघडा आणि निर्णय घेण्यापूर्वी मुदतपूर्ती रक्कम पाहा."
+  },
+  "Every payment checked": { "hi": "हर भुगतान की जाँच", "mr": "प्रत्येक पेमेंटची तपासणी" },
+  "Kavach looks at the payee, the amount and your usual pattern. Anything unusual waits for your approval.": {
+    "hi": "कवच प्राप्तकर्ता, राशि और आपके सामान्य पैटर्न को देखता है। कुछ भी असामान्य हो तो वह आपकी मंज़ूरी का इंतज़ार करता है।",
+    "mr": "कवच लाभार्थी, रक्कम आणि तुमची नेहमीची पद्धत तपासते. काहीही असामान्य असेल तर ते तुमच्या मंजुरीची वाट पाहते."
+  },
+  "Scan and pay": { "hi": "स्कैन करें और भुगतान करें", "mr": "स्कॅन करा आणि पैसे भरा" },
+  "Paying": { "hi": "भुगतान", "mr": "पेमेंट" },
+  "Paid in 0.8 seconds": { "hi": "0.8 सेकंड में भुगतान हुआ", "mr": "0.8 सेकंदात पेमेंट झाले" },
+  "You invest": { "hi": "आपका निवेश", "mr": "तुमची गुंतवणूक" },
+  "Matures to": { "hi": "परिपक्वता पर", "mr": "मुदतपूर्तीला" },
+  "2 years": { "hi": "2 साल", "mr": "2 वर्षे" },
+  "Payment paused": { "hi": "भुगतान रोका गया", "mr": "पेमेंट थांबवले" },
+  "New payee · ₹45,000 · first payment": { "hi": "नया प्राप्तकर्ता · ₹45,000 · पहला भुगतान", "mr": "नवीन लाभार्थी · ₹45,000 · पहिले पेमेंट" },
+  "Decline": { "hi": "अस्वीकार करें", "mr": "नाकारा" },
+  "Approve": { "hi": "मंज़ूर करें", "mr": "मंजूर करा" },
+  "The proof writes *itself*.": { "hi": "सबूत *ख़ुद* बोलते हैं।", "mr": "पुरावा *स्वतःच* बोलतो." },
+  "Deposits insured by DICGC, per depositor": { "hi": "DICGC द्वारा प्रति जमाकर्ता जमा बीमा", "mr": "DICGC कडून प्रति ठेवीदार ठेव विमा" },
+  "FD interest for 444 days (illustrative)": { "hi": "444 दिनों की FD पर ब्याज (उदाहरण)", "mr": "444 दिवसांच्या FD वर व्याज (उदाहरण)" },
+  "To open an account. No minimum balance.": { "hi": "खाता खोलने के लिए। कोई न्यूनतम बैलेंस नहीं।", "mr": "खाते उघडण्यासाठी. किमान शिल्लक नाही." },
+  "Languages Mitra speaks: English, हिन्दी, मराठी": { "hi": "मित्र की भाषाएँ: English, हिन्दी, मराठी", "mr": "मित्र बोलतो त्या भाषा: English, हिन्दी, मराठी" },
+  "Upgrade your money, *bit by bit*.": { "hi": "अपने पैसे को बेहतर बनाएँ, *थोड़ा-थोड़ा करके*।", "mr": "तुमचे पैसे अधिक चांगले करा, *थोडे-थोडे करून*." },
+  "Scan and pay any UPI QR": { "hi": "कोई भी UPI QR स्कैन करके भुगतान करें", "mr": "कोणताही UPI QR स्कॅन करून पैसे भरा" },
+  "Cards that pay you back": { "hi": "ऐसे कार्ड जो आपको लौटाएँ", "mr": "तुम्हाला परतावा देणारी कार्डे" },
+  "Deposits that grow every day": { "hi": "हर दिन बढ़ने वाली जमा", "mr": "दररोज वाढणाऱ्या ठेवी" },
+  "Home loans, approved in principle in minutes": { "hi": "होम लोन, मिनटों में सैद्धांतिक मंज़ूरी", "mr": "गृहकर्ज, काही मिनिटांत तत्त्वतः मंजुरी" },
+  "Bills paid before they are due": { "hi": "नियत तारीख़ से पहले बिल भुगतान", "mr": "देय तारखेपूर्वी बिले भरली जातात" },
+  "Mitra, your AI banker": { "hi": "मित्र, आपका AI बैंकर", "mr": "मित्र, तुमचा AI बँकर" },
+  "Know more": { "hi": "और जानें", "mr": "अधिक जाणून घ्या" },
+  "Drag": { "hi": "खींचें", "mr": "ओढा" },
+  "A bank for *every* Indian.": { "hi": "*हर* भारतीय के लिए एक बैंक।", "mr": "*प्रत्येक* भारतीयासाठी एक बँक." },
+  "Extra 0.50% on deposits and doorstep banking": { "hi": "जमा पर अतिरिक्त 0.50% और घर पर बैंकिंग", "mr": "ठेवींवर अतिरिक्त 0.50% आणि घरपोच बँकिंग" },
+  "Lower loan rates and savings built around you": { "hi": "कम लोन दरें और आपके हिसाब से बनी बचत", "mr": "कमी कर्ज दर आणि तुमच्यासाठी बनवलेली बचत" },
+  "Zero-balance account and education loans": { "hi": "ज़ीरो बैलेंस खाता और शिक्षा लोन", "mr": "शून्य शिल्लक खाते आणि शैक्षणिक कर्ज" },
+  "NRE and NRO accounts and easy transfers home": { "hi": "NRE और NRO खाते, और घर पैसे भेजना आसान", "mr": "NRE आणि NRO खाती, आणि घरी पैसे पाठवणे सोपे" },
+  "Kisan credit and crop loans at fair rates": { "hi": "उचित दरों पर किसान क्रेडिट और फ़सल लोन", "mr": "योग्य दरात किसान क्रेडिट आणि पीक कर्ज" },
+  "Current accounts, UPI QR and quick working capital": { "hi": "चालू खाते, UPI QR और जल्दी कार्यशील पूंजी", "mr": "चालू खाती, UPI QR आणि जलद खेळते भांडवल" },
+  "Bharosa, *har kadam.*": { "hi": "भरोसा, *हर कदम।*", "mr": "विश्वास, *प्रत्येक पावलावर.*" },
+  "Open a zero-balance Kosh account in about five minutes. No branch visit, no paperwork.": {
+    "hi": "लगभग पाँच मिनट में ज़ीरो बैलेंस कोष खाता खोलें। न शाखा जाना, न कागज़ी कार्रवाई।",
+    "mr": "सुमारे पाच मिनिटांत शून्य शिल्लक कोष खाते उघडा. शाखेत जाणे नाही, कागदपत्रांची कटकट नाही."
+  }
+}

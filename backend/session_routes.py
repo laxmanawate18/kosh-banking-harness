@@ -1,0 +1,454 @@
+import json
+import logging
+import os
+import re
+import secrets
+import urllib.request
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+
+from backend.api_models import ApprovalDecisionRequest, ServiceRequestCreate, SessionCreateRequest, SessionUpdateRequest
+from backend.conversations import create_session_data, list_sessions_metadata, load_session, sanitized_session, save_session
+from backend.email_service import email_service
+from auth_service import _hash
+from persistence import UserRecord, utc_dt
+from product_service import get_product_by_id
+from service_requests import SERVICE_CATALOGUE
+
+logger = logging.getLogger(__name__)
+
+
+def _sync_auth_server(name: str, email: str, username: str, password: str, sentinel_user_id: str, phone: str) -> None:
+    try:
+        auth_base = os.environ.get("BETTER_AUTH_URL", "http://127.0.0.1:8020").rstrip("/")
+        data = json.dumps({
+            "name": name,
+            "email": email,
+            "username": username,
+            "password": password,
+            "sentinelUserId": sentinel_user_id,
+            "phoneNumber": phone,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"{auth_base}/api/internal/provision-user",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as res:
+            pass
+    except Exception as e:
+        logger.warning("Auth server sync warning: %s", e)
+
+
+def _wipe_auth_server(sentinel_user_id: str = "", phone: str = "", username: str = "") -> None:
+    try:
+        auth_base = os.environ.get("BETTER_AUTH_URL", "http://127.0.0.1:8020").rstrip("/")
+        data = json.dumps({
+            "sentinelUserId": sentinel_user_id,
+            "phoneNumber": phone,
+            "username": username,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"{auth_base}/api/internal/wipe-user",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as res:
+            pass
+    except Exception as e:
+        logger.warning("Auth server wipe warning: %s", e)
+
+
+
+
+def make_session_router(
+    db,
+    request_service,
+    require_auth,
+    require_csrf,
+    require_customer,
+    require_customer_csrf,
+    require_officer,
+    active_consent,
+    auth_service=None,
+):
+    router = APIRouter()
+
+    @router.get("/api/sessions")
+    async def get_sessions(context=Depends(require_auth)):
+        return list_sessions_metadata(context.user_id)
+
+    @router.post("/api/sessions")
+    async def create_session(req: SessionCreateRequest, context=Depends(require_csrf)):
+        return sanitized_session(create_session_data(
+            title=req.title or "New Chat",
+            user_id=context.user_id,
+            customer_id=context.customer_id,
+            initial_messages=req.messages,
+        ))
+
+    @router.get("/api/sessions/{session_id}")
+    async def get_session_detail(session_id: str, context=Depends(require_auth)):
+        session = load_session(session_id)
+        if not session or (context.role != "OFFICER" and session.get("user_id") != context.user_id):
+            raise HTTPException(status_code=404, detail="Session not found")
+        return sanitized_session(session)
+
+    @router.patch("/api/sessions/{session_id}")
+    async def update_session_detail(session_id: str, req: SessionUpdateRequest, context=Depends(require_csrf)):
+        session = load_session(session_id)
+        if not session or (context.role != "OFFICER" and session.get("user_id") != context.user_id):
+            raise HTTPException(status_code=404, detail="Session not found")
+        if req.title is not None:
+            session["title"] = req.title.strip() or "Untitled Chat"
+        save_session(session)
+        return sanitized_session(session)
+
+    @router.delete("/api/sessions/{session_id}")
+    async def delete_session_endpoint(session_id: str, context=Depends(require_csrf)):
+        if not db.delete_conversation(session_id, None if context.role == "OFFICER" else context.user_id):
+            raise HTTPException(status_code=404, detail="Session not found")
+        return {"deleted": True, "id": session_id}
+
+    @router.get("/api/services")
+    async def get_services(context=Depends(require_auth)):
+        del context
+        return {"services": SERVICE_CATALOGUE}
+
+    @router.get("/api/service-requests")
+    async def get_service_requests(context=Depends(require_customer)):
+        return {"requests": request_service.list_for_customer(context.customer_id or "")}
+
+    @router.post("/api/service-requests")
+    async def create_service_request(req: ServiceRequestCreate, context=Depends(require_customer_csrf)):
+        consent = active_consent(context)
+        if req.service_id == "P1-17":
+            raise HTTPException(409, "KYC must use the document workflow and trusted review")
+        service = next((item for item in SERVICE_CATALOGUE if item["id"] == req.service_id), None)
+        if not service:
+            raise HTTPException(status_code=404, detail="Unknown service")
+        if service["auth_level"] == "L3" and context.assurance_level != "L3":
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "STEP_UP_REQUIRED", "message": "This service requires fresh L3 verification"},
+            )
+        return request_service.create(
+            customer_id=context.customer_id or "",
+            user_id=context.user_id,
+            service_id=req.service_id,
+            data=req.data,
+            consent_id=consent["id"],
+            session_id=req.session_id,
+        )
+
+    @router.get("/api/officer/queue")
+    async def officer_queue(context=Depends(require_officer)):
+        del context
+        return {"requests": request_service.approval_queue()}
+
+    @router.post("/api/officer/requests/{request_id}/decision")
+    async def officer_decision(request_id: str, req: ApprovalDecisionRequest, context=Depends(require_csrf)):
+        require_officer(context)
+        try:
+            return request_service.decide(
+                request_id,
+                officer_user_id=context.user_id,
+                action=req.action,
+                reason=req.reason,
+                override_justification=req.override_justification,
+                verification_checks=req.verification_checks,
+                verification_reference=req.verification_reference,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @router.get("/api/officer/requests/{request_id}/rpa")
+    async def officer_rpa_status(request_id: str, context=Depends(require_officer)):
+        del context
+        request = request_service.get(request_id)
+        if not request:
+            raise HTTPException(status_code=404, detail="Request not found")
+        if request.get("service_id") != "P1-25":
+            raise HTTPException(status_code=400, detail="This request does not use account-opening RPA")
+        return request
+
+    @router.get("/api/audit/replay/{session_id}")
+    async def audit_replay(session_id: str, context=Depends(require_auth)):
+        conversation = db.get_conversation(session_id)
+        if context.role != "OFFICER" and (not conversation or conversation.get("user_id") != context.user_id):
+            raise HTTPException(status_code=404, detail="Session not found")
+        return {
+            "session_id": session_id,
+            "events": list(reversed(db.get_audit_events(session_id=session_id, limit=250))),
+        }
+
+    @router.get("/api/officer/leads")
+    async def get_officer_leads(status: str = None, context=Depends(require_officer)):
+        del context
+        return {"leads": db.list_leads(status=status, limit=100)}
+
+    @router.post("/api/officer/leads/{lead_id}/status")
+    async def update_lead_status_endpoint(lead_id: str, req: dict, context=Depends(require_csrf)):
+        require_officer(context)
+        status = req.get("status")
+        notes = req.get("notes")
+        if not status:
+            raise HTTPException(status_code=400, detail="Status is required")
+        res = db.update_lead_status(lead_id, status, notes=notes)
+        if not res:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        return res
+
+    @router.post("/api/leads/{lead_id}/action")
+    async def customer_lead_action(lead_id: str, req: dict, context=Depends(require_auth)):
+        action = req.get("action", "INTERESTED")
+        status_map = {
+            "INTERESTED": "INTERESTED",
+            "APPLY": "APPLIED",
+            "DECLINE": "DECLINED",
+        }
+        target_status = status_map.get(str(action).upper(), "INTERESTED")
+        res = db.update_lead_status(lead_id, target_status, notes=f"Customer selected: {action}")
+        return {"success": True, "lead": res}
+
+    @router.post("/api/officer/leads/{lead_id}/approve")
+    async def approve_lead_endpoint(lead_id: str, req: dict = None, context=Depends(require_csrf)):
+        require_officer(context)
+        lead = db.get_lead(lead_id)
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        if lead.get("customer_id") and lead.get("status") in ("APPROVED", "CONVERTED"):
+            raise HTTPException(status_code=400, detail="This application has already been approved and provisioned.")
+
+        pref = lead.get("preferences") or {}
+        full_name = pref.get("applicant_name") or "Valued Customer"
+        phone = pref.get("phone_number") or ""
+        email = pref.get("email") or ""
+        if not email or "@" not in email:
+            email = (req or {}).get("email") or pref.get("email") or ""
+            if not email or "@" not in email:
+                raise HTTPException(status_code=422, detail="A valid recipient email address is required to dispatch credentials.")
+
+        product_id = lead.get("recommended_product_id") or "PROD-SAV-PREMIER"
+        product = get_product_by_id(product_id)
+        if not product:
+            product = {
+                "id": product_id,
+                "title": lead.get("sub_type") or "Kosh Suvarna Account",
+                "category": (lead.get("category") or "SAVINGS").lower(),
+                "headline_rate": "7.20% p.a.",
+            }
+
+        first_name = re.sub(r"[^a-z0-9]", "", full_name.lower().split()[0]) or "user"
+        username = pref.get("requested_username") or f"{first_name}{uuid.uuid4().hex[:4]}"
+
+        chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*"
+        temp_password = "Kosh!" + "".join(secrets.choice(chars) for _ in range(9))
+
+        onboarded = db.onboard_customer_with_product(
+            product=product,
+            full_name=full_name,
+            phone_number=phone,
+            username=username,
+            email=email,
+        )
+        customer_id = onboarded["customer_id"]
+
+        if auth_service:
+            try:
+                auth_service.create_onboarded_profile(
+                    full_name=full_name,
+                    phone_number=phone,
+                    username=username,
+                    customer_id=customer_id,
+                    password=temp_password,
+                )
+            except Exception as e:
+                # If already exists, ignore duplicate
+                pass
+
+        _sync_auth_server(
+            name=full_name,
+            email=email,
+            username=username,
+            password=temp_password,
+            sentinel_user_id=customer_id,
+            phone=phone,
+        )
+
+        email_result = email_service.send_credentials_email(
+            to_email=email,
+            applicant_name=full_name,
+            username=username,
+            temp_password=temp_password,
+            customer_id=customer_id,
+            product_title=product.get("title", "Kosh Banking Product"),
+            account_number=onboarded.get("account_number"),
+        )
+
+        db.update_lead_status(
+            lead_id=lead_id,
+            status="CONVERTED",
+            customer_id=customer_id,
+            notes=f"Approved by officer {context.username}. Credentials dispatched to {email} (status: {email_result.get('delivery_status')}).",
+            preferences={
+                "delivery_status": email_result.get("delivery_status"),
+                "approved_by": context.username,
+                "provisioned_username": username,
+                "approved_at": utc_dt().isoformat(),
+                "email": email,
+            },
+        )
+
+        db.append_audit(
+            "OFFICER_APPROVED_CREDENTIALS_DISPATCHED",
+            actor=context.username,
+            summary=f"Officer approved application {lead_id} for {full_name}; credentials sent to {email}",
+            details={
+                "lead_id": lead_id,
+                "customer_id": customer_id,
+                "product_id": product_id,
+                "email": email,
+                "delivery_status": email_result.get("delivery_status"),
+            },
+        )
+
+        return {
+            "success": True,
+            "message": f"Application approved. Credentials successfully dispatched to {email}.",
+            "lead_id": lead_id,
+            "customer_id": customer_id,
+            "username": username,
+            "delivery_status": email_result.get("delivery_status"),
+            "email_sent_to": email,
+            "account_number": onboarded.get("account_number"),
+        }
+
+    @router.get("/api/officer/customers")
+    async def get_officer_customers(context=Depends(require_officer)):
+        del context
+        return {"customers": db.list_customers_summary()}
+
+    @router.delete("/api/officer/customers/{customer_id}")
+    async def wipe_officer_customer(customer_id: str, context=Depends(require_officer)):
+        customer = db.get_customer(customer_id)
+        phone = customer.get("phone_number") if customer else None
+        username = None
+        if auth_service:
+            try:
+                with auth_service.runtime.sessions.begin() as session:
+                    user = session.scalar(select(UserRecord).where(UserRecord.customer_id == customer_id))
+                    if user:
+                        username = user.username
+                        if not phone and user.phone_number:
+                            phone = user.phone_number
+            except Exception:
+                pass
+        wipe_result = db.wipe_customer(customer_id=customer_id, phone_number=phone)
+        _wipe_auth_server(sentinel_user_id=customer_id, phone=phone, username=username)
+        db.append_audit(
+            "OFFICER_WIPED_CUSTOMER_RELATIONSHIP",
+            actor=context.username,
+            summary=f"Officer wiped out customer {customer_id} and all associated accounts/credentials",
+            details={
+                "customer_id": customer_id,
+                "phone_number": phone,
+                "officer": context.username,
+                "wipe_result": wipe_result,
+            },
+        )
+        return {
+            "success": True,
+            "message": f"Successfully wiped out customer {customer_id} and all associated credentials/accounts.",
+            "customer_id": customer_id,
+            "wipe_result": wipe_result,
+        }
+
+    @router.post("/api/officer/customers/{customer_id}/resend-credentials")
+    async def resend_customer_credentials(customer_id: str, context=Depends(require_officer)):
+        cust = db.get_customer(customer_id)
+        if not cust:
+            raise HTTPException(status_code=404, detail="Customer not found")
+
+        chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*"
+        temp_password = "Kosh!" + "".join(secrets.choice(chars) for _ in range(9))
+
+        username = None
+        full_name = cust.get("display_name") or cust.get("full_name") or f"{cust.get('first_name', '')} {cust.get('last_name', '')}".strip() or "Valued Customer"
+        phone = cust.get("phone") or cust.get("phone_masked") or ""
+        email = cust.get("email") or f"{customer_id.lower()}@example.test"
+
+        if auth_service:
+            with auth_service.runtime.sessions.begin() as session:
+                user = session.scalar(select(UserRecord).where(UserRecord.customer_id == customer_id))
+                if user:
+                    username = user.username
+                    user.password_hash = _hash(f"sentinel_salt_{temp_password}")
+                    if user.phone_number:
+                        phone = user.phone_number
+                    if user.display_name:
+                        full_name = user.display_name
+                else:
+                    first_name = re.sub(r"[^a-z0-9]", "", full_name.lower().split()[0]) or "user"
+                    username = f"{first_name}{uuid.uuid4().hex[:4]}"
+                    auth_service.create_onboarded_profile(
+                        full_name=full_name,
+                        phone_number=phone,
+                        username=username,
+                        customer_id=customer_id,
+                        password=temp_password,
+                    )
+
+        if not username:
+            first_name = re.sub(r"[^a-z0-9]", "", full_name.lower().split()[0]) or "user"
+            username = f"{first_name}{uuid.uuid4().hex[:4]}"
+
+        # Sync with auth-server (Better Auth)
+        _sync_auth_server(
+            name=full_name,
+            email=email,
+            username=username,
+            password=temp_password,
+            sentinel_user_id=customer_id,
+            phone=phone,
+        )
+
+        email_result = email_service.send_credentials_email(
+            to_email=email,
+            applicant_name=full_name,
+            username=username,
+            temp_password=temp_password,
+            customer_id=customer_id,
+            product_title="Kosh Digital Banking Account",
+            account_number=cust.get("account_number", ""),
+        )
+
+        db.append_audit(
+            "OFFICER_RESENT_CREDENTIALS",
+            actor=context.username,
+            summary=f"Officer {context.username} regenerated Net Banking credentials for customer {customer_id} ({username}); sent to {email}",
+            details={
+                "customer_id": customer_id,
+                "username": username,
+                "email": email,
+                "delivery_status": email_result.get("delivery_status"),
+            },
+        )
+
+        return {
+            "success": True,
+            "message": f"Fresh credentials generated and emailed to {email}.",
+            "customer_id": customer_id,
+            "username": username,
+            "temp_password": temp_password,
+            "email": email,
+            "delivery_status": email_result.get("delivery_status"),
+        }
+
+    return router
