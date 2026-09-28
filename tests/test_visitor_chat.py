@@ -252,7 +252,7 @@ class VisitorChatTests(unittest.TestCase):
         with self.client.websocket_connect('/ws/chat?session_id=GUEST-demo1234') as ws:
             ready = ws.receive_json()
             self.assertEqual(ready['type'], 'connection_ready')
-            self.assertEqual(ready['session_id'], 'GUEST-demo1234')
+            self.assertRegex(ready['session_id'], r'^GUEST-[A-Za-z0-9_-]{32}$')  # a guessable client id is replaced
             self.assertTrue(ready.get('visitor_mode'))
             ws.send_json({'type': 'prompt', 'prompt': 'Compare cards'})
             events = self.read_turn(ws)

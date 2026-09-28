@@ -28,6 +28,26 @@ interface ChatContextValue {
 
 const ChatContext = createContext<ChatContextValue | undefined>(undefined);
 
+// A visitor's chat (and Mitra's memory of it) survives a refresh for 24 hours on this device.
+const VISITOR_CHAT_KEY = 'kosh.visitorChat';
+const VISITOR_CHAT_TTL_MS = 24 * 60 * 60 * 1000;
+const readVisitorChat = (): string | null => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VISITOR_CHAT_KEY) || 'null');
+    return saved && Date.now() - saved.savedAt < VISITOR_CHAT_TTL_MS ? saved.id : null;
+  } catch { return null; }
+};
+const saveVisitorChat = (id: string) => { try { localStorage.setItem(VISITOR_CHAT_KEY, JSON.stringify({ id, savedAt: Date.now() })); } catch { /* private mode */ } };
+const forgetVisitorChat = () => { try { localStorage.removeItem(VISITOR_CHAT_KEY); } catch { /* private mode */ } };
+const fromStoredMessage = (m: any): ChatMessage => {
+  const presObj = m.presentation || (m.presentations && m.presentations.length > 0 ? m.presentations[m.presentations.length - 1] : undefined);
+  return {
+    id: Math.random().toString(), role: m.role, text: m.text || '', attachments: m.attachments,
+    presentation: presObj, toolResult: m.toolResult || presObj, salesAction: m.salesAction,
+    steps: m.steps, duration_ms: m.duration_ms, timestamp: (m.timestamp || 0) * 1000 || Date.now(),
+  };
+};
+
 export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   return <ChatStateProvider>{children}</ChatStateProvider>;
 };
@@ -100,6 +120,7 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         createSession(title, messagesToMigrate)
           .then(newSess => {
             if (cancelled) return;
+            forgetVisitorChat();
             const firstName = auth?.user?.display_name?.split(' ')[0] || auth?.user?.username || 'there';
             const continuationMsg: ChatMessage = {
               id: Math.random().toString(),
@@ -174,7 +195,7 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           });
       }
     } else {
-      setCurrentSessionId(null);
+      setCurrentSessionId(readVisitorChat());
       setSessionsLoaded(true);
     }
 
@@ -206,6 +227,11 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         setIsConnected(true);
         if (!currentSessionId && event.rawEvent?.session_id) {
           setCurrentSessionId(event.rawEvent.session_id);
+        }
+        if (isVisitor && event.rawEvent?.session_id) {
+          saveVisitorChat(event.rawEvent.session_id);
+          const history = event.rawEvent.history || [];
+          if (history.length && messagesRef.current.length === 0) setMessages(history.map(fromStoredMessage));
         }
       } else if (event.type === 'payment_verified') {
         const rcpt = (event as any).receipt || event.rawEvent?.receipt;
@@ -578,6 +604,7 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         setSessions(prev => [newSess, ...prev]);
         setCurrentSessionId(newSess.id);
       } else {
+        forgetVisitorChat();
         chatSocket.disconnect();
         setCurrentSessionId(null);
         reconnect();

@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
+import re
+import secrets
 import json
 import time
 import traceback
@@ -38,6 +41,19 @@ from product_service import (
     reply_language,
     sales_advisor,
 )
+
+VISITOR_CHAT_ID = re.compile(r"GUEST-[A-Za-z0-9_-]{32}")
+VISITOR_CHAT_TTL_SECONDS = 24 * 60 * 60
+
+
+def restore_sales_context(guest_session: Dict[str, Any]) -> SalesSessionContext:
+    """Mitra's memory of a visitor chat (draft application, submissions, offers shown/declined), if saved."""
+    saved = next((t.get("state") for t in guest_session.get("traces", []) if t.get("type") == "visitor_memory"), None)
+    if not saved:
+        return SalesSessionContext()
+    known = {f.name for f in dataclasses.fields(SalesSessionContext)}
+    return SalesSessionContext(**{k: v for k, v in saved.items() if k in known})
+
 
 CUSTOMER_GUARDED_REPLY = ("I can't share internal instructions or configuration. I can help with your accounts, "
                           "payments, cards and service requests.")
@@ -169,8 +185,11 @@ async def serve_visitor_websocket(
     session_id: Optional[str] = None,
 ) -> None:
     await websocket.accept()
-    guest_id = session_id if (session_id and (session_id.startswith("GUEST-") or session_id.startswith("visitor-"))) else f"GUEST-{uuid.uuid4().hex[:8]}"
-    existing = load_session(guest_id) if session_id else None
+    # Whoever holds a visitor chat id can reopen it, so ids are long random tokens and restores expire.
+    existing = load_session(session_id) if session_id and VISITOR_CHAT_ID.fullmatch(session_id) else None
+    if existing and (existing.get("user_id") or time.time() - existing.get("updated_at", 0) > VISITOR_CHAT_TTL_SECONDS):
+        existing = None
+    guest_id = existing["id"] if existing else f"GUEST-{secrets.token_urlsafe(24)}"
     if existing:
         guest_session = existing
     else:
@@ -186,15 +205,16 @@ async def serve_visitor_websocket(
             "traces": [],
         }
         save_session(guest_session)
+    sales_context = restore_sales_context(guest_session)
     await websocket.send_json({
         "type": "connection_ready",
         "session_id": guest_id,
         "visitor_mode": True,
         "default_model": DEFAULT_MODEL,
+        "history": guest_session.get("messages", [])[-40:],
     })
     agent = None
     active_task = None
-    sales_context = SalesSessionContext()
     sign_in_url = f"/api/chat/auth/start?session_id={urllib.parse.quote(guest_id)}"
 
     async def run_turn(prompt: str, language: str):
@@ -203,6 +223,12 @@ async def serve_visitor_websocket(
         started = time.time()
         await websocket.send_json({"type": "turn_start", "turn_id": turn_id, "model": DEFAULT_MODEL})
         combined_reply = ""
+        turn_presentations: List[Dict[str, Any]] = []
+
+        async def present(presentation: Dict[str, Any]) -> None:
+            turn_presentations.append(presentation)
+            await websocket.send_json({"type": "presentation", "turn_id": turn_id, "presentation": presentation})
+
         try:
             guest_session["messages"].append({"role": "user", "text": prompt, "timestamp": time.time()})
             sales_context.update(prompt)
@@ -210,14 +236,12 @@ async def serve_visitor_websocket(
             guarded = guarded_sales_prompt_reply(prompt, language)
             auth_challenge_triggered = is_personal_banking_inquiry(prompt)
             if guarded:
+                combined_reply = guarded
                 await websocket.send_json({"type": "text_delta", "text": guarded, "turn_id": turn_id})
             elif auth_challenge_triggered:
-                await websocket.send_json({"type": "text_delta", "text": chat_text("auth_prompt", language), "turn_id": turn_id})
-                await websocket.send_json({
-                    "type": "presentation",
-                    "turn_id": turn_id,
-                    "presentation": {**auth_challenge_presentation(language), "action_url": sign_in_url},
-                })
+                combined_reply = chat_text("auth_prompt", language)
+                await websocket.send_json({"type": "text_delta", "text": combined_reply, "turn_id": turn_id})
+                await present({**auth_challenge_presentation(language), "action_url": sign_in_url})
             else:
                 if agent is None:
                     candidate = agent_factory(create_agent_config(
@@ -236,10 +260,9 @@ async def serve_visitor_websocket(
                 full_reply = [text async for text in visitor_reply(agent, prompt, sales_context, language)]
                 for product_id in set(sales_context.submitted_applications) - submitted_before:
                     record = sales_context.submitted_applications[product_id]
-                    await websocket.send_json({"type": "presentation", "turn_id": turn_id, "presentation": {
-                        "type": "APPLICATION_SUBMITTED", "title": record["product_title"],
-                        "application_ref": record["application_ref"], "status": record["status"],
-                        "next_steps": record["next_steps"], "email": record["email"]}})
+                    await present({"type": "APPLICATION_SUBMITTED", "title": record["product_title"],
+                                   "application_ref": record["application_ref"], "status": record["status"],
+                                   "next_steps": record["next_steps"], "email": record["email"]})
                 combined_reply, suggestions = extract_dynamic_suggestions("".join(full_reply))
                 if leaks_internal_prompt(combined_reply):
                     combined_reply = chat_text("guarded", language)
@@ -249,20 +272,17 @@ async def serve_visitor_websocket(
                 # A submitted applicant is told they will sign in later; that is not a request for personal data.
                 if is_auth_required_reply(combined_reply) and not sales_context.submitted_applications:
                     auth_challenge_triggered = True
-                    await websocket.send_json({
-                        "type": "presentation",
-                        "turn_id": turn_id,
-                        "presentation": {**auth_challenge_presentation(language, "auth_message_service"), "action_url": sign_in_url},
-                    })
+                    await present({**auth_challenge_presentation(language, "auth_message_service"), "action_url": sign_in_url})
             if (sales_action.get("action") or sales_action.get("suggested_queries")) and not auth_challenge_triggered:
                 if sales_action.get("companion_cross_sell"):
-                    await websocket.send_json({"type": "presentation", "turn_id": turn_id,
-                                               "presentation": sales_action["companion_cross_sell"]})
+                    await present(sales_action["companion_cross_sell"])
                 await websocket.send_json({"type": "sales_action", "turn_id": turn_id, **sales_action})
-            if combined_reply:
+            if combined_reply or turn_presentations:
                 guest_session["messages"].append({
-                    "role": "assistant", "text": combined_reply, "timestamp": time.time()
+                    "role": "assistant", "text": combined_reply, "timestamp": time.time(),
+                    **({"presentations": turn_presentations, "presentation": turn_presentations[-1]} if turn_presentations else {}),
                 })
+            guest_session["traces"] = [{"type": "visitor_memory", "state": dataclasses.asdict(sales_context)}]
             save_session(guest_session)
             await websocket.send_json({
                 "type": "turn_complete",
