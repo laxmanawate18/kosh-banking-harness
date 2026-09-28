@@ -13,3 +13,6 @@ auth-server/node_modules/
 auth-server/dist/
 .pytest_cache/
 sentinel_laxman/
+.local/
+tests/e2e/
+*.sqlite3

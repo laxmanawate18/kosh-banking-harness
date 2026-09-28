@@ -12,3 +12,7 @@ dist
 .pytest_cache
 tests/__pycache__
 sentinel_laxman
+.env
+.local
+data/*.sqlite3*
+data/*.key
