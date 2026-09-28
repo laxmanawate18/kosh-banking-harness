@@ -29,7 +29,7 @@ export const ROUTE_TITLES: Record<string, string> = {
   deposits: 'Deposits',
   services: 'Banking services',
   requests: 'My requests',
-  security: 'Kavach security',
+  security: 'Sentinel security',
   settings: 'Profile and settings',
   operations: 'Review queue',
   leads: 'AI sales leads',

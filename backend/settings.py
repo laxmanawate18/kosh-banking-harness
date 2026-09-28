@@ -9,9 +9,10 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.8-flash"
 DEFAULT_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID") or "project-3da8cb5f-328e-44d3-b7a"
-DEFAULT_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION") or "us-central1"
+# gemini-3.8-flash is served from the Vertex "global" endpoint (not us-central1).
+DEFAULT_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION") or "global"
 USE_VERTEXAI = (
     os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").lower() in {"true", "1"}
     or os.getenv("GOOGLE_GENAI_USE_ENTERPRISE", "").lower() in {"true", "1"}

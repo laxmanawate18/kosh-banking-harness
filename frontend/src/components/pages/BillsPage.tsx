@@ -172,7 +172,7 @@ export const BillsPage: React.FC = () => {
           </div>
 
           <div className="content-note" style={{ margin: '14px 0' }}>
-            {t('Kavach will verify the registered bill and authorize eligible payments.')}
+            {t('Sentinel will verify the registered bill and authorize eligible payments.')}
           </div>
 
           {payError && <p className="form-error" role="alert">{payError}</p>}

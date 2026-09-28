@@ -134,8 +134,13 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
     return f.choices || [];
   };
 
+  // Fields the customer edited since the last save. Mitra can update the draft in the background
+  // (document prefill), so saves send only these and always target the latest server revision.
+  const editedKeys = useRef<Set<string>>(new Set());
+
   const handleFieldChange = (key: string, val: string) => {
     setFormData(prev => ({ ...prev, [key]: val }));
+    editedKeys.current.add(key);
     setDirty(true);
     setErrorMessage(null);
     setMissingFields(prev => prev.filter(k => k !== key));
@@ -144,19 +149,13 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
   // Save current form state to server
   const saveDraft = async (dataToSave = formData): Promise<BankingWorkflow | null> => {
     if (!workflow) return null;
-    const initialFields = workflow.fields || {};
+    const latest = await getWorkflow(workflow.id);
     const changes: Record<string, string> = {};
-    for (const [k, v] of Object.entries(dataToSave)) {
-      if (v !== (initialFields[k] || '')) {
-        changes[k] = v;
-      }
+    for (const k of editedKeys.current) {
+      if ((dataToSave[k] ?? '') !== (latest.fields?.[k] || '')) changes[k] = dataToSave[k] ?? '';
     }
-    if (Object.keys(changes).length === 0) {
-      setDirty(false);
-      return workflow;
-    }
-
-    const updated = await saveWorkflow(workflow.id, workflow.revision, changes);
+    const updated = Object.keys(changes).length ? await saveWorkflow(latest.id, latest.revision, changes) : latest;
+    editedKeys.current.clear();
     setWorkflow(updated);
     setFormData(updated.fields || {});
     setDirty(false);
@@ -248,13 +247,17 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
             s => s === 'DOCUMENT_AI_SUGGESTION' || s === 'DOCUMENT_OCR'
           );
 
-          if (hasDocAi || revBumped || freshFieldCount > initialFieldCount || attempts >= 15) {
+          if (revBumped || attempts >= 15) {
             clearInterval(pollInterval);
             setIsExtracting(false);
 
             if (hasDocAi || revBumped || freshFieldCount > initialFieldCount) {
               setWorkflow(fresh);
-              setFormData(prev => ({ ...prev, ...(fresh.fields || {}) }));
+              setFormData(prev => {
+                const merged = { ...prev, ...(fresh.fields || {}) };
+                for (const k of editedKeys.current) merged[k] = prev[k];  // customer edits win
+                return merged;
+              });
               setDirty(false);
               setMissingFields([]);
 
@@ -378,8 +381,9 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
     setErrorMessage(null);
 
     try {
+      const latest = await getWorkflow(workflow.id);
       const updated = await submitWorkflow(workflow.id, {
-        revision: workflow.revision,
+        revision: latest.revision,
         review_digest: workflow.review_digest || '',
         confirmed: true,
       });
@@ -440,7 +444,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
       );
       setStepUpConfirmation(confirmation);
       if (['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)) {
-        setStepUpCode(publicConfig.firebase_test_code);
+        setStepUpCode(publicConfig.firebase_test_code ?? '');
       } else {
         setStepUpCode('');
       }
@@ -952,7 +956,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
               className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-[#dce3dc]"
               onClick={e => e.stopPropagation()}
             >
-              <h3 className="text-base font-bold text-[#1b3028] mb-1">Step-Up Authorization Required</h3>
+              <h3 className="text-base font-bold mb-1" style={{ color: '#1b3028' }}>Step-Up Authorization Required</h3>
               <p className="text-xs text-[#66746c] mb-4">
                 This action requires a fresh Firebase phone verification. L3 lasts for five minutes.
               </p>
@@ -970,7 +974,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
                 </div>
               )}
 
-              {stepUpConfirmation && <label className="block text-xs font-semibold text-[#1b3028] mb-2">
+              {stepUpConfirmation && <label className="block text-xs font-semibold mb-2" style={{ color: '#1b3028' }}>
                 One-Time Password (OTP)
                 <input
                   type="text"

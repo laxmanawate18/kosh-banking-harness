@@ -96,7 +96,7 @@ export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({
             <span className="kl-line" style={{ '--d': 0 } as Vars}>{t('Bharosa,')}</span>
             <em className="kl-line" style={{ '--d': 1 } as Vars}>{t('har kadam.')}</em>
           </h1>
-          <p className="kl-hero-sub">{t('One account for savings, cards, deposits and loans. Mitra answers in your language. Kavach guards every rupee.')}</p>
+          <p className="kl-hero-sub">{t('One account for savings, cards, deposits and loans. Mitra answers in your language. Sentinel guards every rupee.')}</p>
           <div className="kl-actions">
             <button type="button" className="kl-btn gold" onClick={onOpen} {...magnetic}>
               <span>{t('Open an account')}</span><Icon name="arrow-right" />
@@ -113,7 +113,7 @@ export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({
       </div>
       <ul className="kl-trustline" aria-label={t('Why bank with Kosh')}>
         <li>{t('Deposits insured up to ₹5 lakh by DICGC')}</li>
-        <li>{t('Kavach checks every payment')}</li>
+        <li>{t('Sentinel checks every payment')}</li>
         <li>{t('Mitra answers 24×7 in English, हिन्दी and मराठी')}</li>
       </ul>
       <span className="kl-scroll-cue" aria-hidden="true"><i /></span>
@@ -150,7 +150,7 @@ const TILES: Tile[] = [
   { icon: 'deposits', kicker: 'Deposits', title: 'grow it with FDs up to 8.10%', href: '#/products/deposits', art: 'deposits', glow: '#9fb3d6' },
   { icon: 'bills', kicker: 'Bills and recharge', title: 'bills paid before they are due', href: '#/products/savings', art: 'bill', glow: '#c99a82' },
   { icon: 'ai-banker', kicker: 'Mitra', title: 'a banker who speaks your language', ask: 'Namaste Mitra! What can you help me with?', art: 'chat', glow: '#ece6d8' },
-  { icon: 'security', kicker: 'Kavach', title: 'every payment checked first', href: '#/help', art: 'kavach', glow: '#aebfb6' },
+  { icon: 'security', kicker: 'Sentinel', title: 'every payment checked first', href: '#/help', art: 'kavach', glow: '#aebfb6' },
   { icon: 'building', kicker: 'Loans', title: 'home loans, approved in minutes', href: '#/products/loans', art: 'loans', glow: '#d4a24c' },
 ];
 
@@ -250,7 +250,7 @@ export const SafetyStatement: React.FC = () => {
     <section className="kl-safe" aria-labelledby="safe-title">
       <FeatureIcon name="kavach" variant="bare" size={64} />
       <h2 id="safe-title" className="kl-eyebrow">{t('Your money is yours. Keeping it safe is ours.')}</h2>
-      <WordReveal className="kl-safe-text" text={t('Every payment is checked by *Kavach* before it leaves your account. OTPs stay inside a trusted Kosh screen, never in chat. Your data is encrypted and *never sold*.')} />
+      <WordReveal className="kl-safe-text" text={t('Every payment is checked by *Sentinel* before it leaves your account. OTPs stay inside a trusted Kosh screen, never in chat. Your data is encrypted and *never sold*.')} />
     </section>
   );
 };

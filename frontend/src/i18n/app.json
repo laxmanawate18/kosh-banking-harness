@@ -75,9 +75,9 @@
     "hi": "मेरे अनुरोध",
     "mr": "माझ्या विनंत्या"
   },
-  "Kavach security": {
-    "hi": "कवच सुरक्षा",
-    "mr": "कवच सुरक्षा"
+  "Sentinel security": {
+    "hi": "सेंटिनल सुरक्षा",
+    "mr": "सेंटिनल सुरक्षा"
   },
   "Profile and settings": {
     "hi": "प्रोफ़ाइल और सेटिंग्स",
@@ -123,9 +123,9 @@
     "hi": "व्यक्तिगत बैंकिंग",
     "mr": "वैयक्तिक बँकिंग"
   },
-  "Kavach is on": {
-    "hi": "कवच चालू है",
-    "mr": "कवच चालू आहे"
+  "Sentinel is on": {
+    "hi": "सेंटिनल चालू है",
+    "mr": "सेंटिनल चालू आहे"
   },
   "Every payment is checked for you": {
     "hi": "आपका हर भुगतान जाँचा जाता है",
@@ -543,9 +543,9 @@
     "hi": "अभी कोई बिल देय नहीं।",
     "mr": "सध्या कोणतेही बिल देय नाही."
   },
-  "Kavach is watching out for you": {
-    "hi": "कवच आपकी सुरक्षा कर रहा है",
-    "mr": "कवच तुमची काळजी घेत आहे"
+  "Sentinel is watching out for you": {
+    "hi": "सेंटिनल आपकी सुरक्षा कर रहा है",
+    "mr": "सेंटिनल तुमची काळजी घेत आहे"
   },
   "Every payment is checked against your instructions. Anything unusual waits for your approval.": {
     "hi": "हर भुगतान आपके निर्देशों से मिलाया जाता है। कुछ भी असामान्य हो तो वह आपकी मंज़ूरी का इंतज़ार करता है।",
@@ -571,9 +571,9 @@
     "hi": "श्रेणी",
     "mr": "श्रेणी"
   },
-  "Receive money with your QR code, or scan any UPI QR to pay. Kavach checks every payment.": {
-    "hi": "अपने QR कोड से पैसे पाएँ या भुगतान के लिए कोई भी UPI QR स्कैन करें। कवच हर भुगतान जाँचता है।",
-    "mr": "तुमच्या QR कोडने पैसे मिळवा किंवा पेमेंटसाठी कोणताही UPI QR स्कॅन करा. कवच प्रत्येक पेमेंट तपासतो."
+  "Receive money with your QR code, or scan any UPI QR to pay. Sentinel checks every payment.": {
+    "hi": "अपने QR कोड से पैसे पाएँ या भुगतान के लिए कोई भी UPI QR स्कैन करें। सेंटिनल हर भुगतान जाँचता है।",
+    "mr": "तुमच्या QR कोडने पैसे मिळवा किंवा पेमेंटसाठी कोणताही UPI QR स्कॅन करा. सेंटिनल प्रत्येक पेमेंट तपासतो."
   },
   "Receive money": {
     "hi": "पैसे पाएँ",
@@ -1043,9 +1043,9 @@
     "hi": "पहले",
     "mr": "आधी"
   },
-  "Payments to this destination are blocked by Kavach.": {
-    "hi": "इस गंतव्य पर भुगतान कवच ने ब्लॉक किए हैं।",
-    "mr": "या गंतव्यावरील पेमेंट कवचने अवरोधित केले आहेत."
+  "Payments to this destination are blocked by Sentinel.": {
+    "hi": "इस गंतव्य पर भुगतान सेंटिनल ने ब्लॉक किए हैं।",
+    "mr": "या गंतव्यावरील पेमेंट सेंटिनलने अवरोधित केले आहेत."
   },
   "Add a payee": {
     "hi": "लाभार्थी जोड़ें",
@@ -1091,9 +1091,9 @@
     "hi": "भुगतान नहीं हुआ। आपके खाते से कोई पैसा नहीं गया।",
     "mr": "पेमेंट झाले नाही. तुमच्या खात्यातून पैसे गेले नाहीत."
   },
-  "Choose a payee and amount. Kavach checks the payment before any money moves.": {
-    "hi": "लाभार्थी और राशि चुनें। पैसा जाने से पहले कवच भुगतान जाँचता है।",
-    "mr": "लाभार्थी आणि रक्कम निवडा. पैसे जाण्यापूर्वी कवच पेमेंट तपासतो."
+  "Choose a payee and amount. Sentinel checks the payment before any money moves.": {
+    "hi": "लाभार्थी और राशि चुनें। पैसा जाने से पहले सेंटिनल भुगतान जाँचता है।",
+    "mr": "लाभार्थी आणि रक्कम निवडा. पैसे जाण्यापूर्वी सेंटिनल पेमेंट तपासतो."
   },
   "Transfers are paused until KYC is complete": {
     "hi": "KYC पूरा होने तक ट्रांसफ़र रुके हैं",

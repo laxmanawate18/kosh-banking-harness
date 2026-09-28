@@ -1,4 +1,4 @@
-"""PostgreSQL-backed repository for Sentinel banking and audit state."""
+"""PostgreSQL-backed repository for Kosh banking and audit state."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ class BankingDatabase:
     A single row is locked for each banking transaction, which keeps the existing
     deterministic policy engine simple while providing cross-process atomicity.
     High-volume CBS integrations would replace this adapter with typed tables and
-    native prepare/commit calls without changing the Sentinel contract.
+    native prepare/commit calls without changing the Kosh contract.
     """
 
     def __init__(

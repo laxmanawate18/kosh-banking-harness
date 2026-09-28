@@ -1,4 +1,4 @@
-"""Sentinel BFF authorization-code callbacks and chat OAuth handoff."""
+"""Kosh BFF authorization-code callbacks and chat OAuth handoff."""
 
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ def make_oauth_router(oauth_service, db, limiter):
                 "OAUTH_AUTHENTICATION_SUCCEEDED",
                 actor=context.role.lower(),
                 session_id=context.session_id,
-                summary="OIDC authorization code exchanged by Sentinel BFF",
+                summary="OIDC authorization code exchanged by Kosh BFF",
                 details={
                     "user_id": context.user_id,
                     "client_id": state_row.client_id,

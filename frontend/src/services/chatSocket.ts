@@ -102,6 +102,10 @@ export class ChatSocketManager {
         this.notify({ type: 'text_delta', textDelta: data.text, rawEvent: data });
         break;
 
+      case 'text_replace':
+        this.notify({ type: 'text_replace', textDelta: data.text, rawEvent: data });
+        break;
+
       case 'sales_action':
         this.notify({ type: 'sales_action', salesAction: data, rawEvent: data });
         break;

@@ -424,7 +424,9 @@ class SentinelService:
             for proposal in self.db.snapshot().get("payment_intents", []):
                 try:
                     age = (now - _parse_time(proposal["created_at"])).total_seconds()
-                    if proposal.get("customer_id") == context.get("customer_id") and 0 <= age <= int(policy.get("velocity_window_seconds", 600)):
+                    # Only money movement counts; protective actions such as freezing a card must not raise payment risk.
+                    moves_money = (proposal.get("action") or {}).get("action_type") in {"PAY_BILL", "TRANSFER"}
+                    if moves_money and proposal.get("customer_id") == context.get("customer_id") and 0 <= age <= int(policy.get("velocity_window_seconds", 600)):
                         recent_attempts += 1
                 except Exception:
                     continue

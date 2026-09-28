@@ -75,7 +75,7 @@ export const Manifesto: React.FC = () => {
       <Rangoli className="ks-manifesto-rangoli" />
       <div className="ks-manifesto-inner">
         <span className="k-eyebrow">{t('Not just a bank')}</span>
-        <WordReveal text={t('The story of Kosh begins with *bharosa*. We believe every Indian deserves a bank that speaks *their language*, protects *every rupee* and never hides the fine print. Zero balance. Zero jargon. *Mitra* by your side, *Kavach* at your gate. This is banking that feels like *home*.')} />
+        <WordReveal text={t('The story of Kosh begins with *bharosa*. We believe every Indian deserves a bank that speaks *their language*, protects *every rupee* and never hides the fine print. Zero balance. Zero jargon. *Mitra* by your side, *Sentinel* at your gate. This is banking that feels like *home*.')} />
       </div>
     </section>
   );

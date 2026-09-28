@@ -1,4 +1,4 @@
-"""Authenticated retail banking HTTP workflows. Money moves only via Sentinel."""
+"""Authenticated retail banking HTTP workflows. Money moves only after a Sentinel risk decision."""
 from __future__ import annotations
 
 import csv

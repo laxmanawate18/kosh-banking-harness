@@ -840,11 +840,35 @@ def validate_sales_response(text: str, context: Optional[SalesSessionContext] = 
 
 
 
+_PROMPT_INJECTION_PATTERN = re.compile(
+    r"(ignore|disregard|forget|override|bypass)\b.{0,40}\b(instructions?|rules|prompt|guardrails?|policies)"
+    r"|(reveal|print|show|display|repeat|output|dump|leak|tell me)\b.{0,40}\b(system|developer|hidden|initial|full|complete)\s+(prompt|instructions?|message)"
+    r"|\b(system|developer)\s+(prompt|message|instructions?)\b"
+    r"|\b(list|name|enumerate)\b.{0,30}\b(tools?|functions?)\b.{0,20}\b(you|can)\b"
+    r"|\byou are now\b|\bjailbreak\b|\bDAN mode\b",
+    re.IGNORECASE,
+)
+# Text that must never reach a customer: base-agent prompt, internal directives and tool names.
+_INTERNAL_LEAK_PATTERN = re.compile(
+    r"you are antigravity|google deepmind|system prompt|system instruction|SYSTEM SALES DIRECTIVE|SecureToolGateHook"
+    r"|\b(get_customer_summary|get_transaction_history|get_outstanding_bills|get_security_alerts|propose_bill_payment"
+    r"|propose_transfer|freeze_card|record_customer_lead|query_bank_knowledge|search_public_products|start_banking_workflow"
+    r"|record_document_extraction|start_account_opening)\b",
+    re.IGNORECASE,
+)
+
+
 def guarded_sales_prompt_reply(prompt: str, language: str = "en") -> Optional[str]:
     """Handle clear instruction-extraction attempts without sending them to the model."""
-    if any(marker in _normalize_prompt(prompt) for marker in _PROMPT_INJECTION_MARKERS):
+    normalized = _normalize_prompt(prompt)
+    if any(marker in normalized for marker in _PROMPT_INJECTION_MARKERS) or _PROMPT_INJECTION_PATTERN.search(prompt):
         return chat_text("guarded", language)
     return None
+
+
+def leaks_internal_prompt(text: str) -> bool:
+    """True when generated text exposes the system prompt, internal directives or tool names."""
+    return bool(_INTERNAL_LEAK_PATTERN.search(text or ""))
 
 
 _AUTH_REQUIRED_PATTERNS = [

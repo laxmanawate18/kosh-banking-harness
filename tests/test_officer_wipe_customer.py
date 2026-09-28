@@ -42,7 +42,6 @@ def test_officer_customers_list_and_wipe(client):
         phone_number=test_phone,
         username=test_user,
         customer_id=cust_id,
-        password="TestPassword123!",
     )
 
     # Verify profile exists

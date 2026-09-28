@@ -1,1 +1,1 @@
-"""Sentinel backend support modules."""
+"""Kosh backend support modules."""

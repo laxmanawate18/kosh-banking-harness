@@ -35,7 +35,7 @@ export const CUSTOMER_NAV: [string, NavItem[]][] = [
     { id: 'requests', title: 'My requests', icon: 'requests' },
   ]],
   ['You', [
-    { id: 'security', title: 'Kavach security', icon: 'security' },
+    { id: 'security', title: 'Sentinel security', icon: 'security' },
     { id: 'settings', title: 'Profile and settings', icon: 'settings' },
   ]],
 ];
@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onRouteChange, is
         <div className="k-side-foot">
           <div className="k-side-kavach">
             <LotusMark size={30} />
-            <div><strong>{t('Kavach is on')}</strong><small>{t('Every payment is checked for you')}</small></div>
+            <div><strong>{t('Sentinel is on')}</strong><small>{t('Every payment is checked for you')}</small></div>
           </div>
           <button id="logoutBtn" type="button" className="k-side-logout" onClick={logout}>
             {t('Sign out')} <Icon name="logout" />

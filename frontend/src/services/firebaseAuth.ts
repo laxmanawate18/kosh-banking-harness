@@ -67,7 +67,7 @@ export async function sendRealPhoneOtp(
   const formatted = formatE164(phoneNumber);
   const authInstance = getFirebaseAuth(config);
   const local = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
-  if (allowConfiguredLocalTest && local && formatted === formatE164(config.firebase_test_phone)) {
+  if (allowConfiguredLocalTest && local && config.firebase_test_phone && formatted === formatE164(config.firebase_test_phone)) {
     authInstance.settings.appVerificationDisabledForTesting = true;
   }
   const verifier = setupRecaptcha(containerId, authInstance);

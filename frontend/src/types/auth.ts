@@ -34,8 +34,8 @@ export interface PublicAuthConfig {
   firebase_api_key: string;
   recaptcha_site_key: string;
   firebase_auth_domain: string;
-  firebase_test_phone: string;
-  firebase_test_code: string;
+  firebase_test_phone?: string;
+  firebase_test_code?: string;
   is_local?: boolean;
   oauth_start_url: string;
 }

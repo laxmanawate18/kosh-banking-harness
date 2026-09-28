@@ -137,39 +137,31 @@ class SentinelBankingTests(unittest.TestCase):
         payment = self.repo.get_payment_intent(result["challenge"]["id"].replace("CHL", "PAYINT"))
         self.assertIsNone(payment)  # IDs are intentionally unrelated and unguessable.
 
-    def test_transfer_above_75000_opens_trusted_otp_challenge(self):
+    def test_transfer_above_75000_opens_trusted_approval_challenge(self):
         result = self.service.propose_transfer(
             self.context("Transfer ₹90,000 to Vikram"), "BEN-VIKRAM", 9_000_000, "ACC-SAL-001"
         )
         self.assertEqual(result["status"], "CHALLENGE_REQUIRED")
         self.assertEqual(result["presentation"]["type"], "PAYMENT_CHALLENGE")
         self.assertEqual(result["challenge"]["amount_minor"], 9_000_000)
-        approved = self.service.verify_challenge(
-            result["challenge"]["id"], "246810", result["challenge"]["transaction_digest"]
+        approved = self.service.approve_challenge(result["challenge"]["id"], result["challenge"]["transaction_digest"]
         )
         self.assertEqual(approved["status"], "EXECUTED")
         self.assertEqual(approved["receipt"]["amount_minor"], 9_000_000)
 
-    def test_correct_otp_reevaluates_and_executes_exactly_once(self):
+    def test_approval_reevaluates_and_executes_exactly_once(self):
         result = self.service.propose_transfer(self.context("Transfer ₹75,000 to Vikram"), "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")
         challenge = result["challenge"]
-        approved = self.service.verify_challenge(challenge["id"], "246810", challenge["transaction_digest"])
-        replay = self.service.verify_challenge(challenge["id"], "246810", challenge["transaction_digest"])
+        approved = self.service.approve_challenge(challenge["id"], challenge["transaction_digest"])
+        replay = self.service.approve_challenge(challenge["id"], challenge["transaction_digest"])
         self.assertEqual(approved["status"], "EXECUTED")
         self.assertEqual(approved["receipt"]["reference"], replay["receipt"]["reference"])
         self.assertEqual(len([t for t in self.repo.snapshot()["transactions"] if t.get("reference") == approved["receipt"]["reference"]]), 1)
 
-    def test_wrong_otp_locks_after_three_attempts(self):
-        result = self.service.propose_transfer(self.context("Transfer ₹75,000 to Vikram"), "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")
-        challenge = result["challenge"]
-        attempts = [self.service.verify_challenge(challenge["id"], "000000", challenge["transaction_digest"]) for _ in range(3)]
-        self.assertEqual([item["attempts_remaining"] for item in attempts], [2, 1, 0])
-        self.assertEqual(attempts[-1]["status"], "LOCKED")
-
     def test_challenge_digest_tampering_denied_without_debit(self):
         before = self.repo.get_account("ACC-SAL-001")["available_balance_minor"]
         result = self.service.propose_transfer(self.context("Transfer ₹75,000 to Vikram"), "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")
-        denied = self.service.verify_challenge(result["challenge"]["id"], "246810", "changed-digest")
+        denied = self.service.approve_challenge(result["challenge"]["id"], "changed-digest")
         self.assertEqual(denied["status"], "DENIED")
         self.assertEqual(self.repo.get_account("ACC-SAL-001")["available_balance_minor"], before)
 
@@ -180,7 +172,7 @@ class SentinelBankingTests(unittest.TestCase):
         challenge = result["challenge"]
         challenge_row = self.repo.get_challenge(challenge["id"])
         self.repo.transaction(lambda data: next(p for p in data["payment_intents"] if p["id"] == challenge_row["payment_intent_id"])["action"].update({"source_account_id": "ACC-SAV-002"}))
-        denied = self.service.verify_challenge(challenge["id"], "246810", challenge["transaction_digest"])
+        denied = self.service.approve_challenge(challenge["id"], challenge["transaction_digest"])
         self.assertEqual(denied["status"], "DENIED")
         self.assertEqual(self.repo.get_account("ACC-SAL-001")["available_balance_minor"], before_salary)
         self.assertEqual(self.repo.get_account("ACC-SAV-002")["available_balance_minor"], before_savings)
@@ -190,7 +182,7 @@ class SentinelBankingTests(unittest.TestCase):
         challenge = result["challenge"]
         expired = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
         self.repo.transaction(lambda data: next(c for c in data["challenges"] if c["id"] == challenge["id"]).update({"expires_at": expired}))
-        response = self.service.verify_challenge(challenge["id"], "246810", challenge["transaction_digest"])
+        response = self.service.approve_challenge(challenge["id"], challenge["transaction_digest"])
         self.assertEqual(response["status"], "EXPIRED")
 
     def test_intent_mismatch_and_mule_are_hard_denies(self):
@@ -244,7 +236,7 @@ class SentinelBankingTests(unittest.TestCase):
     def test_same_idempotency_key_with_changed_amount_denies(self):
         context = self.context("Transfer ₹75,000 to Vikram")
         first = self.service.propose_transfer(context, "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")
-        approved = self.service.verify_challenge(first["challenge"]["id"], "246810", first["challenge"]["transaction_digest"])
+        approved = self.service.approve_challenge(first["challenge"]["id"], first["challenge"]["transaction_digest"])
         changed = self.service.propose_transfer(context, "BEN-VIKRAM", 7_400_000, "ACC-SAL-001")
         self.assertEqual(changed["status"], "DENIED")
         self.assertIn("IDEMPOTENCY_CONFLICT", changed["sentinel"]["reason_codes"])

@@ -115,7 +115,7 @@ function drawBack(ctx: CanvasRenderingContext2D) {
   ctx.fillStyle = grad(ctx, GOLD, 1300, 470, 1560, 620);
   ctx.beginPath(); ctx.roundRect(1300, 470, 260, 150, 16); ctx.fill();
   ctx.fillStyle = 'rgba(236,237,240,0.7)'; ctx.font = '500 40px "Mukta", sans-serif';
-  ctx.fillText('Kosh Bank (demo) · Kavach protected · 1800 000 5674', 150, 1100);
+  ctx.fillText('Kosh Bank (demo) · Sentinel protected · 1800 000 5674', 150, 1100);
   lotus(ctx, TEX_W - 260, 1000, 110, grad(ctx, GOLD, TEX_W - 370, 890, TEX_W - 150, 1110));
 }
 

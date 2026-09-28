@@ -11,8 +11,6 @@ os.environ.setdefault("SENTINEL_DATABASE_URL", f"sqlite+pysqlite:///{Path(_DATAB
 
 from fastapi.testclient import TestClient
 import dev_ui
-from sentinel import DEMO_OTP
-from persistence import UserRecord
 
 
 class PortalTests(unittest.TestCase):
@@ -21,8 +19,9 @@ class PortalTests(unittest.TestCase):
         dev_ui.db.reset_to_seed()
         dev_ui.db.update_kyc_status('CUST-1001', 'VERIFIED')
         self.client = TestClient(dev_ui.app)
-        result = self.client.post('/api/auth/login', json={'username': 'aarav', 'password': 'Sentinel@2468'})
-        self.headers = {'X-CSRF-Token': result.json()['csrf_token']}
+        _, self.raw_cookie, csrf = dev_ui.auth_service.create_direct_session('aarav')
+        self.client.cookies.set(dev_ui.COOKIE_NAME, self.raw_cookie)
+        self.headers = {'X-CSRF-Token': csrf}
         self.post('/api/consent', {'accepted': True})
 
     def post(self, path, payload=None):
@@ -33,8 +32,8 @@ class PortalTests(unittest.TestCase):
                 'beneficiary_id': 'BEN-VIKRAM', 'amount_minor': 7500000, **extra}
 
     def step_up(self):
-        result = self.post('/api/auth/step-up', {'code': DEMO_OTP})
-        self.assertEqual(result.status_code, 200)
+        # Stands in for a verified Firebase re-authentication (L3); the demo-code route no longer exists.
+        dev_ui.auth_service.elevate_session(self.raw_cookie, 'L3')
 
     def test_unauthenticated_and_csrf_requests_are_rejected(self):
         anonymous = TestClient(dev_ui.app)
@@ -47,7 +46,8 @@ class PortalTests(unittest.TestCase):
         self.assertIn('challenge', proposal)
         self.assertEqual(dev_ui.db.get_account('ACC-SAL-001')['balance_minor'], before)
         challenge = proposal['challenge']
-        verification = {'code': DEMO_OTP, 'transaction_digest': challenge['transaction_digest']}
+        verification = {'transaction_digest': challenge['transaction_digest']}
+        self.step_up()
         result = self.post(f"/api/challenges/{challenge['id']}/verify", verification).json()
         self.assertTrue(result['success'], result)
         replay = self.post('/api/portal/payments', self.transfer()).json()
@@ -56,21 +56,23 @@ class PortalTests(unittest.TestCase):
         altered = self.post(f"/api/challenges/{challenge['id']}/verify", {**verification, 'transaction_digest': 'wrong'}).json()
         self.assertFalse(altered['success'])
 
-    def test_ai_transfer_above_75000_uses_login_otp_and_upgrades_assurance(self):
+    def test_transfer_above_75000_executes_only_after_fresh_step_up(self):
         payload = self.transfer(request_key='payment-over-75k-0001', amount_minor=9_000_000)
         before = dev_ui.db.get_account('ACC-SAL-001')['balance_minor']
         proposal = self.post('/api/portal/payments', payload).json()
         self.assertEqual(proposal['status'], 'CHALLENGE_REQUIRED')
         self.assertEqual(proposal['presentation']['type'], 'PAYMENT_CHALLENGE')
         challenge = proposal['challenge']
-        approved = self.post(f"/api/challenges/{challenge['id']}/verify", {
-            'code': DEMO_OTP,
-            'transaction_digest': challenge['transaction_digest'],
-        }).json()
+        verify = f"/api/challenges/{challenge['id']}/verify"
+        blocked = self.post(verify, {'transaction_digest': challenge['transaction_digest']})
+        self.assertEqual(blocked.status_code, 403)
+        self.assertEqual(blocked.json()['detail']['code'], 'STEP_UP_REQUIRED')
+        self.assertEqual(dev_ui.db.get_account('ACC-SAL-001')['balance_minor'], before)
+        self.step_up()
+        approved = self.post(verify, {'transaction_digest': challenge['transaction_digest']}).json()
         self.assertEqual(approved['status'], 'EXECUTED')
         self.assertEqual(approved['receipt']['amount_minor'], 9_000_000)
         self.assertEqual(dev_ui.db.get_account('ACC-SAL-001')['balance_minor'], before - 9_000_000)
-        self.assertEqual(self.client.get('/api/auth/session').json()['assurance_level'], 'L3')
 
     def test_concurrent_bill_retries_have_one_effect(self):
         payload = {'request_key': 'bill-concurrency-0001', 'action': 'PAY_BILL',
@@ -81,25 +83,20 @@ class PortalTests(unittest.TestCase):
         self.assertEqual(len({r['receipt']['reference'] for r in results}), 1)
         self.assertEqual(dev_ui.db.get_account('ACC-SAL-001')['balance_minor'], before - 243000)
 
-    def test_payment_otp_locks_challenge_and_session(self):
-        before = dev_ui.db.get_account('ACC-SAL-001')['balance_minor']
-        c = self.post('/api/portal/payments', self.transfer(amount_minor=9000000)).json()['challenge']
-        endpoint = f"/api/challenges/{c['id']}/verify"
-        for remaining in (2, 1, 0):
-            result = self.post(endpoint, {'code':'000000','transaction_digest':c['transaction_digest']}).json()
-            self.assertEqual(result['attempts_remaining'], remaining)
-        self.assertEqual(dev_ui.db.get_challenge(c['id'])['status'], 'LOCKED')
-        result = self.post(endpoint, {'code':DEMO_OTP,'transaction_digest':c['transaction_digest']}).json()
-        self.assertFalse(result['success'])
-        self.assertEqual(dev_ui.db.get_account('ACC-SAL-001')['balance_minor'], before)
+    def test_public_demo_code_cannot_raise_assurance(self):
+        result = self.post('/api/auth/step-up', {'code': '246810'})
+        self.assertIn(result.status_code, (404, 405))
+        self.assertEqual(self.client.get('/api/auth/session').json()['assurance_level'], 'L2')
 
     def test_changed_stored_payment_cannot_upgrade_session(self):
         c = self.post('/api/portal/payments', self.transfer()).json()['challenge']
         pid = dev_ui.db.get_challenge(c['id'])['payment_intent_id']
         dev_ui.db.transaction(lambda data: next(p for p in data['payment_intents'] if p['id']==pid)['action'].update(amount_minor=9000000))
-        result = self.post(f"/api/challenges/{c['id']}/verify", {'code':DEMO_OTP,'transaction_digest':c['transaction_digest']}).json()
+        before = dev_ui.db.get_account('ACC-SAL-001')['balance_minor']
+        self.step_up()
+        result = self.post(f"/api/challenges/{c['id']}/verify", {'transaction_digest':c['transaction_digest']}).json()
         self.assertEqual(result['status'], 'DENIED')
-        self.assertEqual(self.client.get('/api/auth/session').json()['assurance_level'], 'L2')
+        self.assertEqual(dev_ui.db.get_account('ACC-SAL-001')['balance_minor'], before)
 
     def test_idempotency_conflict_and_money_schema(self):
         self.post('/api/portal/payments', self.transfer())
@@ -175,26 +172,6 @@ class PortalTests(unittest.TestCase):
         self.assertNotIn('PRIVATE_OTHER_EVENT', str(result))
         self.assertEqual(self.client.get('/api/audit/replay/OTHER-AUTH-SESSION').status_code, 404)
 
-    def test_password_change_checks_current_secret_and_revokes_other_sessions(self):
-        other = TestClient(dev_ui.app)
-        other.post('/api/auth/login', json={'username': 'aarav', 'password': 'Sentinel@2468'})
-        with dev_ui.db.runtime.sessions() as session:
-            original_hash = session.get(UserRecord, 'USR-CUSTOMER-001').password_hash
-        try:
-            payload = {'current_password': 'incorrect', 'new_password': 'UpdatedPassword!2468'}
-            self.assertEqual(self.post('/api/portal/security/password', payload).status_code, 400)
-            payload['current_password'] = 'Sentinel@2468'
-            result = self.post('/api/portal/security/password', payload)
-            self.assertEqual(result.status_code, 200, result.text)
-            self.assertEqual(self.client.get('/api/portal/overview').status_code, 200)
-            self.assertEqual(other.get('/api/portal/overview').status_code, 401)
-            new_login = other.post('/api/auth/login', json={'username': 'aarav', 'password': payload['new_password']})
-            self.assertEqual(new_login.status_code, 200)
-        finally:
-            with dev_ui.db.runtime.sessions.begin() as session:
-                session.get(UserRecord, 'USR-CUSTOMER-001').password_hash = original_hash
-            other.close()
-
     def test_service_details_are_validated_and_bank_metadata_is_not_customer_controlled(self):
         self.step_up()
         cases = [('P1-04', {'leaves': '500'}), ('P1-05', {'cheque_number': 'bad'}),
@@ -221,8 +198,9 @@ class PortalTests(unittest.TestCase):
         self.assertEqual(dossier['status'], 'SUBMITTED')
         self.assertEqual(self.post('/api/portal/payments', self.transfer()) .json()['status'], 'DENIED')
         officer = TestClient(dev_ui.app)
-        auth = officer.post('/api/auth/login', json={'username':'officer.mumbai','password':'Officer@2468'}).json()
-        headers = {'X-CSRF-Token':auth['csrf_token']}
+        _, officer_cookie, officer_csrf = dev_ui.auth_service.create_direct_session('officer.mumbai')
+        officer.cookies.set(dev_ui.COOKIE_NAME, officer_cookie)
+        headers = {'X-CSRF-Token': officer_csrf}
         path = f"/api/officer/requests/{dossier['request_id']}/decision"
         missing = officer.post(path, headers=headers, json={'action':'APPROVE','reason':'Documents reviewed'})
         self.assertEqual(missing.status_code, 400)

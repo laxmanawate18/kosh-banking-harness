@@ -25,11 +25,22 @@ from backend.settings import DEFAULT_MODEL
 from auth_service import COOKIE_NAME, AuthContext
 from product_service import (
     SalesSessionContext,
+    auth_challenge_presentation,
+    chat_text,
+    extract_dynamic_suggestions,
     guarded_sales_prompt_reply,
+    inr,
     is_auth_required_reply,
     is_personal_banking_inquiry,
+    language_instruction,
+    leaks_internal_prompt,
+    normalize_language,
+    reply_language,
     sales_advisor,
 )
+
+CUSTOMER_GUARDED_REPLY = ("I can't share internal instructions or configuration. I can help with your accounts, "
+                          "payments, cards and service requests.")
 from sentinel import CUSTOMER_ID, KNOWN_DEVICE_ID, intent_resolver
 from workflow_catalogue import CORE_SKILLS, WORKFLOWS, detect_workflow_skill, load_skill_instructions
 
@@ -56,7 +67,7 @@ def notify_session_payment_verified(session_id: str, receipt: Dict[str, Any]) ->
     ref = receipt.get("payment_ref") or receipt.get("reference", "")
     receipt_msg = {
         "role": "assistant",
-        "text": f"✓ Payment of ₹{amount_paise / 100:,.2f} to {payee} has been successfully verified and executed. Reference: {ref}.",
+        "text": f"✓ Payment of {inr(amount_paise / 100, 2)} to {payee} has been successfully verified and executed. Reference: {ref}.",
         "timestamp": time.time(),
         "presentation": {
             "type": "PAYMENT_RECEIPT",
@@ -184,37 +195,28 @@ async def serve_visitor_websocket(
     agent = None
     active_task = None
     sales_context = SalesSessionContext()
+    sign_in_url = f"/api/chat/auth/start?session_id={urllib.parse.quote(guest_id)}"
 
-    async def run_turn(prompt: str):
+    async def run_turn(prompt: str, language: str):
         nonlocal agent
         turn_id = str(uuid.uuid4())
         started = time.time()
         await websocket.send_json({"type": "turn_start", "turn_id": turn_id, "model": DEFAULT_MODEL})
+        combined_reply = ""
         try:
             guest_session["messages"].append({"role": "user", "text": prompt, "timestamp": time.time()})
             sales_context.update(prompt)
             sales_action = sales_advisor.build_action(prompt, sales_context)
-            guarded = guarded_sales_prompt_reply(prompt)
+            guarded = guarded_sales_prompt_reply(prompt, language)
             auth_challenge_triggered = is_personal_banking_inquiry(prompt)
             if guarded:
                 await websocket.send_json({"type": "text_delta", "text": guarded, "turn_id": turn_id})
             elif auth_challenge_triggered:
-                await websocket.send_json({
-                    "type": "text_delta",
-                    "text": "To view your personal accounts, check balances, request services (such as chequebooks), or initiate transfers, please sign in securely. Kosh protects your banking privacy by requiring authentication before accessing personal account data.",
-                    "turn_id": turn_id,
-                })
+                await websocket.send_json({"type": "text_delta", "text": chat_text("auth_prompt", language), "turn_id": turn_id})
                 await websocket.send_json({
                     "type": "presentation",
                     "turn_id": turn_id,
-                    "presentation": {
-                        "type": "AUTH_CHALLENGE",
-                        "title": "Authentication Required",
-                        "message": "To view your personal account balance, transaction history, cards, or request account services, please sign in securely.",
-                        "action": "OPEN_LOGIN_MODAL",
-                        "action_url": f"/api/chat/auth/start?session_id={urllib.parse.quote(guest_id)}",
-                        "button_text": "Sign In to Kosh",
-                    },
+                    "presentation": {**auth_challenge_presentation(language), "action_url": sign_in_url},
                 })
             else:
                 if agent is None:
@@ -230,28 +232,26 @@ async def serve_visitor_websocket(
                         await candidate.__aexit__(None, None, None)
                         raise
                     agent = candidate
-                full_reply = []
-                async for text in visitor_reply(agent, prompt, sales_context):
-                    full_reply.append(text)
-                    await websocket.send_json({"type": "text_delta", "text": text, "turn_id": turn_id})
-                combined_reply = "".join(full_reply)
+                full_reply = [text async for text in visitor_reply(agent, prompt, sales_context, language)]
+                combined_reply, suggestions = extract_dynamic_suggestions("".join(full_reply))
+                if leaks_internal_prompt(combined_reply):
+                    combined_reply = chat_text("guarded", language)
+                if suggestions:
+                    sales_action["suggested_queries"] = suggestions
+                await websocket.send_json({"type": "text_delta", "text": combined_reply, "turn_id": turn_id})
                 if is_auth_required_reply(combined_reply):
                     auth_challenge_triggered = True
                     await websocket.send_json({
                         "type": "presentation",
                         "turn_id": turn_id,
-                        "presentation": {
-                            "type": "AUTH_CHALLENGE",
-                            "title": "Authentication Required",
-                            "message": "To access services for an existing account, please sign in securely.",
-                            "action": "OPEN_LOGIN_MODAL",
-                            "action_url": f"/api/chat/auth/start?session_id={urllib.parse.quote(guest_id)}",
-                            "button_text": "Sign In to Kosh",
-                        },
+                        "presentation": {**auth_challenge_presentation(language, "auth_message_service"), "action_url": sign_in_url},
                     })
-            if sales_action.get("action") and not auth_challenge_triggered:
+            if (sales_action.get("action") or sales_action.get("suggested_queries")) and not auth_challenge_triggered:
+                if sales_action.get("companion_cross_sell"):
+                    await websocket.send_json({"type": "presentation", "turn_id": turn_id,
+                                               "presentation": sales_action["companion_cross_sell"]})
                 await websocket.send_json({"type": "sales_action", "turn_id": turn_id, **sales_action})
-            if 'combined_reply' in locals() and combined_reply:
+            if combined_reply:
                 guest_session["messages"].append({
                     "role": "assistant", "text": combined_reply, "timestamp": time.time()
                 })
@@ -269,7 +269,7 @@ async def serve_visitor_websocket(
             await websocket.send_json({
                 "type": "error",
                 "turn_id": turn_id,
-                "message": "The AI advisor could not respond. Please try again in a moment.",
+                "message": chat_text("advisor_error", language),
             })
 
 
@@ -306,7 +306,7 @@ async def serve_visitor_websocket(
             elif message.get("attachments"):
                 await websocket.send_json({"type": "error", "message": "Sign in and use a banking workflow to upload documents."})
             else:
-                active_task = asyncio.create_task(run_turn(prompt))
+                active_task = asyncio.create_task(run_turn(prompt, reply_language(prompt, normalize_language(message.get("language")))))
     except WebSocketDisconnect:
         pass
     finally:
@@ -394,6 +394,13 @@ async def serve_chat_websocket(
                 })
                 continue
 
+            language = reply_language(prompt, normalize_language(message.get("language")))
+            if prompt and guarded_sales_prompt_reply(prompt):
+                guard_turn = str(uuid.uuid4())
+                await websocket.send_json({"type": "turn_start", "turn_id": guard_turn, "model": DEFAULT_MODEL, "timestamp": time.time()})
+                await websocket.send_json({"type": "text_delta", "text": CUSTOMER_GUARDED_REPLY, "turn_id": guard_turn})
+                await websocket.send_json({"type": "turn_complete", "turn_id": guard_turn, "duration_ms": 0, "stop_reason": "GUARDED"})
+                continue
             content: List[types.ContentPrimitive] = [prompt] if prompt else []
             workflow_id = message.get("workflow_id")
             session.tool_context.update(workflow_id=None, document_ids=[])
@@ -441,6 +448,8 @@ async def serve_chat_websocket(
             if not content:
                 await websocket.send_json({"type": "error", "message": "Prompt or valid attachment required."})
                 continue
+            # Trusted UI setting for the agent only; intent/skill classifiers see the raw prompt.
+            content.append(language_instruction(language))
             if not auth_service.active_consent(auth.customer_id):
                 await websocket.send_json({"type": "error", "message": "Digital banking consent has been revoked."})
                 continue
@@ -579,7 +588,7 @@ async def serve_chat_websocket(
                         if active_leads:
                             lead = active_leads[0]
                             sub = lead.get("sub_type") or lead.get("category", "Banking Service")
-                            amt = f"₹{lead['amount_requested_minor']/100:,.2f}" if lead.get("amount_requested_minor") else "preferred amount"
+                            amt = inr(lead['amount_requested_minor'] / 100, 2) if lead.get("amount_requested_minor") else "preferred amount"
                             pitch = lead.get("follow_up_pitch") or f"Customer previously inquired about {sub} ({amt})."
                             offer = lead.get("special_offer_note") or "Pre-approved festive offer with zero foreclosure fee!"
                             lead_note = f"[SYSTEM SALES DIRECTIVE: This returning customer previously inquired about {sub} ({amt}). When addressing their message, warmly greet them and proactively pitch this exclusive follow-up offer: '{offer}' ({pitch}) to convert this lead!]\n\n"
@@ -652,6 +661,15 @@ async def serve_chat_websocket(
                             if not s.get("duration_ms"):
                                 s["duration_ms"] = max(0, int((time.time() - s["timestamp"]) * 1000))
                         s.pop("_tool_name", None)
+
+                    clean_text, suggestions = extract_dynamic_suggestions(accumulated_text)
+                    if leaks_internal_prompt(clean_text):
+                        clean_text = CUSTOMER_GUARDED_REPLY
+                    if clean_text != accumulated_text.strip():
+                        await websocket.send_json({"type": "text_replace", "text": clean_text, "turn_id": turn_id})
+                    accumulated_text = clean_text
+                    if suggestions:
+                        await websocket.send_json({"type": "sales_action", "turn_id": turn_id, "suggested_queries": suggestions})
 
                     event = {
                         "type": "turn_complete",

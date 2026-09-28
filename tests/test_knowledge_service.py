@@ -59,7 +59,7 @@ class KnowledgeServiceTests(unittest.TestCase):
         res = tool_map["query_bank_knowledge"]("airport lounge access obsidian")
         self.assertIn("passages", res)
         self.assertGreater(res["results_count"], 0)
-        self.assertEqual(res["fact_source"], "sentinel_official_documentation_corpus")
+        self.assertEqual(res["fact_source"], "kosh_official_documentation_corpus")
 
     def test_banking_tool_query_bank_knowledge(self):
         self.assertIn("query_bank_knowledge", BANKING_TOOL_NAMES)

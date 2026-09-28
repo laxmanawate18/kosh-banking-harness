@@ -8,17 +8,15 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import RedirectResponse
 
 from backend.api_models import (
     ChallengeVerifyRequest,
     ConsentRequest,
     GCPPhoneLoginRequest,
-    StepUpRequest,
 )
 from backend.settings import DEFAULT_MODEL
 from auth_service import COOKIE_NAME, TERMS_VERSION
-from sentinel import AGENT_ID, DEMO_OTP
+from sentinel import AGENT_ID
 
 
 def make_auth_router(
@@ -67,34 +65,15 @@ def make_auth_router(
         idp_sign_out = oauth_service.idp_sign_out_url("/") if oauth_service else None
         return {"logged_out": True, "idp_sign_out_url": idp_sign_out}
 
-    @router.get("/api/auth/logout")
-    async def logout_get(
-        sentinel_session: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
-    ):
-        if sentinel_session:
-            try:
-                context = auth_service.resolve(sentinel_session)
-                if context and oauth_service is not None:
-                    await asyncio.to_thread(oauth_service.revoke_session_grants, context.session_id)
-            except Exception:
-                pass
-            try:
-                auth_service.revoke(sentinel_session)
-            except Exception:
-                pass
-        idp_sign_out = oauth_service.idp_sign_out_url("/") if oauth_service else "/"
-        redirect_res = RedirectResponse(url=idp_sign_out or "/", status_code=302)
-        redirect_res.delete_cookie(COOKIE_NAME, path="/")
-        return redirect_res
-
     @router.post("/api/auth/firebase-step-up")
     @limiter.limit("10/minute")
     async def firebase_step_up(
         request: Request,
+        response: Response,
         req: GCPPhoneLoginRequest,
         context=Depends(require_customer_csrf),
     ):
-        del request
+        del request, response  # slowapi injects rate-limit headers into `response`
         if oauth_service is None or context.auth_source != "oidc":
             raise HTTPException(status_code=404, detail="OIDC step-up is not available")
         if context.client_id != oauth_service.web_client_id:
@@ -115,33 +94,6 @@ def make_auth_router(
             details={"user_id": context.user_id, "assurance": "L3", "expires_in_seconds": expires_in},
         )
         return {"verified": True, "assurance_level": "L3", "expires_in_seconds": expires_in}
-
-    @router.post("/api/auth/step-up")
-    @limiter.limit("10/minute")
-    async def step_up(
-        request: Request,
-        response: Response,
-        req: StepUpRequest,
-        context=Depends(require_customer_csrf),
-    ):
-        del request, response
-        verified, attempts = auth_service.verify_step_up(context.session_id, req.code, DEMO_OTP)
-        if not verified:
-            db.append_audit(
-                "STEP_UP_FAILED",
-                actor="customer",
-                severity="WARNING",
-                summary="Customer step-up verification failed",
-                details={"attempts_remaining": attempts},
-            )
-            raise HTTPException(status_code=401, detail={"code": "INVALID_STEP_UP", "attempts_remaining": attempts})
-        db.append_audit(
-            "STEP_UP_SUCCEEDED",
-            actor="customer",
-            summary="Customer assurance upgraded to L3",
-            details={"user_id": context.user_id, "assurance": "L3", "expires_in_seconds": 900},
-        )
-        return {"verified": True, "assurance_level": "L3", "expires_in_seconds": 900}
 
     @router.post("/api/consent")
     async def capture_consent(req: ConsentRequest, context=Depends(require_customer_csrf)):
@@ -191,7 +143,6 @@ def make_auth_router(
         scenarios = db.snapshot().get("demo_scenarios", {})
         return {
             "simulated": True,
-            "demo_otp": DEMO_OTP,
             "model": DEFAULT_MODEL,
             "agent_id": AGENT_ID,
             "scenarios": [{"id": key, "label": value.get("label", key)} for key, value in scenarios.items()],

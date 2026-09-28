@@ -30,8 +30,13 @@ if (production && (!process.env.SENTINEL_WEB_CLIENT_SECRET || !process.env.SENTI
   throw new Error("SENTINEL_WEB_CLIENT_SECRET and SENTINEL_CHAT_CLIENT_SECRET are required in production");
 }
 
+if (production && !process.env.AUTH_INTERNAL_TOKEN) {
+  throw new Error("AUTH_INTERNAL_TOKEN is required in production");
+}
+
 export const config = {
   production,
+  internalToken: process.env.AUTH_INTERNAL_TOKEN ?? "kosh-internal-development-token",
   port: Number(process.env.PORT ?? process.env.AUTH_PORT ?? "8020"),
   baseURL: process.env.BETTER_AUTH_URL ?? "http://127.0.0.1:8020",
   secret: authSecret,

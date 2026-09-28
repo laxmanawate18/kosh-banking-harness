@@ -156,7 +156,7 @@ class VisitorChatTests(unittest.TestCase):
             action = next(event for event in second if event['type'] == 'sales_action')
             self.assertEqual(action['stage'], 'RECOMMEND')
             self.assertEqual(action['products'][0]['id'], 'PROD-CARD-OBSIDIAN')
-            self.assertEqual(action['products'][0]['fact_metadata']['source'], 'sentinel_demo_catalogue')
+            self.assertEqual(action['products'][0]['fact_metadata']['source'], 'kosh_demo_catalogue')
             self.assertIn('travel', action['summary']['preferences'])
             self.assertTrue(action['products'][0]['match_reasons'])
             self.assertTrue(action['products'][0]['tradeoffs'])
@@ -271,7 +271,7 @@ class VisitorChatTests(unittest.TestCase):
         context2, raw_cookie2, _ = dev_ui.auth_service.create_direct_session("aarav", assurance_level="L2")
         self.client.cookies.set(dev_ui.COOKIE_NAME, raw_cookie2)
         response_get = self.client.get('/api/auth/logout', follow_redirects=False)
-        self.assertEqual(response_get.status_code, 302)
-        self.assertIsNone(dev_ui.auth_service.resolve(raw_cookie2))
+        self.assertEqual(response_get.status_code, 405)  # a cross-site GET must not end the session
+        self.assertIsNotNone(dev_ui.auth_service.resolve(raw_cookie2))
 
 

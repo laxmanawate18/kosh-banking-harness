@@ -82,11 +82,12 @@ class AuthService:
 
     def seed_demo_users(self) -> None:
         demo_users = [
-            ("USR-CUSTOMER-001", "aarav", "+919876543210", "Sentinel@2468", "Aarav Mehta", "CUSTOMER", "CUST-1001"),
-            ("USR-OFFICER-001", "officer.mumbai", None, "Officer@2468", "Neha Rao", "OFFICER", None),
+            ("USR-CUSTOMER-001", "aarav", "+919876543210", "Aarav Mehta", "CUSTOMER", "CUST-1001"),
+            ("USR-CUSTOMER-002", "sudhir", "+919839774797", "Sudhir Jaiswal", "CUSTOMER", "CUST-1002"),
+            ("USR-OFFICER-001", "officer.mumbai", None, "Neha Rao", "OFFICER", None),
         ]
         with self.runtime.sessions.begin() as session:
-            for user_id, username, phone, _password, display_name, role, customer_id in demo_users:
+            for user_id, username, phone, display_name, role, customer_id in demo_users:
                 user = session.get(UserRecord, user_id)
                 if user is None:
                     session.add(UserRecord(id=user_id, username=username, phone_number=phone,
@@ -174,7 +175,7 @@ class AuthService:
         client_id: str | None = None,
         scopes: tuple[str, ...] = (),
     ) -> tuple[AuthContext, str, str]:
-        """Resolve a verified issuer subject and create Sentinel's BFF cookie session."""
+        """Resolve a verified issuer subject and create Kosh's BFF cookie session."""
         with self.runtime.sessions.begin() as session:
             user = session.scalar(select(UserRecord).where(UserRecord.auth_subject == auth_subject))
             if user is None and sentinel_user_id:
@@ -189,7 +190,7 @@ class AuthService:
             if user:
                 user.auth_subject = auth_subject
             if not user or not user.active:
-                raise PermissionError("No active Sentinel profile is linked to this identity")
+                raise PermissionError("No active Kosh profile is linked to this identity")
             context, raw_token, csrf_token = self._create_session(
                 session, user, ip=ip, user_agent=user_agent, assurance_level=assurance_level
             )
@@ -279,17 +280,6 @@ class AuthService:
                 row.assurance_level = assurance_level
                 row.step_up_expires_at = utc_dt() + timedelta(minutes=15)
 
-    def verify_step_up(self, auth_session_id: str, code: str, expected_code: str = "246810") -> tuple[bool, int]:
-        with self.runtime.sessions.begin() as session:
-            row = session.get(AuthSessionRecord, auth_session_id)
-            if not row or row.revoked_at:
-                return False, 0
-            if secrets.compare_digest(code.strip(), expected_code.strip()):
-                row.assurance_level = "L3"
-                row.step_up_expires_at = utc_dt() + timedelta(minutes=15)
-                return True, 3
-            return False, 2
-
     def verify_csrf(self, raw_token: str, csrf_token: str | None) -> bool:
         if not csrf_token:
             return False
@@ -362,9 +352,8 @@ class AuthService:
         phone_number: str,
         username: str,
         customer_id: str,
-        password: str | None = None,
     ) -> dict[str, str]:
-        """Create banking profile data with optional initial password credential."""
+        """Create the Kosh banking profile. Credentials live only in the Better Auth service."""
         normalized_phone = normalize_phone(phone_number)
         norm_username = username.strip().lower()
         now = utc_dt()
@@ -376,12 +365,11 @@ class AuthService:
                 raise ValueError("An account with this username or mobile number already exists")
             else:
                 user_id = f"USR-{customer_id}-{uuid.uuid4().hex[:6].upper()}"
-                pwd_hash = _hash(f"sentinel_salt_{password}") if password else None
                 user = UserRecord(
                     id=user_id,
                     username=norm_username,
                     phone_number=normalized_phone,
-                    password_hash=pwd_hash,
+                    password_hash=None,
                     display_name=full_name,
                     role="CUSTOMER",
                     customer_id=customer_id,
@@ -409,25 +397,6 @@ class AuthService:
                 "username": norm_username,
                 "phone_number": normalized_phone,
             }
-
-    def authenticate_password(
-        self,
-        username: str,
-        password: str,
-        *,
-        ip: str = "127.0.0.1",
-        user_agent: str = "web",
-    ) -> tuple[AuthContext, str, str]:
-        """Verify username & password credential and issue authenticated session."""
-        norm_username = username.strip().lower()
-        with self.runtime.sessions.begin() as session:
-            user = session.scalar(select(UserRecord).where(UserRecord.username == norm_username, UserRecord.active.is_(True)))
-            if not user or not user.password_hash:
-                raise ValueError("Invalid username or password")
-            expected_hash = _hash(f"sentinel_salt_{password}")
-            if not secrets.compare_digest(user.password_hash, expected_hash):
-                raise ValueError("Invalid username or password")
-            return self._create_session(session, user, ip=ip, user_agent=user_agent)
 
     @staticmethod
     def _consent_dict(row: ConsentRecord) -> dict[str, Any]:

@@ -32,7 +32,7 @@ export function useStepUp() {
         if (!publicConfig || !user?.phone_number) throw new Error('Extra verification is not configured for this account.');
         const next = await sendRealPhoneOtp(user.phone_number, publicConfig, 'inline-step-up-recaptcha', true);
         setConfirmation(next);
-        setOtp(publicConfig.is_local ? publicConfig.firebase_test_code : '');
+        setOtp(publicConfig.is_local ? publicConfig.firebase_test_code ?? '' : '');
         setNeeded(true);
         return undefined;
       }

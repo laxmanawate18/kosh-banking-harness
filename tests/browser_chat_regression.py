@@ -43,7 +43,7 @@ def run(url, live, screenshots):
                                 'headline_rate': '5X Rewards', 'features': ['Travel rewards'],
                                 'match_reasons': ['You selected this card'],
                                 'tradeoffs': ['Eligibility and terms apply.'],
-                                'fact_metadata': {'source': 'sentinel_demo_catalogue', 'effective_from': '2026-09-01', 'last_reviewed_at': '2026-09-22', 'illustrative': True},
+                                'fact_metadata': {'source': 'kosh_demo_catalogue', 'effective_from': '2026-09-01', 'last_reviewed_at': '2026-09-22', 'illustrative': True},
                             }],
                             'summary': {'goal': 'cards', 'preferences': ['travel'], 'recommended_product_id': 'PROD-CARD-OBSIDIAN'},
                             'next_action': {'type': 'OPEN_APPLICATION', 'product_id': 'PROD-CARD-OBSIDIAN', 'label': 'Review application'},
@@ -59,10 +59,10 @@ def run(url, live, screenshots):
         page.wait_for_load_state('networkidle')
         launcher = page.get_by_role('button', name='Ask Sentinel', exact=True)
         launcher.click()
-        dialog = page.get_by_role('dialog', name='Sentinel AI Banker')
+        dialog = page.get_by_role('dialog', name='Mitra, Kosh AI banker')
         expect(dialog.get_by_role('status')).to_have_text('Connected')
         expect(dialog).to_contain_text('Sign in for help with your own accounts.')
-        textbox = dialog.get_by_role('textbox', name='Message Sentinel AI Banker')
+        textbox = dialog.get_by_role('textbox', name='Message Mitra')
         textbox.fill('In two short sentences, explain how savings accounts differ from fixed deposits.')
         textbox.press('Enter')
         expect(dialog.locator('.message.assistant .markdown-content')).not_to_have_count(0, timeout=100000)
@@ -115,7 +115,7 @@ def run(url, live, screenshots):
         workspace.get_by_role('button', name='New conversation').click()
         expect(workspace.locator('.message')).to_have_count(0)
         expect(workspace.get_by_role('status')).to_have_text('Connected', timeout=15000)
-        workspace.get_by_role('textbox', name='Message Sentinel AI Banker').fill('Say hello briefly.')
+        workspace.get_by_role('textbox', name='Message Mitra').fill('Say hello briefly.')
         workspace.get_by_role('button', name='Send message', exact=True).click()
         expect(workspace.locator('.message.assistant .markdown-content')).not_to_have_count(0, timeout=100000)
         expect(workspace.get_by_role('status')).to_have_text('Connected', timeout=100000)

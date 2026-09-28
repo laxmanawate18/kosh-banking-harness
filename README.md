@@ -1,6 +1,6 @@
-# Sentinel — Secure Agentic Banking
+# Kosh — Secure Agentic Banking
 
-Sentinel is a hackathon prototype that demonstrates risk-based autonomy for banking agents. Antigravity reasons and proposes; a deterministic policy and fraud engine independently authorizes; a trusted browser flow collects approval; an idempotent mock ledger executes only permitted outcomes.
+Kosh is a hackathon prototype that demonstrates risk-based autonomy for banking agents. Mitra (the Antigravity AI banker) reasons and proposes; Sentinel, a deterministic policy and fraud engine, independently authorizes; a trusted browser flow collects approval; an idempotent mock ledger executes only permitted outcomes.
 
 Backend code is organized under `backend/`: route modules own public, authentication, and session/service APIs; `chat_runtime.py` owns WebSocket lifecycles; `agent_config.py` owns Antigravity prompts and tool gates; and `conversations.py` owns database-backed chat persistence. `dev_ui.py` only assembles these components and starts FastAPI.
 
@@ -10,7 +10,7 @@ Backend code is organized under `backend/`: route modules own public, authentica
 
 1. The Antigravity agent safely retrieves accounts, recent spending, bills, and alerts.
 2. A known ₹2,430 Tata Power bill executes autonomously with `ALLOW`.
-3. A new-beneficiary ₹75,000 transfer returns `CHALLENGE` and requires the transaction-bound demo OTP `246810` in a trusted modal.
+3. A new-beneficiary ₹75,000 transfer returns `CHALLENGE` and requires fresh Firebase phone verification in the trusted Kavach approval dialog.
 4. A poisoned biller proposal to `fastcash@upi` returns `DENY` before ledger execution.
 5. Repeated identical requests produce one ledger effect and return the existing receipt.
 6. A protective debit-card freeze remains low friction and fully audited.
@@ -24,7 +24,6 @@ cp .env.example .env
 docker compose up -d postgres auth-postgres auth-server
 source venv/bin/activate
 pip install -r requirements.txt
-alembic upgrade head
 venv/bin/python scripts/migrate_auth_subjects.py --apply
 PORT=8017 python dev_ui.py
 ```
@@ -34,15 +33,14 @@ Open [http://127.0.0.1:8017](http://127.0.0.1:8017). The OAuth authority and its
 Demo identities (local simulation only):
 
 - Customer OAuth: the configured Firebase test phone and verification code
-- Legacy rollback customer: `aarav` / `Sentinel@2468`
 - Better Auth staff: `officer.mumbai` / `Officer@2468`
 
-Customer sign-in verifies Firebase phone credentials at the isolated Better Auth service. Staff sign in there with username/password. Sentinel is an OAuth resource server and BFF: it keeps authorization-code PKCE verifiers and rotating refresh tokens server-side, validates five-minute JWT access tokens through OIDC/JWKS, and exposes only an HttpOnly application cookie to the browser. OAuth consent and banking-purpose consent remain separate. Fresh Firebase reauthentication raises only the current OAuth session to L3 for five minutes.
+Customer sign-in verifies Firebase phone credentials at the isolated Better Auth service. Staff sign in there with username/password. Kosh is an OAuth resource server and BFF: it keeps authorization-code PKCE verifiers and rotating refresh tokens server-side, validates five-minute JWT access tokens through OIDC/JWKS, and exposes only an HttpOnly application cookie to the browser. OAuth consent and banking-purpose consent remain separate. Fresh Firebase reauthentication raises only the current OAuth session to L3 for five minutes.
 
-Sentinel runs only with `AUTH_MODE=oidc`; legacy password, direct OTP, and direct Firebase login endpoints have been removed. Local Firebase app verification is disabled only for `AUTH_FIREBASE_TEST_PHONE`; real SMS must use the configured authorized HTTPS auth domain.
+Kosh runs only with `AUTH_MODE=oidc`; legacy password, direct OTP, and direct Firebase login endpoints have been removed. Local Firebase app verification is disabled only for `AUTH_FIREBASE_TEST_PHONE`; real SMS must use the configured authorized HTTPS auth domain.
 Production must provide Firebase Admin application-default or service-account credentials so every ID token is checked for revocation; the development-only test-number path still verifies token signature, issuer, audience, phone identity, and recent authentication.
 
-The existing `.env` may use Gemini API or Vertex credentials. The product fixes the agent model to `gemini-2.5-flash`; model, reasoning, project, and tool controls are intentionally absent from the customer UI. The Vertex configuration omits `thinking_level` because that option is rejected for this model by the Antigravity runtime.
+The existing `.env` may use Gemini API or Vertex credentials. The product fixes the agent model to `gemini-3.8-flash`, served from the Vertex `global` endpoint (`GOOGLE_CLOUD_LOCATION=global`); model, reasoning, project, and tool controls are intentionally absent from the customer UI.
 
 Signed-out visitors use a separate Antigravity sales configuration with four read-only public catalogue tools. The sales journey keeps only visitor-stated, non-sensitive preferences in memory for the WebSocket lifetime and progresses through discovery, clarification, recommendation, explanation, and a trusted application handoff. Product cards, summaries, disclosures, and next actions are assembled deterministically. Generated copy is rejected when it introduces an unreviewed numeric fact, competitor claim, approval promise, guarantee, pressure tactic, or system-prompt extraction attempt.
 
@@ -56,7 +54,7 @@ Click **Reset demo**, then run these prompts/actions in order:
 4. Click **Replay poisoned biller** — verify the stable mismatch, mule, and prompt-injection reason codes and unchanged balance.
 5. `Show security alerts and freeze my debit card.`
 
-The left side shows customer state, the centre shows agent proposals and bank-confirmed components, and the dark right rail shows reproducible Sentinel facts. It never exposes private model reasoning.
+The left side shows customer state, the centre shows agent proposals and bank-confirmed components, and the dark right rail shows reproducible Sentinel risk-decision facts. It never exposes private model reasoning.
 
 ### Account-opening RPA walkthrough
 
@@ -73,7 +71,7 @@ The conversational banker uses the Antigravity SDK. The RPA executor is a separa
 ```text
 Firebase phone / staff credentials ──> isolated Better Auth authority
                                               │ OAuth 2.1/OIDC + PKCE
-Sentinel browser BFF / delegated chatbot ─────┘
+Kosh browser BFF / delegated chatbot     ─────┘
                       │ scoped five-minute JWTs; encrypted rotating refresh grants
                       ▼
 authenticated FastAPI ──> one Antigravity agent/session
@@ -110,7 +108,7 @@ Antigravity built-in tools and subagents are disabled. A pre-tool hook rejects u
 
 - `data/banking_seed.json` is the immutable INR demo fixture.
 - PostgreSQL 16 is the durable runtime store. `docker-compose.yml` exposes it locally on port `5433`.
-- Banking state uses a transactionally locked JSONB aggregate so the proven Sentinel state machine remains atomic; auth sessions, consent, conversations, service requests, officer actions, documents, model registry, and audit events use typed relational tables.
+- Banking state uses a transactionally locked JSONB aggregate so the proven Kosh banking state machine remains atomic; auth sessions, consent, conversations, service requests, officer actions, documents, model registry, and audit events use typed relational tables.
 - Alembic owns schema versions in `migrations/`.
 - Money is integer paise—never floating point.
 - Every banking mutation uses `SELECT … FOR UPDATE` and commits balance, receipt, idempotency, decision, and audit effects in one database transaction.
@@ -118,7 +116,7 @@ Antigravity built-in tools and subagents are disabled. A pre-tool hook rejects u
 
 `POST /api/demo/reset` restores customer and domain state to the deterministic fixture. The main collections include accounts, cards, bills, beneficiaries, transactions, alerts, delegations, intents, payment intents, decisions, challenges, idempotency records, audit events, devices, and demo scenarios.
 
-## Sentinel rules
+## Sentinel risk rules
 
 Sentinel evaluates identifier/schema validity, delegation, ownership and domain state, intent match, replay, provenance, fraud signals, and final disposition in a fixed order. Hard failures—including intent mismatch, blocked mule, changed idempotency parameters, unauthorized source/destination, and invalid bill binding—always deny.
 
@@ -156,4 +154,4 @@ The suite covers atomic/reset behavior, integer money, concurrency, exactly-once
 
 ## Prototype limits
 
-This is not a production-secure or compliant bank. All 38 PRD services have catalogue metadata and a durable intake/approval path; only the Sentinel banking demo actions have specialized execution adapters. Real CBS/CRM/DMS integrations, document malware scanning/OCR, passkeys, device attestation, KYC, AML/sanctions/network integrations, multilingual quality certification, cloud deployment, and operational resilience remain outside this local build. Firebase test-number behavior and checked-in local staff credentials are hackathon-only. Production requires HTTPS, managed secrets and signing keys, cryptographic device binding, formal policy governance, availability monitoring, and independent security testing.
+This is not a production-secure or compliant bank. All 38 PRD services have catalogue metadata and a durable intake/approval path; only the Kosh banking demo actions have specialized execution adapters. Real CBS/CRM/DMS integrations, document malware scanning/OCR, passkeys, device attestation, KYC, AML/sanctions/network integrations, multilingual quality certification, cloud deployment, and operational resilience remain outside this local build. Firebase test-number behavior and checked-in local staff credentials are hackathon-only. Production requires HTTPS, managed secrets and signing keys, cryptographic device binding, formal policy governance, availability monitoring, and independent security testing.

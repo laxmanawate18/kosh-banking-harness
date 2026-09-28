@@ -38,7 +38,8 @@ def kyc_draft(client, headers, customer_name="Aarav Mehta", update_type="INITIAL
 
 def submit_kyc(client, headers, **kwargs):
     w=kyc_draft(client,headers,**kwargs)
-    client.post('/api/auth/step-up',headers=headers,json={"code":"246810"})
+    from dev_ui import COOKIE_NAME, auth_service
+    auth_service.elevate_session(client.cookies.get(COOKIE_NAME), "L3")  # stands in for Firebase re-authentication
     r=client.post('/api/ai/workflows/'+w['id']+'/submit',headers=headers,json={"revision":w['revision'],"review_digest":w['review_digest'],"confirmed":True})
     if r.status_code!=200: raise AssertionError(r.text)
     return r.json()

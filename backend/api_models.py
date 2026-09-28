@@ -1,4 +1,4 @@
-"""HTTP request contracts for the Sentinel API."""
+"""HTTP request contracts for the Kosh API."""
 
 from __future__ import annotations
 

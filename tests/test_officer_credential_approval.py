@@ -1,5 +1,6 @@
 import time
 import unittest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from auth_service import COOKIE_NAME
@@ -10,6 +11,11 @@ class TestOfficerCredentialApproval(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.client = TestClient(app)
+
+    def setUp(self):
+        stub = patch("backend.session_routes._auth_server", return_value=True)  # Better Auth is not running in unit tests
+        self.auth_server = stub.start()
+        self.addCleanup(stub.stop)
 
     def _get_officer_cookies_and_csrf(self):
         # Create an officer direct session

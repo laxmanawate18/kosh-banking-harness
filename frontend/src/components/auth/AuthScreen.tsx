@@ -88,8 +88,8 @@ export const AuthScreen: React.FC = () => {
           <strong id="login-title">{t('Login to Kosh')}</strong>
           <span>{t('Bharosa, har kadam.')}</span>
           <ul>
-            <li><Icon name="security" /> {t('Kavach checks every payment')}</li>
-            <li><Icon name="lock" /> {t('Your session ends after 5 minutes idle')}</li>
+            <li><Icon name="security" /> {t('Sentinel checks every payment')}</li>
+            <li><Icon name="lock" /> {t('Your session ends after 10 minutes idle')}</li>
             <li><Icon name="alert" /> {t('Kosh never asks for OTP on call')}</li>
           </ul>
         </div>

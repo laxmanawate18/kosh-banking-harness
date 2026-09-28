@@ -15,7 +15,6 @@ import type {
 import * as bankingService from '../services/banking';
 import { startWorkflow as startWorkflowApi } from '../services/workflows';
 import { useAuth } from './AuthContext';
-import { brandAuditEvent, brandDisplayText } from '../branding';
 
 interface BankingContextValue {
   overview: PortalOverview | null;
@@ -83,8 +82,8 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (!data) return data;
     const accounts: Account[] = (data.accounts || []).map((a: any) => ({
       ...a,
-      name: brandDisplayText(a.name ?? a.account_name),
-      account_name: brandDisplayText(a.account_name ?? a.name),
+      name: String(a.name ?? a.account_name ?? ''),
+      account_name: String(a.account_name ?? a.name ?? ''),
       balance_paise: a.balance_paise ?? a.available_balance_minor ?? 0,
       account_type: a.account_type ?? a.type ?? 'SAVINGS',
       account_number: a.account_number ?? a.account_number_masked ?? '10920000001',
@@ -92,8 +91,8 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     const transactions: Transaction[] = (data.transactions || []).map((t: any) => ({
       ...t,
-      description: brandDisplayText(t.description),
-      counterparty: brandDisplayText(t.counterparty),
+      description: String(t.description ?? ''),
+      counterparty: String(t.counterparty ?? ''),
       amount_paise: t.amount_paise ?? t.amount_minor ?? 0,
       type: t.type ?? t.direction ?? 'DEBIT',
       reference_number: t.reference_number ?? t.reference ?? t.id,
@@ -110,7 +109,7 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
     const cards: Card[] = (data.cards || []).map((c: any) => ({
       ...c,
       card_number: c.card_number ?? c.card_number_masked ?? '•••• •••• •••• 9821',
-      card_type: brandDisplayText(c.card_type ?? 'KOSH PLATINUM DEBIT'),
+      card_type: String(c.card_type ?? 'KOSH PLATINUM DEBIT'),
       cardholder_name: c.cardholder_name ?? data.customer?.full_name ?? 'VALUED CUSTOMER',
       daily_limit_paise: c.daily_limit_paise ?? c.daily_limit_minor ?? 20000000,
       is_frozen: c.is_frozen ?? (c.status === 'FROZEN'),
@@ -125,7 +124,7 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     const customer = data.customer ? {
       ...data.customer,
-      email: brandDisplayText(data.customer.email),
+      email: String(data.customer.email ?? ''),
     } : data.customer;
 
     return {
@@ -138,8 +137,8 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
       beneficiaries,
       security_alerts: (data.security_alerts || []).map((alert: any) => ({
         ...alert,
-        title: brandDisplayText(alert.title),
-        description: brandDisplayText(alert.description),
+        title: String(alert.title ?? ''),
+        description: String(alert.description ?? ''),
       })),
       total_available_minor: data.total_available_minor ?? accounts.reduce((s, a) => s + a.balance_paise, 0),
     };
@@ -157,7 +156,7 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
             requests: reqs,
             operations: reqs,
           } as any);
-          setEvents((((ops as any).events || []) as AuditEvent[]).map(event => brandAuditEvent(event)));
+          setEvents((((ops as any).events || []) as AuditEvent[]));
         }
       } else {
         const [ovData, evData] = await Promise.all([
@@ -167,7 +166,7 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
         if (ovData) {
           setOverview(normalizeOverview(ovData));
         }
-        setEvents(((evData?.events || []) as AuditEvent[]).map(event => brandAuditEvent(event)));
+        setEvents(((evData?.events || []) as AuditEvent[]));
       }
     } catch (e) {
       console.error('Failed to load banking overview:', e);

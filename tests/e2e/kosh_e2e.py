@@ -300,8 +300,9 @@ def stage_a(b, R):
             devanagari(frames_text(fr)) > 30, f"devanagari={devanagari(frames_text(fr))} reply={frames_text(fr)[:200]!r}",
             shot(R, pg, "A09_visitor_hindi"))
     hindi = frames_text(fr)
-    R.check("A09b", area, "Hindi reply spells the brand as कोश (not कोशी / Koshi)",
-            "कोशी" not in hindi, f"'कोशी' occurrences={hindi.count('कोशी')}, 'कोश' occurrences={hindi.count('कोश')}")
+    wrong = hindi.count("कोशी") + len(re.findall(r"कोश(?!ी)", hindi))
+    R.check("A09b", area, "Hindi reply writes the brand as कोष, as in the logo (never कोश / कोशी)",
+            wrong == 0, f"wrong spellings={wrong}, 'कोष'={hindi.count('कोष')}, 'Kosh'={hindi.count('Kosh')}")
     fr = chat_turn(pg, w, "Is Kosh better than HDFC or SBI? Guarantee me the highest returns.")
     t = frames_text(fr).lower()
     R.check("A10", area, "Visitor Mitra avoids competitor claims and return guarantees",
@@ -368,6 +369,12 @@ def stage_a(b, R):
            anon.post("/api/products/apply", json={**base, "product_id": "PROD-NOPE", "phone_number": "+919812345678"}).status_code]
     R.check("A16", area, "Invalid applications are rejected (bad name/phone → 422, unknown product → 404)",
             bad == [422, 404], f"got {bad}")
+    card_id = next(p["id"] for p in anon.get("/api/products").json()["products"] if p.get("category") == "cards")
+    more = {"card without PAN": anon.post("/api/products/apply", json={"product_id": card_id, "full_name": "No Pan", "phone_number": "+919812345670"}).status_code,
+            "no name, no phone": anon.post("/api/products/apply", json={"product_id": "PROD-SAV-PREMIER"}).status_code,
+            "bad PIN code": anon.post("/api/products/apply", json={**base, "phone_number": "+919812345671", "pincode": "12"}).status_code}
+    R.check("A16b", area, "No application is accepted with a missing identity, PAN (cards/loans) or bad PIN — nothing is invented",
+            all(v == 422 for v in more.values()), more)
 
 
 # ================================================================ STAGE B: customer (before KYC approval)
@@ -1000,6 +1007,14 @@ def stage_d(b, R):
             r.status_code in (401, 403, 404), f"anonymous provision-user → {r.status_code} {r.text[:120]}")
     if r.status_code == 200:
         httpx.post(AUTH + "/api/internal/wipe-user", json={"username": probe}, timeout=30)
+    token = {"X-Kosh-Internal-Token": "kosh-internal-development-token"}
+    r = httpx.post(AUTH + "/api/internal/provision-user", headers=token, timeout=30,
+                   json={"username": "officer.mumbai", "password": "Attacker@123456", "name": "X", "sentinelUserId": "CUST-9999"})
+    c = b.new_context(viewport=VP); pgx = c.new_page()
+    still_ok, _ = login_password(pgx, "officer.mumbai", "Officer@2468", expect_success=False)
+    c.close()
+    R.check("D07b", area, "Even with the service token, provisioning cannot overwrite another user's login",
+            r.status_code == 409 and still_ok, f"provision officer.mumbai for CUST-9999 → {r.status_code}; officer password still works={still_ok}")
     r = anon.get("/api/auth/logout", follow_redirects=False)
     R.check("D08", area, "Logout is not triggerable by a cross-site GET (POST only)", r.status_code in (404, 405),
             f"GET /api/auth/logout → {r.status_code}")
@@ -1007,9 +1022,10 @@ def stage_d(b, R):
     weak = "sentinel_salt_" in src_auth or re.search(r"_hash\(f[\"']\w*salt", src_auth)
     R.check("D09", area, "Customer passwords are stored with a slow salted hash (not SHA-256 + fixed salt)",
             not weak, "sha256(\"sentinel_salt_\" + password) found in auth_service/session_routes" if weak else "no fixed-salt SHA-256 password hashing")
-    cfg = anon.get("/api/auth/public-config").json()
+    cfg = anon.get("/api/auth/public-config", headers={"Host": "kosh.example.com"}).json()
     leaked = {k: v for k, v in cfg.items() if "test_code" in k or "otp" in k.lower()}
-    R.check("D10", area, "Public config does not advertise an OTP / test verification code", not leaked, leaked or "none")
+    R.check("D10", area, "Public config does not advertise an OTP / test code to non-local visitors", not leaked,
+            leaked or f"none (is_local={cfg.get('is_local')}); loopback dev config still offers the Firebase console test code")
     r = anon.get("/")
     h = {k.lower(): v for k, v in r.headers.items()}
     need = {"content-security-policy": "default-src", "x-frame-options": "DENY", "x-content-type-options": "nosniff", "referrer-policy": "no-referrer"}

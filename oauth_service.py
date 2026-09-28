@@ -1,4 +1,4 @@
-"""OAuth 2.1/OIDC resource-server and BFF primitives for Sentinel."""
+"""OAuth 2.1/OIDC resource-server and BFF primitives for Kosh."""
 
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ class OAuthService:
         self.runtime = auth_service.runtime
         self.mode = os.getenv("AUTH_MODE", "oidc").strip().lower()
         if self.mode != "oidc":
-            raise RuntimeError("Sentinel now supports only AUTH_MODE=oidc")
+            raise RuntimeError("Kosh supports only AUTH_MODE=oidc")
 
         self.auth_url = os.getenv("BETTER_AUTH_URL", "http://127.0.0.1:8020").rstrip("/")
         self.issuer = os.getenv("BETTER_AUTH_ISSUER", f"{self.auth_url}/api/auth").rstrip("/")
@@ -266,7 +266,7 @@ class OAuthService:
         claims = self.decode_token(token, audience=self.audience)
         client_id = str(claims.get("client_id") or claims.get("azp") or "")
         if client_id not in self.allowed_clients:
-            raise PermissionError("OAuth client is not authorized for Sentinel")
+            raise PermissionError("OAuth client is not authorized for Kosh")
         scopes = self.scopes_from_claims(claims)
         if not set(required_scopes).issubset(scopes):
             raise PermissionError("OAuth token is missing a required scope")
@@ -278,7 +278,7 @@ class OAuthService:
             session_id=str(claims.get("sid") or "oauth-bearer"),
         )
         if not context:
-            raise PermissionError("OAuth subject is not linked to a Sentinel user")
+            raise PermissionError("OAuth subject is not linked to a Kosh user")
         return context
 
     def establish_bff_session(
@@ -306,7 +306,7 @@ class OAuthService:
         scopes = self.scopes_from_claims(access_claims)
         required = {"openid", "banking.read"}
         if not required.issubset(scopes):
-            raise PermissionError("OAuth grant is missing required Sentinel scopes")
+            raise PermissionError("OAuth grant is missing required Kosh scopes")
         context, raw_cookie, csrf_token = self.auth_service.create_session_for_subject(
             str(access_claims["sub"]),
             sentinel_user_id=str(access_claims.get(SENTINEL_USER_CLAIM) or id_claims.get(SENTINEL_USER_CLAIM) or "") or None,

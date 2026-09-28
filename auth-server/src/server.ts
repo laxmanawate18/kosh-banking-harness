@@ -1,10 +1,17 @@
 import { createServer } from "node:http";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { toNodeHandler } from "better-auth/node";
 import { auth, authPool } from "./auth.js";
 import { config, isAllowedReturnURL } from "./config.js";
 import { consentPage, signInPage } from "./pages.js";
 
 const authHandler = toNodeHandler(auth);
+
+function internalCaller(request: import("node:http").IncomingMessage): boolean {
+  const given = Buffer.from(String(request.headers["x-kosh-internal-token"] ?? ""));
+  const expected = Buffer.from(config.internalToken);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
 
 function sendHTML(response: import("node:http").ServerResponse, html: string) {
   response.writeHead(200, {
@@ -29,6 +36,11 @@ function sendHTML(response: import("node:http").ServerResponse, html: string) {
 
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", config.baseURL);
+  if (url.pathname.startsWith("/api/internal/") && !internalCaller(request)) {
+    response.writeHead(401, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: "internal endpoint requires the Kosh service token" }));
+    return;
+  }
   if (url.pathname === "/healthz") {
     response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
     response.end(JSON.stringify({ status: "ok", issuer: `${config.baseURL}/api/auth` }));
@@ -50,13 +62,21 @@ const server = createServer(async (request, response) => {
         const authContext = await auth.$context;
         const hashedPassword = await authContext.password.hash(password);
 
-        // Check if user already exists
-        const existingUser = await authPool.query(
-          'SELECT "id" FROM "user" WHERE "username" = $1 OR ("sentinelUserId" IS NOT NULL AND "sentinelUserId" = $2) OR "email" = $3 OR ("phoneNumber" IS NOT NULL AND "phoneNumber" = $4) LIMIT 1',
-          [username, sentinelUserId || "", safeEmail, phoneNumber || ""],
+        // Only the user already bound to this customer may be updated (credential re-issue).
+        // Any other clash on username / email / phone is refused so an application can never take over a login.
+        const owned = sentinelUserId
+          ? await authPool.query('SELECT "id" FROM "user" WHERE "sentinelUserId" = $1 LIMIT 1', [sentinelUserId])
+          : { rows: [] as any[] };
+        let userId = owned.rows[0]?.id;
+        const clash = await authPool.query(
+          'SELECT "id" FROM "user" WHERE ("username" = $1 OR "email" = $2 OR ("phoneNumber" IS NOT NULL AND "phoneNumber" = $3)) AND "id" <> $4 LIMIT 1',
+          [username, safeEmail, phoneNumber || "", userId || ""],
         );
-
-        let userId = existingUser.rows[0]?.id;
+        if (clash.rowCount) {
+          response.writeHead(409, { "content-type": "application/json" });
+          response.end(JSON.stringify({ error: "username, email or phone already belongs to another sign-in" }));
+          return;
+        }
         if (!userId) {
           const created = await authContext.internalAdapter.createUser(
             {
@@ -72,8 +92,8 @@ const server = createServer(async (request, response) => {
           userId = created.id;
         } else {
           await authPool.query(
-            'UPDATE "user" SET "sentinelUserId" = COALESCE($1, "sentinelUserId"), "phoneNumber" = COALESCE($2, "phoneNumber"), "name" = COALESCE($3, "name"), "username" = COALESCE($4, "username") WHERE "id" = $5',
-            [sentinelUserId || null, phoneNumber || null, name || null, username, userId],
+            'UPDATE "user" SET "phoneNumber" = COALESCE($1, "phoneNumber"), "name" = COALESCE($2, "name"), "username" = $3 WHERE "id" = $4',
+            [phoneNumber || null, name || null, username, userId],
           );
         }
 
@@ -88,7 +108,6 @@ const server = createServer(async (request, response) => {
             [hashedPassword, existingAccount.rows[0].id],
           );
         } else {
-          const { randomBytes } = await import("node:crypto");
           const accountId = randomBytes(16).toString("hex");
           await authPool.query(
             'INSERT INTO "account" ("id", "userId", "accountId", "providerId", "password", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, NOW(), NOW())',
@@ -141,7 +160,7 @@ const server = createServer(async (request, response) => {
     sendHTML(response, consentPage(url));
     return;
   }
-  if (url.pathname === "/sign-out" || url.pathname === "/logout") {
+  if (url.pathname === "/sign-out") {
     const returnTo = url.searchParams.get("return_to") ?? config.sentinelWebURL;
     const safeReturn = isAllowedReturnURL(returnTo) ? returnTo : config.sentinelWebURL;
     response.writeHead(302, {

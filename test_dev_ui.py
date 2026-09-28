@@ -71,7 +71,7 @@ class SentinelAppTests(unittest.TestCase):
         self.assertEqual(set(tool_names), BANKING_TOOL_NAMES | PUBLIC_SALES_TOOL_NAMES)
         self.assertEqual(config.capabilities.enabled_tools, [])
         self.assertFalse(config.capabilities.enable_subagents)
-        self.assertEqual(config.model.name, "gemini-2.5-flash")
+        self.assertEqual(config.model.name, "gemini-3.8-flash")
         self.assertEqual([type(h).__name__ for h in config.hooks], ["SecureToolGateHook", "SessionPostToolCallHook"])
 
         async def _check_agent_startup():
@@ -175,10 +175,10 @@ class SentinelAppTests(unittest.TestCase):
         self.assertNotIn("tool_calls", raw)
         self.client.delete(f"/api/sessions/{stored['id']}", headers={"X-CSRF-Token": self.csrf})
 
-    def test_demo_config_labels_otp_as_non_secret_demo_metadata(self):
+    def test_demo_config_does_not_advertise_an_otp(self):
         data = self.client.get("/api/demo/config").json()
         self.assertTrue(data["simulated"])
-        self.assertEqual(data["demo_otp"], "246810")
+        self.assertNotIn("demo_otp", data)
         self.assertEqual(data["model"], DEFAULT_MODEL)
 
     def test_auth_consent_csrf_and_officer_separation(self):
@@ -219,11 +219,15 @@ class SentinelAppTests(unittest.TestCase):
         self.assertEqual(created.json()["status"], "PENDING_APPROVAL")
 
     def test_phone_login_and_public_config(self):
-        config = self.client.get("/api/auth/public-config").json()
+        config = self.client.get("/api/auth/public-config").json()  # TestClient host is not loopback
         self.assertEqual(config["oauth_start_url"], "/api/auth/start")
-        self.assertEqual(config["firebase_test_code"], "246810")
         self.assertIn("gcp_project_id", config)
-        self.assertEqual(config["firebase_test_phone"], "+919876543210")
+        self.assertFalse(config["is_local"])
+        self.assertNotIn("firebase_test_code", config)
+        local = TestClient(dev_ui.app, base_url="http://127.0.0.1:8019").get("/api/auth/public-config").json()
+        self.assertTrue(local["is_local"])
+        self.assertEqual(local["firebase_test_code"], "246810")
+        self.assertEqual(local["firebase_test_phone"], "+919876543210")
 
         # Verify start auth redirects to Better Auth provider with PKCE query
         start = self.client.get("/api/auth/start", follow_redirects=False)
@@ -321,22 +325,23 @@ class SentinelAppTests(unittest.TestCase):
         self.assertNotIn("holder_name", validation)
         self.assertNotIn("ocr_confidence", validation)
 
-    def test_sentinel_ai_banker_page_contract(self):
-        """The served React assets contain the shared chat UI and navigation."""
+    def test_kosh_ai_banker_page_contract(self):
+        """The served React assets (entry + lazy chunks) contain the shared chat UI and navigation."""
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
-        assets = re.findall(r'(?:src|href)="(/assets/[^"]+)"', response.text)
-        self.assertTrue(any(asset.endswith(".js") for asset in assets))
-        self.assertTrue(any(asset.endswith(".css") for asset in assets))
-        contents = {}
-        for asset in assets:
-            result = self.client.get(asset)
-            self.assertEqual(result.status_code, 200)
-            contents[asset.rsplit(".", 1)[-1]] = result.text
+        entry = re.findall(r'(?:src|href)="(/assets/[^"]+)"', response.text)
+        self.assertTrue(any(asset.endswith(".js") for asset in entry))
+        self.assertTrue(any(asset.endswith(".css") for asset in entry))
+        contents = {"js": "", "css": ""}
+        for built in sorted((dev_ui.FRONTEND_DIST / "assets").glob("*")):
+            if built.suffix[1:] in contents:
+                result = self.client.get(f"/assets/{built.name}")
+                self.assertEqual(result.status_code, 200)
+                contents[built.suffix[1:]] += result.text
         for selector in (".ai-workbench-grid", ".ai-main-workspace", ".ai-chat-header",
                          ".ai-messages-scroll", ".ai-input-box", ".assistant-dialog"):
             self.assertIn(selector, contents["css"])
-        for text in ("ai-banker", "Sentinel AI Banker", "aiPageMessages", "Message Sentinel AI Banker",
+        for text in ("ai-banker", "Mitra, Kosh AI banker", "aiPageMessages", "Message Mitra",
                      "Close assistant", "Reconnect", "Sign in for account services"):
             self.assertIn(text, contents["js"])
 

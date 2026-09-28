@@ -329,6 +329,10 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           };
           return [...prev, botMsg];
         });
+      } else if (event.type === 'text_replace') {
+        // Server-side cleanup of the streamed reply (suggestion marker removed / unsafe text replaced).
+        const text = event.textDelta || '';
+        setMessages(prev => prev.map(m => (m.isStreaming ? { ...m, text } : m)));
       } else if (event.type === 'text_delta') {
         const delta = event.textDelta || '';
         setMessages(prev => {

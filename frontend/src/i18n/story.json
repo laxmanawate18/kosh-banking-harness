@@ -1,14 +1,14 @@
 {
   "Our promise": { "hi": "हमारा वादा", "mr": "आमचे वचन" },
   "Not just a bank": { "hi": "सिर्फ़ एक बैंक नहीं", "mr": "फक्त एक बँक नाही" },
-  "The story of Kosh begins with *bharosa*. We believe every Indian deserves a bank that speaks *their language*, protects *every rupee* and never hides the fine print. Zero balance. Zero jargon. *Mitra* by your side, *Kavach* at your gate. This is banking that feels like *home*.": {
-    "hi": "कोष की कहानी *भरोसे* से शुरू होती है। हम मानते हैं कि हर भारतीय को ऐसा बैंक मिलना चाहिए जो *उसकी भाषा* बोले, *हर रुपये* की रक्षा करे और कोई शर्त न छिपाए। ज़ीरो बैलेंस। ज़ीरो उलझन। साथ में *मित्र*, दरवाज़े पर *कवच*। यह ऐसी बैंकिंग है जो *घर* जैसी लगे।",
-    "mr": "कोषची गोष्ट *विश्वासाने* सुरू होते. प्रत्येक भारतीयाला असे बँक मिळायला हवे जे *त्याची भाषा* बोलेल, *प्रत्येक रुपयाचे* रक्षण करेल आणि कोणतीही अट लपवणार नाही. शून्य शिल्लक. शून्य गोंधळ. सोबत *मित्र*, दारावर *कवच*. ही बँकिंग *घरासारखी* वाटते."
+  "The story of Kosh begins with *bharosa*. We believe every Indian deserves a bank that speaks *their language*, protects *every rupee* and never hides the fine print. Zero balance. Zero jargon. *Mitra* by your side, *Sentinel* at your gate. This is banking that feels like *home*.": {
+    "hi": "कोष की कहानी *भरोसे* से शुरू होती है। हम मानते हैं कि हर भारतीय को ऐसा बैंक मिलना चाहिए जो *उसकी भाषा* बोले, *हर रुपये* की रक्षा करे और कोई शर्त न छिपाए। ज़ीरो बैलेंस। ज़ीरो उलझन। साथ में *मित्र*, दरवाज़े पर *सेंटिनल*। यह ऐसी बैंकिंग है जो *घर* जैसी लगे।",
+    "mr": "कोषची गोष्ट *विश्वासाने* सुरू होते. प्रत्येक भारतीयाला असे बँक मिळायला हवे जे *त्याची भाषा* बोलेल, *प्रत्येक रुपयाचे* रक्षण करेल आणि कोणतीही अट लपवणार नाही. शून्य शिल्लक. शून्य गोंधळ. सोबत *मित्र*, दारावर *सेंटिनल*. ही बँकिंग *घरासारखी* वाटते."
   },
   "One app for everything": { "hi": "हर काम के लिए एक ऐप", "mr": "प्रत्येक कामासाठी एक ॲप" },
   "Spend, save and *grow*, all in one app.": { "hi": "खर्च करें, बचाएँ और *बढ़ाएँ*, सब एक ऐप में।", "mr": "खर्च करा, बचत करा आणि *वाढवा*, सर्व एकाच ॲपमध्ये." },
   "UPI": { "hi": "UPI", "mr": "UPI" },
-  "Kavach": { "hi": "कवच", "mr": "कवच" },
+  "Sentinel": { "hi": "सेंटिनल", "mr": "सेंटिनल" },
   "Pay anyone in a second": { "hi": "किसी को भी पल भर में पैसे भेजें", "mr": "कोणालाही क्षणात पैसे पाठवा" },
   "Scan any UPI QR or pick a saved payee. Money moves instantly, with a receipt you can share.": {
     "hi": "कोई भी UPI QR स्कैन करें या सेव किया हुआ प्राप्तकर्ता चुनें। पैसा तुरंत पहुँचता है, और रसीद आप शेयर कर सकते हैं।",
@@ -25,9 +25,9 @@
     "mr": "एका मिनिटापेक्षा कमी वेळात FD किंवा RD उघडा आणि निर्णय घेण्यापूर्वी मुदतपूर्ती रक्कम पाहा."
   },
   "Every payment checked": { "hi": "हर भुगतान की जाँच", "mr": "प्रत्येक पेमेंटची तपासणी" },
-  "Kavach looks at the payee, the amount and your usual pattern. Anything unusual waits for your approval.": {
-    "hi": "कवच प्राप्तकर्ता, राशि और आपके सामान्य पैटर्न को देखता है। कुछ भी असामान्य हो तो वह आपकी मंज़ूरी का इंतज़ार करता है।",
-    "mr": "कवच लाभार्थी, रक्कम आणि तुमची नेहमीची पद्धत तपासते. काहीही असामान्य असेल तर ते तुमच्या मंजुरीची वाट पाहते."
+  "Sentinel looks at the payee, the amount and your usual pattern. Anything unusual waits for your approval.": {
+    "hi": "सेंटिनल प्राप्तकर्ता, राशि और आपके सामान्य पैटर्न को देखता है। कुछ भी असामान्य हो तो वह आपकी मंज़ूरी का इंतज़ार करता है।",
+    "mr": "सेंटिनल लाभार्थी, रक्कम आणि तुमची नेहमीची पद्धत तपासते. काहीही असामान्य असेल तर ते तुमच्या मंजुरीची वाट पाहते."
   },
   "Scan and pay": { "hi": "स्कैन करें और भुगतान करें", "mr": "स्कॅन करा आणि पैसे भरा" },
   "Paying": { "hi": "भुगतान", "mr": "पेमेंट" },

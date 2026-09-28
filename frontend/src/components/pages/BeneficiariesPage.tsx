@@ -90,7 +90,7 @@ export const BeneficiariesPage: React.FC<BeneficiariesPageProps> = ({ onNavigate
                     : t('Added {date}', { date: formatDate(b.created_at) || t('earlier') })}
                 </small>
                 {blocked
-                  ? <p className="form-error" style={{ marginTop: 10 }}>{t('Payments to this destination are blocked by Kavach.')}</p>
+                  ? <p className="form-error" style={{ marginTop: 10 }}>{t('Payments to this destination are blocked by Sentinel.')}</p>
                   : <button type="button" className="k-btn outline sm" style={{ marginTop: 14, alignSelf: 'flex-start' }}
                       onClick={() => (onSendMoney ? onSendMoney(b.id) : onNavigate?.('payments'))}>
                       <Icon name="payments" />{t('Send money')}

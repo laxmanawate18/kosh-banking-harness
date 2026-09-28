@@ -48,6 +48,7 @@ async def lifespan(application: FastAPI):
         print(f"Bank knowledge ingestion warning: {exc}")
     port = int(os.getenv("PORT", "8000"))
     cbs_base_url = os.getenv("CBS_BASE_URL", f"http://127.0.0.1:{port}")
+    get_job_queue().start_worker(cbs_base_url=cbs_base_url, result_handler=request_service.apply_rpa_result)
     sync_worker = None
     if os.getenv("ENABLE_CLOUD_SQL_SYNC", "false").lower() in ("1", "true", "yes"):
         try:

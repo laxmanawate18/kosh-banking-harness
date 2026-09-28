@@ -45,7 +45,7 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
       );
       setConfirmation(result);
       setCode(['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
-        ? publicConfig.firebase_test_code
+        ? publicConfig.firebase_test_code ?? ''
         : '');
     } catch (err: any) {
       setError(err.message || 'Could not send a fresh Firebase verification code.');

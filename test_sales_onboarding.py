@@ -1,4 +1,4 @@
-"""Automated unit & integration tests for Sentinel AI Sales Advisor and Onboarding."""
+"""Automated unit & integration tests for the Kosh (Mitra) sales advisor and onboarding."""
 
 import unittest
 import uuid
@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from dev_ui import app, auth_service
 from banking_db import db
-from auth_service import normalize_phone, DEMO_OTP
+from auth_service import COOKIE_NAME, normalize_phone
 from product_service import (
     BANK_PRODUCTS, SalesSessionContext, build_public_sales_tools, get_all_products,
     get_product_by_id, sales_advisor, validate_sales_response,
@@ -33,7 +33,7 @@ class SalesOnboardingTests(unittest.TestCase):
         self.assertEqual(premier["headline_rate"], "7.20% p.a.")
         self.assertEqual(premier["category"], "savings")
         self.assertNotIn("competitor_comparison", premier)
-        self.assertEqual(premier["fact_metadata"]["source"], "sentinel_demo_catalogue")
+        self.assertEqual(premier["fact_metadata"]["source"], "kosh_demo_catalogue")
         self.assertTrue(premier["fact_metadata"]["illustrative"])
 
         # Check category filter
@@ -90,81 +90,48 @@ class SalesOnboardingTests(unittest.TestCase):
         self.assertIn("response", data)
         self.assertIn("8.10% p.a.", data["response"]["text"])
 
-    def test_instant_product_onboarding_and_profile_provisioning(self):
-        """Verify instant onboarding creates real DB records, allocates account/card, and provisions banking profile."""
-        applicant_name = "Rajesh Singhania"
+    def test_savings_application_is_queued_without_creating_a_customer(self):
+        """The public form records a lead for officer review; no customer, account or login exists yet."""
         phone = f"+9198{uuid.uuid4().int % 100000000:08d}"
-        req = {
-            "product_id": "PROD-SAV-PREMIER",
-            "full_name": applicant_name,
-            "phone_number": phone,
-            "auto_login": False
-        }
-        res = self.client.post("/api/products/apply", json=req)
+        customers_before = set(db.snapshot().get("customers", {}))
+        res = self.client.post("/api/products/apply", json={
+            "product_id": "PROD-SAV-PREMIER", "full_name": "Rajesh Singhania", "phone_number": phone,
+            "email": "rajesh@example.com"})
         self.assertEqual(res.status_code, 200)
         data = res.json()
-        self.assertTrue(data["success"])
-
-        # Check banking profile
-        profile = data["profile"]
-        self.assertEqual(profile["display_name"], applicant_name)
-        self.assertTrue(profile["customer_id"].startswith("CUST-"))
-        self.assertEqual(profile["phone_number"], normalize_phone(phone))
-        self.assertTrue(bool(profile["username"]))
+        self.assertEqual(data["status"], "PENDING_APPROVAL")
+        self.assertTrue(data["application_ref"].startswith("SAV-APP-"))
         self.assertNotIn("credentials", data)
+        self.assertEqual(set(db.snapshot().get("customers", {})), customers_before)
+        self.assertFalse(auth_service.profile_exists(phone))
+        lead = next(l for l in db.list_leads() if (l.get("preferences") or {}).get("app_ref") == data["application_ref"])
+        self.assertEqual(lead["status"], "PENDING_APPROVAL")
+        self.assertEqual(lead["preferences"]["phone_number"], normalize_phone(phone))
 
-        # Check allocated banking account
-        acc = data["account"]
-        self.assertTrue(acc["id"].startswith("ACC-SAV-"))
-        self.assertEqual(acc["initial_balance_minor"], 100000)  # ₹1,000 welcome bonus
-
-        # Verify customer exists in database
-        cust_in_db = db.get_customer(profile["customer_id"])
-        self.assertIsNotNone(cust_in_db)
-        self.assertEqual(cust_in_db["display_name"], applicant_name)
-        self.assertEqual(cust_in_db["kyc"]["status"], "NOT_DONE")
-        self.assertIn("OUTWARD_TRANSFERS_BLOCKED", cust_in_db["kyc"]["account_restrictions"])
-
-        # Verify allocated account exists in database
-        acc_in_db = db.get_account(acc["id"])
-        self.assertIsNotNone(acc_in_db)
-        self.assertEqual(acc_in_db["customer_id"], profile["customer_id"])
-        self.assertEqual(acc_in_db["available_balance_minor"], 100000)
-
-        # Verify welcome bonus transaction was recorded
-        txns = db.get_transactions(profile["customer_id"])
-        self.assertGreaterEqual(len(txns), 1)
-        self.assertEqual(txns[0]["direction"], "CREDIT")
-
-    def test_onboarded_customer_profile_is_ready_for_oidc_authentication(self):
-        """Verify the newly onboarded user can link to an OIDC subject and establish a banking session."""
-        applicant_name = "Kavita Nair"
+    def test_officer_approved_customer_is_ready_for_oidc_authentication(self):
+        """After officer approval, the provisioned profile links to an OIDC subject and gets a banking session."""
         phone = f"+9197{uuid.uuid4().int % 100000000:08d}"
-        res = self.client.post("/api/products/apply", json={
-            "product_id": "PROD-SAV-PREMIER",
-            "full_name": applicant_name,
-            "phone_number": phone,
-            "auto_login": False
-        })
-        self.assertEqual(res.status_code, 200)
-        profile = res.json()["profile"]
+        applied = self.client.post("/api/products/apply", json={
+            "product_id": "PROD-SAV-PREMIER", "full_name": "Kavita Nair", "phone_number": phone,
+            "email": "kavita@example.com"}).json()
+        lead = next(l for l in db.list_leads() if (l.get("preferences") or {}).get("app_ref") == applied["application_ref"])
+        officer = TestClient(app)
+        _, cookie, csrf = auth_service.create_direct_session("officer.mumbai")
+        officer.cookies.set(COOKIE_NAME, cookie)
+        with patch("backend.session_routes._auth_server", return_value=True):
+            approved = officer.post(f"/api/officer/leads/{lead['id']}/approve", headers={"X-CSRF-Token": csrf}, json={})
+        self.assertEqual(approved.status_code, 200, approved.text)
+        customer_id = approved.json()["customer_id"]
+        self.assertEqual(db.get_customer(customer_id)["kyc"]["status"], "NOT_DONE")
 
-        # Link OIDC subject and establish BFF session
         sub_id = f"oidc-sub-{uuid.uuid4().hex[:8]}"
-        context, raw_cookie, csrf_token = auth_service.create_session_for_subject(
-            auth_subject=sub_id,
-            sentinel_user_id=profile["user_id"],
-            ip="127.0.0.1",
-            user_agent="testclient",
-            scopes=("openid", "banking.read", "banking.propose"),
-        )
-        self.assertEqual(context.customer_id, profile["customer_id"])
-        self.assertEqual(context.user_id, profile["user_id"])
-
-        # Verify session resolution via cookie
+        context, raw_cookie, _ = auth_service.create_session_for_subject(
+            auth_subject=sub_id, sentinel_user_id=customer_id, ip="127.0.0.1", user_agent="testclient",
+            scopes=("openid", "banking.read", "banking.propose"))
+        self.assertEqual(context.customer_id, customer_id)
         resolved = auth_service.resolve(raw_cookie)
         self.assertIsNotNone(resolved)
-        self.assertEqual(resolved.customer_id, profile["customer_id"])
+        self.assertEqual(resolved.customer_id, customer_id)
 
     @patch("dev_ui.Agent", FakeVisitorAgent)
     def test_visitor_websocket_chat_streaming(self):
@@ -191,14 +158,14 @@ class SalesOnboardingTests(unittest.TestCase):
             self.assertEqual(delta_msg["type"], "text_delta")
             self.assertTrue(delta_msg["text"].startswith("LLM answer:"))
 
-            # Receive sales action or turn complete
-            next_msg = ws.receive_json()
-            if next_msg["type"] == "sales_action":
-                self.assertIn("products", next_msg)
-                complete_msg = ws.receive_json()
-                self.assertEqual(complete_msg["type"], "turn_complete")
-            else:
-                self.assertEqual(next_msg["type"], "turn_complete")
+            # Optional companion card and sales action, then turn complete
+            rest = [ws.receive_json()]
+            while rest[-1]["type"] != "turn_complete":
+                rest.append(ws.receive_json())
+            self.assertTrue(set(m["type"] for m in rest) <= {"presentation", "sales_action", "turn_complete"})
+            action = next((m for m in rest if m["type"] == "sales_action"), None)
+            if action:
+                self.assertIn("products", action)
 
 
 if __name__ == "__main__":

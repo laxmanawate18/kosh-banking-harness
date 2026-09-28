@@ -225,7 +225,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
           <aside className="k-kavach-tip">
             <LotusMark size={34} />
             <div>
-              <strong>{t('Kavach is watching out for you')}</strong>
+              <strong>{t('Sentinel is watching out for you')}</strong>
               <p>{t('Every payment is checked against your instructions. Anything unusual waits for your approval.')}</p>
             </div>
           </aside>

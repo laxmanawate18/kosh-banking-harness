@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from banking_db import BankingDatabase, db, new_id, utc_now
+from product_service import inr
 from sentinel import AGENT_ID, CUSTOMER_ID, KNOWN_DEVICE_ID, SentinelService, sentinel
 
 
@@ -236,7 +237,7 @@ class SecureBankingService:
             "sentinel": _without_token(decision),
             "presentation": {
                 "type": "SENTINEL_DENIAL",
-                "title": "Kavach blocked this action",
+                "title": "Sentinel blocked this action",
                 "message": "The proposed action did not satisfy the customer's bound intent and safety policy.",
             },
         }
@@ -512,7 +513,7 @@ class SecureBankingService:
             "presentation": {
                 "type": "PAYMENT_CHALLENGE",
                 "title": "Approval required to send money",
-                "message": f"Review this transfer of ₹{action.get('amount_minor', 0)/100:.2f} to {payee_name} in the Kavach approval dialog. Enter the verification code only in that trusted modal.",
+                "message": f"Review this transfer of {inr(action.get('amount_minor', 0) / 100, 2)} to {payee_name} in the Kavach approval dialog. Enter the verification code only in that trusted modal.",
             },
         }
 
@@ -585,7 +586,7 @@ class SecureBankingService:
                                 p["completed"] = True
                                 p["status"] = "EXECUTED"
 
-                amount_str = f"₹{receipt['amount_minor'] / 100:,.2f}"
+                amount_str = inr(receipt['amount_minor'] / 100, 2)
                 payee_val = receipt.get("beneficiary_name") or receipt.get("payee_name", "Recipient")
                 ref_val = receipt.get("payment_ref") or receipt.get("reference", "")
                 receipt_text = f"✓ Payment of {amount_str} to {payee_val} has been successfully verified and executed."
@@ -986,15 +987,15 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
         options = []
 
         if "LOAN" in cat_upper:
-            loan_amt_str = f"{amount_minor / 100:,.2f}" if amount_minor else "5,00,000"
+            loan_amt_str = inr(amount_minor / 100, 2) if amount_minor else "₹5,00,000"
             if norm_sub_type and "HOME" in norm_sub_type:
-                home_amt_str = f"{amount_minor / 100:,.2f}" if amount_minor else "25,00,000"
+                home_amt_str = inr(amount_minor / 100, 2) if amount_minor else "₹25,00,000"
                 prod_id = "PROD-LOAN-HOME"
                 title = "Kosh Griha Green Home Loan"
                 badge = "Pre-Approved Special"
                 headline_rate = "8.35% p.a."
                 special_offer = "Exclusive rate: 8.35% p.a. (Special 0.25% green discount) + Zero balance transfer fee"
-                follow_up_pitch = f"Last time you explored a Home Loan of ₹{home_amt_str}. Our rate has just dropped to 8.35% p.a. with zero transfer fees!"
+                follow_up_pitch = f"Last time you explored a Home Loan of {home_amt_str}. Our rate has just dropped to 8.35% p.a. with zero transfer fees!"
                 key_perks = ["Doorstep legal valuation", "Tax deductions up to ₹3.5 Lakh under Sec 24(b) & 80C"]
             else:
                 prod_id = "PROD-LOAN-EXPRESS"
@@ -1002,7 +1003,7 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
                 badge = "Festive Rate Cut"
                 headline_rate = "10.25% p.a."
                 special_offer = "Exclusive pre-approved rate: 10.25% p.a. (Reduced from 12.50%) + Zero foreclosure fees after 12 EMIs"
-                follow_up_pitch = f"Last time you inquired about a Personal Loan of ₹{loan_amt_str}. We have a special pre-approved rate of 10.25% p.a. with zero foreclosure fees!"
+                follow_up_pitch = f"Last time you inquired about a Personal Loan of {loan_amt_str}. We have a special pre-approved rate of 10.25% p.a. with zero foreclosure fees!"
                 key_perks = ["10-Minute paperless disbursal straight to your account", "Zero pre-closure charges after 12 EMIs"]
             options = [
                 {"label": "⚡ Check Pre-Approved Offer", "prompt": f"Check my pre-approved offer and EMI for {title}"},
@@ -1071,7 +1072,7 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
             notes=notes or f"Customer expressed interest in {category} {sub_type or ''}".strip(),
         )
 
-        amount_display = f"₹{amount_minor / 100:,.2f}" if amount_minor > 0 else "Flexible amount"
+        amount_display = inr(amount_minor / 100, 2) if amount_minor > 0 else "Flexible amount"
         return {
             "success": True,
             "lead_id": lead["id"],

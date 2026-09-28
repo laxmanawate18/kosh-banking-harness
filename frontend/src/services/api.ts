@@ -8,7 +8,16 @@ export function getCsrfToken(): string | null {
   return csrfToken;
 }
 
-export async function request<T = any>(url: string, options: RequestInit = {}): Promise<T> {
+async function refreshCsrfToken(): Promise<boolean> {
+  // Another tab (or a session read) rotates the token; fetch the current one.
+  const res = await fetch('/api/auth/session', { credentials: 'same-origin' });
+  if (!res.ok) return false;
+  const data = await res.json().catch(() => ({}));
+  csrfToken = data.csrf_token || null;
+  return Boolean(csrfToken);
+}
+
+export async function request<T = any>(url: string, options: RequestInit = {}, retried = false): Promise<T> {
   const method = options.method || 'GET';
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -33,6 +42,9 @@ export async function request<T = any>(url: string, options: RequestInit = {}): 
   }
 
   if (!response.ok) {
+    if (response.status === 403 && data.detail === 'CSRF validation failed' && !retried && await refreshCsrfToken()) {
+      return request<T>(url, options, true);
+    }
     const detail = data.detail || {};
     const message =
       typeof detail === 'string'

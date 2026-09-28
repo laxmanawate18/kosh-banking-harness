@@ -21,11 +21,16 @@ from backend.api_models import ProductApplyRequest, PublicChatRequest
 from auth_service import AuthService, normalize_phone
 from product_service import (
     SalesSessionContext,
+    auth_challenge_presentation,
+    chat_text,
+    extract_dynamic_suggestions,
     get_all_products,
     get_product_by_id,
     guarded_sales_prompt_reply,
+    inr,
     is_auth_required_reply,
     is_personal_banking_inquiry,
+    leaks_internal_prompt,
     sales_advisor,
 )
 
@@ -34,16 +39,22 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
     router = APIRouter()
 
     @router.get("/api/auth/public-config")
-    async def auth_public_config():
-        return {
+    async def auth_public_config(request: Request):
+        config = {
             "gcp_project_id": os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID") or "project-3da8cb5f-328e-44d3-b7a",
             "firebase_api_key": os.getenv("FIREBASE_WEB_API_KEY") or os.getenv("GCP_IDENTITY_API_KEY") or "",
             "firebase_auth_domain": os.getenv("FIREBASE_AUTH_DOMAIN") or f"{os.getenv('FIREBASE_PROJECT_ID') or os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('PROJECT_ID') or ''}.firebaseapp.com",
             "recaptcha_site_key": os.getenv("RECAPTCHA_ENTERPRISE_SITE_KEY") or "",
-            "firebase_test_phone": os.getenv("AUTH_FIREBASE_TEST_PHONE", "+919876543210"),
-            "firebase_test_code": os.getenv("AUTH_FIREBASE_TEST_CODE", "246810"),
             "oauth_start_url": "/api/auth/start",
+            "is_local": False,
         }
+        # The Firebase console test number/code is a local-development convenience only.
+        production = os.getenv("ENVIRONMENT", "development").lower() in {"production", "prod"}
+        if not production and request.url.hostname in {"127.0.0.1", "localhost", "::1"}:
+            config.update(is_local=True,
+                          firebase_test_phone=os.getenv("AUTH_FIREBASE_TEST_PHONE", "+919876543210"),
+                          firebase_test_code=os.getenv("AUTH_FIREBASE_TEST_CODE", "246810"))
+        return config
 
     @router.get("/api/products")
     async def get_products(category: str | None = None):
@@ -69,13 +80,16 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
         if not product:
             raise HTTPException(status_code=404, detail="Product not found")
 
-        full_name = (req.full_name or "").strip() or "Vikram Singhania"
-        phone = req.phone_number or f"+9198{uuid.uuid4().int % 90000000 + 10000000}"
-        normalized_phone = normalize_phone(phone)
+        full_name = (req.full_name or "").strip()
+        normalized_phone = normalize_phone(req.phone_number or "")
         if len(full_name) < 2 or len(full_name) > 100 or not re.fullmatch(r"\+91[6-9][0-9]{9}", normalized_phone):
             raise HTTPException(422, "Enter your full name and a valid Indian mobile number")
-
         category = (product.get("category") or "").lower()
+        pan = (req.pan_number or "").strip().upper()
+        if (pan or category in {"cards", "loans"}) and not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]", pan):
+            raise HTTPException(422, "Enter a valid PAN, for example ABCDE1234F")
+        if req.pincode and not re.fullmatch(r"[1-9][0-9]{5}", req.pincode.strip()):
+            raise HTTPException(422, "Enter a valid 6-digit PIN code")
 
         # -------------------------------------------------------------
         # 1. DEDICATED CREDIT CARD APPLICATION (NO BANK ACCOUNT CREATED)
@@ -92,7 +106,7 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
                 status_note = "Student Pre-Approval against College Verification"
             elif income > 0:
                 credit_limit = min(max(int(income * 3), 50000), 500000)
-                status_note = f"Pre-Approved based on monthly income of ₹{income:,.0f}"
+                status_note = f"Pre-Approved based on monthly income of {inr(income)}"
             else:
                 credit_limit = 150000
                 status_note = "Standard In-Principle Approval"
@@ -119,7 +133,7 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
                 },
                 status="PENDING_APPROVAL",
                 recommended_product_id=product["id"],
-                special_offer_note=f"Approved limit ₹{credit_limit:,} with zero joining fees on instant KYC",
+                special_offer_note=f"Approved limit {inr(credit_limit)} with zero joining fees on instant KYC",
                 follow_up_pitch=f"Your credit card application {app_ref} has been soft-approved!",
                 notes=f"Applicant {full_name}, Phone {normalized_phone}, Email {req.email or 'N/A'}, PAN {pan_masked}, {emp_type}",
             )
@@ -138,7 +152,7 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
                 "status": "IN_PRINCIPLE_SANCTIONED",
                 "status_note": status_note,
                 "card_title": product["title"],
-                "credit_limit": f"₹{credit_limit:,}",
+                "credit_limit": inr(credit_limit),
                 "applicant_name": full_name,
                 "phone_number": normalized_phone,
                 "pan_masked": pan_masked,
@@ -204,9 +218,9 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
                 },
                 status="PENDING_APPROVAL",
                 recommended_product_id=product["id"],
-                special_offer_note=f"In-principle sanctioned: ₹{loan_amt:,.0f} @ {annual_rate:.2f}% p.a. for {tenure} months (EMI: ₹{round(emi):,}/mo)",
+                special_offer_note=f"In-principle sanctioned: {inr(loan_amt)} @ {annual_rate:.2f}% p.a. for {tenure} months (EMI: {inr(round(emi))}/mo)",
                 follow_up_pitch=f"Your loan application {app_ref} has received in-principle sanction!",
-                notes=f"Applicant {full_name}, Phone {normalized_phone}, Email {req.email or 'N/A'}, Purpose: {purpose}, EMI: ₹{round(emi):,}/mo",
+                notes=f"Applicant {full_name}, Phone {normalized_phone}, Email {req.email or 'N/A'}, Purpose: {purpose}, EMI: {inr(round(emi))}/mo",
             )
             db.append_audit(
                 "LOAN_APPLICATION_SUBMITTED",
@@ -222,9 +236,9 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
                 "message": f"Your loan application for {product['title']} is in-principle sanctioned.",
                 "status": "IN_PRINCIPLE_SANCTIONED",
                 "loan_title": product["title"],
-                "loan_amount": f"₹{loan_amt:,.2f}",
+                "loan_amount": inr(loan_amt, 2),
                 "tenure_months": tenure,
-                "estimated_emi": f"₹{round(emi):,}/month",
+                "estimated_emi": f"{inr(round(emi))}/month",
                 "headline_rate": f"{annual_rate:.2f}% p.a.",
                 "purpose": purpose,
                 "applicant_name": full_name,
@@ -250,6 +264,10 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
         # -------------------------------------------------------------
         if auth_service.profile_exists(normalized_phone):
             raise HTTPException(409, "This mobile number already has a banking profile. Sign in to continue.")
+        requested_username = (req.username or "").strip().lower() or None
+        if requested_username and (auth_service.username_exists(requested_username)
+                                   or not re.fullmatch(r"[a-z][a-z0-9._]{3,31}", requested_username)):
+            raise HTTPException(409, "That username is not available. Choose another or leave it blank.")
 
         pan_raw = (req.pan_number or "").strip().upper()
         pan_masked = f"{pan_raw[:2]}••••{pan_raw[-2:]}" if len(pan_raw) == 10 else "ABCDE••••F"
@@ -282,7 +300,7 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
                 "pan_masked": pan_masked,
                 "pincode": req.pincode or "400001",
                 "employer_or_college": req.employer_or_college,
-                "requested_username": (req.username or "").strip().lower() or None,
+                "requested_username": requested_username,
                 "delivery_status": "PENDING",
             },
             status="PENDING_APPROVAL",
@@ -334,33 +352,27 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
                 if guarded:
                     answer["text"] = guarded
                 elif is_personal_banking_inquiry(req.prompt):
-                    answer["text"] = "To view your personal accounts, check balances, or initiate transfers, please sign in securely. Kosh protects your banking privacy by requiring authentication before accessing personal account data."
-                    answer["presentation"] = {
-                        "type": "AUTH_CHALLENGE",
-                        "title": "Authentication Required",
-                        "message": "To view your personal account balance, transaction history, cards, or initiate transfers, please sign in securely.",
-                        "action": "OPEN_LOGIN_MODAL",
-                        "button_text": "Sign In to Kosh",
-                    }
+                    answer["text"] = chat_text("auth_prompt")
+                    answer["presentation"] = auth_challenge_presentation()
                     answer["action"] = None
                 else:
                     async with agent_factory(create_agent_config(
                         "public-chat", visitor=True, session_context={"sales_context": sales_context}
                     )) as agent:
-                        answer["text"] = "".join([
+                        raw_reply = "".join([
                             text async for text in visitor_reply(agent, req.prompt, sales_context)
                         ])
+                    clean_reply, suggestions = extract_dynamic_suggestions(raw_reply)
+                    answer["text"] = chat_text("guarded") if leaks_internal_prompt(clean_reply) else clean_reply
+                    if suggestions:
+                        answer["suggested_queries"] = suggestions
+                    if answer.get("companion_cross_sell"):
+                        answer["presentation"] = answer["companion_cross_sell"]
                     if is_auth_required_reply(answer.get("text", "")):
-                        answer["presentation"] = {
-                            "type": "AUTH_CHALLENGE",
-                            "title": "Authentication Required",
-                            "message": "To view your personal account balance, transaction history, cards, or request account services, please sign in securely.",
-                            "action": "OPEN_LOGIN_MODAL",
-                            "button_text": "Sign In to Kosh",
-                        }
+                        answer["presentation"] = auth_challenge_presentation()
                         answer["action"] = None
         except Exception as exc:
-            raise HTTPException(503, "The AI advisor could not respond. Please try again in a moment.") from exc
+            raise HTTPException(503, chat_text("advisor_error")) from exc
         return {
             "role": "assistant",
             "session_id": req.session_id or f"GUEST-{uuid.uuid4().hex[:8]}",

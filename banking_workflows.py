@@ -135,6 +135,9 @@ class WorkflowService:
             if value and f["choices"] and value not in {c[0] for c in f["choices"]}:
                 raise HTTPException(422, f"Choose a listed option for {f['label']}")
             if key == "pan_number": value = value.upper()
+            if key == "mobile":  # accept +91 98765 43210 / 098765 43210 and store the 10-digit number
+                digits = re.sub(r"\D", "", value)
+                value = digits[-10:] if len(digits) in (11, 12) and digits[:-10] in ("0", "91") else digits or value
             if key == "document_last4" and value and not re.fullmatch(r"[A-Za-z0-9]{4}", value):
                 raise HTTPException(422, "Enter only the last four characters of the document number")
             out[key] = redact(value)

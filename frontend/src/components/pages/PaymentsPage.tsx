@@ -59,7 +59,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialBeneficiaryId
     try {
       const res = await transferMoney({ source_account_id: sourceAccountId, beneficiary_id: beneficiaryId, amount_minor: amountMinor, note });
       setReviewing(false);
-      // A Kavach challenge opens the approval dialog, which shows its own success screen.
+      // A Sentinel challenge opens the Kavach approval dialog, which shows its own success screen.
       if (!res?.challenge) {
         setSuccess({ amount: amountMinor, payee: payeeName, ref: res?.payment_ref || res?.receipt?.payment_ref || res?.id || '' });
       }
@@ -92,7 +92,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialBeneficiaryId
     <div className="k-app-page">
       <header className="k-app-head">
         <h1>{t('Send money')}</h1>
-        <p>{t('Choose a payee and amount. Kavach checks the payment before any money moves.')}</p>
+        <p>{t('Choose a payee and amount. Sentinel checks the payment before any money moves.')}</p>
       </header>
 
       {restricted && (

@@ -12,7 +12,6 @@ from sqlalchemy import select
 from backend.api_models import ApprovalDecisionRequest, ServiceRequestCreate, SessionCreateRequest, SessionUpdateRequest
 from backend.conversations import create_session_data, list_sessions_metadata, load_session, sanitized_session, save_session
 from backend.email_service import email_service
-from auth_service import _hash
 from persistence import UserRecord, utc_dt
 from product_service import get_product_by_id
 from service_requests import SERVICE_CATALOGUE
@@ -20,49 +19,40 @@ from service_requests import SERVICE_CATALOGUE
 logger = logging.getLogger(__name__)
 
 
-def _sync_auth_server(name: str, email: str, username: str, password: str, sentinel_user_id: str, phone: str) -> None:
+AUTH_INTERNAL_TOKEN = os.getenv("AUTH_INTERNAL_TOKEN", "kosh-internal-development-token")
+
+
+def _auth_server(path: str, payload: dict) -> bool:
+    """Call a Better Auth internal endpoint with the shared service token. Returns success."""
+    auth_base = os.environ.get("BETTER_AUTH_URL", "http://127.0.0.1:8020").rstrip("/")
+    req = urllib.request.Request(
+        f"{auth_base}/api/internal/{path}",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "X-Kosh-Internal-Token": AUTH_INTERNAL_TOKEN},
+        method="POST",
+    )
     try:
-        auth_base = os.environ.get("BETTER_AUTH_URL", "http://127.0.0.1:8020").rstrip("/")
-        data = json.dumps({
-            "name": name,
-            "email": email,
-            "username": username,
-            "password": password,
-            "sentinelUserId": sentinel_user_id,
-            "phoneNumber": phone,
-        }).encode("utf-8")
-        req = urllib.request.Request(
-            f"{auth_base}/api/internal/provision-user",
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=5) as res:
-            pass
+        with urllib.request.urlopen(req, timeout=5):
+            return True
     except Exception as e:
-        logger.warning("Auth server sync warning: %s", e)
+        logger.warning("Auth server %s failed: %s", path, e)
+        return False
 
 
-def _wipe_auth_server(sentinel_user_id: str = "", phone: str = "", username: str = "") -> None:
-    try:
-        auth_base = os.environ.get("BETTER_AUTH_URL", "http://127.0.0.1:8020").rstrip("/")
-        data = json.dumps({
-            "sentinelUserId": sentinel_user_id,
-            "phoneNumber": phone,
-            "username": username,
-        }).encode("utf-8")
-        req = urllib.request.Request(
-            f"{auth_base}/api/internal/wipe-user",
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=5) as res:
-            pass
-    except Exception as e:
-        logger.warning("Auth server wipe warning: %s", e)
+def _temp_password() -> str:
+    chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*"
+    return "Kosh!" + "".join(secrets.choice(chars) for _ in range(9))
 
 
+def _free_username(auth_service, full_name: str, requested: str | None = None) -> str:
+    """Never hand an applicant an existing login: a taken name gets a fresh generated one."""
+    if requested and not auth_service.username_exists(requested):
+        return requested
+    first = re.sub(r"[^a-z0-9]", "", (full_name.lower().split() or ["user"])[0]) or "user"
+    while True:
+        candidate = f"{first}{uuid.uuid4().hex[:4]}"
+        if not auth_service.username_exists(candidate):
+            return candidate
 
 
 def make_session_router(
@@ -74,7 +64,7 @@ def make_session_router(
     require_customer_csrf,
     require_officer,
     active_consent,
-    auth_service=None,
+    auth_service,
 ):
     router = APIRouter()
 
@@ -245,11 +235,8 @@ def make_session_router(
                 "headline_rate": "7.20% p.a.",
             }
 
-        first_name = re.sub(r"[^a-z0-9]", "", full_name.lower().split()[0]) or "user"
-        username = pref.get("requested_username") or f"{first_name}{uuid.uuid4().hex[:4]}"
-
-        chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*"
-        temp_password = "Kosh!" + "".join(secrets.choice(chars) for _ in range(9))
+        username = _free_username(auth_service, full_name, pref.get("requested_username"))
+        temp_password = _temp_password()
 
         onboarded = db.onboard_customer_with_product(
             product=product,
@@ -259,28 +246,18 @@ def make_session_router(
             email=email,
         )
         customer_id = onboarded["customer_id"]
-
-        if auth_service:
-            try:
-                auth_service.create_onboarded_profile(
-                    full_name=full_name,
-                    phone_number=phone,
-                    username=username,
-                    customer_id=customer_id,
-                    password=temp_password,
-                )
-            except Exception as e:
-                # If already exists, ignore duplicate
-                pass
-
-        _sync_auth_server(
-            name=full_name,
-            email=email,
-            username=username,
-            password=temp_password,
-            sentinel_user_id=customer_id,
-            phone=phone,
-        )
+        try:
+            auth_service.create_onboarded_profile(
+                full_name=full_name,
+                phone_number=phone,
+                username=username,
+                customer_id=customer_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if not _auth_server("provision-user", {"name": full_name, "email": email, "username": username,
+                                               "password": temp_password, "sentinelUserId": customer_id, "phoneNumber": phone}):
+            raise HTTPException(status_code=502, detail="Sign-in credentials could not be provisioned. No email was sent; please retry.")
 
         email_result = email_service.send_credentials_email(
             to_email=email,
@@ -340,18 +317,13 @@ def make_session_router(
         customer = db.get_customer(customer_id)
         phone = customer.get("phone_number") if customer else None
         username = None
-        if auth_service:
-            try:
-                with auth_service.runtime.sessions.begin() as session:
-                    user = session.scalar(select(UserRecord).where(UserRecord.customer_id == customer_id))
-                    if user:
-                        username = user.username
-                        if not phone and user.phone_number:
-                            phone = user.phone_number
-            except Exception:
-                pass
+        with auth_service.runtime.sessions() as session:
+            user = session.scalar(select(UserRecord).where(UserRecord.customer_id == customer_id))
+            if user:
+                username = user.username
+                phone = phone or user.phone_number
         wipe_result = db.wipe_customer(customer_id=customer_id, phone_number=phone)
-        _wipe_auth_server(sentinel_user_id=customer_id, phone=phone, username=username)
+        _auth_server("wipe-user", {"sentinelUserId": customer_id, "phoneNumber": phone or "", "username": username or ""})
         db.append_audit(
             "OFFICER_WIPED_CUSTOMER_RELATIONSHIP",
             actor=context.username,
@@ -376,48 +348,23 @@ def make_session_router(
         if not cust:
             raise HTTPException(status_code=404, detail="Customer not found")
 
-        chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*"
-        temp_password = "Kosh!" + "".join(secrets.choice(chars) for _ in range(9))
-
-        username = None
+        temp_password = _temp_password()
         full_name = cust.get("display_name") or cust.get("full_name") or f"{cust.get('first_name', '')} {cust.get('last_name', '')}".strip() or "Valued Customer"
-        phone = cust.get("phone") or cust.get("phone_masked") or ""
+        phone = cust.get("phone_number") or ""
         email = cust.get("email") or f"{customer_id.lower()}@example.test"
 
-        if auth_service:
-            with auth_service.runtime.sessions.begin() as session:
-                user = session.scalar(select(UserRecord).where(UserRecord.customer_id == customer_id))
-                if user:
-                    username = user.username
-                    user.password_hash = _hash(f"sentinel_salt_{temp_password}")
-                    if user.phone_number:
-                        phone = user.phone_number
-                    if user.display_name:
-                        full_name = user.display_name
-                else:
-                    first_name = re.sub(r"[^a-z0-9]", "", full_name.lower().split()[0]) or "user"
-                    username = f"{first_name}{uuid.uuid4().hex[:4]}"
-                    auth_service.create_onboarded_profile(
-                        full_name=full_name,
-                        phone_number=phone,
-                        username=username,
-                        customer_id=customer_id,
-                        password=temp_password,
-                    )
-
+        with auth_service.runtime.sessions() as session:
+            user = session.scalar(select(UserRecord).where(UserRecord.customer_id == customer_id))
+            username = user.username if user else None
+            phone = (user.phone_number if user else None) or phone
+            full_name = (user.display_name if user else None) or full_name
         if not username:
-            first_name = re.sub(r"[^a-z0-9]", "", full_name.lower().split()[0]) or "user"
-            username = f"{first_name}{uuid.uuid4().hex[:4]}"
+            username = _free_username(auth_service, full_name)
+            auth_service.create_onboarded_profile(full_name=full_name, phone_number=phone, username=username, customer_id=customer_id)
 
-        # Sync with auth-server (Better Auth)
-        _sync_auth_server(
-            name=full_name,
-            email=email,
-            username=username,
-            password=temp_password,
-            sentinel_user_id=customer_id,
-            phone=phone,
-        )
+        if not _auth_server("provision-user", {"name": full_name, "email": email, "username": username,
+                                               "password": temp_password, "sentinelUserId": customer_id, "phoneNumber": phone}):
+            raise HTTPException(status_code=502, detail="Sign-in credentials could not be re-issued. No email was sent; please retry.")
 
         email_result = email_service.send_credentials_email(
             to_email=email,
@@ -446,7 +393,6 @@ def make_session_router(
             "message": f"Fresh credentials generated and emailed to {email}.",
             "customer_id": customer_id,
             "username": username,
-            "temp_password": temp_password,
             "email": email,
             "delivery_status": email_result.get("delivery_status"),
         }

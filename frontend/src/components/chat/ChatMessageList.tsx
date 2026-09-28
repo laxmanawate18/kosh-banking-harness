@@ -10,7 +10,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
+
 import { ListenButton, useAutoSpeak } from './VoiceMessage';
+
+/** Mitra ends replies with a machine-readable `SUGGESTIONS: [...]` line for chips; never render it (also mid-stream). */
+const stripSuggestions = (text: string) => text.replace(/\s*SUGGESTIONS:[\s\S]*$/i, '').trim();
 
 interface ChatMessageListProps {
   messages: ChatMessage[];
@@ -102,7 +106,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages, onSu
                         isUser ? (
                           <div>{msg.text}</div>
                         ) : (
-                          <MarkdownRenderer content={msg.text} />
+                          <MarkdownRenderer content={stripSuggestions(msg.text)} />
                         )
                       )}
 

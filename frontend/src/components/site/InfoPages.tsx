@@ -164,7 +164,7 @@ const FAQ_GROUPS: [string, [string, string][]][] = [
     ['Is there a minimum balance?', 'Kosh Digital Smart Savings has no minimum balance. Premier accounts list their requirements on the rates page.'],
   ]],
   ['Payments and UPI', [
-    ['Why was my payment held for approval?', 'Kavach holds payments that look unusual, such as a new payee or a large amount, until you confirm them with an OTP in the secure dialog.'],
+    ['Why was my payment held for approval?', 'Sentinel holds payments that look unusual, such as a new payee or a large amount, until you confirm them with an OTP in the secure Kavach dialog.'],
     ['Is there a limit after adding a new payee?', 'Yes. For the first 24 hours a new payee can receive up to ₹25,000. This cooling period protects you from fraud.'],
     ['How do I find my UPI ID?', 'Open UPI in the app. Your UPI ID and QR code are at the top, ready to share.'],
   ]],

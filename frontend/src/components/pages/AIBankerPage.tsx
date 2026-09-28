@@ -143,8 +143,8 @@ export const AIBankerPage: React.FC = () => {
         </div>
 
         <div className="ai-security-shield">
-          <strong><Icon name="shield" /> {t('Kavach protection')}</strong>
-          <span>{t('Kavach checks every action Mitra prepares. Payments always need your separate approval.')}</span>
+          <strong><Icon name="shield" /> {t('Sentinel protection')}</strong>
+          <span>{t('Sentinel checks every action Mitra prepares. Payments always need your separate approval in Kavach.')}</span>
         </div>
       </aside>
 

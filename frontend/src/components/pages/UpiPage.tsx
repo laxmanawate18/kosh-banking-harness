@@ -79,7 +79,7 @@ export const UpiPage: React.FC<UpiPageProps> = ({ onNavigate, onSendMoney }) => 
     <div className="k-app-page">
       <header className="k-app-head">
         <h1>{t('UPI')}</h1>
-        <p>{t('Receive money with your QR code, or scan any UPI QR to pay. Kavach checks every payment.')}</p>
+        <p>{t('Receive money with your QR code, or scan any UPI QR to pay. Sentinel checks every payment.')}</p>
       </header>
 
       <div className="k-two">

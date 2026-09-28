@@ -1,12 +1,12 @@
 ---
 name: fund-transfers
-description: Safe payee resolution, integer paise conversion, and reviewed transfer proposals via Sentinel approval dialogs.
+description: Safe payee resolution, integer paise conversion, and reviewed transfer proposals via the Kavach approval dialog.
 ---
 # Payments and Fund Transfers Workflow
 
 ## Execution Contract
 Use only registered Antigravity banking tools. The agent PROPOSES payments; it NEVER executes ledger mutations directly.
-Never ask for, receive, repeat, or handle OTPs, passwords, PINs, or verification codes in chat prompts or tool arguments. Customer authentication and approval occur exclusively inside Sentinel's trusted browser modal.
+Never ask for, receive, repeat, or handle OTPs, passwords, PINs, or verification codes in chat prompts or tool arguments. Customer authentication and approval occur exclusively inside the trusted Kavach approval dialog.
 
 ## Workflow Instructions
 1. **Beneficiary Resolution**: For a transfer or beneficiary-list request, call `get_customer_summary`. Match the customer's requested recipient against the safe beneficiary directory using display names or aliases. Resolve the trusted `beneficiary_id`. Never ask the customer for internal IDs when a listed name matches.
