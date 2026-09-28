@@ -509,6 +509,18 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
   }
 
   // 14. Cross-Sell / Pre-Approved Financial Recommendation Card
+  if (type === 'APPLICATION_SUBMITTED') {
+    return (
+      <article className="chat-result">
+        <h3>Application submitted</h3>
+        <div className="info-row"><span>Product</span><strong>{pres.title}</strong></div>
+        <div className="info-row"><span>Reference</span><strong>{pres.application_ref}</strong></div>
+        <div className="info-row"><span>Status</span><strong>Awaiting bank officer review</strong></div>
+        {pres.next_steps && <p style={{ marginTop: 10 }}>{pres.next_steps}</p>}
+      </article>
+    );
+  }
+
   if (type === 'CROSS_SELL_OFFER') {
     const cardTitle = pres.title || title || 'Pre-Approved Recommendation';
     const badge = pres.badge || 'Exclusive Offer';

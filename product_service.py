@@ -395,6 +395,13 @@ def public_product_facts(product: Dict[str, Any]) -> Dict[str, Any]:
     return safe
 
 
+_CONFIRM_PATTERN = re.compile(
+    r"\b(yes|yeah|yep|confirm|confirmed|submit|go ahead|proceed|correct|looks good|all good|ok submit|haan|han|ho|theek)\b"
+    r"|हाँ|हां|ठीक है|सबमिट|होय|बरोबर", re.IGNORECASE)
+_NEGATION_PATTERN = re.compile(r"\b(no|not|don't|dont|wait|change|wrong|edit|cancel)\b|नहीं|नाही", re.IGNORECASE)
+_DECLINE_PATTERN = re.compile(r"no thanks|not interested|don't want|dont want|skip (the )?(card|offer)|no card|नहीं चाहिए|नको", re.IGNORECASE)
+
+
 @dataclass
 class SalesSessionContext:
     """Non-sensitive, visitor-provided context for one in-memory sales conversation."""
@@ -406,6 +413,14 @@ class SalesSessionContext:
     unanswered_question: Optional[str] = None
     turn_count: int = 0
     user_prompts: List[str] = field(default_factory=list)
+    # Application journey memory: a prepared draft, whether the visitor confirmed it, and what was submitted.
+    pending_application: Optional[Dict[str, Any]] = None
+    application_confirmed: bool = False
+    submitted_applications: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    # Cross-sell memory: each companion offer is shown once and never again after a "no".
+    shown_companions: List[str] = field(default_factory=list)
+    companion_declined: bool = False
+    recorded_leads: Dict[str, Any] = field(default_factory=dict)
 
     def reset(self) -> None:
         self.stage = "DISCOVER"
@@ -416,11 +431,22 @@ class SalesSessionContext:
         self.unanswered_question = None
         self.turn_count = 0
         self.user_prompts.clear()
+        self.pending_application = None
+        self.application_confirmed = False
+        self.submitted_applications.clear()
+        self.shown_companions.clear()
+        self.companion_declined = False
+        self.recorded_leads.clear()
 
     def update(self, prompt: str) -> None:
         text = _normalize_prompt(prompt)
         self.turn_count += 1
         self.user_prompts.append(prompt)
+        # The visitor's own words decide confirmation and declines; the model cannot set these.
+        if self.pending_application:
+            self.application_confirmed = bool(_CONFIRM_PATTERN.search(text)) and not _NEGATION_PATTERN.search(text)
+        if _DECLINE_PATTERN.search(text):
+            self.companion_declined = True
 
         # English + Hindi/Marathi (Devanagari and romanized) product vocabulary.
         goal_terms = {
@@ -435,10 +461,15 @@ class SalesSessionContext:
             "wealth": ("demat", "wealth", "invest", "stocks", "mutual fund", "nivesh",
                        "निवेश", "गुंतवणूक", "डीमैट", "डिमॅट", "म्यूचुअल फंड", "म्युच्युअल फंड"),
         }
-        for goal, terms in goal_terms.items():
-            if any(term in text for term in terms):
-                self.goal = goal
-                break
+        account_talk = any(term in text for term in ("debit card", "open account", "open an account", "account opening",
+                                                      "savings account", "खाता", "खाते"))
+        if account_talk and "credit card" not in text:
+            self.goal = "savings"  # a debit card or account opening belongs to the savings journey, not credit cards
+        else:
+            for goal, terms in goal_terms.items():
+                if any(term in text for term in terms):
+                    self.goal = goal
+                    break
         preference_terms = {
             "travel": ("travel", "international", "lounge", "forex", "flight", "यात्रा", "प्रवास", "ट्रैवल", "लाउंज"),
             "cashback": ("cashback", "everyday", "shopping", "food", "uber", "कैशबैक", "कॅशबॅक", "शॉपिंग"),
@@ -452,7 +483,8 @@ class SalesSessionContext:
                 self.preferences[preference] = "user_stated"
 
         applying = any(term in text for term in (
-            "apply", "open it", "sign up", "start application", "अप्लाई", "आवेदन", "अर्ज कर"))
+            "apply", "open it", "open account", "open an account", "open my account", "sign up", "start application",
+            "start my", "अप्लाई", "आवेदन", "अर्ज कर", "खाता खोल", "खाते उघड"))
         needs_preference = self.goal in {"cards", "loans"} and not self.preferences
         questions = CHAT_TEXT["en"]
         if not self.goal:
@@ -470,6 +502,11 @@ class SalesSessionContext:
 
     def snapshot(self) -> Dict[str, Any]:
         return {
+            "pending_application": self.pending_application,
+            "visitor_confirmed_pending_application": self.application_confirmed,
+            "submitted_applications": self.submitted_applications,
+            "companion_offers_already_shown": list(self.shown_companions),
+            "visitor_declined_companion_offer": self.companion_declined,
             "stage": self.stage,
             "goal": self.goal,
             "preferences": dict(self.preferences),
@@ -538,7 +575,12 @@ class SalesAdvisorEngine:
             item["tradeoffs"] = ["Rates, benefits and eligibility are illustrative and subject to applicable terms."]
             enriched.append(item)
         target_prod_id = products[0]["id"] if products else context.last_recommendation
-        companion_offer = get_companion_cross_sell(target_prod_id) if target_prod_id and context.stage in {"RECOMMEND", "EXPLAIN", "NEXT_ACTION"} else None
+        companion_offer = None
+        if (target_prod_id and context.stage in {"RECOMMEND", "EXPLAIN", "NEXT_ACTION"}
+                and not context.shown_companions and not context.companion_declined):  # one companion offer per chat
+            companion_offer = get_companion_cross_sell(target_prod_id)
+            if companion_offer:
+                context.shown_companions.append(target_prod_id)
         return {
             "action": "offer_onboarding" if applying else ("show_products" if products else "gather_context"),
             "stage": context.stage,
@@ -761,9 +803,74 @@ def build_public_sales_tools(context_provider: Callable[[], SalesSessionContext]
             "fact_metadata": _catalogue_metadata(),
         }
 
+    def prepare_product_application(product_id: str, full_name: str, mobile: str, email: str,
+                                    employment_type: str = "", pan_number: str = "", pincode: str = "",
+                                    monthly_income: float = 0, loan_amount: float = 0,
+                                    loan_tenure_months: int = 0, loan_purpose: str = "") -> dict:
+        """Prepare a real Kosh application from details the visitor typed in this chat.
+        Savings needs full_name, mobile, email. Cards also need pan_number, employment_type, monthly_income.
+        Loans also need pan_number, employment_type, monthly_income, loan_amount, loan_tenure_months.
+        Returns a summary: show it and ask the visitor to reply "confirm". Nothing is submitted yet."""
+        context = context_provider()
+        product = get_product_by_id(product_id)
+        if not product:
+            return {"ok": False, "error": "Unknown product_id. Call search_public_products first."}
+        if product_id in context.submitted_applications:
+            return {"ok": False, "already_submitted": context.submitted_applications[product_id]}
+        category = (product.get("category") or "").lower()
+        draft = {"product_id": product_id, "product_title": product["title"], "full_name": full_name.strip(),
+                 "mobile": mobile.strip(), "email": email.strip(), "employment_type": employment_type.strip(),
+                 "pan_number": pan_number.strip().upper(), "pincode": pincode.strip(), "monthly_income": monthly_income,
+                 "loan_amount": loan_amount, "loan_tenure_months": loan_tenure_months, "loan_purpose": loan_purpose.strip()}
+        needed = ["full_name", "mobile", "email"] + (["pan_number", "employment_type", "monthly_income"] if category in {"cards", "loans"} else []) \
+            + (["loan_amount", "loan_tenure_months"] if category == "loans" else [])
+        missing = [key for key in needed if not draft[key]]
+        if missing:
+            return {"ok": False, "missing_fields": missing, "instruction": "Ask the visitor only for these missing details."}
+        context.pending_application = draft
+        context.application_confirmed = False
+        shown = {k: v for k, v in draft.items() if v and k != "pan_number"}
+        if draft["pan_number"]:
+            shown["pan"] = draft["pan_number"][:2] + "••••" + draft["pan_number"][-2:]
+        return {"ok": True, "status": "AWAITING_VISITOR_CONFIRMATION", "summary": shown,
+                "instruction": "Show this summary and ask the visitor to reply 'confirm' to submit. Do not say it is submitted."}
+
+    def submit_product_application() -> dict:
+        """Submit the prepared application. Works only after the visitor explicitly confirmed it in their latest message."""
+        context = context_provider()
+        draft = context.pending_application
+        if not draft:
+            return {"ok": False, "error": "No prepared application. Call prepare_product_application first."}
+        if draft["product_id"] in context.submitted_applications:
+            return {"ok": True, "note": "already submitted", **context.submitted_applications[draft["product_id"]]}
+        if not context.application_confirmed:
+            return {"ok": False, "status": "AWAITING_VISITOR_CONFIRMATION",
+                    "error": "The visitor has not confirmed. Show the summary again and ask them to reply 'confirm'."}
+        from fastapi import HTTPException
+        from backend.api_models import ProductApplyRequest
+        from backend.applications import submit_bound
+        try:
+            result = submit_bound(ProductApplyRequest(
+                product_id=draft["product_id"], full_name=draft["full_name"], phone_number=draft["mobile"], email=draft["email"],
+                employment_type=draft["employment_type"] or None, pan_number=draft["pan_number"] or None,
+                pincode=draft["pincode"] or None, monthly_income=draft["monthly_income"] or None,
+                loan_amount=draft["loan_amount"] or None, loan_tenure_months=draft["loan_tenure_months"] or None,
+                loan_purpose=draft["loan_purpose"] or None))
+        except HTTPException as exc:
+            context.application_confirmed = False
+            return {"ok": False, "error": exc.detail, "instruction": "Explain the problem and ask the visitor to correct that detail."}
+        record = {"application_ref": result["application_ref"], "status": result["status"],
+                  "product_title": draft["product_title"], "next_steps": result.get("next_steps", ""),
+                  "email": draft["email"]}
+        context.submitted_applications[draft["product_id"]] = record
+        context.pending_application = None
+        context.application_confirmed = False
+        return {"ok": True, **record}
+
     from knowledge_service import query_bank_knowledge
 
-    return [search_public_products, get_public_product_details, compare_public_products, get_product_disclosures, query_bank_knowledge]
+    return [search_public_products, get_public_product_details, compare_public_products, get_product_disclosures,
+            query_bank_knowledge, prepare_product_application, submit_product_application]
 
 
 def _catalogue_metadata() -> Dict[str, Any]:
@@ -780,9 +887,12 @@ def json_text(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
 
+# Read-only catalogue tools shared by visitors and signed-in customers.
 PUBLIC_SALES_TOOL_NAMES = {
-    "search_public_products", "get_public_product_details", "compare_public_products", "get_product_disclosures", "query_bank_knowledge", "record_customer_lead",
+    "search_public_products", "get_public_product_details", "compare_public_products", "get_product_disclosures", "query_bank_knowledge",
 }
+# Visitor-only: take a new applicant's application in chat (customers use the account-opening workflow).
+VISITOR_APPLICATION_TOOL_NAMES = {"prepare_product_application", "submit_product_application"}
 
 
 _NUMERIC_CLAIM_PATTERN = re.compile(r"(?:₹\s?[\d,.]+|\b\d+(?:\.\d+)?\s?%|\b\d+\s?(?:minutes?|days?|months?|years?|x)\b)", re.IGNORECASE)
@@ -831,10 +941,13 @@ def validate_sales_response(text: str, context: Optional[SalesSessionContext] = 
     allowed_corpus = get_allowed_corpus()
     if context and hasattr(context, "user_prompts"):
         allowed_corpus += " " + " ".join(context.user_prompts)
-    norm_corpus = allowed_corpus.lower().replace(" ", "").replace(",", "")
+    # Compare rates by value so "2%", "2.0%" and "2.00%" are the same reviewed fact.
+    allowed_rates = {float(v) for v in re.findall(r"(\d+(?:\.\d+)?)\s?%", allowed_corpus.translate(_DEVANAGARI_DIGITS))}
     for claim in _NUMERIC_CLAIM_PATTERN.findall(text):
-        norm_claim = claim.lower().replace(" ", "").replace(",", "")
-        if "%" in claim and norm_claim not in norm_corpus:
+        if "%" not in claim:
+            continue
+        value = re.search(r"\d+(?:\.\d+)?", claim.replace(",", ""))
+        if value and float(value.group()) not in allowed_rates:
             return f"numeric rate claim is not in the reviewed catalogue: {claim}"
     return None
 
@@ -958,8 +1071,30 @@ def is_personal_banking_inquiry(prompt: str) -> bool:
     return any(phrase in p for phrase in _PERSONAL_BANKING_PHRASES)
 
 
+_JOURNEY_TEXT = {
+    "en": {"pending": "Please reply \"confirm\" to submit your {title} application, or tell me which detail to change.",
+           "submitted": "Your {title} application {ref} is with a Kosh officer for review. Your sign-in details will be emailed to {email} once it is approved.",
+           "collect": "I can open your {title} for you right here. Please share your full name, mobile number and email address."},
+    "hi": {"pending": "अपना {title} आवेदन जमा करने के लिए \"confirm\" लिखें, या बताएँ कि कौन-सी जानकारी बदलनी है।",
+           "submitted": "आपका {title} आवेदन {ref} कोष अधिकारी की समीक्षा में है। मंज़ूरी के बाद साइन-इन विवरण {email} पर ईमेल किए जाएँगे।",
+           "collect": "मैं आपका {title} यहीं खोल सकता हूँ। कृपया अपना पूरा नाम, मोबाइल नंबर और ईमेल पता बताएँ।"},
+    "mr": {"pending": "तुमचा {title} अर्ज सादर करण्यासाठी \"confirm\" लिहा, किंवा कोणती माहिती बदलायची ते सांगा.",
+           "submitted": "तुमचा {title} अर्ज {ref} कोष अधिकाऱ्याच्या पुनरावलोकनात आहे. मंजुरीनंतर साइन-इन तपशील {email} वर ईमेल केले जातील.",
+           "collect": "मी तुमचे {title} इथेच उघडू शकतो. कृपया तुमचे पूर्ण नाव, मोबाइल नंबर आणि ईमेल पत्ता सांगा."},
+}
+
+
 def safe_grounded_fallback(context: SalesSessionContext, language: str = "en") -> str:
     text = CHAT_TEXT[normalize_language(language)]
+    journey = _JOURNEY_TEXT[normalize_language(language)]
+    if context.pending_application:
+        return journey["pending"].format(title=context.pending_application["product_title"])
+    if context.submitted_applications:
+        record = list(context.submitted_applications.values())[-1]
+        return journey["submitted"].format(title=record["product_title"], ref=record["application_ref"], email=record["email"])
+    applying_to = get_product_by_id(context.last_recommendation or "")
+    if context.stage == "NEXT_ACTION" and applying_to:
+        return journey["collect"].format(title=applying_to["title"])
     if context.unanswered_question:
         key = next((k for k, v in CHAT_TEXT["en"].items() if v == context.unanswered_question), None)
         return text.get(key, context.unanswered_question)

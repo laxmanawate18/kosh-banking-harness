@@ -232,14 +232,22 @@ async def serve_visitor_websocket(
                         await candidate.__aexit__(None, None, None)
                         raise
                     agent = candidate
+                submitted_before = set(sales_context.submitted_applications)
                 full_reply = [text async for text in visitor_reply(agent, prompt, sales_context, language)]
+                for product_id in set(sales_context.submitted_applications) - submitted_before:
+                    record = sales_context.submitted_applications[product_id]
+                    await websocket.send_json({"type": "presentation", "turn_id": turn_id, "presentation": {
+                        "type": "APPLICATION_SUBMITTED", "title": record["product_title"],
+                        "application_ref": record["application_ref"], "status": record["status"],
+                        "next_steps": record["next_steps"], "email": record["email"]}})
                 combined_reply, suggestions = extract_dynamic_suggestions("".join(full_reply))
                 if leaks_internal_prompt(combined_reply):
                     combined_reply = chat_text("guarded", language)
                 if suggestions:
                     sales_action["suggested_queries"] = suggestions
                 await websocket.send_json({"type": "text_delta", "text": combined_reply, "turn_id": turn_id})
-                if is_auth_required_reply(combined_reply):
+                # A submitted applicant is told they will sign in later; that is not a request for personal data.
+                if is_auth_required_reply(combined_reply) and not sales_context.submitted_applications:
                     auth_challenge_triggered = True
                     await websocket.send_json({
                         "type": "presentation",

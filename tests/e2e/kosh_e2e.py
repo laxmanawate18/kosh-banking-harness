@@ -1034,6 +1034,66 @@ def stage_r(b, R):
     octx.close()
 
 
+# ================================================================ STAGE V: Mitra takes a visitor's application in chat
+FAKE_ACTIONS = re.compile(r"video[- ]?kyc|v-kyc|appointment (is )?(confirmed|booked|scheduled)|e-kyc|(link|otp) (has been )?(sent|dispatched)", re.I)
+
+
+def stage_v(b, R):
+    area = "V. Mitra as digital branch assistant (visitor)"
+    ctx = b.new_context(viewport=VP); pg = ctx.new_page(); w = Watch(pg)
+    pg.goto(APP + "/", wait_until="networkidle")
+    pg.get_by_role("button", name=re.compile("Ask Mitra", re.I)).last.click(); pg.wait_for_timeout(1500)
+    run_id = random.randint(10000000, 99999999)
+    email, phone = f"laxman.{run_id}@example.com", f"97{run_id}"
+    turns = ["Help me compare your savings accounts.", "Open account online",
+             f"Laxman Awate\n{phone}\n{email}\nsalaried employee", "confirm",
+             "Start my Suvarna Premier Savings account application", "no thanks, not interested in the card",
+             "What else can you help me with?"]
+    log, all_frames = [], []
+    for prompt in turns:
+        fr = chat_turn(pg, w, prompt)
+        all_frames.append(fr)
+        log.append((prompt, frames_text(fr), [f.get("presentation", {}) for f in fr if f.get("type") == "presentation"]))
+    shot(R, pg, "V_conversation")
+    ctx.close()
+    companions = sum(1 for _, _, pres in log for p in pres if p.get("type") == "CROSS_SELL_OFFER")
+    fake = [(p, m) for p, text, _ in log for m in FAKE_ACTIONS.findall(text)]
+    submitted = [p for _, _, pres in log for p in pres if p.get("type") == "APPLICATION_SUBMITTED"]
+    ref = submitted[0]["application_ref"] if submitted else None
+    R.check("V01", area, "The companion cross-sell card appears at most once in the whole conversation", companions <= 1, f"cards shown={companions}")
+    R.check("V02", area, "Mitra never claims actions that don't exist (video-KYC, links sent, appointments booked)", not fake, fake or "none")
+    R.check("V03", area, "Mitra asks for confirmation before submitting, then submits one real application after 'confirm'",
+            bool(ref) and not [p for _, _, pres in log[:3] for p in pres if p.get("type") == "APPLICATION_SUBMITTED"],
+            f"reference={ref}; summary turn={log[2][1][:160]!r}")
+    later = " ".join(text for _, text, _ in log[4:])
+    R.check("V04", area, "Asking to start again after submission quotes the same reference instead of restarting",
+            bool(ref) and ref in later and not [p for _, _, pres in log[4:] for p in pres if p.get("type") == "APPLICATION_SUBMITTED"],
+            f"later replies mention {ref}={bool(ref and ref in later)}")
+    R.check("V05", area, "After 'no thanks', no card offer is shown again",
+            not [p for _, _, pres in log[5:] for p in pres if p.get("type") == "CROSS_SELL_OFFER"], "no offers after the decline")
+    ctx, pg, w = officer_context(b, R); api = Api(ctx)
+    leads = api.get("/api/officer/leads").json()
+    leads = leads.get("leads", leads) if isinstance(leads, dict) else leads
+    mine = [l for l in leads if (l.get("preferences") or {}).get("email") == email]
+    R.check("V06", area, "The officer sees exactly one application with the visitor's contact details",
+            len(mine) == 1 and mine[0]["preferences"].get("app_ref") == ref, f"leads for {email}: {[(l['status'], l['preferences'].get('app_ref')) for l in mine]}")
+    if mine:
+        since = time.time_ns()
+        r = api.post(f"/api/officer/leads/{mine[0]['id']}/approve", json={})
+        mail = latest_mail(since, to=email)
+        ctx.close()
+        u, p_, cust = cred_from_mail(mail) if mail else (None, None, None)
+        ok = False
+        if u:
+            c2 = b.new_context(viewport=VP); p2 = c2.new_page()
+            ok, _ = login_password(p2, u, p_, expect_success=False)
+            c2.close()
+        R.check("V07", area, "Officer approves the chat application; the customer gets credentials by email and can sign in",
+                r.status_code == 200 and ok, f"approve={r.status_code} mail={bool(mail)} customer={cust} sign_in={ok}")
+    else:
+        ctx.close()
+
+
 # ================================================================ STAGE D: security
 def stage_d(b, R):
     area = "D. Security"
@@ -1169,13 +1229,13 @@ def stage_e(b, R):
     R.check("E05", area, "Mitra actually runs on gemini-3.8-flash at runtime", rt == "gemini-3.8-flash", f"turn_start.model={rt}")
 
 
-STAGES = {"A": stage_a, "B": stage_b, "C": stage_c, "T": stage_c_takeover, "P": stage_p, "Q": stage_q, "R": stage_r, "D": stage_d, "E": stage_e}
+STAGES = {"A": stage_a, "V": stage_v, "B": stage_b, "C": stage_c, "T": stage_c_takeover, "P": stage_p, "Q": stage_q, "R": stage_r, "D": stage_d, "E": stage_e}
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
-    ap.add_argument("--stages", default="A,B,C,T,P,Q,R,D,E")
+    ap.add_argument("--stages", default="A,V,B,C,T,P,Q,R,D,E")
     ap.add_argument("--headed", action="store_true")
     args = ap.parse_args()
     R = Results(pathlib.Path(args.out))

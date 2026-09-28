@@ -14,7 +14,7 @@ from google.antigravity import types
 import dev_ui
 from backend.agent_config import PublicSalesToolGateHook, create_agent_config
 from backend.settings import DEFAULT_MODEL
-from product_service import PUBLIC_SALES_TOOL_NAMES
+from product_service import PUBLIC_SALES_TOOL_NAMES, VISITOR_APPLICATION_TOOL_NAMES
 
 
 class FakeVisitorAgent:
@@ -61,7 +61,7 @@ class VisitorChatTests(unittest.TestCase):
     def test_visitor_has_only_public_read_tools_and_no_customer_context(self):
         with patch.object(dev_ui.db, 'get_customer', side_effect=AssertionError('customer lookup')):
             config = create_agent_config('guest', visitor=True)
-        self.assertEqual({tool.__name__ for tool in config.tools}, PUBLIC_SALES_TOOL_NAMES)
+        self.assertEqual({tool.__name__ for tool in config.tools}, PUBLIC_SALES_TOOL_NAMES | VISITOR_APPLICATION_TOOL_NAMES)
         self.assertEqual([type(hook).__name__ for hook in config.hooks], ['PublicSalesToolGateHook'])
         self.assertEqual(config.capabilities.enabled_tools, [])
         self.assertFalse(config.capabilities.enable_subagents)

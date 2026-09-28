@@ -86,9 +86,18 @@ class AuthService:
             ("USR-CUSTOMER-002", "sudhir", "+919839774797", "Sudhir Jaiswal", "CUSTOMER", "CUST-1002"),
             ("USR-OFFICER-001", "officer.mumbai", None, "Neha Rao", "OFFICER", None),
         ]
-        with self.runtime.sessions.begin() as session:
+        with self.runtime.sessions.begin() as session, session.no_autoflush:
             for user_id, username, phone, display_name, role, customer_id in demo_users:
                 user = session.get(UserRecord, user_id)
+                # Never collide with a real profile that already owns the demo username or mobile number.
+                phone_owner = session.scalar(select(UserRecord.id).where(UserRecord.phone_number == phone)) if phone else None
+                name_owner = session.scalar(select(UserRecord.id).where(UserRecord.username == username))
+                if phone_owner not in (None, user_id):
+                    phone = None if user else phone
+                    if user is None:
+                        continue
+                if user is None and name_owner not in (None, user_id):
+                    continue
                 if user is None:
                     session.add(UserRecord(id=user_id, username=username, phone_number=phone,
                                            password_hash=None,

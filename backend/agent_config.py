@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,7 @@ from banking_db import db
 from banking_tools import BANKING_TOOL_NAMES, build_banking_tools
 from product_service import (
     PUBLIC_SALES_TOOL_NAMES,
+    VISITOR_APPLICATION_TOOL_NAMES,
     SalesSessionContext,
     build_public_sales_tools,
     inr,
@@ -25,6 +27,8 @@ from product_service import (
 from sentinel import CUSTOMER_ID, KNOWN_DEVICE_ID
 from workflow_catalogue import skill_instructions
 
+
+logger = logging.getLogger(__name__)
 
 # Standing multilingual rule shared by the visitor and customer agents.
 LANGUAGE_RULE = (
@@ -66,7 +70,7 @@ For bank policies, interest compounding rules, premature withdrawal terms, clear
 You are also an elite, consultative Relationship Manager and Financial Sales Advisor for Kosh.
 When a customer expresses interest in or asks about loans, credit cards, fixed deposits, or investments, behave like a world-class professional banker:
 1. Proactive Discovery: Do not dump generic rates right away. Understand their goal AND profile: ask what specific type of product they need, target amount/spends, and their employment status (salaried, student, or business owner) to tailor the offer.
-2. Lead Capture: Once customer requirements or preferences are clarified, call record_customer_lead to log the qualified opportunity into Kosh CRM and generate an interactive pre-approved offer card.
+2. Lead Capture: Once customer requirements or preferences are clarified, call record_customer_lead to log the qualified opportunity into Kosh CRM and generate an interactive pre-approved offer card. Record each product at most once per conversation; never re-send the same offer card after the customer has seen, accepted or declined it.
 3. Fulfillment Action: When the customer agrees or says 'yes', immediately guide them to the action/application step instead of repeating previous questions.
 4. Returning Customer Follow-Up: If prior active lead inquiries or re-engagement directives are provided in your context, warmly welcome the customer back and proactively pitch an updated offer or rate reduction (e.g. rate dropped to 10.25% p.a. or exclusive complimentary Taj luxury voucher) to cross-sell and convert!
 5. Dynamic Contextual Suggestion Chips: At the very end of your response, on a new final line, provide 2 to 4 contextual suggestion chips that directly facilitate the customer's next response:
@@ -108,21 +112,28 @@ VISITOR_SYSTEM_INSTRUCTION = (
     "  * NEVER tell them to open a bank account first. Clarify: 'Loan funds can be disbursed directly into ANY existing bank account of your choice.'\n"
     "  * Capture only loan application details (Loan Amount, Desired Tenure, Purpose, Employment, Monthly Income).\n"
     "  * Only suggest a Kosh Suvarna Premier Account as an optional perk (e.g. for zero-fee loan disbursement) AFTER they explore or apply.\n"
-    "- When a visitor explicitly wants to open a SAVINGS ACCOUNT or DEPOSIT:\n"
-    "  * Here, they ARE opening an account! Guide them to digital account opening with instant video-KYC.\n\n"
-    "### 5. FULFILLMENT & ACTION (AVOID REPETITIVE QUESTION LOOPING)\n"
-    "- When the user agrees, says 'yes', 'let's do it', 'help me open it', or 'apply':\n"
-    "  * IMMEDIATELY move to the fulfillment action! DO NOT repeat the same questions or features again.\n"
-    "  * Call record_customer_lead to log their qualified opportunity in the bank CRM and generate an interactive offer card.\n"
-    "  * If applying for a Credit Card: Guide them to complete the standalone digital card application.\n"
-    "  * If applying for a Loan: Guide them to the instant loan sanction application.\n"
-    "  * If applying for Savings Account / Premier Metal Debit Card: Guide them to the instant 3-minute digital account opening with automated video-KYC.\n\n"
+    "- When a visitor explicitly wants to open a SAVINGS ACCOUNT or DEPOSIT: they ARE opening an account. Take the application yourself in this chat (section 5).\n\n"
+    "### 5. TAKE THE APPLICATION YOURSELF (THE REAL KOSH PROCESS)\n"
+    "You are the visitor's digital branch assistant: you complete the application for them. The real process is exactly this:\n"
+    "  1) collect the details below (use what the visitor already typed; never ask again for anything already given or already in the trusted context),\n"
+    "  2) call prepare_product_application and show its summary, asking the visitor to reply 'confirm',\n"
+    "  3) after the visitor confirms, call submit_product_application and share the application reference it returns,\n"
+    "  4) a Kosh officer reviews it; for savings, sign-in credentials and the Customer ID are emailed after approval; the customer then signs in and completes KYC with Mitra by uploading PAN and an address proof.\n"
+    "- Details: savings = full name, mobile, email (employment and PIN code if offered). Cards add PAN, employment type and monthly income. Loans add PAN, employment, monthly income, loan amount and tenure.\n"
+    "- If the trusted context shows the product in submitted_applications, it is already submitted: quote that reference and never restart or resubmit it.\n"
+    "- NEVER claim an action you did not perform with a tool in this turn. Kosh has NO video-KYC, NO Aadhaar e-KYC OTP, NO SMS or email onboarding links and NO appointment booking in this chat: never offer, schedule or confirm them. "
+    "Never invent reference numbers, dates, officers or delivery times. Only quote references returned by tools.\n\n"
+    "### 5b. CROSS-SELL LIKE A GREAT BANKER (ONCE, AT THE RIGHT MOMENT)\n"
+    "- Offer ONE relevant companion product per conversation: after recommending the main product or right after submitting its application.\n"
+    "- If the trusted context shows visitor_declined_companion_offer, do not pitch it again. If companion_offers_already_shown lists it, mention it at most briefly.\n"
+    "- If the visitor accepts a companion (for example the Neo Cashback Card), take that application too with the same prepare / confirm / submit steps, collecting only the extra details it needs.\n\n"
     "### 6. DYNAMIC CONTEXTUAL SUGGESTION CHIPS DIRECTIVE\n"
     "At the very end of EVERY single response, on the final line, provide 2 to 4 contextual suggestion chips that directly facilitate the visitor's next reply or action:\n"
     "SUGGESTIONS: [\"Option 1\", \"Option 2\", \"Option 3\"]\n"
     "Rules for suggestion chips:\n"
     "1. If you just asked a question (e.g. employment type, income, loan purpose, card feature preference): The chips MUST directly provide concise answers to your question! (e.g. [\"Salaried (> ₹50k/mo)\", \"Self-employed / Business\", \"Check general eligibility\"]).\n"
-    "2. If you just recommended a product: The chips MUST offer immediate next actions and companion bundle options (e.g. [\"Check EMI & rates\", \"Bundle Premier Savings\", \"Apply online now\"]).\n"
+    "2. If you just recommended a product: The chips MUST offer immediate next actions (e.g. [\"Check EMI & rates\", \"Apply here in chat\", \"Compare options\"]).\n"
+    "   While an application is awaiting confirmation offer [\"Confirm and submit\", \"Change a detail\"]. After it is submitted never offer to start it again.\n"
     "3. Keep each chip short, crisp (2-5 words), natural, and engaging. Never include sensitive data like passwords or OTPs.\n\n"
     "### 7. TONE & COMMUNICATION STYLE\n"
     "- Be warm, consultative, professional, and concise. Speak like a real senior private wealth banker.\n"
@@ -167,6 +178,11 @@ _PUBLIC_TOOL_ARGUMENTS = {
         "category", "sub_type", "amount_minor", "tenure_months",
         "employment_type", "monthly_income_minor", "preferences_summary", "notes"
     },
+    "prepare_product_application": {
+        "product_id", "full_name", "mobile", "email", "employment_type", "pan_number", "pincode",
+        "monthly_income", "loan_amount", "loan_tenure_months", "loan_purpose",
+    },
+    "submit_product_application": set(),
 }
 
 
@@ -220,10 +236,11 @@ class PublicSalesToolGateHook(hooks.PreToolCallDecideHook):
         del context
         name = str(data.name)
         args = data.args if isinstance(data.args, dict) else {}
-        if name not in PUBLIC_SALES_TOOL_NAMES and name in BANKING_TOOL_NAMES:
+        allowed = PUBLIC_SALES_TOOL_NAMES | VISITOR_APPLICATION_TOOL_NAMES
+        if name not in allowed and name in BANKING_TOOL_NAMES:
             return types.HookResult(allow=False, message="AUTH_REQUIRED: Only public product lookup is available before sign-in. Sign in to access personal banking.")
-        if name not in PUBLIC_SALES_TOOL_NAMES:
-            return types.HookResult(allow=False, message="Only public product lookup is available before sign-in.")
+        if name not in allowed:
+            return types.HookResult(allow=False, message="Only public product lookup and applications are available before sign-in.")
         unknown = set(args) - _PUBLIC_TOOL_ARGUMENTS[name]
         if unknown:
             return types.HookResult(allow=False, message=f"Unexpected public product fields: {sorted(unknown)}")
@@ -295,9 +312,9 @@ def create_agent_config(
         context["sales_context"] = sales_context
 
     if visitor:
-        raw_banking_tools = build_banking_tools(lambda: context)
-        lead_tool = next((t for t in raw_banking_tools if getattr(t, "__name__", None) == "record_customer_lead"), None)
-        tools = build_public_sales_tools(lambda: sales_context) + ([lead_tool] if lead_tool else [])
+        # Visitors apply for real through prepare/submit_product_application; anonymous "interest" leads
+        # carried no contact details and only cluttered the officer queue, so they are not recorded here.
+        tools = build_public_sales_tools(lambda: sales_context)
         configured_hooks = [PublicSalesToolGateHook()]
         instructions = VISITOR_SYSTEM_INSTRUCTION
 
@@ -320,7 +337,8 @@ def create_agent_config(
             "You also have access to public product tools (search_public_products, get_public_product_details, compare_public_products, get_product_disclosures). "
             "When the customer asks about fixed deposits, recurring deposits, cards, loans, or comparing products, retrieve and explain facts directly from the public product catalogue."
         )
-        raw_tools = build_banking_tools(lambda: context) + build_public_sales_tools(lambda: sales_context)
+        raw_tools = build_banking_tools(lambda: context) + [
+            tool for tool in build_public_sales_tools(lambda: sales_context) if tool.__name__ not in VISITOR_APPLICATION_TOOL_NAMES]
         seen_names = set()
         deduped_tools = []
         for t in raw_tools:
@@ -372,7 +390,7 @@ except ImportError:
 
 async def visitor_reply(agent: Agent, prompt: str, sales_context: SalesSessionContext, language: str = "en"):
     """Yield validated public answer text without reasoning or raw tool events."""
-    async with async_timeout(60):
+    async with async_timeout(90):
 
         trusted_context = json.dumps(sales_context.snapshot(), ensure_ascii=False)
         response = await agent.chat(
@@ -387,5 +405,8 @@ async def visitor_reply(agent: Agent, prompt: str, sales_context: SalesSessionCo
         if not parts:
             raise RuntimeError("The advisor returned an empty response")
         text = "".join(parts)
-        yield safe_grounded_fallback(sales_context, language) if validate_sales_response(text, sales_context) else text
+        reason = validate_sales_response(text, sales_context)
+        if reason:
+            logger.warning("Visitor reply replaced by grounded fallback (%s): %.300s", reason, text)
+        yield safe_grounded_fallback(sales_context, language) if reason else text
 
