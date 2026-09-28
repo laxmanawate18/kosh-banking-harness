@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from google.antigravity import Agent, types
 
 import dev_ui
+from backend.settings import FRONTEND_DIST
 from backend.agent_config import SecureToolGateHook, create_agent_config
 from backend.conversations import create_session_data, save_session
 from backend.settings import DEFAULT_MODEL
@@ -45,6 +46,13 @@ class SentinelAppTests(unittest.TestCase):
     def post(self, url, **kwargs):
         kwargs.setdefault("headers", {})["X-CSRF-Token"] = self.csrf
         return self.client.post(url, **kwargs)
+
+    @unittest.skipUnless((FRONTEND_DIST / "img").exists(), "frontend not built")
+    def test_frontend_public_files_are_served(self):
+        for path in ("/img/people/family-800.webp", "/favicon.svg", "/icons.svg"):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200, path)
+        self.assertEqual(self.client.get("/img/people/../../../.env").status_code, 404)
 
     def test_banking_portal_has_no_developer_controls_or_thoughts(self):
         response = self.client.get("/")

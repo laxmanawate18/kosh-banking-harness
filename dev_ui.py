@@ -75,8 +75,12 @@ app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credenti
                    allow_methods=["GET", "POST", "PATCH", "DELETE"],
                    allow_headers=["Content-Type", "X-CSRF-Token", "Authorization"])
 
-if (FRONTEND_DIST / "assets").exists():
-    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="react_assets")
+# Everything Vite copies into dist/ (hashed assets, public/ photos, favicon, icon sprite) is served as-is.
+for _item in sorted(FRONTEND_DIST.iterdir()) if FRONTEND_DIST.exists() else []:
+    if _item.is_dir():
+        app.mount(f"/{_item.name}", StaticFiles(directory=str(_item)), name=f"frontend_{_item.name}")
+    elif _item.name != "index.html":
+        app.add_api_route(f"/{_item.name}", lambda _path=_item: FileResponse(_path), methods=["GET"], include_in_schema=False)
 auth_service = AuthService(db.runtime)
 oauth_service = OAuthService(auth_service)
 
