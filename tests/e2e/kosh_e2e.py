@@ -850,11 +850,19 @@ def stage_p(b, R):
     if "VELOCITY_LIMIT" in codes:
         R.check("P08", area, "Several payment attempts within 10 minutes escalate a high-value new-payee transfer (Sentinel VELOCITY_LIMIT → DENY)",
                 "SENTINEL_DENIAL" in frames_presentations(fr), f"reason codes={codes}")
-        # README scenario assumes no recent attempts: wait for the 10-minute velocity window to clear.
-        wait = max(0, 610 - (time.time() - last_money_attempt()))
-        print(f"   waiting {int(wait)}s for Sentinel's velocity window to clear", flush=True)
-        time.sleep(wait)
-        pg.reload(); pg.wait_for_load_state("networkidle"); pg.wait_for_timeout(1500)
+    ctx.close()
+
+
+def stage_q(b, R):
+    """README approval scenario: no payment attempts in the last 10 minutes, fresh sign-in, ₹75,000 to Vikram."""
+    area = "P. Payments & Sentinel risk decisions"
+    wait = max(0, 610 - (time.time() - last_money_attempt()))
+    print(f"   waiting {int(wait)}s for Sentinel's velocity window to clear (then signing in fresh)", flush=True)
+    time.sleep(wait)
+    ctx, pg, w, step_up_statuses, _ = customer_context(b, R)
+    api = Api(ctx); resync(pg)
+    bal = lambda: {a["id"]: a.get("available_balance_minor") for a in api.get("/api/portal/overview").json()["accounts"]}
+    pg.goto(APP + "/#ai-banker"); pg.wait_for_load_state("networkidle"); pg.wait_for_timeout(1500)
     before = bal()
     fr = chat_turn(pg, w, "Transfer ₹75,000 to Vikram from my Rent Reserve account.")
     pres = frames_presentations(fr)
@@ -1144,13 +1152,13 @@ def stage_e(b, R):
     R.check("E05", area, "Mitra actually runs on gemini-3.8-flash at runtime", rt == "gemini-3.8-flash", f"turn_start.model={rt}")
 
 
-STAGES = {"A": stage_a, "B": stage_b, "C": stage_c, "T": stage_c_takeover, "P": stage_p, "R": stage_r, "D": stage_d, "E": stage_e}
+STAGES = {"A": stage_a, "B": stage_b, "C": stage_c, "T": stage_c_takeover, "P": stage_p, "Q": stage_q, "R": stage_r, "D": stage_d, "E": stage_e}
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
-    ap.add_argument("--stages", default="A,B,C,T,P,R,D,E")
+    ap.add_argument("--stages", default="A,B,C,T,P,Q,R,D,E")
     ap.add_argument("--headed", action="store_true")
     args = ap.parse_args()
     R = Results(pathlib.Path(args.out))
