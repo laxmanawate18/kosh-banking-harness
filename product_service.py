@@ -867,10 +867,17 @@ def build_public_sales_tools(context_provider: Callable[[], SalesSessionContext]
         context.application_confirmed = False
         return {"ok": True, **record}
 
+    def check_application_status(reference: str, mobile: str) -> dict:
+        """Look up an application by its reference (e.g. SAV-APP-1A2B3C) and the mobile number used to apply.
+        Both are required; never guess either. Returns status, product and next step only."""
+        from backend.applications import bound_status
+        status = bound_status(reference, mobile)
+        return {"found": bool(status), **(status or {"message": "No application matches that reference and mobile number."})}
+
     from knowledge_service import query_bank_knowledge
 
     return [search_public_products, get_public_product_details, compare_public_products, get_product_disclosures,
-            query_bank_knowledge, prepare_product_application, submit_product_application]
+            query_bank_knowledge, check_application_status, prepare_product_application, submit_product_application]
 
 
 def _catalogue_metadata() -> Dict[str, Any]:
@@ -890,6 +897,7 @@ def json_text(value: Any) -> str:
 # Read-only catalogue tools shared by visitors and signed-in customers.
 PUBLIC_SALES_TOOL_NAMES = {
     "search_public_products", "get_public_product_details", "compare_public_products", "get_product_disclosures", "query_bank_knowledge",
+    "check_application_status",
 }
 # Visitor-only: take a new applicant's application in chat (customers use the account-opening workflow).
 VISITOR_APPLICATION_TOOL_NAMES = {"prepare_product_application", "submit_product_application"}

@@ -178,6 +178,7 @@ export const SiteFooter: React.FC<{ onAsk: (q: string) => void }> = ({ onAsk }) 
         </nav>
         <nav aria-label={t('Help')}>
           <h2>{t('Help')}</h2>
+          <a href="#/track">{t('Track application')}</a>
           <a href="#/help">{t('Help and grievances')}</a>
           <a href="#/faqs">{t('FAQs')}</a>
           <a href="#/learn">{t('Safe banking guide')}</a>

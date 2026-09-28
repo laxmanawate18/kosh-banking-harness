@@ -121,6 +121,7 @@ VISITOR_SYSTEM_INSTRUCTION = (
     "  4) a Kosh officer reviews it; for savings, sign-in credentials and the Customer ID are emailed after approval; the customer then signs in and completes KYC with Mitra by uploading PAN and an address proof.\n"
     "- Details: savings = full name, mobile, email (employment and PIN code if offered). Cards add PAN, employment type and monthly income. Loans add PAN, employment, monthly income, loan amount and tenure.\n"
     "- If the trusted context shows the product in submitted_applications, it is already submitted: quote that reference and never restart or resubmit it.\n"
+    "- Status questions: ask for the application reference and the mobile number used to apply, then call check_application_status. Report only what it returns; the applicant can also track it at the Track application page (#/track).\n"
     "- NEVER claim an action you did not perform with a tool in this turn. Kosh has NO video-KYC, NO Aadhaar e-KYC OTP, NO SMS or email onboarding links and NO appointment booking in this chat: never offer, schedule or confirm them. "
     "Never invent reference numbers, dates, officers or delivery times. Only quote references returned by tools.\n\n"
     "### 5b. CROSS-SELL LIKE A GREAT BANKER (ONCE, AT THE RIGHT MOMENT)\n"
@@ -183,6 +184,7 @@ _PUBLIC_TOOL_ARGUMENTS = {
         "monthly_income", "loan_amount", "loan_tenure_months", "loan_purpose",
     },
     "submit_product_application": set(),
+    "check_application_status": {"reference", "mobile"},
 }
 
 

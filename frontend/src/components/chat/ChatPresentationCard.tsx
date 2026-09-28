@@ -517,6 +517,7 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
         <div className="info-row"><span>Reference</span><strong>{pres.application_ref}</strong></div>
         <div className="info-row"><span>Status</span><strong>Awaiting bank officer review</strong></div>
         {pres.next_steps && <p style={{ marginTop: 10 }}>{pres.next_steps}</p>}
+        <p style={{ marginTop: 6 }}><a href={`#/track/${encodeURIComponent(pres.application_ref || '')}`}>Track this application</a></p>
       </article>
     );
   }

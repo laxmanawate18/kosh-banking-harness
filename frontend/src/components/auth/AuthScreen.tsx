@@ -10,6 +10,7 @@ import { HomePage } from '../site/HomePage';
 import { ProductsPage } from '../site/ProductsPage';
 import { useSmoothScroll } from '../site/Lux';
 import { CalculatorsPage } from '../site/Calculators';
+import { TrackApplicationPage } from '../site/TrackApplication';
 import { RatesPage, FeesPage, HelpPage, FaqsPage, SegmentsPage, LearnPage, NotFound } from '../site/InfoPages';
 import type { Product, ProductCategory } from '../../types/products';
 
@@ -69,6 +70,7 @@ export const AuthScreen: React.FC = () => {
       case 'for': return <SegmentsPage id={route[1]} onAsk={askMitra} />;
       case 'learn': return <LearnPage />;
       case 'calculators': return <CalculatorsPage tab={route[1]} onAsk={askMitra} />;
+      case 'track': return <TrackApplicationPage reference={route[1]} onAsk={askMitra} />;
       default: return <NotFound />;
     }
   })();

@@ -16,8 +16,8 @@ from fastapi import APIRouter, HTTPException, Request, Response
 
 from backend import voice
 from backend.agent_config import create_agent_config, visitor_reply
-from backend.api_models import ProductApplyRequest, PublicChatRequest, SpeakRequest
-from backend.applications import bind as bind_applications, submit_application
+from backend.api_models import ApplicationStatusRequest, ProductApplyRequest, PublicChatRequest, SpeakRequest
+from backend.applications import application_status, bind as bind_applications, submit_application
 from auth_service import AuthService
 from product_service import (
     SalesSessionContext,
@@ -77,6 +77,16 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
         del response
         return submit_application(db, auth_service, req)
 
+
+    @router.post("/api/applications/status")
+    @limiter.limit("10/minute")
+    async def track_application(req: ApplicationStatusRequest, request: Request, response: Response):
+        """Applicant status by reference + the mobile number used to apply (no sign-in needed)."""
+        del request, response
+        status = application_status(db, req.reference, req.mobile)
+        if not status:
+            raise HTTPException(404, "No application matches that reference and mobile number.")
+        return status
 
     @router.post("/api/chat/speak")
     @limiter.limit("30/minute")

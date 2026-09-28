@@ -6,6 +6,7 @@ import re
 import uuid
 
 from fastapi import HTTPException
+from sqlalchemy import select
 
 from auth_service import normalize_phone
 from backend.api_models import ProductApplyRequest
@@ -287,3 +288,49 @@ def submit_bound(req: ProductApplyRequest) -> dict:
     if not _bound:
         raise HTTPException(503, "Applications are not available right now")
     return submit_application(_bound["db"], _bound["auth_service"], req)
+
+
+_STATUS = {  # lead status -> what the applicant is told (never internal notes)
+    "PENDING_APPROVAL": ("UNDER_REVIEW", "Under review", "A Kosh officer is reviewing your application."),
+    "QUALIFIED": ("UNDER_REVIEW", "Under review", "A Kosh officer is reviewing your application."),
+    "CONTACTED": ("UNDER_REVIEW", "Under review", "A Kosh officer is reviewing your application and may contact you."),
+    "IN_PRINCIPLE_SANCTIONED": ("UNDER_REVIEW", "In-principle approved", "Final verification by a Kosh officer is in progress."),
+    "CONVERTED": ("APPROVED", "Approved", "Your application is approved."),
+    "APPROVED": ("APPROVED", "Approved", "Your application is approved."),
+    "REJECTED": ("NOT_APPROVED", "Not approved", "We could not approve this application. You may apply again or contact Kosh support."),
+    "DECLINED": ("WITHDRAWN", "Withdrawn", "This application was withdrawn."),
+}
+
+
+def _mask_email(email: str) -> str:
+    name, _, domain = (email or "").partition("@")
+    return f"{name[:2]}•••@{domain}" if domain else ""
+
+
+def application_status(db, reference: str, mobile: str) -> dict | None:
+    """Status for an applicant who knows both the reference and the mobile number they applied with."""
+    from persistence import CrossSellLeadRecord
+
+    ref = (reference or "").strip().upper()
+    phone = normalize_phone(mobile or "")
+    if not re.fullmatch(r"(SAV|CC|LN)-APP-[A-Z0-9]{6}", ref) or not phone:
+        return None
+    with db.runtime.sessions() as session:
+        # ponytail: scans public-application leads in Python; index preferences.app_ref if volumes grow
+        rows = session.scalars(select(CrossSellLeadRecord).where(CrossSellLeadRecord.status != "DISCOVERY")).all()
+        lead = next((r for r in rows if str((r.preferences or {}).get("app_ref", "")).upper() == ref), None)
+        if not lead or (lead.preferences or {}).get("phone_number") != phone:
+            return None  # same answer for unknown reference and wrong mobile: no enumeration
+        code, label, next_step = _STATUS.get(lead.status, ("UNDER_REVIEW", "Under review", "A Kosh officer is reviewing your application."))
+        prefs = lead.preferences or {}
+        if code == "APPROVED" and lead.category == "SAVINGS":
+            next_step = f"Your sign-in details and Customer ID were emailed to {_mask_email(prefs.get('email', ''))}. Sign in and complete KYC with Mitra."
+        return {"reference": ref, "product": lead.sub_type, "category": lead.category, "status": code, "status_label": label,
+                "next_step": next_step, "submitted_at": lead.created_at.isoformat(), "updated_at": lead.updated_at.isoformat(),
+                "email": _mask_email(prefs.get("email", ""))}
+
+
+def bound_status(reference: str, mobile: str) -> dict | None:
+    if not _bound:
+        return None
+    return application_status(_bound["db"], reference, mobile)

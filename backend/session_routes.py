@@ -204,6 +204,9 @@ def make_session_router(
             "DECLINE": "DECLINED",
         }
         target_status = status_map.get(str(action).upper(), "INTERESTED")
+        lead = db.get_lead(lead_id)
+        if not lead or lead.get("customer_id") != context.customer_id:
+            raise HTTPException(status_code=404, detail="Lead not found")
         res = db.update_lead_status(lead_id, target_status, notes=f"Customer selected: {action}")
         return {"success": True, "lead": res}
 
