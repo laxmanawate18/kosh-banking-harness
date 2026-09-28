@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { useI18n } from '../../i18n';
 import { get, post } from '../../services/api';
+import { startVideoKyc } from '../../services/banking';
 import { RecentTransactions } from './RecentTransactions';
 import { SpendingBreakdown } from './SpendingBreakdown';
 import { formatMoney, formatDate, formatDateTime } from '../common/Formatters';
@@ -192,6 +193,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
                 : t('Complete verification by {date} to keep your accounts active.', { date: formatDate(kyc?.due_date || '') })}</p>
           </div>
           {kycState !== 'SUBMITTED_FOR_REVIEW' && <button type="button" className="k-btn primary" onClick={startKyc}>{t('Complete KYC with Mitra')}</button>}
+          {kycState === 'NOT_DONE' && <button type="button" className="k-btn" onClick={() => startVideoKyc().catch(() => undefined)}>{t('Video KYC now')}</button>}
         </section>
       )}
 

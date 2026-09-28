@@ -2,6 +2,7 @@ import React from 'react';
 import { formatMoney } from '../common/Formatters';
 import type { ChatPresentation } from '../../types/chat';
 import { useAuth } from '../../context/AuthContext';
+import { startVideoKyc } from '../../services/banking';
 
 interface ChatPresentationCardProps {
   presentation?: ChatPresentation;
@@ -518,6 +519,17 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
         <div className="info-row"><span>Status</span><strong>Awaiting bank officer review</strong></div>
         {pres.next_steps && <p style={{ marginTop: 10 }}>{pres.next_steps}</p>}
         <p style={{ marginTop: 6 }}><a href={`#/track/${encodeURIComponent(pres.application_ref || '')}`}>Track this application</a></p>
+      </article>
+    );
+  }
+
+  if (type === 'VIDEO_KYC') {
+    return (
+      <article className="chat-result">
+        <strong>Video KYC (V-CIP)</strong>
+        <p style={{ margin: '6px 0' }}>Aadhaar e-KYC, PAN check and a short live video call with a Kosh official. Keep your PAN card ready.</p>
+        {pres.sandbox && <p role="note" style={{ margin: '6px 0', color: '#b91c1c', fontWeight: 600 }}>Sandbox provider: this is a test. Nothing is really verified.</p>}
+        <button type="button" className="k-btn primary sm" onClick={() => startVideoKyc().catch((e) => alert(e.message))}>Start video KYC</button>
       </article>
     );
   }

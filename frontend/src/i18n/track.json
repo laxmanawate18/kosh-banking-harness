@@ -90,5 +90,9 @@
   "Let Kosh use your balances, salary credits and spending to suggest products. Separate from your banking consent; off by default.": {
     "hi": "Kosh को उत्पाद सुझाने के लिए आपके बैलेंस, वेतन जमा और खर्च का उपयोग करने दें। यह आपकी बैंकिंग सहमति से अलग है; डिफ़ॉल्ट रूप से बंद।",
     "mr": "उत्पादने सुचवण्यासाठी Kosh ला तुमची शिल्लक, पगार जमा आणि खर्च वापरू द्या. हे तुमच्या बँकिंग संमतीपेक्षा वेगळे आहे; सुरुवातीला बंद."
+  },
+  "Video KYC now": {
+    "hi": "अभी वीडियो KYC करें",
+    "mr": "आता व्हिडिओ KYC करा"
   }
 }

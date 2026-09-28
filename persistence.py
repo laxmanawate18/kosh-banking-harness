@@ -295,6 +295,22 @@ class OfferEventRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt, index=True)
 
 
+class EkycSessionRecord(Base):
+    """One e-KYC / V-CIP attempt with the configured provider (or the labelled sandbox)."""
+
+    __tablename__ = "ekyc_sessions"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    customer_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_ref: Mapped[str | None] = mapped_column(String(120), index=True)
+    redirect_url: Mapped[str] = mapped_column(Text, nullable=False)
+    result: Mapped[dict[str, Any]] = mapped_column(JSON_DOCUMENT, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
+
+
 class DatabaseRuntime:
     def __init__(self, url: str | None = None) -> None:
         self.url = url or os.getenv("SENTINEL_DATABASE_URL") or DEFAULT_DATABASE_URL

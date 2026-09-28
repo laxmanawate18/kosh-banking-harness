@@ -213,6 +213,8 @@ app.include_router(make_portal_router(db, banking_service, auth_service, request
     require_customer, require_customer_csrf, require_officer, active_consent, limiter))
 app.include_router(make_workflow_router(workflow_service, require_customer, require_customer_csrf,
     active_consent, require_officer, limiter))
+from backend.ekyc import make_ekyc_router
+app.include_router(make_ekyc_router(db, require_customer, require_customer_csrf, limiter))
 
 
 @app.websocket("/ws/chat")

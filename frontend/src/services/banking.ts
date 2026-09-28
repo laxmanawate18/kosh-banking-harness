@@ -168,3 +168,9 @@ export async function resendOfficerCustomerCredentials(customerId: string): Prom
   return post(`/api/officer/customers/${encodeURIComponent(customerId)}/resend-credentials`, {});
 }
 
+
+/** Hand the customer to the bank's video-KYC (V-CIP) provider. The provider's signed result updates KYC. */
+export async function startVideoKyc(): Promise<void> {
+  const session = await post<{ url: string }>('/api/portal/ekyc/sessions');
+  window.location.assign(session.url);
+}

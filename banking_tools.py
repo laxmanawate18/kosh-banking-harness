@@ -35,6 +35,7 @@ ALLOWED_PRESENTATIONS = {
     "RPA_ACCOUNT_OPENING_STATUS",
     "RPA_ACCOUNT_OPENED",
     "CROSS_SELL_OFFER",
+    "VIDEO_KYC",
     "LEAD_QUALIFICATION",
 }
 
@@ -1131,6 +1132,19 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
             },
         }
 
+    def start_video_kyc() -> dict:
+        """Offer the customer video KYC (V-CIP) with the bank's KYC provider; the customer starts it from the card."""
+        from backend.ekyc import provider
+        cid = context_provider().get("customer_id")
+        status = banking_service.db.get_kyc_profile(cid).get("status") if cid else None
+        if not cid or status == "VERIFIED":
+            return {"available": False, "reason": "KYC is already verified."}
+        sandbox = provider() == "sandbox"
+        return {"available": True, "sandbox": sandbox,
+                "note": "The result comes only from the provider; report it only after get_kyc_status shows it."
+                        + (" This demo uses a labelled SANDBOX provider: nothing is really verified." if sandbox else ""),
+                "presentation": {"type": "VIDEO_KYC", "sandbox": sandbox}}
+
     def decline_offer(product_id: str) -> dict:
         """Record that the customer is not interested in an offered product, so it is not offered again for 90 days."""
         from backend.offers import record_event
@@ -1182,6 +1196,7 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
         get_lead_reengagement_offer,
         get_next_best_offer,
         decline_offer,
+        start_video_kyc,
         query_bank_knowledge,
     ]
 
@@ -1205,5 +1220,6 @@ BANKING_TOOL_NAMES = {
     "get_lead_reengagement_offer",
     "get_next_best_offer",
     "decline_offer",
+    "start_video_kyc",
     "query_bank_knowledge",
 }
