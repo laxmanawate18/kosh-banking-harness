@@ -23,6 +23,12 @@ INTERNAL_MARKERS = ("get_customer_summary", "propose_transfer", "query_bank_know
                     "record_customer_lead", "SecureToolGateHook")
 
 
+# Sentinel is allowed wherever it names the fraud / risk-review layer (per product naming rule).
+FRAUD_CONTEXT = re.compile(r"risk|fraud|decision|polic|deny|denied|allow|challenge|mule|reason|engine|PDP|evaluat|mitigat|block"
+                           r"|\bcheck|\bguards?\b|protected|protection|watching|\bholds\b|unusual|verif|Sentinel security|Sentinel is on"
+                           r"|^\s*\"Sentinel\": \{", re.I)
+
+
 # ---------------------------------------------------------------- recording
 class Results:
     def __init__(self, out: pathlib.Path):
@@ -97,7 +103,13 @@ def text_of(page, selector="body"):
 
 
 def sentinel_snippets(text):
-    return [text[max(0, m.start() - 45): m.end() + 45].replace("\n", " ") for m in re.finditer(r"sentinel", text, re.I)]
+    """'Sentinel' mentions that name the product rather than the fraud / risk layer."""
+    out = []
+    for m in re.finditer(r"sentinel", text, re.I):
+        snippet = text[max(0, m.start() - 45): m.end() + 45].replace("\n", " ")
+        if not FRAUD_CONTEXT.search(text[m.start(): m.end() + 45]):
+            out.append(snippet)
+    return out
 
 
 def devanagari(text):
@@ -430,6 +442,19 @@ def upload_doc(pg, d, kind, fixture):
     pg.wait_for_timeout(9000)
 
 
+def wait_for_field(api, skill_id, field, timeout):
+    """Poll the draft until Mitra's background document prefill has written `field`."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        data = api.get("/api/ai/workflows").json()
+        rows = data.get("workflows", data) if isinstance(data, dict) else data
+        draft = next((w for w in rows if w.get("skill_id") == skill_id and w.get("status") == "DRAFT"), None)
+        if draft and (draft.get("fields") or {}).get(field):
+            return True
+        time.sleep(3)
+    return False
+
+
 def dialog_conflict(pg):
     return "This form has changed" in text_of(pg, "[role=dialog]")
 
@@ -497,6 +522,7 @@ def stage_b(b, R):
     upload_doc(pg, d, "PAN", "pan_aarav.png")
     upload_doc(pg, d, "PASSPORT", "passport_aarav.png")
     conflict_after_upload = dialog_conflict(pg)
+    prefilled = wait_for_field(Api(ctx), "kyc", "document_expiry", 90)
     for name, val in KYC_FORM.items():
         el = d.locator(f"[name={name}]")
         el.select_option(val) if el.evaluate("e=>e.tagName") == "SELECT" else el.fill(val)
@@ -504,7 +530,8 @@ def stage_b(b, R):
     conflict_on_review = dialog_conflict(pg)
     R.check("B07", area, "KYC form accepts two document uploads and moves to review without a reload",
             not conflict_after_upload and not conflict_on_review,
-            f"409 'form has changed' after upload={conflict_after_upload}, on review={conflict_on_review}", shot(R, pg, "B07_kyc_after_uploads"))
+            f"409 'form has changed' after upload={conflict_after_upload}, on review={conflict_on_review}; passport prefill landed={prefilled}",
+            shot(R, pg, "B07_kyc_after_uploads"))
     if conflict_on_review:  # customer workaround: reload after each document, then review
         for _ in range(3):
             pg.wait_for_timeout(15000); pg.reload(); pg.wait_for_load_state("networkidle")
@@ -1045,8 +1072,6 @@ def stage_d(b, R):
 USER_FACING = ["frontend/src", "frontend/index.html", "backend", "auth-server/src", "product_service.py", "banking_tools.py",
                "banking_db.py", "banking_workflows.py", "service_requests.py", "sentinel.py", "portal.py", "knowledge_service.py",
                "workflow_catalogue.py", "skills", "data/bank_documents", "data/banking_seed.json", "README.md"]
-FRAUD_CONTEXT = re.compile(r"risk|fraud|decision|polic|deny|denied|allow|challenge|mule|reason code|engine|PDP|evaluat|mitigat|block", re.I)
-
 
 def iter_lines(rel):
     base = ROOT / rel

@@ -227,13 +227,16 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
     setStatusMessage('Mitra is analyzing your document and prefilling form fields…');
 
     try {
-      // Send the background extraction instruction to Mitra.
-      sendMessage(
-        'Read the document evidence for my open banking workflow and prefill only the fields that are clearly visible. Leave uncertain fields blank.',
-        wf.id
-      );
+      // Send the background extraction instruction to Mitra. If Mitra is still reading the previous
+      // document, sendMessage refuses (returns false); wait for the turn to finish instead of dropping it.
+      const prompt = 'Read the document evidence for my open banking workflow and prefill only the fields that are clearly visible. Leave uncertain fields blank.';
+      const sendDeadline = Date.now() + 90_000;
+      while (!(await sendMessage(prompt, wf.id))) {
+        if (Date.now() > sendDeadline) throw new Error('Mitra is busy. Use "Prefill with Mitra" again in a moment.');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
 
-      const initialRev = wf.revision;
+      const initialRev = (await getWorkflow(wf.id)).revision;
       const initialFieldCount = Object.keys(wf.fields || {}).length;
       let attempts = 0;
 
