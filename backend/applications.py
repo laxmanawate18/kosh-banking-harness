@@ -14,6 +14,15 @@ from product_service import get_product_by_id, inr
 
 
 def submit_application(db, auth_service, req: ProductApplyRequest) -> dict:
+    """Validate and record one application for officer review, then text the applicant its reference."""
+    from backend.notifications import notify
+    result = _record_application(db, auth_service, req)
+    notify(db, "application_submitted", result.get("phone_number"), reference=result["application_ref"],
+           product=result.get("product", {}).get("title", "Kosh"))
+    return result
+
+
+def _record_application(db, auth_service, req: ProductApplyRequest) -> dict:
     """Validate and record one application for officer review. Raises HTTPException on invalid input."""
     product = get_product_by_id(req.product_id)
     if not product:

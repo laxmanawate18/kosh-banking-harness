@@ -262,6 +262,25 @@ class CrossSellLeadRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
 
 
+class NotificationRecord(Base):
+    """Every customer SMS / WhatsApp message: what was sent, to whom, through which provider, and the outcome."""
+
+    __tablename__ = "notification_outbox"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    event: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String(16), nullable=False)
+    recipient: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    reference: Mapped[str | None] = mapped_column(String(80), index=True)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    provider_ref: Mapped[str | None] = mapped_column(String(120))
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
+
+
 class DatabaseRuntime:
     def __init__(self, url: str | None = None) -> None:
         self.url = url or os.getenv("SENTINEL_DATABASE_URL") or DEFAULT_DATABASE_URL

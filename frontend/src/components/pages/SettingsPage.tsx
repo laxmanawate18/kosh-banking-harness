@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useBanking } from '../../context/BankingContext';
 import { Badge } from '../common/Badge';
@@ -27,8 +27,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     email_updates: true,
     payment_alerts: true,
     monthly_statement: true,
+    whatsapp_updates: false,
   });
   const [prefStatus, setPrefStatus] = useState<string | null>(null);
+  const savedPreferences = (overview as any)?.preferences;
+  useEffect(() => {
+    if (savedPreferences && typeof savedPreferences === 'object') setPreferences(p => ({ ...p, ...savedPreferences }));
+  }, [savedPreferences]);
 
   const c = profile || overview?.customer || (user as any) || {
     display_name: 'Ananya Sharma',
@@ -241,6 +246,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 checked={preferences.monthly_statement}
                 onChange={(e) =>
                   setPreferences((p) => ({ ...p, monthly_statement: e.target.checked }))
+                }
+              />
+            </label>
+            <label className="check-row">
+              <span>
+                <strong>{t('WhatsApp alerts')}</strong>
+                <small style={{ display: 'block' }}>{t('Also receive SMS alerts on WhatsApp.')}</small>
+              </span>
+              <input
+                type="checkbox"
+                name="whatsapp_updates"
+                checked={preferences.whatsapp_updates}
+                onChange={(e) =>
+                  setPreferences((p) => ({ ...p, whatsapp_updates: e.target.checked }))
                 }
               />
             </label>

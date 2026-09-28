@@ -354,7 +354,15 @@ class SecureBankingService:
                 return receipt
 
             receipt = self.db.transaction(mutate)
+            self._alert(payment.get("customer_id"), "money_debited", receipt["reference"],
+                        amount=inr(receipt["amount_minor"] / 100, 2).lstrip("₹"), account=receipt["source_account_masked"],
+                        payee=receipt["payee_name"])
             return receipt
+
+    def _alert(self, customer_id, event, reference=None, **params):
+        from backend.notifications import notify, phone_for
+        customer_id = customer_id or CUSTOMER_ID
+        notify(self.db, event, phone_for(self.db, customer_id), customer_id=customer_id, reference=reference, **params)
 
     def propose_bill_payment(
         self,
@@ -670,6 +678,8 @@ class SecureBankingService:
             return stored
 
         frozen = self.db.transaction(mutate)
+        self._alert(session_context.get("customer_id"), "card_frozen", card["id"],
+                    last4=str(frozen.get("card_number_masked", ""))[-4:])
         return {
             "success": True,
             "status": "FROZEN",

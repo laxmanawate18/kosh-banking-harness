@@ -53,6 +53,7 @@ class PreferenceBody(StrictBody):
     email_updates: bool
     payment_alerts: bool
     monthly_statement: bool
+    whatsapp_updates: bool = False  # opt-in to WhatsApp alerts in addition to SMS
 
 
 class ServiceBody(StrictBody):

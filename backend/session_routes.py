@@ -12,6 +12,7 @@ from sqlalchemy import select
 from backend.api_models import ApprovalDecisionRequest, ServiceRequestCreate, SessionCreateRequest, SessionUpdateRequest
 from backend.conversations import create_session_data, list_sessions_metadata, load_session, sanitized_session, save_session
 from backend.email_service import email_service
+from backend.notifications import notify, recent as recent_notifications
 from persistence import UserRecord, utc_dt
 from product_service import get_product_by_id
 from service_requests import SERVICE_CATALOGUE
@@ -193,6 +194,9 @@ def make_session_router(
         res = db.update_lead_status(lead_id, status, notes=notes)
         if not res:
             raise HTTPException(status_code=404, detail="Lead not found")
+        prefs = (res.get("preferences") or {})
+        if status == "REJECTED" and prefs.get("app_ref"):
+            notify(db, "application_rejected", prefs.get("phone_number"), reference=prefs["app_ref"])
         return res
 
     @router.post("/api/leads/{lead_id}/action")
@@ -262,6 +266,8 @@ def make_session_router(
                                                "password": temp_password, "sentinelUserId": customer_id, "phoneNumber": phone}):
             raise HTTPException(status_code=502, detail="Sign-in credentials could not be provisioned. No email was sent; please retry.")
 
+        notify(db, "application_approved", phone, customer_id=customer_id, reference=pref.get("app_ref"),
+               product=product.get("title", "Kosh"), email=email[:2] + "•••@" + email.partition("@")[2])
         email_result = email_service.send_credentials_email(
             to_email=email,
             applicant_name=full_name,
@@ -309,6 +315,11 @@ def make_session_router(
             "email_sent_to": email,
             "account_number": onboarded.get("account_number"),
         }
+
+    @router.get("/api/officer/notifications")
+    async def officer_notifications(context=Depends(require_officer)):
+        del context
+        return {"notifications": recent_notifications(db)}
 
     @router.get("/api/officer/customers")
     async def get_officer_customers(context=Depends(require_officer)):

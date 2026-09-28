@@ -174,7 +174,22 @@ class ServiceRequestService:
         result = self.get(request_id)
         if result is None:
             raise KeyError("Request not found")
+        self._notify_decision(result)
         return result
+
+    _STATUS_WORDS = {"APPROVED": "approved", "REJECTED": "not approved", "MORE_INFO_REQUIRED": "waiting for more information",
+                     "ESCALATED": "with a senior officer", "QUEUED_FOR_CBS": "approved and being set up",
+                     "COMPLETED": "completed", "RPA_FAILED": "delayed; our team is on it"}
+
+    def _notify_decision(self, request: dict[str, Any]) -> None:
+        from backend.notifications import notify, phone_for
+        phone = phone_for(self.db, request.get("customer_id"))
+        if request.get("service_id") == "P1-17" and request.get("status") in ("APPROVED", "REJECTED"):
+            event = "kyc_verified" if request["status"] == "APPROVED" else "kyc_not_verified"
+            notify(self.db, event, phone, customer_id=request.get("customer_id"), reference=request["id"])
+        elif request.get("status") in self._STATUS_WORDS:
+            notify(self.db, "service_request_update", phone, customer_id=request.get("customer_id"), reference=request["id"],
+                   service=request.get("service_name") or request.get("service_id"), status=self._STATUS_WORDS[request["status"]])
 
     def apply_rpa_result(self, request_id: str, result: dict[str, Any]) -> None:
         """Persist the result returned by CBS automation and create the linked account once."""
@@ -234,6 +249,9 @@ class ServiceRequestService:
                 "severity": "INFO" if succeeded else "ERROR",
                 "details": {"status": row.status, "cbs_status": result.get("cbs_status")},
             })
+        updated = self.get(request_id)
+        if updated:
+            self._notify_decision(updated)
 
     @staticmethod
     def _dict(row: ServiceRequestRecord) -> dict[str, Any]:
