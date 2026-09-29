@@ -38,6 +38,22 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
     router = APIRouter()
     bind_applications(db, auth_service)
 
+    @router.post("/api/chat/feedback")
+    @limiter.limit("30/minute")
+    async def chat_feedback(req: dict, request: Request, response: Response):
+        del response
+        from auth_service import COOKIE_NAME
+        from backend.mitra_ops import add_feedback
+        auth = auth_service.resolve(request.cookies.get(COOKIE_NAME), touch=False)
+        try:
+            return add_feedback(db, session_id=str(req.get("session_id", ""))[:80], message_index=int(req.get("message_index", -1)),
+                                rating=int(req.get("rating", 0)), comment=req.get("comment"), channel="CUSTOMER" if auth else "VISITOR",
+                                user_id=auth.user_id if auth else None)
+        except LookupError:
+            raise HTTPException(404, "Conversation not found")
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(422, str(exc))
+
     @router.get("/api/auth/public-config")
     async def auth_public_config(request: Request):
         config = {

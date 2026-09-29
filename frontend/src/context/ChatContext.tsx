@@ -39,12 +39,13 @@ const readVisitorChat = (): string | null => {
 };
 const saveVisitorChat = (id: string) => { try { localStorage.setItem(VISITOR_CHAT_KEY, JSON.stringify({ id, savedAt: Date.now() })); } catch { /* private mode */ } };
 const forgetVisitorChat = () => { try { localStorage.removeItem(VISITOR_CHAT_KEY); } catch { /* private mode */ } };
-const fromStoredMessage = (m: any): ChatMessage => {
+const fromStoredMessage = (m: any, index?: number): ChatMessage => {
   const presObj = m.presentation || (m.presentations && m.presentations.length > 0 ? m.presentations[m.presentations.length - 1] : undefined);
   return {
     id: Math.random().toString(), role: m.role, text: m.text || '', attachments: m.attachments,
     presentation: presObj, toolResult: m.toolResult || presObj, salesAction: m.salesAction,
     steps: m.steps, duration_ms: m.duration_ms, timestamp: (m.timestamp || 0) * 1000 || Date.now(),
+    storedIndex: m.role === 'assistant' ? index : undefined,
   };
 };
 
@@ -231,7 +232,7 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         if (isVisitor && event.rawEvent?.session_id) {
           saveVisitorChat(event.rawEvent.session_id);
           const history = event.rawEvent.history || [];
-          if (history.length && messagesRef.current.length === 0) setMessages(history.map(fromStoredMessage));
+          if (history.length && messagesRef.current.length === 0) setMessages(history.map((m: any, i: number) => fromStoredMessage(m, i)));
         }
       } else if (event.type === 'payment_verified') {
         const rcpt = (event as any).receipt || event.rawEvent?.receipt;
@@ -477,6 +478,14 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
             ];
           }
           return prev;
+        });
+      } else if (event.type === 'message_saved') {
+        const index = event.rawEvent?.message_index;
+        setMessages(prev => {
+          const at = [...prev].reverse().findIndex(m => m.role === 'assistant');
+          if (at < 0 || typeof index !== 'number') return prev;
+          const i = prev.length - 1 - at;
+          return prev.map((m, k) => (k === i ? { ...m, storedIndex: index } : m));
         });
       } else if (['turn_complete', 'cancelled', 'cleared'].includes(event.type)) {
         sending.current = false;

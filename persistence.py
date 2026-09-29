@@ -332,6 +332,37 @@ class CareCaseRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
 
 
+class MitraTurnRecord(Base):
+    """One Mitra turn's outcome for quality monitoring. No message text is stored here."""
+
+    __tablename__ = "mitra_turns"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    session_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    channel: Mapped[str] = mapped_column(String(12), nullable=False)       # VISITOR | CUSTOMER
+    language: Mapped[str] = mapped_column(String(8), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(24), nullable=False, index=True)  # ANSWERED | FALLBACK | GUARDED | CARE_FRAUD | ERROR
+    reason: Mapped[str | None] = mapped_column(String(160))
+    intents: Mapped[list[str]] = mapped_column(JSON_DOCUMENT, nullable=False, default=list)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    model: Mapped[str | None] = mapped_column(String(80))
+    prompt_version: Mapped[str | None] = mapped_column(String(40), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt, index=True)
+
+
+class ChatFeedbackRecord(Base):
+    """A customer's thumbs up/down on one Mitra reply (reply text kept masked, for review)."""
+
+    __tablename__ = "chat_feedback"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    message_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)  # +1 or -1
+    comment: Mapped[str | None] = mapped_column(Text)
+    reply_text: Mapped[str | None] = mapped_column(Text)
+    channel: Mapped[str] = mapped_column(String(12), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt, index=True)
+
+
 # ---- Banking state, one typed table per entity (see banking_store.py) --------------------------------------
 # Typed columns carry the fields the bank queries, indexes and reports on; `data` keeps the complete record so
 # the domain code reads back exactly what it wrote. banking_state (id=1) remains the lock and version row.

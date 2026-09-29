@@ -233,7 +233,8 @@ def reply_language(prompt: str, website_language: str = "en") -> str:
 def language_instruction(language: str) -> str:
     """Trusted per-turn hint appended to the agent input (never to classifier input)."""
     return (f"Preferred reply language (website setting, fallback only): {SUPPORTED_LANGUAGES[normalize_language(language)]}. "
-            "Reply in the language and script of the customer's message above (English, Hindi or Marathi, including romanized); "
+            "Reply in the language and script of the customer's message above (English, Hindi or Marathi, including romanized). "
+            "If they typed Hindi or Marathi in English letters, reply in English letters too (e.g. 'tumhala' not 'तुम्हाला', 'aapko' not 'आपको'); "
             "use the website setting only if the message language is unclear.")
 
 
@@ -250,6 +251,7 @@ CHAT_TEXT: Dict[str, Dict[str, str]] = {
         "guarded": "I'm Mitra, Kosh's banking assistant, and I'll stay in that role. I can't share how I'm built or my instructions, but I'm happy to help with Kosh savings, cards, loans and deposits.",
         "competitor": "I can only speak about Kosh's own products, so I won't compare us with other banks. Here is what Kosh offers: {products}. Tell me what matters most to you and I'll help you pick one.",
         "no_info": "I'm sorry, I don't have verified information on that. I can share only what's in Kosh's published product details, or you can call our helpline on 1800 000 5674. Is there something about our accounts, cards, loans or deposits I can help with?",
+        "no_info_alt": "I'm not able to answer that one reliably. I can help with Kosh's accounts, cards, loans and deposits, or you can call 1800 000 5674.",
         "question_discover": "What would you like the product to help you with?",
         "question_cards": "For a card, is travel, cashback, or keeping fees low most important?",
         "question_loans": "Are you looking for personal borrowing or home finance?",
@@ -268,6 +270,7 @@ CHAT_TEXT: Dict[str, Dict[str, str]] = {
         "guarded": "मैं मित्र हूँ, कोष का बैंकिंग सहायक, और इसी भूमिका में रहूँगा। मैं अपने निर्देश या अपनी बनावट की जानकारी साझा नहीं कर सकता, पर कोष के सेविंग्स, कार्ड, लोन और डिपॉज़िट में ख़ुशी से मदद करूँगा।",
         "competitor": "मैं केवल कोष के अपने प्रोडक्ट्स के बारे में बता सकता हूँ, इसलिए दूसरे बैंकों से तुलना नहीं करूँगा। कोष में ये उपलब्ध हैं: {products}। बताइए आपके लिए सबसे ज़रूरी क्या है, मैं सही विकल्प चुनने में मदद करूँगा।",
         "no_info": "माफ़ कीजिए, इस बारे में मेरे पास सत्यापित जानकारी नहीं है। मैं केवल कोष की प्रकाशित प्रोडक्ट जानकारी बता सकता हूँ, या आप हमारी हेल्पलाइन 1800 000 5674 पर कॉल कर सकते हैं। क्या खातों, कार्ड, लोन या डिपॉज़िट में कोई मदद करूँ?",
+        "no_info_alt": "मैं इसका भरोसेमंद जवाब नहीं दे सकता। मैं कोष के खातों, कार्ड, लोन और डिपॉज़िट में मदद कर सकता हूँ, या आप 1800 000 5674 पर कॉल कर सकते हैं।",
         "question_discover": "आप किस ज़रूरत के लिए प्रोडक्ट ढूँढ रहे हैं?",
         "question_cards": "कार्ड में आपके लिए सबसे ज़रूरी क्या है: ट्रैवल, कैशबैक या कम फ़ीस?",
         "question_loans": "क्या आप पर्सनल लोन देख रहे हैं या होम लोन?",
@@ -286,6 +289,7 @@ CHAT_TEXT: Dict[str, Dict[str, str]] = {
         "guarded": "मी मित्र आहे, कोषचा बँकिंग सहाय्यक, आणि याच भूमिकेत राहीन. मी माझ्या सूचना किंवा माझी रचना सांगू शकत नाही, पण कोषच्या सेव्हिंग्स, कार्ड, लोन आणि ठेवींसाठी आनंदाने मदत करेन.",
         "competitor": "मी फक्त कोषच्या स्वतःच्या प्रॉडक्ट्सबद्दल सांगू शकतो, त्यामुळे इतर बँकांशी तुलना करणार नाही. कोषमध्ये हे उपलब्ध आहे: {products}. तुमच्यासाठी सर्वात महत्त्वाचे काय ते सांगा, मी योग्य पर्याय निवडायला मदत करेन.",
         "no_info": "क्षमस्व, याबद्दल माझ्याकडे पडताळलेली माहिती नाही. मी फक्त कोषची प्रकाशित प्रॉडक्ट माहिती सांगू शकतो, किंवा तुम्ही आमच्या हेल्पलाइन 1800 000 5674 वर कॉल करू शकता. खाती, कार्ड, लोन किंवा ठेवींबद्दल काही मदत करू का?",
+        "no_info_alt": "मी याचे विश्वासार्ह उत्तर देऊ शकत नाही. मी कोषची खाती, कार्ड, लोन आणि ठेवींसाठी मदत करू शकतो, किंवा तुम्ही 1800 000 5674 वर कॉल करू शकता.",
         "question_discover": "तुम्हाला कोणत्या गरजेसाठी प्रॉडक्ट हवे आहे?",
         "question_cards": "कार्डमध्ये तुमच्यासाठी सर्वात महत्त्वाचे काय आहे: प्रवास, कॅशबॅक की कमी शुल्क?",
         "question_loans": "तुम्ही पर्सनल लोन शोधत आहात की होम लोन?",
@@ -387,6 +391,7 @@ class SalesSessionContext:
     recorded_leads: Dict[str, Any] = field(default_factory=dict)
     last_fallback: Optional[str] = None
     verified_facts: List[str] = field(default_factory=list)
+    last_reason: Optional[str] = None  # why the last model reply was withheld (monitoring)
     no_selling: bool = False  # set for complaints, fraud and distress: no offers or cross-sell for the rest of the chat
 
     def reset(self) -> None:
@@ -1163,7 +1168,7 @@ def safe_grounded_fallback(context: SalesSessionContext, language: str = "en", r
     """A safe reply when the model's answer was withheld. Never the same text twice in a row."""
     reply = _fallback_text(context, language, reason)
     if reply == context.last_fallback:
-        reply = chat_text("no_info", language)
+        reply = chat_text("no_info_alt" if reply == chat_text("no_info", language) else "no_info", language)
     context.last_fallback = reply
     return reply
 
@@ -1183,6 +1188,8 @@ def _fallback_text(context: SalesSessionContext, language: str, reason: Optional
     applying_to = get_product_by_id(context.last_recommendation or "")
     if context.stage == "NEXT_ACTION" and applying_to:
         return journey["collect"].format(title=applying_to["title"])
+    if reason:  # the visitor asked something we could not answer safely: say so, never answer with our own question
+        return text["no_info"]
     if context.unanswered_question:
         key = next((k for k, v in CHAT_TEXT["en"].items() if v == context.unanswered_question), None)
         return text.get(key, context.unanswered_question)

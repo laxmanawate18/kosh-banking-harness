@@ -116,6 +116,7 @@ export class ChatSocketManager {
       case 'tool_result':
       case 'presentation':
       case 'turn_complete':
+      case 'message_saved':
       case 'cancelled':
       case 'cleared':
         this.notify({ type: data.type, turnId: data.turn_id, rawEvent: data });

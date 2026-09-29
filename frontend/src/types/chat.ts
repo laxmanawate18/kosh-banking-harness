@@ -59,6 +59,8 @@ export interface ChatMessage {
   duration_ms?: number;
   /** Dictated with the mic: Mitra reads its reply aloud. */
   spoken?: boolean;
+  /** Position of this reply in the saved conversation (for feedback). */
+  storedIndex?: number;
 }
 
 export interface SalesProduct extends Product {

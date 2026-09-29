@@ -1156,3 +1156,9 @@ input[type=checkbox], input[type=radio] { min-height: 0; accent-color: var(--bra
   .ai-listen-eq b:nth-child(3) { animation-delay: -600ms; }
 }
 @keyframes ai-eq { from { scale: 1 .25; } to { scale: 1 1; } }
+
+.ai-feedback { display: inline-flex; gap: 4px; margin-left: 8px; }
+.ai-feedback button { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 2px 8px; cursor: pointer; font-size: 13px; }
+.ai-feedback button:hover { border-color: var(--line-strong); }
+.ai-feedback-done { margin-left: 8px; font-size: 12px; color: var(--muted); }
+.ai-disclosure { opacity: .8; }

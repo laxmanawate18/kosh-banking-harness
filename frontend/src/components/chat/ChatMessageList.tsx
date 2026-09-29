@@ -1,5 +1,6 @@
 import { LotusMark } from '../common/KoshLogo';
 import React, { useEffect, useRef } from 'react';
+import { post } from '../../services/api';
 import type { ChatMessage } from '../../types/chat';
 import { SalesActionCard } from './SalesActionCard';
 import { ChatPresentationCard } from './ChatPresentationCard';
@@ -139,6 +140,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages, onSu
                         <span className="ai-streaming-cursor" aria-label={t('Responding')} />
                       )}
                       {!isUser && msg.role === 'assistant' && !msg.isStreaming && msg.text?.trim() && <ListenButton id={msg.id} text={msg.text} />}
+                      {!isUser && msg.role === 'assistant' && !msg.isStreaming && typeof msg.storedIndex === 'number' && <FeedbackButtons index={msg.storedIndex} />}
                     </div>
                   )}
 
@@ -166,4 +168,23 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages, onSu
             })
     )}
   </div>;
+};
+
+/** Thumbs up / down on one Mitra reply; a thumbs-down asks what went wrong (optional). */
+const FeedbackButtons: React.FC<{ index: number }> = ({ index }) => {
+  const { t } = useI18n();
+  const { currentSessionId } = useChat();
+  const [sent, setSent] = React.useState<0 | 1 | -1>(0);
+  if (!currentSessionId) return null;
+  const rate = async (rating: 1 | -1) => {
+    const comment = rating < 0 ? window.prompt(t('What went wrong? (optional)')) || undefined : undefined;
+    try { await post('/api/chat/feedback', { session_id: currentSessionId, message_index: index, rating, comment }); setSent(rating); } catch { /* feedback is best-effort */ }
+  };
+  if (sent) return <span className="ai-feedback-done" role="status">{t('Thanks for the feedback')}</span>;
+  return (
+    <span className="ai-feedback" role="group" aria-label={t('Was this helpful?')}>
+      <button type="button" onClick={() => rate(1)} aria-label={t('Helpful')} title={t('Helpful')}>👍</button>
+      <button type="button" onClick={() => rate(-1)} aria-label={t('Not helpful')} title={t('Not helpful')}>👎</button>
+    </span>
+  );
 };

@@ -102,6 +102,33 @@ class CaseTests(unittest.TestCase):
         self.assertEqual(offers.next_best_offers(dev_ui.db, "CUST-1001", "DASHBOARD", record=False)["blocked"], "PAUSED_FOR_HARDSHIP")
 
 
+class TurnLimitTests(unittest.TestCase):
+    def test_a_stuck_model_call_is_abandoned_at_the_limit_even_if_it_ignores_cancellation(self):
+        import asyncio, time
+        from backend import agent_config
+
+        class StuckAgent:
+            async def chat(self, prompt):
+                while True:  # like an SDK retrying a dropped connection and swallowing cancellation
+                    try:
+                        await asyncio.sleep(10)
+                    except asyncio.CancelledError:
+                        continue
+
+        async def run():
+            async for _ in agent_config.visitor_reply(StuckAgent(), "hi", SalesSessionContext()):
+                pass
+        loop = asyncio.new_event_loop()  # asyncio.run would wait forever for the abandoned task at shutdown
+        try:
+            with patch.object(agent_config, "VISITOR_TURN_SECONDS", 0.3):
+                started = time.time()
+                with self.assertRaises(TimeoutError):
+                    loop.run_until_complete(asyncio.wait_for(run(), 5))
+            self.assertLess(time.time() - started, 2)
+        finally:
+            loop.close()
+
+
 class VisitorChatCareTests(unittest.TestCase):
     def setUp(self):
         dev_ui.limiter.reset()
@@ -127,7 +154,7 @@ class VisitorChatCareTests(unittest.TestCase):
         text = "".join(e.get("text", "") for e in events if e["type"] == "text_delta")
         self.assertIn("1930", text)
         self.assertIn("cybercrime.gov.in", text)
-        self.assertEqual(FakeVisitorAgent.instances, [])
+        self.assertFalse(any(a.prompts for a in FakeVisitorAgent.instances))  # the model never saw it
         self.assertTrue(any(e["type"] == "presentation" and e["presentation"]["type"] == "CHOICE_SELECTION" for e in events))
 
     def test_complaint_reaches_the_model_with_a_care_directive_and_no_cross_sell(self):

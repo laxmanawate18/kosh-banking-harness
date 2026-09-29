@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import mimetypes
 import os
 from contextlib import asynccontextmanager
@@ -28,7 +29,7 @@ from backend.oauth_routes import make_oauth_router
 from backend.chat_runtime import serve_chat_websocket
 from backend.public_routes import make_public_router
 from backend.session_routes import make_session_router
-from backend.settings import ALLOWED_ORIGINS, FRONTEND_DIST
+from backend.settings import ALLOWED_ORIGINS, DEFAULT_MODEL, FRONTEND_DIST
 from banking_db import db
 from banking_tools import banking_service
 from auth_service import AuthContext, AuthService, COOKIE_NAME
@@ -50,6 +51,22 @@ async def lifespan(application: FastAPI):
     port = int(os.getenv("PORT", "8000"))
     cbs_base_url = os.getenv("CBS_BASE_URL", f"http://127.0.0.1:{port}")
     get_job_queue().start_worker(cbs_base_url=cbs_base_url, result_handler=request_service.apply_rpa_result)
+    from backend import mitra_ops
+    try:
+        mitra_ops.set_current_version(mitra_ops.register_prompt_version(db, DEFAULT_MODEL)["version"])
+    except Exception as exc:
+        print(f"Prompt registry notice: {exc}")
+
+    async def retention_loop():
+        while True:
+            try:
+                purged = mitra_ops.purge_expired(db)
+                if any(purged.values()):
+                    print(f"Retention purge: {purged}")
+            except Exception as exc:
+                print(f"Retention purge notice: {exc}")
+            await asyncio.sleep(24 * 3600)
+    retention_task = asyncio.create_task(retention_loop())
     sync_worker = None
     if os.getenv("ENABLE_CLOUD_SQL_SYNC", "false").lower() in ("1", "true", "yes"):
         try:
@@ -62,6 +79,7 @@ async def lifespan(application: FastAPI):
             print(f"Cloud SQL replicator notice: {exc}")
 
     yield
+    retention_task.cancel()
     if sync_worker:
         sync_worker.stop()
     get_job_queue().stop_worker()

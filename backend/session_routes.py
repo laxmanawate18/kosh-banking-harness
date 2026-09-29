@@ -22,6 +22,11 @@ from service_requests import SERVICE_CATALOGUE
 logger = logging.getLogger(__name__)
 
 
+def utc_now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
 AUTH_INTERNAL_TOKEN = os.getenv("AUTH_INTERNAL_TOKEN", "kosh-internal-development-token")
 
 
@@ -322,6 +327,21 @@ def make_session_router(
     async def officer_notifications(context=Depends(require_officer)):
         del context
         return {"notifications": recent_notifications(db)}
+
+    @router.get("/api/officer/mitra-quality")
+    async def officer_mitra_quality(days: int = 7, context=Depends(require_officer)):
+        del context
+        from backend import mitra_ops
+        return {**mitra_ops.quality(db, max(1, min(days, 90))), "registry": mitra_ops.registry(db)[:10]}
+
+    @router.post("/api/officer/ai-registry/{record_id}/approve")
+    async def officer_approve_prompt(record_id: str, req: dict, context=Depends(require_csrf)):
+        require_officer(context)
+        from backend import mitra_ops
+        note = str(req.get("note", "")).strip()[:500]
+        if not mitra_ops.update_registry(db, record_id, approval={"by": context.user_id, "at": utc_now_iso(), "note": note}):
+            raise HTTPException(status_code=404, detail="Version not found")
+        return {"approved": record_id}
 
     @router.get("/api/officer/care-cases")
     async def officer_care_cases(status: str = None, context=Depends(require_officer)):

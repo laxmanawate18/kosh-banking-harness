@@ -46,11 +46,11 @@ class MitraBoundaryTests(unittest.TestCase):
 
     def test_the_same_fallback_is_never_sent_twice_in_a_row(self):
         context = SalesSessionContext(goal="cards", unanswered_question=chat_text("question_cards"))
-        first = safe_grounded_fallback(context, "en", "numeric rate claim")
-        second = safe_grounded_fallback(context, "en", "numeric rate claim")
-        self.assertEqual(first, chat_text("question_cards"))
-        self.assertEqual(second, chat_text("no_info"))
-        self.assertIn("I don't have verified information", second)
+        replies = [safe_grounded_fallback(context, "en", "numeric rate claim") for _ in range(3)]
+        self.assertEqual(replies[0], chat_text("no_info"))  # a withheld answer is never replaced by our own question
+        self.assertNotEqual(replies[0], replies[1])
+        self.assertNotEqual(replies[1], replies[2])
+        self.assertIn("I don't have verified information", replies[0])
 
     def test_no_rival_bank_claims_remain_in_the_catalogue(self):
         text = json.dumps(get_all_products()).lower()

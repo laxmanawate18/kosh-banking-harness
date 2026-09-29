@@ -162,7 +162,7 @@ class SalesOnboardingTests(unittest.TestCase):
             rest = [ws.receive_json()]
             while rest[-1]["type"] != "turn_complete":
                 rest.append(ws.receive_json())
-            self.assertTrue(set(m["type"] for m in rest) <= {"presentation", "sales_action", "turn_complete"})
+            self.assertTrue(set(m["type"] for m in rest) <= {"presentation", "sales_action", "message_saved", "turn_complete"})
             action = next((m for m in rest if m["type"] == "sales_action"), None)
             if action:
                 self.assertIn("products", action)

@@ -27,7 +27,8 @@ from backend.agent_config import TOOL_RESULT_QUEUES, create_agent_config, visito
 from backend.conversations import create_session_data, load_session, save_session
 from backend.settings import DEFAULT_MODEL
 from auth_service import COOKIE_NAME, AuthContext
-from backend import care
+from backend import care, mitra_ops
+from banking_db import db  # the visitor handler logs turns; the customer handler receives its own db
 from product_service import (
     customer_reply_issue,
     SalesSessionContext,
@@ -222,8 +223,26 @@ async def serve_visitor_websocket(
     active_task = None
     sign_in_url = f"/api/chat/auth/start?session_id={urllib.parse.quote(guest_id)}"
 
+    async def fresh_agent():
+        candidate = agent_factory(create_agent_config(
+            guest_id,
+            visitor=True,
+            session_context={"sales_context": sales_context},
+        ))
+        try:
+            async with async_timeout(30):
+                await candidate.__aenter__()
+        except BaseException:
+            await candidate.__aexit__(None, None, None)
+            raise
+        return candidate
+
+
+    # Start the agent while the visitor is still typing, so the first reply doesn't wait for it.
+    warm_agent: Optional[asyncio.Task] = asyncio.create_task(fresh_agent())
+
     async def run_turn(prompt: str, language: str):
-        nonlocal agent
+        nonlocal agent, warm_agent
         turn_id = str(uuid.uuid4())
         started = time.time()
         await websocket.send_json({"type": "turn_start", "turn_id": turn_id, "model": DEFAULT_MODEL})
@@ -258,21 +277,13 @@ async def serve_visitor_websocket(
                 await websocket.send_json({"type": "text_delta", "text": combined_reply, "turn_id": turn_id})
                 await present({**auth_challenge_presentation(language), "action_url": sign_in_url})
             else:
-                async def fresh_agent():
-                    candidate = agent_factory(create_agent_config(
-                        guest_id,
-                        visitor=True,
-                        session_context={"sales_context": sales_context},
-                    ))
-                    try:
-                        async with async_timeout(30):
-                            await candidate.__aenter__()
-                    except BaseException:
-                        await candidate.__aexit__(None, None, None)
-                        raise
-                    return candidate
-
                 agent_started = time.time()
+                if agent is None and warm_agent is not None:
+                    try:
+                        agent = await warm_agent
+                    except Exception:
+                        agent = None
+                    warm_agent = None
                 if agent is None:
                     agent = await fresh_agent()
                 reply_started = time.time()
@@ -318,6 +329,14 @@ async def serve_visitor_websocket(
                 })
             guest_session["traces"] = [{"type": "visitor_memory", "state": dataclasses.asdict(sales_context)}]
             save_session(guest_session)
+            if combined_reply or turn_presentations:
+                await websocket.send_json({"type": "message_saved", "turn_id": turn_id, "message_index": len(guest_session["messages"]) - 1})
+            outcome = ("CARE_FRAUD" if "FRAUD" in intents else "GUARDED" if guarded else "AUTH_PROMPT" if auth_challenge_triggered and not sales_context.last_reason
+                       else "FALLBACK" if sales_context.last_reason else "ANSWERED")
+            mitra_ops.record_turn(db, session_id=guest_id, channel="VISITOR", language=language, outcome=outcome,
+                                  reason=sales_context.last_reason, intents=intents, latency_ms=int((time.time() - started) * 1000),
+                                  model=DEFAULT_MODEL)
+            sales_context.last_reason = None
             await websocket.send_json({
                 "type": "turn_complete",
                 "turn_id": turn_id,
@@ -326,8 +345,10 @@ async def serve_visitor_websocket(
             })
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as exc:
             traceback.print_exc()
+            mitra_ops.record_turn(db, session_id=guest_id, channel="VISITOR", language=language, outcome="ERROR",
+                                  reason=type(exc).__name__, latency_ms=int((time.time() - started) * 1000), model=DEFAULT_MODEL)
             await websocket.send_json({
                 "type": "error",
                 "turn_id": turn_id,
@@ -373,6 +394,11 @@ async def serve_visitor_websocket(
         pass
     finally:
         await stop_turn()
+        if warm_agent is not None:  # visitor left before asking anything
+            try:
+                agent = agent or await warm_agent
+            except BaseException:
+                pass
         if agent:
             await agent.__aexit__(None, None, None)
 
@@ -462,6 +488,7 @@ async def serve_chat_websocket(
                 await websocket.send_json({"type": "turn_start", "turn_id": guard_turn, "model": DEFAULT_MODEL, "timestamp": time.time()})
                 await websocket.send_json({"type": "text_delta", "text": CUSTOMER_GUARDED_REPLY, "turn_id": guard_turn})
                 await websocket.send_json({"type": "turn_complete", "turn_id": guard_turn, "duration_ms": 0, "stop_reason": "GUARDED"})
+                mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome="GUARDED", model=DEFAULT_MODEL)
                 continue
             intents = care.detect(prompt)
             if intents:
@@ -481,6 +508,8 @@ async def serve_chat_websocket(
                         {"label": "Show recent transactions", "prompt": "Show my recent transactions"},
                         {"label": "Talk to a person", "prompt": "Please arrange a call back from the fraud team"}]}})
                 await websocket.send_json({"type": "turn_complete", "turn_id": fraud_turn, "duration_ms": 0, "stop_reason": "CARE_FRAUD"})
+                mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome="CARE_FRAUD",
+                                      intents=intents, model=DEFAULT_MODEL)
                 continue
             if "SELF_HARM" in intents:
                 await websocket.send_json({"type": "text_delta", "text": care.text("self_harm", language) + "\n\n"})
@@ -748,9 +777,12 @@ async def serve_chat_websocket(
                         s.pop("_tool_name", None)
 
                     clean_text, suggestions = extract_dynamic_suggestions(accumulated_text)
+                    turn_outcome, turn_reason = "ANSWERED", None
                     if leaks_internal_prompt(clean_text):
                         clean_text = CUSTOMER_GUARDED_REPLY
+                        turn_outcome, turn_reason = "GUARDED", "internal prompt leak"
                     elif customer_reply_issue(clean_text):
+                        turn_outcome, turn_reason = "FALLBACK", customer_reply_issue(clean_text)
                         logger.warning("Customer reply replaced (%s): %.300s", customer_reply_issue(clean_text), clean_text)
                         clean_text = chat_text("competitor", language).format(products="savings, cards, deposits and loans")
                     clean_text = care.with_disclaimers(clean_text, language)
@@ -760,6 +792,8 @@ async def serve_chat_websocket(
                     if suggestions:
                         await websocket.send_json({"type": "sales_action", "turn_id": turn_id, "suggested_queries": suggestions})
 
+                    mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome=turn_outcome,
+                                          reason=turn_reason, intents=intents, latency_ms=turn_dur, model=DEFAULT_MODEL)
                     event = {
                         "type": "turn_complete",
                         "turn_id": turn_id,
@@ -803,6 +837,7 @@ async def serve_chat_websocket(
                         existing_msgs = latest_conv.get("messages", [])
                         receipt_msgs = [m for m in existing_msgs if m.get("presentation", {}).get("type") == "PAYMENT_RECEIPT"]
                         session.session_data["messages"].append(assistant_message)
+                        saved_index = len(session.session_data["messages"]) - 1
                         for rmsg in receipt_msgs:
                             ref = rmsg.get("presentation", {}).get("receipt", {}).get("payment_ref") or rmsg.get("presentation", {}).get("receipt", {}).get("reference")
                             if not any(
@@ -814,8 +849,10 @@ async def serve_chat_websocket(
                                 session.session_data["messages"].append(rmsg)
                     else:
                         session.session_data["messages"].append(assistant_message)
+                        saved_index = len(session.session_data["messages"]) - 1
 
                     save_session(session.session_data)
+                    await websocket.send_json({"type": "message_saved", "turn_id": turn_id, "message_index": saved_index})
                 except asyncio.CancelledError:
                     await queue.put(None)
                     try:

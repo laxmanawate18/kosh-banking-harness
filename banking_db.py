@@ -445,6 +445,8 @@ class BankingDatabase:
             return self._conversation_dict(row, include_content=True) if row else None
 
     def save_conversation(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        from backend.mitra_ops import mask_messages
+        data = {**data, "messages": mask_messages(data.get("messages", []))}  # PAN, Aadhaar, card, mobile masked at rest
         with self.runtime.sessions.begin() as session:
             row = session.get(ConversationRecord, data["id"])
             now = utc_dt()

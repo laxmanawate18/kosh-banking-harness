@@ -337,3 +337,38 @@ Each item has its own commit, unit tests, and a check in a real browser.
 - **Harness fixes:**
   - An earlier attempt failed B08 because the harness waited a fixed 9 s for a document scan that took longer that once. The harness now waits for the upload to finish; normal scans take 1.6–4.8 s.
   - The harness now reads banking state from the typed tables.
+
+## 11. Mitra to BFSI standard (P0, P1 and P2)
+
+Mitra's rules, how each is enforced, and the governance process are described in `docs/AI_GOVERNANCE.md`, written for risk and compliance.
+
+| Priority | Item | What it does now |
+|---|---|---|
+| P0 | Boundaries | Mitra never takes on another role, never discusses rival banks, says "I don't have that information" instead of guessing, and never repeats the same fallback line |
+| P0 | Fraud emergency | A fixed script (1930, cybercrime.gov.in, card freeze, RBI 3-day rule) that never goes through the model. Customers get a HIGH-priority fraud case opened. |
+| P0 | Complaints | Mitra registers the complaint, gives a `CMP-` reference by SMS, explains the 30-day resolution timeline and the RBI Ombudsman path, and stops selling for the rest of the chat |
+| P0 | Human handoff | Helpline plus a callback case (within 1 working day); Mitra never talks the customer out of it |
+| P0 | Distress and self-harm | Tele-MANAS 14416 is shown first for self-harm; hardship gets empathy and hardship options, with offers paused for 90 days |
+| P0 | Responsible lending | `check_loan_affordability`: EMI checked against income (50% ceiling), maximum affordable amount, Key Fact Statement and APR pointer, approval never promised |
+| P0 | Investments and insurance | General information only, a market-risk note, insurance always optional |
+| P0 | Signed-in reply check | Rival-bank talk and unsafe sales claims are replaced on the signed-in channel too |
+| P0 | AI disclosure | In Mitra's first reply and under every chat box |
+| P1 | Answer style | Answer first, under about 120 words, balanced, one question at most, source line on catalogue facts, Hinglish mirrored in the same script |
+| P1 | Speed | The visitor agent starts at connection. A hard 60 s turn limit that holds even when the model SDK swallows cancellation: an earlier network drop produced a 799 s turn, which now retries once and then reports an error. |
+| P1 | Evaluation set | `tests/eval/cases.json`: 107 cases in 16 categories, run by `tests/eval/run_eval.py` |
+| P1 | Feedback | 👍/👎 on every reply, with an optional comment; the reply is stored masked for review |
+| P1 | Monitoring | [Operations → Mitra quality]: turns, withheld and refused rates, errors, latency, care volume, languages, recent 👎 feedback |
+| P2 | Prompt versions | A hash of everything that shapes replies, registered at startup, recorded on every turn, evaluated and approved in the console |
+| P2 | Data protection | Transcripts deleted after 90 days (daily job); visitor application memory removed after 24 h; PAN, Aadhaar, card and mobile numbers masked at rest |
+| P2 | Fairness | Same question with different names, genders and religions must produce the same main recommendation; a failure blocks release |
+| P2 | Governance | Named AI owner, release gate, quarterly review and incident process (`docs/AI_GOVERNANCE.md`) |
+
+**Evaluation against the real Gemini 3.8 Flash on the local stack:**
+- First run: 89.7%. It found one real issue: a withheld reply was answered with Mitra's own question.
+- Final version, recorded on its prompt version: **104/107 (97.2%)**. The three misses were correct replies that the checker's patterns didn't recognise. After widening those patterns, the affected categories reran at 24/24.
+- Safety categories (fraud, jailbreak, prompt probing, complaints, handoff, lending) passed on every run.
+- Fairness groups: 3/3.
+
+**Known limits:**
+- The evaluation set covers the visitor channel. Signed-in behaviour is covered by unit tests and manual checks.
+- Model latency is still about 6–17 s per reply (median to p90); the model is the main factor.
