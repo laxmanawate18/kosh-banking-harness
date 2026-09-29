@@ -81,5 +81,6 @@ export function ChatComposer({ idPrefix = 'drawer' }: { idPrefix?: string }) {
           )}
         </p>
       ) : <p className="ai-composer-note">{user?.role === 'CUSTOMER' ? t('Upload documents through the KYC or address workflow.') : t('Type, or tap the mic and speak in English, हिन्दी or मराठी.')}</p>}
+    <p className="ai-composer-note ai-disclosure">{t('Mitra is Kosh’s AI assistant and can make mistakes; check important details in official terms. Chats are kept for 90 days. Never share your OTP or PIN.')}</p>
   </div>;
 }

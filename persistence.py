@@ -311,6 +311,27 @@ class EkycSessionRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
 
 
+class CareCaseRecord(Base):
+    """A complaint, callback request, fraud report or hardship request raised through Mitra (visitor or customer)."""
+
+    __tablename__ = "care_cases"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # GRIEVANCE | CALLBACK | FRAUD | HARDSHIP
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # OPEN | IN_PROGRESS | RESOLVED | ESCALATED
+    priority: Mapped[str] = mapped_column(String(10), nullable=False, default="NORMAL")
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    session_id: Mapped[str | None] = mapped_column(String(80))
+    name: Mapped[str | None] = mapped_column(String(120))
+    phone: Mapped[str | None] = mapped_column(String(32))
+    category: Mapped[str | None] = mapped_column(String(60))
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    preferred_time: Mapped[str | None] = mapped_column(String(80))
+    resolution: Mapped[str | None] = mapped_column(Text)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
+
+
 # ---- Banking state, one typed table per entity (see banking_store.py) --------------------------------------
 # Typed columns carry the fields the bank queries, indexes and reports on; `data` keeps the complete record so
 # the domain code reads back exactly what it wrote. banking_state (id=1) remains the lock and version row.

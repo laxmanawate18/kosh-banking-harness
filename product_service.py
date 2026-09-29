@@ -386,6 +386,8 @@ class SalesSessionContext:
     companion_declined: bool = False
     recorded_leads: Dict[str, Any] = field(default_factory=dict)
     last_fallback: Optional[str] = None
+    verified_facts: List[str] = field(default_factory=list)
+    no_selling: bool = False  # set for complaints, fraud and distress: no offers or cross-sell for the rest of the chat
 
     def reset(self) -> None:
         self.stage = "DISCOVER"
@@ -403,6 +405,8 @@ class SalesSessionContext:
         self.companion_declined = False
         self.recorded_leads.clear()
         self.last_fallback = None
+        self.verified_facts.clear()
+        self.no_selling = False
 
     def update(self, prompt: str) -> None:
         text = _normalize_prompt(prompt)
@@ -480,6 +484,7 @@ class SalesSessionContext:
             "last_recommendation": self.last_recommendation,
             "unanswered_question": self.unanswered_question,
             "turn_count": self.turn_count,
+            "no_selling_this_chat": self.no_selling,
         }
 
 
@@ -543,7 +548,7 @@ class SalesAdvisorEngine:
         target_prod_id = products[0]["id"] if products else context.last_recommendation
         companion_offer = None
         if (target_prod_id and context.stage in {"RECOMMEND", "EXPLAIN", "NEXT_ACTION"}
-                and not context.shown_companions and not context.companion_declined):  # one companion offer per chat
+                and not context.shown_companions and not context.companion_declined and not context.no_selling):  # one companion offer per chat
             companion_offer = get_companion_cross_sell(target_prod_id)
             if companion_offer:
                 context.shown_companions.append(target_prod_id)
@@ -716,6 +721,49 @@ def get_companion_cross_sell(product_id: Optional[str]) -> Optional[Dict[str, An
     return copy.deepcopy(COMPANION_CROSS_SELL.get(norm))
 
 
+FOIR_LIMIT = 50.0  # % of monthly income that all EMIs together may take (typical retail-lending ceiling)
+
+
+def _rupees(text: str) -> Optional[int]:
+    match = re.search(r"₹\s?([\d,]+)", text or "")
+    return int(match.group(1).replace(",", "")) if match else None
+
+
+def loan_affordability(product_id: str, loan_amount: int, tenure_months: int, monthly_income: int, existing_emi: int = 0) -> Dict[str, Any]:
+    """Responsible-lending check: EMI at the published starting rate against the customer's income. Amounts in rupees."""
+    product = get_product_by_id(product_id)
+    if not product or product.get("category") != "loans":
+        return {"ok": False, "message": "Choose one of Kosh's loans: PROD-LOAN-EXPRESS or PROD-LOAN-HOME."}
+    if min(loan_amount, tenure_months, monthly_income) <= 0 or existing_emi < 0:
+        return {"ok": False, "message": "Loan amount, tenure and monthly income must be positive numbers."}
+    max_tenure = 60 if product["id"] == "PROD-LOAN-EXPRESS" else 360
+    min_tenure = 12 if product["id"] == "PROD-LOAN-EXPRESS" else 12
+    if not min_tenure <= tenure_months <= max_tenure:
+        return {"ok": False, "message": f"{product['title']} tenure is {product.get('tenure')}."}
+    rate = float(re.search(r"\d+(?:\.\d+)?", product["headline_rate"]).group())
+    r = rate / 1200
+    factor = (1 + r) ** tenure_months
+    emi = round(loan_amount * r * factor / (factor - 1))
+    foir = round(100 * (emi + existing_emi) / monthly_income, 1)
+    cap = max(0.0, monthly_income * FOIR_LIMIT / 100 - existing_emi)
+    max_affordable = int(cap * (factor - 1) / (r * factor) // 1000 * 1000)
+    product_max = _rupees(product.get("max_amount", ""))
+    if product_max:
+        max_affordable = min(max_affordable, product_max)
+    verdict = "comfortable" if foir <= 40 else "stretched" if foir <= FOIR_LIMIT else "above the safe limit"
+    return {
+        "ok": True, "product": product["title"], "rate_used": product["headline_rate"] + " (published starting rate)",
+        "monthly_emi": inr(emi), "total_interest": inr(emi * tenure_months - loan_amount), "total_repayable": inr(emi * tenure_months),
+        "emi_to_income": f"{foir}%", "limit": f"{FOIR_LIMIT:g}%", "verdict": verdict,
+        "max_affordable_loan": inr(max_affordable),
+        "guidance": {"comfortable": "The EMI is comfortably within the customer's income.",
+                     "stretched": "The EMI is affordable but leaves little room; suggest a longer tenure or a smaller amount.",
+                     "above the safe limit": "The EMIs would take more than half of the income. Do not encourage this amount; suggest the maximum affordable loan or a longer tenure."}[verdict],
+        "key_facts": ("Indicative only, at the published starting rate. The final rate, all fees and the all-inclusive annual percentage "
+                      "rate (APR) are in the Key Fact Statement shared before you sign. Approval depends on Kosh's credit assessment."),
+    }
+
+
 def build_public_sales_tools(context_provider: Callable[[], SalesSessionContext]) -> List[Callable[..., Dict[str, Any]]]:
     """Create public, read-only Antigravity tools. These never access customer data or mutate banking state."""
 
@@ -840,10 +888,44 @@ def build_public_sales_tools(context_provider: Callable[[], SalesSessionContext]
         status = bound_status(reference, mobile)
         return {"found": bool(status), **(status or {"message": "No application matches that reference and mobile number."})}
 
+    def check_loan_affordability(product_id: str, loan_amount: int, tenure_months: int, monthly_income: int, existing_emi: int = 0) -> dict:
+        """Before recommending or taking a loan application, check the EMI against the visitor's monthly income (all in rupees).
+        Share the EMI, total repayable and verdict; never promise approval."""
+        result = loan_affordability(product_id, loan_amount, tenure_months, monthly_income, existing_emi)
+        if result.get("ok"):
+            context_provider().verified_facts.extend([result["emi_to_income"], result["limit"], result["rate_used"]])
+        return result
+
+    def register_complaint(full_name: str, mobile: str, summary: str, category: str = "") -> dict:
+        """Register the visitor's complaint (or a HARDSHIP request) with Kosh and return its reference and timelines.
+        Use only the name and mobile the visitor gave in this chat."""
+        from backend.care import open_case
+        from banking_db import db
+        context = context_provider()
+        kind = "HARDSHIP" if category.strip().upper() == "HARDSHIP" else "GRIEVANCE"
+        try:
+            case = open_case(db, kind, summary, name=full_name, phone=mobile, category=category or kind)
+        except ValueError as exc:
+            return {"registered": False, "message": str(exc)}
+        context.no_selling = True
+        return {"registered": True, **case, "timeline": "Acknowledged within 1 working day; resolved within 30 days. If unresolved after 30 days "
+                "or unhappy with the reply, the customer can complain to the RBI Ombudsman at cms.rbi.org.in."}
+
+    def request_callback(full_name: str, mobile: str, reason: str, preferred_time: str = "") -> dict:
+        """Arrange a call back from a Kosh representative within 1 working day. Use only details the visitor gave in this chat."""
+        from backend.care import open_case
+        from banking_db import db
+        try:
+            case = open_case(db, "CALLBACK", reason, name=full_name, phone=mobile, preferred_time=preferred_time)
+        except ValueError as exc:
+            return {"registered": False, "message": str(exc)}
+        return {"registered": True, **case, "timeline": "A Kosh representative will call within 1 working day (9 am to 7 pm)."}
+
     from knowledge_service import query_bank_knowledge
 
     return [search_public_products, get_public_product_details, compare_public_products, get_product_disclosures,
-            query_bank_knowledge, check_application_status, prepare_product_application, submit_product_application]
+            query_bank_knowledge, check_application_status, prepare_product_application, submit_product_application,
+            check_loan_affordability, register_complaint, request_callback]
 
 
 def _catalogue_metadata() -> Dict[str, Any]:
@@ -863,7 +945,7 @@ def json_text(value: Any) -> str:
 # Read-only catalogue tools shared by visitors and signed-in customers.
 PUBLIC_SALES_TOOL_NAMES = {
     "search_public_products", "get_public_product_details", "compare_public_products", "get_product_disclosures", "query_bank_knowledge",
-    "check_application_status",
+    "check_application_status", "check_loan_affordability", "register_complaint", "request_callback",
 }
 # Visitor-only: take a new applicant's application in chat (customers use the account-opening workflow).
 VISITOR_APPLICATION_TOOL_NAMES = {"prepare_product_application", "submit_product_application"}
@@ -907,6 +989,16 @@ def get_allowed_corpus() -> str:
     return _ALLOWED_CORPUS
 
 
+def customer_reply_issue(text: str) -> Optional[str]:
+    """Signed-in replies carry the customer's own figures, so only rival-bank talk and unsafe sales claims are checked."""
+    lowered = text.lower()
+    if any(pattern in lowered for pattern in _UNSAFE_SALES_PATTERNS):
+        return "unsupported promotional or approval claim"
+    if any(re.search(rf"\b{re.escape(name)}\b", lowered) if name.isascii() else name in lowered for name in _COMPETITOR_NAMES):
+        return COMPETITOR_REASON
+    return None
+
+
 def validate_sales_response(text: str, context: Optional[SalesSessionContext] = None) -> Optional[str]:
     """Return a safe replacement reason when generated sales copy exceeds trusted facts."""
     text = _PERCENT_WORDS.sub("%", text.translate(_DEVANAGARI_DIGITS))
@@ -917,7 +1009,7 @@ def validate_sales_response(text: str, context: Optional[SalesSessionContext] = 
         return COMPETITOR_REASON
     allowed_corpus = get_allowed_corpus()
     if context and hasattr(context, "user_prompts"):
-        allowed_corpus += " " + " ".join(context.user_prompts)
+        allowed_corpus += " " + " ".join(context.user_prompts) + " " + " ".join(getattr(context, "verified_facts", []))
     # Compare rates by value so "2%", "2.0%" and "2.00%" are the same reviewed fact.
     allowed_rates = {float(v) for v in re.findall(r"(\d+(?:\.\d+)?)\s?%", allowed_corpus.translate(_DEVANAGARI_DIGITS))}
     for claim in _NUMERIC_CLAIM_PATTERN.findall(text):

@@ -139,6 +139,9 @@ def next_best_offers(db, customer_id: str, channel: str, *, record: bool = True)
     state = db.snapshot()
     if not consented(state, customer_id):
         return {"offers": [], "blocked": "MARKETING_CONSENT_REQUIRED"}
+    paused = (state.get("preferences", {}).get(customer_id) or {}).get("offers_paused_until")
+    if paused and paused > _now().isoformat():
+        return {"offers": [], "blocked": "PAUSED_FOR_HARDSHIP"}
     facts = signals(state, customer_id)
     if not facts["kyc_verified"]:
         return {"offers": [], "blocked": "KYC_NOT_VERIFIED"}

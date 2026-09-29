@@ -12,6 +12,7 @@ from sqlalchemy import select
 from backend.api_models import ApprovalDecisionRequest, ServiceRequestCreate, SessionCreateRequest, SessionUpdateRequest
 from backend.conversations import create_session_data, list_sessions_metadata, load_session, sanitized_session, save_session
 from backend.email_service import email_service
+from backend import care
 from backend.offers import funnel as offer_funnel
 from backend.notifications import notify, recent as recent_notifications
 from persistence import UserRecord, utc_dt
@@ -321,6 +322,22 @@ def make_session_router(
     async def officer_notifications(context=Depends(require_officer)):
         del context
         return {"notifications": recent_notifications(db)}
+
+    @router.get("/api/officer/care-cases")
+    async def officer_care_cases(status: str = None, context=Depends(require_officer)):
+        del context
+        return {"cases": care.list_cases(db, status=status)}
+
+    @router.post("/api/officer/care-cases/{case_id}")
+    async def officer_update_care_case(case_id: str, req: dict, context=Depends(require_csrf)):
+        require_officer(context)
+        try:
+            row = care.update_case(db, case_id, str(req.get("status", "")).upper(), req.get("resolution"))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if not row:
+            raise HTTPException(status_code=404, detail="Case not found")
+        return row
 
     @router.get("/api/officer/offers/funnel")
     async def officer_offer_funnel(days: int = 30, context=Depends(require_officer)):

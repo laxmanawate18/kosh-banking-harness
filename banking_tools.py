@@ -1114,6 +1114,8 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
         cid = context_provider().get("customer_id")
         if not cid:
             return {"has_offer": False}
+        if context_provider().get("no_selling"):
+            return {"has_offer": False, "reason": "The customer raised a complaint, fraud or hardship concern in this chat. Do not pitch products."}
         result = next_best_offers(banking_service.db, cid, "MITRA")
         if not result["offers"]:
             reason = {"MARKETING_CONSENT_REQUIRED": "The customer has not turned on personalised offers (Settings). Do not pitch products.",
@@ -1144,6 +1146,36 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
                 "note": "The result comes only from the provider; report it only after get_kyc_status shows it."
                         + (" This demo uses a labelled SANDBOX provider: nothing is really verified." if sandbox else ""),
                 "presentation": {"type": "VIDEO_KYC", "sandbox": sandbox}}
+
+    def register_complaint(summary: str, category: str = "") -> dict:
+        """Register the customer's complaint (or a HARDSHIP request such as EMI restructuring) and return its reference and timelines."""
+        from backend.care import open_case
+        ctx = context_provider()
+        kind = "HARDSHIP" if category.strip().upper() == "HARDSHIP" else "GRIEVANCE"
+        try:
+            case = open_case(banking_service.db, kind, summary, customer_id=ctx.get("customer_id"), category=category or kind,
+                             session_id=ctx.get("session_id"))
+        except ValueError as exc:
+            return {"registered": False, "message": str(exc)}
+        ctx["no_selling"] = True
+        return {"registered": True, **case, "timeline": "Acknowledged within 1 working day; resolved within 30 days. If unresolved after 30 days "
+                "or unhappy with the reply, the customer can complain to the RBI Ombudsman at cms.rbi.org.in."}
+
+    def request_callback(reason: str, preferred_time: str = "") -> dict:
+        """Arrange a call back from a Kosh representative to the customer's registered mobile within 1 working day."""
+        from backend.care import open_case
+        ctx = context_provider()
+        try:
+            case = open_case(banking_service.db, "CALLBACK", reason, customer_id=ctx.get("customer_id"), preferred_time=preferred_time,
+                             session_id=ctx.get("session_id"))
+        except ValueError as exc:
+            return {"registered": False, "message": str(exc)}
+        return {"registered": True, **case, "timeline": "A Kosh representative will call your registered mobile within 1 working day (9 am to 7 pm)."}
+
+    def check_loan_affordability(product_id: str, loan_amount: int, tenure_months: int, monthly_income: int, existing_emi: int = 0) -> dict:
+        """Before recommending or taking a loan request, check the EMI against the customer's monthly income (all in rupees). Never promise approval."""
+        from product_service import loan_affordability
+        return loan_affordability(product_id, loan_amount, tenure_months, monthly_income, existing_emi)
 
     def decline_offer(product_id: str) -> dict:
         """Record that the customer is not interested in an offered product, so it is not offered again for 90 days."""
@@ -1197,6 +1229,9 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
         get_next_best_offer,
         decline_offer,
         start_video_kyc,
+        register_complaint,
+        request_callback,
+        check_loan_affordability,
         query_bank_knowledge,
     ]
 
@@ -1221,5 +1256,8 @@ BANKING_TOOL_NAMES = {
     "get_next_best_offer",
     "decline_offer",
     "start_video_kyc",
+    "register_complaint",
+    "request_callback",
+    "check_loan_affordability",
     "query_bank_knowledge",
 }

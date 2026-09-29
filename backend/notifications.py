@@ -33,6 +33,7 @@ TEMPLATES: Dict[str, str] = {
     "card_frozen": "Kosh: Your card ending {last4} is frozen as you asked. Not you? Call " + HELPLINE + ".",
     "service_request_update": "Kosh: Your request {ref} ({service}) is now {status}. Details in Kosh > My requests.",
     "kyc_verified": "Kosh: Your KYC is verified. UPI, IMPS, NEFT and RTGS transfers are now enabled.",
+    "care_case_registered": "Kosh: Your {kind} is registered, ref {ref}. {next}. Help: " + HELPLINE + ". Kosh never asks for your OTP or PIN.",
     "kyc_not_verified": "Kosh: We could not verify your KYC documents. Please re-submit them with Mitra in the Kosh app.",
 }
 

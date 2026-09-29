@@ -10,7 +10,7 @@ import {
   wipeOfficerCustomer,
   resendOfficerCustomerCredentials,
 } from '../../services/banking';
-import { get } from '../../services/api';
+import { get, post } from '../../services/api';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 
@@ -106,6 +106,51 @@ const OfferFunnel: React.FC = () => {
           </table>
         </div>
       ) : <p>No personalised offers shown yet.</p>}
+    </section>
+  );
+};
+
+type CareCase = { id: string; kind: string; status: string; priority: string; customer_id: string | null; name: string | null;
+  phone: string | null; category: string | null; summary: string; preferred_time: string | null; due_at: string; created_at: string; overdue: boolean };
+const CARE_KIND: Record<string, string> = { GRIEVANCE: 'Complaint', CALLBACK: 'Callback', FRAUD: 'Fraud report', HARDSHIP: 'Hardship' };
+
+/** Complaints, callbacks, fraud reports and hardship requests raised through Mitra, with their RBI-driven due times. */
+const CareQueue: React.FC = () => {
+  const [cases, setCases] = useState<CareCase[] | null>(null);
+  const load = () => get('/api/officer/care-cases').then(r => setCases(r.cases)).catch(() => setCases([]));
+  useEffect(() => { load(); }, []);
+  const setStatus = async (id: string, status: string) => {
+    const resolution = status === 'RESOLVED' ? window.prompt('Resolution note sent to the case record') || undefined : undefined;
+    await post(`/api/officer/care-cases/${id}`, { status, resolution }); load();
+  };
+  if (!cases) return <section className="panel"><p>Loading customer care cases…</p></section>;
+  const open = cases.filter(c => c.status === 'OPEN' || c.status === 'IN_PROGRESS');
+  return (
+    <section className="panel" aria-label="Customer care queue">
+      <h2 style={{ marginTop: 0 }}>Customer care · {open.length} open{open.filter(c => c.overdue).length ? ` · ${open.filter(c => c.overdue).length} overdue` : ''}</h2>
+      {cases.length ? (
+        <div className="table-scroll">
+          <table className="table">
+            <thead><tr><th>Case</th><th>Type</th><th>Customer</th><th>Issue</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              {cases.map(c => (
+                <tr key={c.id}>
+                  <td><strong>{c.id}</strong>{c.priority === 'HIGH' && <><br /><span style={{ color: '#b91c1c', fontWeight: 700, fontSize: 11 }}>HIGH PRIORITY</span></>}</td>
+                  <td>{CARE_KIND[c.kind] || c.kind}{c.category && c.category !== c.kind ? <><br /><small>{c.category}</small></> : null}</td>
+                  <td>{c.customer_id || 'Visitor'}{c.name ? <><br /><small>{c.name}</small></> : null}{c.phone ? <><br /><small>{c.phone}</small></> : null}</td>
+                  <td style={{ maxWidth: 360 }}>{c.summary}{c.preferred_time ? <><br /><small>Preferred time: {c.preferred_time}</small></> : null}</td>
+                  <td style={{ color: c.overdue ? '#b91c1c' : undefined }}>{new Date(c.due_at).toLocaleString()}{c.overdue ? ' (overdue)' : ''}</td>
+                  <td>{c.status}</td>
+                  <td>
+                    {c.status === 'OPEN' && <button type="button" className="button" onClick={() => setStatus(c.id, 'IN_PROGRESS')}>Take</button>}{' '}
+                    {c.status !== 'RESOLVED' && <button type="button" className="button primary" onClick={() => setStatus(c.id, 'RESOLVED')}>Resolve</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : <p>No complaints, callbacks or fraud reports yet.</p>}
     </section>
   );
 };
@@ -471,6 +516,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
         ['ESCALATED', 'Escalated'],
         ['QUEUED_FOR_CBS', 'CBS queue'],
         ['RPA_FAILED', 'RPA attention'],
+        ['care', 'Customer care 🛟'],
         ['leads', `AI Sales Leads 🎯 ${openLeadsCount > 0 ? `(${openLeadsCount})` : ''}`],
         ['customers', `Customers & Accounts 👥 ${customers.length > 0 ? `(${customers.length})` : ''}`],
       ]
@@ -548,6 +594,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
       </div>
 
       {filter === 'leads' && <OfferFunnel />}
+      {filter === 'care' ? <CareQueue /> : (
       <section className="panel">
         {filter === 'leads' ? (
           leads.length ? (
@@ -809,7 +856,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
             </table>
           </div>
         ) : <div className="empty-panel"><h3>All clear here</h3><p>No requests match this view.</p></div>}
-      </section>
+      </section>)}
 
 
       {selectedCase && (

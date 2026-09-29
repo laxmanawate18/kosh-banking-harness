@@ -27,7 +27,9 @@ from backend.agent_config import TOOL_RESULT_QUEUES, create_agent_config, visito
 from backend.conversations import create_session_data, load_session, save_session
 from backend.settings import DEFAULT_MODEL
 from auth_service import COOKIE_NAME, AuthContext
+from backend import care
 from product_service import (
+    customer_reply_issue,
     SalesSessionContext,
     auth_challenge_presentation,
     chat_text,
@@ -237,8 +239,18 @@ async def serve_visitor_websocket(
             sales_context.update(prompt)
             sales_action = sales_advisor.build_action(prompt, sales_context)
             guarded = guarded_sales_prompt_reply(prompt, language)
-            auth_challenge_triggered = is_personal_banking_inquiry(prompt)
-            if guarded:
+            intents = care.detect(prompt)
+            if intents:
+                sales_context.no_selling = True
+                sales_action.pop("companion_cross_sell", None)
+            auth_challenge_triggered = not intents and is_personal_banking_inquiry(prompt)
+            if "FRAUD" in intents:
+                combined_reply = care.text("fraud", language).format(freeze=care.text("freeze_visitor", language), case="").strip()
+                await websocket.send_json({"type": "text_delta", "text": combined_reply, "turn_id": turn_id})
+                await present({"type": "CHOICE_SELECTION", "title": "What would you like to do?", "options": [
+                    {"label": "Call me back", "prompt": "Please arrange a call back from Kosh about a possible fraud"},
+                    {"label": "Sign in to freeze my card", "prompt": "I want to sign in and freeze my card"}]})
+            elif guarded:
                 combined_reply = guarded
                 await websocket.send_json({"type": "text_delta", "text": guarded, "turn_id": turn_id})
             elif auth_challenge_triggered:
@@ -265,14 +277,18 @@ async def serve_visitor_websocket(
                     agent = await fresh_agent()
                 reply_started = time.time()
                 submitted_before = set(sales_context.submitted_applications)
+                directive = care.directive(intents, signed_in=False)
+                preface = care.text("self_harm", language) if "SELF_HARM" in intents else ""
+                if preface:
+                    await websocket.send_json({"type": "text_delta", "text": preface + "\n\n", "turn_id": turn_id})
                 try:
-                    full_reply = [text async for text in visitor_reply(agent, prompt, sales_context, language)]
+                    full_reply = [text async for text in visitor_reply(agent, prompt, sales_context, language, directive)]
                     logger.info("visitor turn timing: agent_start=%.1fs reply=%.1fs", reply_started - agent_started, time.time() - reply_started)
                 except TimeoutError:
                     # The agent connection occasionally stalls; retry once on a fresh one (submissions are idempotent).
                     await agent.__aexit__(None, None, None)
                     agent = await fresh_agent()
-                    full_reply = [text async for text in visitor_reply(agent, prompt, sales_context, language)]
+                    full_reply = [text async for text in visitor_reply(agent, prompt, sales_context, language, directive)]
                 for product_id in set(sales_context.submitted_applications) - submitted_before:
                     record = sales_context.submitted_applications[product_id]
                     await present({"type": "APPLICATION_SUBMITTED", "title": record["product_title"],
@@ -281,9 +297,12 @@ async def serve_visitor_websocket(
                 combined_reply, suggestions = extract_dynamic_suggestions("".join(full_reply))
                 if leaks_internal_prompt(combined_reply):
                     combined_reply = chat_text("guarded", language)
+                combined_reply = care.with_disclaimers(combined_reply, language)
+                if preface:
+                    combined_reply = preface + "\n\n" + combined_reply
                 if suggestions:
                     sales_action["suggested_queries"] = suggestions
-                await websocket.send_json({"type": "text_delta", "text": combined_reply, "turn_id": turn_id})
+                await websocket.send_json({"type": "text_delta", "text": combined_reply[len(preface) + 2:] if preface else combined_reply, "turn_id": turn_id})
                 # A submitted applicant is told they will sign in later; that is not a request for personal data.
                 if is_auth_required_reply(combined_reply) and not sales_context.submitted_applications:
                     auth_challenge_triggered = True
@@ -444,7 +463,30 @@ async def serve_chat_websocket(
                 await websocket.send_json({"type": "text_delta", "text": CUSTOMER_GUARDED_REPLY, "turn_id": guard_turn})
                 await websocket.send_json({"type": "turn_complete", "turn_id": guard_turn, "duration_ms": 0, "stop_reason": "GUARDED"})
                 continue
+            intents = care.detect(prompt)
+            if intents:
+                session.tool_context["no_selling"] = True
+            if "DISTRESS" in intents or "SELF_HARM" in intents:
+                care.pause_offers(db, auth.customer_id)
+            if "FRAUD" in intents:
+                case = care.open_case(db, "FRAUD", prompt, customer_id=auth.customer_id, session_id=session.session_id)
+                fraud_turn = str(uuid.uuid4())
+                fraud_text = care.text("fraud", language).format(freeze=care.text("freeze_customer", language),
+                                                                   case=care.text("fraud_case", language).format(ref=case["reference"]))
+                await websocket.send_json({"type": "turn_start", "turn_id": fraud_turn, "model": DEFAULT_MODEL, "timestamp": time.time()})
+                await websocket.send_json({"type": "text_delta", "text": fraud_text, "turn_id": fraud_turn})
+                await websocket.send_json({"type": "presentation", "turn_id": fraud_turn, "presentation": {
+                    "type": "CHOICE_SELECTION", "title": "Secure your account", "options": [
+                        {"label": "Freeze my card", "prompt": "Freeze my debit card now, I suspect fraud"},
+                        {"label": "Show recent transactions", "prompt": "Show my recent transactions"},
+                        {"label": "Talk to a person", "prompt": "Please arrange a call back from the fraud team"}]}})
+                await websocket.send_json({"type": "turn_complete", "turn_id": fraud_turn, "duration_ms": 0, "stop_reason": "CARE_FRAUD"})
+                continue
+            if "SELF_HARM" in intents:
+                await websocket.send_json({"type": "text_delta", "text": care.text("self_harm", language) + "\n\n"})
             content: List[types.ContentPrimitive] = [prompt] if prompt else []
+            if intents and care.directive(intents, signed_in=True):
+                content.append(care.directive(intents, signed_in=True))
             workflow_id = message.get("workflow_id")
             session.tool_context.update(workflow_id=None, document_ids=[])
             skill_info = None
@@ -708,6 +750,10 @@ async def serve_chat_websocket(
                     clean_text, suggestions = extract_dynamic_suggestions(accumulated_text)
                     if leaks_internal_prompt(clean_text):
                         clean_text = CUSTOMER_GUARDED_REPLY
+                    elif customer_reply_issue(clean_text):
+                        logger.warning("Customer reply replaced (%s): %.300s", customer_reply_issue(clean_text), clean_text)
+                        clean_text = chat_text("competitor", language).format(products="savings, cards, deposits and loans")
+                    clean_text = care.with_disclaimers(clean_text, language)
                     if clean_text != accumulated_text.strip():
                         await websocket.send_json({"type": "text_replace", "text": clean_text, "turn_id": turn_id})
                     accumulated_text = clean_text
