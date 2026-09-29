@@ -30,6 +30,9 @@ class DetectionTests(unittest.TestCase):
             "Can I talk to a human please": ["HUMAN"],
             "please call me back": ["HUMAN"],
             "I want to end my life": ["SELF_HARM"],
+            "I clicked an SMS link to update my KYC and entered my PIN": ["FRAUD"],
+            "mere account se paise nikal gaye, maine koi transaction nahi kiya": ["FRAUD"],
+            "They asked me to install AnyDesk to update KYC": ["FRAUD"],
         }
         for prompt, expected in cases.items():
             self.assertEqual(care.detect(prompt)[:1], expected, prompt)

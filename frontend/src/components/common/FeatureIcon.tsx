@@ -7,9 +7,8 @@ import '../../feature-icons.css';
  * `.fi-host` ancestor, and on a 4s cycle when `loop` is set. Motion lives in feature-icons.css.
  */
 export const FEATURE_ICONS = [
-  'savings', 'cards', 'deposits', 'loans', 'upi', 'kavach', 'mitra', 'bills', 'rates', 'rupee', 'send', 'nri',
-  'kisan', 'student', 'senior', 'women', 'business', 'support', 'calculator', 'rewards', 'lock', 'mobile',
-  'insurance', 'bell', 'payee', 'statement',
+  'savings', 'cards', 'deposits', 'loans', 'upi', 'kavach', 'mitra', 'bills', 'rates', 'send', 'nri', 'kisan',
+  'student', 'senior', 'women', 'business', 'rewards', 'payee', 'statement',
 ] as const;
 export type FeatureIconName = (typeof FEATURE_ICONS)[number];
 
@@ -42,8 +41,8 @@ const QR_ROWS = ['xxx101xxx', 'xxx011xxx', 'xxx100xxx', '101xxx110', '010xxx011'
 /** Ground shadow override per icon: [cx, cy, rx] or null for none. Default [32, 50.5, 15]. */
 const SHADOWS: Partial<Record<FeatureIconName, [number, number, number] | null>> = {
   deposits: [32, 51, 19], rates: [30, 50.5, 16], send: [29, 52, 11], women: [30, 51, 11], upi: null,
-  kisan: [32, 50, 19], nri: [32, 49.5, 11], cards: [33, 51.5, 16], mitra: [30, 50, 12], support: [30, 51.5, 13],
-  student: [32, 48.5, 12], insurance: [30, 50, 9], bell: [32, 51, 10], mobile: [31.5, 53, 11], calculator: [32, 53, 13], payee: [30, 51.5, 15], statement: [31, 52, 13],
+  kisan: [32, 50, 19], nri: [32, 49.5, 11], cards: [33, 51.5, 16], mitra: [30, 50, 12],
+  student: [32, 48.5, 12], payee: [30, 51.5, 15], statement: [31, 52, 13],
 };
 
 const ART: Record<FeatureIconName, (c: Ctx) => React.ReactNode> = {
@@ -201,19 +200,6 @@ const ART: Record<FeatureIconName, (c: Ctx) => React.ReactNode> = {
     </>
   ),
 
-  rupee: ({ u }) => (
-    <>
-      <g className="fi-a fi-p-spin">
-        <circle cx="32" cy="33.4" r="15.5" fill={u('body2')} />
-        <circle cx="32" cy="31.5" r="15.5" fill={u('body')} />
-        <circle cx="32" cy="31.5" r="12" fill={u('enamel')} stroke={u('body2')} strokeWidth="1.2" />
-        <path d="M26.5 24.2h11M26.5 28.6h11M30 24.2c3.8 0 5.8 2 5.8 4.5S33.8 33.2 30 33.2h-3l8 7.6" fill="none" stroke={u('gold')} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M18.6 25.4a14.6 14.6 0 0 1 9.4-9.4" fill="none" stroke="#fff" strokeOpacity=".9" strokeWidth="1.6" strokeLinecap="round" />
-      </g>
-      <path className="fi-a fi-p-twinkle" style={d(300)} d={star(49.5, 15, 3.4)} fill="#fff" />
-    </>
-  ),
-
   send: ({ u }) => (
     <>
       <path className="fi-a fi-p-fade" style={d(500)} d="M25.5 41.5c-3 3.2-6.8 5.2-11.5 5.6" fill="none" stroke={u('goldLine')} strokeWidth="2" strokeLinecap="round" strokeDasharray="2.4 3.4" />
@@ -315,41 +301,6 @@ const ART: Record<FeatureIconName, (c: Ctx) => React.ReactNode> = {
     </>
   ),
 
-  support: ({ u }) => (
-    <>
-      <path d="M16 34v-3a13 13 0 0 1 26 0v3" fill="none" stroke={u('body')} strokeWidth="3.4" strokeLinecap="round" />
-      <path d="M42 40.5c0 4.8-3.4 7.3-8.4 7.3H31" fill="none" stroke={u('body2')} strokeWidth="2.2" strokeLinecap="round" />
-      <rect x="11.5" y="28.5" width="8.5" height="14" rx="4.2" fill={u('body')} />
-      <rect x="38" y="28.5" width="8.5" height="14" rx="4.2" fill={u('body')} />
-      <rect x="16.8" y="31" width="3.2" height="9" rx="1.6" fill={u('body2')} />
-      <rect x="38" y="31" width="3.2" height="9" rx="1.6" fill={u('body2')} />
-      <rect x="25.5" y="45.3" width="7" height="5" rx="2.5" fill={u('gold')} />
-      <path className="fi-a fi-p-emit" style={d(0, { '--o': '0% 50%' })} d="M50.5 31a6 6 0 0 1 0 9" fill="none" stroke={u('body')} strokeWidth="2.2" strokeLinecap="round" />
-      <path className="fi-a fi-p-emit" style={d(160, { '--o': '0% 50%' })} d="M54.5 27.5a11 11 0 0 1 0 16" fill="none" stroke={u('body')} strokeOpacity=".6" strokeWidth="2.2" strokeLinecap="round" />
-    </>
-  ),
-
-  calculator: ({ u }) => {
-    const seq: Record<string, number> = { '0-0': 0, '1-1': 140, '0-2': 280, '2-2': 440 };
-    return (
-      <>
-        <rect x="17" y="11" width="30" height="40" rx="6.5" fill={u('body')} />
-        <rect x="17" y="44" width="30" height="7" rx="3.5" fill={SHADE} opacity=".08" />
-        <rect x="21" y="15" width="22" height="9.5" rx="2.6" fill={u('enamel')} />
-        <rect x="24" y="18.6" width="4.5" height="2.4" rx="1.2" fill="#fff" opacity=".35" />
-        <rect x="32" y="18.6" width="8" height="2.4" rx="1.2" fill="#e9ebee" />
-        {[0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => {
-          const k = `${c}-${r}`;
-          const gold = c === 2 && r === 2;
-          return (
-            <rect key={k} className={k in seq ? 'fi-a fi-p-press' : undefined} style={k in seq ? d(seq[k]) : undefined}
-              x={21 + c * 8} y={28 + r * 6.8} width="6" height="5" rx="1.8" fill={u(gold ? 'gold' : 'body2')} />
-          );
-        }))}
-      </>
-    );
-  },
-
   rewards: ({ u }) => (
     <>
       <rect x="17" y="32" width="30" height="16.5" rx="3" fill={u('body2')} />
@@ -367,67 +318,6 @@ const ART: Record<FeatureIconName, (c: Ctx) => React.ReactNode> = {
     </>
   ),
 
-  lock: ({ u, ink }) => (
-    <>
-      <path className="fi-a fi-p-shackle" d="M24 31v-6a8 8 0 0 1 16 0v6" fill="none" stroke={u('gold')} strokeWidth="4.2" strokeLinecap="round" />
-      <g className="fi-a fi-p-click">
-        <rect x="16" y="30.6" width="32" height="20" rx="6" fill={u('body2')} />
-        <rect x="16" y="29" width="32" height="20" rx="6" fill={u('body')} />
-        <rect x="19.5" y="31.4" width="25" height="1.8" rx=".9" fill="#fff" opacity=".7" />
-        <circle cx="32" cy="37.4" r="2.8" fill={ink} opacity=".85" />
-        <rect x="30.8" y="38.4" width="2.4" height="6" rx="1.2" fill={ink} opacity=".85" />
-      </g>
-    </>
-  ),
-
-  mobile: ({ u, ink, cut }) => (
-    <>
-      <g className="fi-a fi-p-tilt">
-        <rect x="19" y="10" width="25" height="42" rx="6.2" fill={u('body')} />
-        <rect x="21.5" y="14" width="20" height="34.5" rx="3.6" fill={u('enamel')} />
-        <rect x="28.5" y="11.6" width="6" height="1.4" rx=".7" fill={ink} opacity=".4" />
-        <rect x="24" y="17.5" width="8" height="2" rx="1" fill="#fff" opacity=".55" />
-        <rect x="24" y="22.5" width="15" height="8.5" rx="2.2" fill={u('body')} />
-        <rect x="26" y="27.4" width="6" height="1.5" rx=".75" fill={ink} opacity=".5" />
-        <rect x="24" y="34.5" width="15" height="2" rx="1" fill="#fff" opacity=".3" />
-        <rect x="24" y="39" width="10" height="2" rx="1" fill="#fff" opacity=".3" />
-        <rect x="24" y="43.5" width="12.5" height="2" rx="1" fill="#fff" opacity=".3" />
-      </g>
-      <g className="fi-a fi-p-pop" style={d(260)}>
-        <circle cx="44.5" cy="16" r="6.8" fill={u('gold')} stroke={cut} strokeWidth="2.5" />
-        <rect x="41.3" y="14" width="6.4" height="1.5" rx=".75" fill={BRONZE} />
-        <rect x="41.3" y="16.6" width="4.2" height="1.5" rx=".75" fill={BRONZE} />
-      </g>
-    </>
-  ),
-
-  insurance: ({ u }) => (
-    <>
-      <path d="M32 32v12.2a3.6 3.6 0 0 1-7.2 0" fill="none" stroke={u('body2')} strokeWidth="2.6" strokeLinecap="round" />
-      <g className="fi-a fi-p-open">
-        <rect x="31.1" y="10.5" width="1.8" height="4.5" rx=".9" fill={u('body2')} />
-        <path d="M12 32c0-10.5 9-18 20-18s20 7.5 20 18c-2.8-2.2-7.2-2.2-10 0-2.8-2.2-7.2-2.2-10 0-2.8-2.2-7.2-2.2-10 0-2.8-2.2-7.2-2.2-10 0Z" fill={u('body')} />
-        <path d="M32 14c-5.5 3.5-10 10-10 18 2.8-2.2 7.2-2.2 10 0 2.8-2.2 7.2-2.2 10 0 0-8-4.5-14.5-10-18Z" fill={u('gold')} />
-        <path d="M42 32c0-8-4.5-14.5-10-18 8.5 1.2 17 7 20 18-2.8-2.2-7.2-2.2-10 0Z" fill={SHADE} opacity=".12" />
-        <path d="M15.5 26c2-5 6.5-8.5 12-9.8" fill="none" stroke="#fff" strokeOpacity=".85" strokeWidth="1.4" strokeLinecap="round" />
-      </g>
-    </>
-  ),
-
-  bell: ({ u, cut }) => (
-    <>
-      <path className="fi-a fi-p-emit" style={d(120, { '--o': '100% 100%' })} d="M10.8 23a16 16 0 0 1 4.6-8" fill="none" stroke={u('body')} strokeWidth="2.2" strokeLinecap="round" />
-      <path className="fi-a fi-p-emit" style={d(120, { '--o': '0% 100%' })} d="M53.2 23a16 16 0 0 0-4.6-8" fill="none" stroke={u('body')} strokeWidth="2.2" strokeLinecap="round" />
-      <g className="fi-a fi-p-bell">
-        <circle cx="32" cy="12.6" r="2.4" fill={u('body2')} />
-        <circle className="fi-a fi-p-clap" cx="32" cy="44.6" r="3.8" fill={u('body2')} />
-        <path d="M32 14c-6.9 0-12 5.3-12 12.3v6.9l-3.2 5.1c-.7 1.1.1 2.5 1.4 2.5h27.6c1.3 0 2.1-1.4 1.4-2.5L44 33.2v-6.9C44 19.3 38.9 14 32 14Z" fill={u('body')} />
-        <path d="M17.6 38.3h28.8" stroke={SHADE} strokeOpacity=".14" strokeWidth="2.2" />
-        <path d="M24 24.5c.4-3.4 2.6-5.8 5.6-6.6" fill="none" stroke="#fff" strokeOpacity=".9" strokeWidth="1.6" strokeLinecap="round" />
-      </g>
-      <circle className="fi-a fi-p-pop" style={d(300)} cx="42.8" cy="18.6" r="4.4" fill={u('gold')} stroke={cut} strokeWidth="2.5" />
-    </>
-  ),
   payee: ({ u, cut }) => (
     <>
       <g className="fi-a fi-p-bob">

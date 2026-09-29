@@ -7,16 +7,15 @@ import secrets
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 
 from backend.api_models import (
     ChallengeVerifyRequest,
     ConsentRequest,
     GCPPhoneLoginRequest,
 )
-from backend.settings import DEFAULT_MODEL
 from auth_service import COOKIE_NAME, TERMS_VERSION
-from sentinel import AGENT_ID
+
 
 
 def make_auth_router(
@@ -119,76 +118,6 @@ def make_auth_router(
             details={"user_id": context.user_id},
         )
         return {"revoked": changed}
-
-    @router.get("/api/dashboard")
-    async def get_dashboard(context=Depends(require_customer)):
-        return db.dashboard(context.customer_id)
-
-    @router.get("/api/sentinel/events")
-    async def get_sentinel_events(session_id: Optional[str] = Query(default=None), context=Depends(require_auth)):
-        if context.role != "OFFICER" and not session_id:
-            return {"events": [], "policy_version": db.snapshot()["policy_config"]["version"]}
-        if session_id and context.role != "OFFICER":
-            conversation = db.get_conversation(session_id)
-            if not conversation or conversation.get("user_id") != context.user_id:
-                raise HTTPException(status_code=404, detail="Session not found")
-        return {
-            "events": db.get_audit_events(session_id=session_id),
-            "policy_version": db.snapshot()["policy_config"]["version"],
-        }
-
-    @router.get("/api/demo/config")
-    async def get_demo_config(context=Depends(require_auth)):
-        del context
-        scenarios = db.snapshot().get("demo_scenarios", {})
-        return {
-            "simulated": True,
-            "model": DEFAULT_MODEL,
-            "agent_id": AGENT_ID,
-            "scenarios": [{"id": key, "label": value.get("label", key)} for key, value in scenarios.items()],
-        }
-
-    @router.post("/api/demo/reset")
-    async def reset_demo(context=Depends(require_customer_csrf)):
-        db.reset_to_seed()
-        db.append_audit(
-            "DEMO_RESET",
-            actor="customer",
-            summary="Deterministic demo banking state restored",
-            details={"user_id": context.user_id},
-        )
-        return {"reset": True, "dashboard": banking_service.dashboard()}
-
-    @router.post("/api/portal/kyc/reset")
-    async def reset_customer_kyc_endpoint(context=Depends(require_customer_csrf)):
-        customer_id = context.customer_id or "CUST-1001"
-        result = db.reset_kyc(customer_id)
-        db.append_audit(
-            "KYC_RESET",
-            actor="customer",
-            summary=f"KYC status reset to NOT_DONE for customer {customer_id}",
-            details={"customer_id": customer_id, "user_id": context.user_id},
-        )
-        return {"success": True, "kyc": result}
-
-    @router.post("/api/demo/replay/{scenario_id}")
-    async def replay_demo(
-        scenario_id: str,
-        session_id: Optional[str] = Query(default=None),
-        context=Depends(require_customer_csrf),
-    ):
-        active_consent(context)
-        conversation = db.get_conversation(session_id or "")
-        if not conversation or conversation.get("user_id") != context.user_id:
-            raise HTTPException(status_code=404, detail="Session not found")
-        try:
-            return banking_service.replay_scenario(
-                scenario_id,
-                session_id=session_id or "",
-                customer_id=context.customer_id,
-            )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @router.post("/api/challenges/{challenge_id}/verify")
     async def verify_challenge(

@@ -959,7 +959,7 @@ VISITOR_APPLICATION_TOOL_NAMES = {"prepare_product_application", "submit_product
 _NUMERIC_CLAIM_PATTERN = re.compile(r"(?:₹\s?[\d,.]+|\b\d+(?:\.\d+)?\s?%|\b\d+\s?(?:minutes?|days?|months?|years?|x)\b)", re.IGNORECASE)
 _UNSAFE_SALES_PATTERNS = (
     "guaranteed approval", "guaranteed returns", "guaranteed pre-approval", "best in india", "highest in india",
-    "lowest in india", "risk-free", "no risk", "act now", "limited-time", "penalty trap",
+    "lowest in india", "risk-free", "no risk to your", "zero risk", "act now", "limited-time", "penalty trap",
     "गारंटीड अप्रूवल", "पक्की मंजूरी", "जोखिम मुक्त", "जोखिम-मुक्त", "जोखीम मुक्त", "जोखीममुक्त",
 )
 COMPETITOR_REASON = "unverified competitor comparison"
@@ -1046,6 +1046,7 @@ _PROMPT_INJECTION_PATTERN = re.compile(
     r"|\b(system|developer)\s+(prompt|message|instructions?)\b"
     r"|\b(list|name|enumerate)\b.{0,30}\b(tools?|functions?)\b.{0,20}\b(you|can)\b"
     r"|\byou are now\b|\bjailbreak\b|\bDAN mode\b|\bdeveloper mode\b|\byou are no longer\b|\bfrom now on,? you\b"
+    r"|\brepeat (everything|all|the text|what is|what's|the words)\b.{0,20}\b(above|before|earlier)\b|\babove this line\b"
     r"|\b(act|behave|respond|answer|speak|reply|talk)\s+(as|like)\s+(an?\s+|my\s+|the\s+)?(independent\s+|neutral\s+|unbiased\s+|external\s+)?"
     r"(auditor|regulator|rbi|lawyer|critic|journalist|developer|admin|administrator|hacker|competitor|another|different|unrestricted|uncensored|other|human|person|consultant|analyst)"
     r"|\b(pretend|imagine|role-?play)\b.{0,30}\b(you|to be|as)\b"
@@ -1056,7 +1057,9 @@ _PROMPT_INJECTION_PATTERN = re.compile(
 )
 # Text that must never reach a customer: base-agent prompt, internal directives and tool names.
 _INTERNAL_LEAK_PATTERN = re.compile(
-    r"you are antigravity|google deepmind|system prompt|system instruction|SYSTEM SALES DIRECTIVE|SecureToolGateHook"
+    # Leaked content, not the words themselves: a refusal may say "I can't share my system instructions".
+    r"you are antigravity|google deepmind|(system prompt|system instructions?|my instructions) (is|are|says|say|reads|read)\b|"
+    r"here (is|are) my (system )?(prompt|instructions)|SYSTEM SALES DIRECTIVE|SecureToolGateHook|MITRA'S FIXED BOUNDARIES|CARE DIRECTIVE"
     r"|\b(get_customer_summary|get_transaction_history|get_outstanding_bills|get_security_alerts|propose_bill_payment"
     r"|propose_transfer|freeze_card|record_customer_lead|query_bank_knowledge|search_public_products|start_banking_workflow"
     r"|record_document_extraction|start_account_opening)\b",

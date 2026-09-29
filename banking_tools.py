@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hmac
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -535,7 +536,7 @@ class SecureBankingService:
         if not challenge:
             raise KeyError("Unknown challenge ID")
         expected_digest = challenge.get("request_digest") or challenge.get("transaction_digest", "")
-        if not hmac_compare(expected_digest, transaction_digest):
+        if not hmac.compare_digest(expected_digest, transaction_digest):
             self._set_challenge_status(challenge_id, "DENIED")
             return {"success": False, "error": "Transaction details changed after approval.", "status": "DENIED"}
         if challenge["status"] != "OPEN":
@@ -798,11 +799,6 @@ class SecureBankingService:
         return {"success": True, "status": decision["decision"], "executed": False,
                 "sentinel": _without_token(decision),
                 "presentation": {"type": "SENTINEL_DENIAL", "title": "Security replay evaluated"}}
-
-
-def hmac_compare(left: str, right: str) -> bool:
-    import hmac
-    return hmac.compare_digest(left, right)
 
 
 banking_service = SecureBankingService(db, sentinel)

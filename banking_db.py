@@ -8,7 +8,6 @@ import hmac
 import json
 import os
 import threading
-import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -323,45 +322,6 @@ class BankingDatabase:
         elif status == "NOT_DONE":
             updates["account_restrictions"] = ["OUTWARD_TRANSFERS_BLOCKED", "DEBIT_CARD_RESTRICTED"]
         return self.update_kyc_profile(customer_id, updates)
-
-    def reset_kyc(self, customer_id: str = "CUST-1001") -> Dict[str, Any]:
-        try:
-            with self.runtime.sessions.begin() as session:
-                session.execute(
-                    delete(ServiceRequestRecord).where(
-                        ServiceRequestRecord.customer_id == customer_id,
-                        ServiceRequestRecord.service_id == "P1-17",
-                    )
-                )
-        except Exception:
-            pass
-
-        initial_kyc = {
-            "status": "NOT_DONE",
-            "kyc_type": "INITIAL_KYC",
-            "due_date": "2026-09-15",
-            "risk_category": "HIGH",
-            "pan_masked": "UNVERIFIED",
-            "aadhaar_masked": "UNVERIFIED",
-            "address": "12B, Sea Green Apartments, Worli, Mumbai, Maharashtra 400018",
-            "occupation": "Not Specified",
-            "annual_income_slab": "15L_TO_50L",
-            "is_pep": False,
-            "last_verified_at": None,
-            "pending_request_id": None,
-            "pending_requirements": [
-                "Original PAN Card Scan & Live OCR Verification",
-                "Aadhaar / Address Proof Document Upload",
-                "Live Face Selfie / Liveness Verification",
-                "Customer Regulatory & FATCA Declaration",
-            ],
-            "account_restrictions": [
-                "OUTWARD_TRANSFERS_BLOCKED",
-                "DEBIT_CARD_RESTRICTED",
-                "High-Value Transactions Blocked",
-            ],
-        }
-        return self.update_kyc_profile(customer_id, initial_kyc)
 
     def get_device(self, device_id: str) -> Optional[Dict[str, Any]]:
         return self.snapshot().get("devices", {}).get(device_id)

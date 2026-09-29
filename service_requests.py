@@ -97,13 +97,6 @@ class ServiceRequestService:
                 ServiceRequestRecord.customer_id == customer_id).order_by(ServiceRequestRecord.updated_at.desc())).all()
             return [self._dict(row) for row in rows]
 
-    def approval_queue(self) -> list[dict[str, Any]]:
-        with self.runtime.sessions() as session:
-            rows = session.scalars(select(ServiceRequestRecord).where(
-                ServiceRequestRecord.status.in_(["PENDING_APPROVAL", "ESCALATED", "MORE_INFO_REQUIRED"])
-            ).order_by(ServiceRequestRecord.created_at)).all()
-            return [self._dict(row) for row in rows]
-
     def decide(self, request_id: str, *, officer_user_id: str, action: str, reason: str,
                override_justification: str | None = None, verification_checks: list[str] | None = None,
                verification_reference: str = "") -> dict[str, Any]:

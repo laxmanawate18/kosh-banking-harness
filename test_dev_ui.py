@@ -6,7 +6,6 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 _SUITE_DATABASE = tempfile.TemporaryDirectory()
 os.environ.setdefault("SENTINEL_DATABASE_URL", f"sqlite+pysqlite:///{Path(_SUITE_DATABASE.name) / 'suite.sqlite3'}")
@@ -18,12 +17,13 @@ import dev_ui
 from backend.settings import FRONTEND_DIST
 from backend.agent_config import SecureToolGateHook, create_agent_config
 from backend.conversations import create_session_data, save_session
-from backend.settings import DEFAULT_MODEL
 from banking_tools import BANKING_TOOL_NAMES, build_banking_tools
 from product_service import PUBLIC_SALES_TOOL_NAMES
 
 
 class SentinelAppTests(unittest.TestCase):
+    card_request = {"account_id": "ACC-SAL-001", "details": "My debit card is damaged, please reissue it"}
+
     @classmethod
     def setUpClass(cls):
         cls.client = TestClient(dev_ui.app)
@@ -67,7 +67,7 @@ class SentinelAppTests(unittest.TestCase):
             self.assertNotIn(removed, bundle.text)
 
     def test_dashboard_is_masked_and_inr(self):
-        data = self.client.get("/api/dashboard").json()
+        data = self.client.get("/api/portal/overview").json()
         self.assertEqual(data["currency"], "INR")
         self.assertTrue(data["simulation"])
         self.assertTrue(all("•" in item["account_number_masked"] for item in data["accounts"]))
@@ -151,28 +151,6 @@ class SentinelAppTests(unittest.TestCase):
             self.assertFalse(saw_duplicate_error, "Should not encounter duplicate custom tool error")
         self.client.delete(f"/api/sessions/{session_id}", headers={"X-CSRF-Token": self.csrf})
 
-    def test_reset_and_replay_never_change_balance(self):
-        before = self.client.get("/api/dashboard").json()["total_available_minor"]
-        session_id = self.post("/api/sessions", json={"title": "Replay"}).json()["id"]
-        replay = self.post(f"/api/demo/replay/prompt-injection?session_id={session_id}").json()
-        after = self.client.get("/api/dashboard").json()["total_available_minor"]
-        self.assertEqual(replay["status"], "DENY")
-        self.assertEqual(before, after)
-        self.assertNotIn("authorization_token", replay["sentinel"])
-        reset = self.post("/api/demo/reset").json()
-        self.assertTrue(reset["reset"])
-
-    def test_customer_event_contract_omits_secrets_and_raw_thoughts(self):
-        session_id = self.post("/api/sessions", json={"title": "Event contract"}).json()["id"]
-        self.post(f"/api/demo/replay/prompt-injection?session_id={session_id}")
-        payload = self.client.get(f"/api/sentinel/events?session_id={session_id}").json()
-        raw = str(payload).lower()
-        self.assertNotIn("authorization_token", raw)
-        self.assertNotIn("chain_of_thought", raw)
-        self.assertNotIn("246810", raw)
-        self.assertTrue(payload["events"])
-        self.assertTrue(all(len(event["integrity_hash"]) == 64 for event in payload["events"]))
-
     def test_loaded_session_is_sanitized(self):
         stored = create_session_data("Sanitize me", user_id="USR-CUSTOMER-001", customer_id="CUST-1001")
         stored["messages"].append({"role": "assistant", "text": "Safe answer", "thought": "private reasoning", "tool_calls": [{"args": {"otp": "246810"}}]})
@@ -190,24 +168,18 @@ class SentinelAppTests(unittest.TestCase):
         self.assertIn("camera=(self)", policy)
         self.assertIn("media-src 'self' blob:", self.client.get("/").headers["content-security-policy"])
 
-    def test_demo_config_does_not_advertise_an_otp(self):
-        data = self.client.get("/api/demo/config").json()
-        self.assertTrue(data["simulated"])
-        self.assertNotIn("demo_otp", data)
-        self.assertEqual(data["model"], DEFAULT_MODEL)
-
     def test_auth_consent_csrf_and_officer_separation(self):
         anonymous = TestClient(dev_ui.app)
-        self.assertEqual(anonymous.get("/api/dashboard").status_code, 401)
-        self.assertEqual(self.client.post("/api/demo/reset").status_code, 403)
-        request = self.post("/api/service-requests", json={"service_id": "P1-08", "data": {}})
+        self.assertEqual(anonymous.get("/api/portal/overview").status_code, 401)
+        request = self.post("/api/portal/service-requests", json={"service_id": "P1-08", "data": self.card_request})
         self.assertEqual(request.status_code, 403)  # L3 required before submission.
 
         officer = TestClient(dev_ui.app)
         officer_csrf = self.login_as(officer, "officer.mumbai")
-        self.assertEqual(officer.get("/api/dashboard").status_code, 403)
-        self.assertEqual(officer.get("/api/officer/queue").status_code, 200)
-        self.assertEqual(officer.post("/api/service-requests", headers={"X-CSRF-Token": officer_csrf}, json={"service_id": "P1-23", "data": {}}).status_code, 403)
+        self.assertEqual(officer.get("/api/portal/overview").status_code, 403)
+        self.assertEqual(officer.get("/api/portal/operations").status_code, 200)
+        self.assertEqual(officer.post("/api/portal/service-requests", headers={"X-CSRF-Token": officer_csrf},
+                                      json={"service_id": "P1-08", "data": self.card_request}).status_code, 403)
 
     def test_login_endpoint_is_rate_limited(self):
         attempts = [self.client.get("/api/auth/start", follow_redirects=False) for _ in range(25)]
@@ -215,8 +187,9 @@ class SentinelAppTests(unittest.TestCase):
 
     def test_service_request_and_named_officer_decision(self):
         # Use a human-approval L2 workflow so no transaction challenge is needed.
-        created = self.post("/api/service-requests", json={"service_id": "P2-14", "data": {"summary": "Escalate complaint"}})
-        self.assertEqual(created.status_code, 200)
+        created = self.post("/api/portal/service-requests", json={"service_id": "P2-14", "data": {
+            "account_id": "ACC-SAL-001", "details": "Escalate my unresolved complaint"}})
+        self.assertEqual(created.status_code, 201, created.text)
         request_id = created.json()["id"]
         officer = TestClient(dev_ui.app)
         officer_csrf = self.login_as(officer, "officer.mumbai")
@@ -229,8 +202,8 @@ class SentinelAppTests(unittest.TestCase):
 
     def test_general_step_up_is_rate_limited_and_enables_l3_service(self):
         dev_ui.auth_service.elevate_session(self._raw_cookie, "L3")
-        created = self.post("/api/service-requests", json={"service_id": "P1-08", "data": {"reason": "Damaged card"}})
-        self.assertEqual(created.status_code, 200)
+        created = self.post("/api/portal/service-requests", json={"service_id": "P1-08", "data": self.card_request})
+        self.assertEqual(created.status_code, 201, created.text)
         self.assertEqual(created.json()["status"], "PENDING_APPROVAL")
 
     def test_phone_login_and_public_config(self):
@@ -258,7 +231,7 @@ class SentinelAppTests(unittest.TestCase):
         sudhir_client.post("/api/consent", headers={"X-CSRF-Token": sudhir_csrf}, json={"accepted": True})
 
         # Dashboard check for Sudhir
-        sudhir_dash = sudhir_client.get("/api/dashboard").json()
+        sudhir_dash = sudhir_client.get("/api/portal/overview").json()
         self.assertEqual(sudhir_dash["customer"]["display_name"], "Sudhir Jaiswal")
         self.assertEqual(sudhir_dash["total_available_minor"], 290500000)
         self.assertEqual(len(sudhir_dash["accounts"]), 3)
@@ -275,7 +248,7 @@ class SentinelAppTests(unittest.TestCase):
         aarav_csrf = self.login_as(aarav_client, "aarav")
         aarav_client.post("/api/consent", headers={"X-CSRF-Token": aarav_csrf}, json={"accepted": True})
 
-        aarav_dash = aarav_client.get("/api/dashboard").json()
+        aarav_dash = aarav_client.get("/api/portal/overview").json()
         self.assertEqual(aarav_dash["customer"]["display_name"], "Aarav Mehta")
         self.assertEqual(aarav_dash["total_available_minor"], 41000000)
         self.assertEqual(len(aarav_dash["accounts"]), 2)
@@ -359,22 +332,6 @@ class SentinelAppTests(unittest.TestCase):
         for text in ("ai-banker", "Mitra, Kosh AI banker", "aiPageMessages", "Message Mitra",
                      "Close assistant", "Reconnect", "Sign in for account services"):
             self.assertIn(text, contents["js"])
-
-    def test_portal_kyc_reset_endpoint(self):
-        # 1. Aarav resets his KYC state via portal endpoint
-        res = self.client.post("/api/portal/kyc/reset", headers={"X-CSRF-Token": self.csrf})
-        self.assertEqual(res.status_code, 200)
-        data = res.json()
-        self.assertTrue(data["success"])
-        self.assertEqual(data["kyc"]["status"], "NOT_DONE")
-        self.assertEqual(data["kyc"]["kyc_type"], "INITIAL_KYC")
-        self.assertEqual(data["kyc"]["pan_masked"], "UNVERIFIED")
-        self.assertIn("OUTWARD_TRANSFERS_BLOCKED", data["kyc"]["account_restrictions"])
-
-        # 2. Portal overview reflects NOT_DONE
-        overview = self.client.get("/api/portal/overview", headers={"X-CSRF-Token": self.csrf}).json()
-        self.assertEqual(overview["kyc"]["status"], "NOT_DONE")
-        self.assertEqual(overview["kyc"]["kyc_type"], "INITIAL_KYC")
 
     def test_multimodal_websocket_attachment_handling(self):
         created = self.post("/api/sessions", json={"title":"Unbound attachment test"}).json()

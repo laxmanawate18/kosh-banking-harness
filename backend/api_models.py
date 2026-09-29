@@ -54,12 +54,6 @@ class ConsentRequest(BaseModel):
     scope: Optional[List[str]] = None
 
 
-class ServiceRequestCreate(BaseModel):
-    service_id: str
-    data: Dict[str, Any] = Field(default_factory=dict)
-    session_id: Optional[str] = None
-
-
 class ApprovalDecisionRequest(BaseModel):
     action: str
     reason: str

@@ -38,7 +38,10 @@ PATTERNS = {
         r"|\b(scammed|defrauded|cheated|duped)\b|\b(scam|fraud|phishing)\s+(call|sms|message|link|happened|transaction|debit)"
         r"|\b(did ?n[o']?t|never)\s+(make|do|authori[sz]e)\s+(this|that|these|the|a)\s+(transaction|payment|debit)"
         r"|\bmoney\b.{0,30}\b(stolen|deducted without|debited without)"
-        r"|fraud ho gaya|paise kat gaye|otp (de|bata) diya|धोखाधड़ी|ठगी|फ्रॉड|फसवणूक|ओटीपी.{0,20}(दिया|बताया|माँगा|मांगा|दिला|सांगितला)", _I),
+        r"|\b(entered|typed|gave|shared) (my )?(pin|otp|cvv|password|card details|card number|upi pin)\b"
+        r"|\bclicked (on )?(a|an|the|that)? ?(sms |whatsapp |email )?link\b.{0,60}\b(pin|otp|password|card|kyc|bank)\b"
+        r"|\b(anydesk|teamviewer|quick ?support|screen ?shar\w*)\b"
+        r"|fraud ho gaya|paise (kat|nikal|chale) gaye|(maine|mene) (koi )?(transaction|payment) nahi kiya|otp (de|bata) diya|धोखाधड़ी|ठगी|फ्रॉड|फसवणूक|ओटीपी.{0,20}(दिया|बताया|माँगा|मांगा|दिला|सांगितला)", _I),
     "DISTRESS": re.compile(
         r"lost my job|job loss|laid off|layoff|lost (my|our) (income|business)|can'?t (pay|afford) (my |the )?(emi|loan|rent|bills?)"
         r"|unable to (pay|repay)|missed (my |an )?emi|passed away|\bdied\b|death in (my|the) family|medical emergency|hospitali[sz]ed"

@@ -4,6 +4,7 @@
   venv/bin/python tests/eval/run_eval.py --only jailbreak,competitor
   venv/bin/python tests/eval/run_eval.py --record              # also store the result on the running prompt version
 
+Cases with "channel": "customer" run signed in as the demo customer (--customer), in a fresh chat each.
 A case passes when every reply check holds on the LAST reply: at least one `any` pattern matches, no `none` pattern
 matches, and it stays under `max_words`. Fairness groups pass when every member mentions the same Kosh products.
 Results: .local/eval-results/<timestamp>.json
@@ -28,10 +29,14 @@ PRODUCTS = {"Suvarna Premier": "Suvarna Premier Savings", "Digital Smart": "Digi
             "Griha": "Griha Green Home Loan", "Nivesh": "Nivesh Demat & Wealth"}
 
 
-async def run_case(url: str, case: dict, timeout: float) -> dict:
+async def run_case(url: str, case: dict, timeout: float, cookie: str | None = None) -> dict:
     started, replies = time.time(), []
+    customer = case.get("channel") == "customer"
+    if customer:
+        url = url.split("?", 1)[0]
     try:
-        async with websockets.connect(url, open_timeout=20, max_size=4_000_000) as ws:
+        async with websockets.connect(url, open_timeout=20, max_size=4_000_000,
+                                      additional_headers={"Cookie": f"sentinel_session={cookie}"} if customer else None) as ws:
             while json.loads(await asyncio.wait_for(ws.recv(), 20)).get("type") != "connection_ready":
                 pass
             for prompt in case["turns"]:
@@ -62,9 +67,24 @@ async def run_case(url: str, case: dict, timeout: float) -> dict:
         problems.append(f"too long ({words} words > {case['max_words']})")
     if "[RUNNER ERROR" in reply or "[ERROR" in reply:
         problems.append("error")
-    return {**{k: case[k] for k in ("id", "category", "language")}, "group": case.get("group"), "prompt": case["turns"][-1],
+    return {**{k: case[k] for k in ("id", "category", "language")}, "channel": case.get("channel", "visitor"), "group": case.get("group"), "prompt": case["turns"][-1],
             "reply": reply, "words": words, "seconds": round(time.time() - started, 1), "passed": not problems, "problems": problems,
             "products": [name for _, name in sorted((reply.find(k), name) for k, name in PRODUCTS.items() if k in reply)]}
+
+
+def customer_session(args) -> str:
+    """A signed-in session for the demo customer in the app's own database, with banking consent recorded."""
+    import os
+    import urllib.request
+    os.environ.update(ENABLE_CLOUD_SQL_SYNC="false", SENTINEL_DATABASE_URL=args.db)  # before any app import opens a database
+    from auth_service import AuthService
+    from banking_db import db
+    _, cookie, csrf = AuthService(db.runtime).create_direct_session(args.customer)
+    base = args.url.replace("ws://", "http://").replace("wss://", "https://").split("/ws/")[0]
+    req = urllib.request.Request(base + "/api/consent", data=b'{"accepted": true}', method="POST",
+                                 headers={"Content-Type": "application/json", "X-CSRF-Token": csrf, "Cookie": f"sentinel_session={cookie}"})
+    urllib.request.urlopen(req, timeout=20).read()
+    return cookie
 
 
 async def main() -> int:
@@ -74,16 +94,18 @@ async def main() -> int:
     ap.add_argument("--concurrency", type=int, default=4)
     ap.add_argument("--timeout", type=float, default=120)
     ap.add_argument("--record", action="store_true", help="store the result on the running prompt version (model_registry)")
-    ap.add_argument("--db", default=f"sqlite+pysqlite:///{ROOT / '.local' / 'e2e.sqlite3'}", help="the app's database, for --record")
+    ap.add_argument("--db", default=f"sqlite+pysqlite:///{ROOT / '.local' / 'e2e.sqlite3'}", help="the app's database (customer session, --record)")
+    ap.add_argument("--customer", default="aarav", help="demo customer the signed-in cases run as")
     args = ap.parse_args()
     cases = json.loads((ROOT / "tests/eval/cases.json").read_text())["cases"]
     if args.only:
         cases = [c for c in cases if c["category"] in set(args.only.split(","))]
     gate = asyncio.Semaphore(args.concurrency)
-
     async def guarded(case):
         async with gate:
-            result = await run_case(args.url, case, args.timeout)
+            # A fresh signed-in session per customer case: sessions expire after 10 minutes idle.
+            cookie = customer_session(args) if case.get("channel") == "customer" else None
+            result = await run_case(args.url, case, args.timeout, cookie)
             print(f"{'PASS' if result['passed'] else 'FAIL'} {result['id']:<18} {result['seconds']:>5}s {'; '.join(result['problems'])}", flush=True)
             return result
 
@@ -118,7 +140,7 @@ async def main() -> int:
         import os
         os.environ.update(ENABLE_CLOUD_SQL_SYNC="false", SENTINEL_DATABASE_URL=args.db)  # before any app import opens a database
         from banking_db import db
-        from backend.mitra_ops import prompt_version, update_registry
+        from backend.mitra_ops import prompt_version, update_registry  # noqa: E402
         ok = update_registry(db, f"PROMPT-{prompt_version()}", evaluation={k: summary[k] for k in ("at", "passed", "total", "pass_rate", "by_category")})
         print("recorded on prompt version" if ok else "prompt version not registered yet (start the app first)")
     return 0 if passed == len(results) else 1

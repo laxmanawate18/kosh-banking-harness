@@ -9,7 +9,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
-from backend.api_models import ApprovalDecisionRequest, ServiceRequestCreate, SessionCreateRequest, SessionUpdateRequest
+from backend.api_models import ApprovalDecisionRequest, SessionCreateRequest, SessionUpdateRequest
 from backend.conversations import create_session_data, list_sessions_metadata, load_session, sanitized_session, save_session
 from backend.email_service import email_service
 from backend import care
@@ -117,37 +117,6 @@ def make_session_router(
         del context
         return {"services": SERVICE_CATALOGUE}
 
-    @router.get("/api/service-requests")
-    async def get_service_requests(context=Depends(require_customer)):
-        return {"requests": request_service.list_for_customer(context.customer_id or "")}
-
-    @router.post("/api/service-requests")
-    async def create_service_request(req: ServiceRequestCreate, context=Depends(require_customer_csrf)):
-        consent = active_consent(context)
-        if req.service_id == "P1-17":
-            raise HTTPException(409, "KYC must use the document workflow and trusted review")
-        service = next((item for item in SERVICE_CATALOGUE if item["id"] == req.service_id), None)
-        if not service:
-            raise HTTPException(status_code=404, detail="Unknown service")
-        if service["auth_level"] == "L3" and context.assurance_level != "L3":
-            raise HTTPException(
-                status_code=403,
-                detail={"code": "STEP_UP_REQUIRED", "message": "This service requires fresh L3 verification"},
-            )
-        return request_service.create(
-            customer_id=context.customer_id or "",
-            user_id=context.user_id,
-            service_id=req.service_id,
-            data=req.data,
-            consent_id=consent["id"],
-            session_id=req.session_id,
-        )
-
-    @router.get("/api/officer/queue")
-    async def officer_queue(context=Depends(require_officer)):
-        del context
-        return {"requests": request_service.approval_queue()}
-
     @router.post("/api/officer/requests/{request_id}/decision")
     async def officer_decision(request_id: str, req: ApprovalDecisionRequest, context=Depends(require_csrf)):
         require_officer(context)
@@ -175,16 +144,6 @@ def make_session_router(
         if request.get("service_id") != "P1-25":
             raise HTTPException(status_code=400, detail="This request does not use account-opening RPA")
         return request
-
-    @router.get("/api/audit/replay/{session_id}")
-    async def audit_replay(session_id: str, context=Depends(require_auth)):
-        conversation = db.get_conversation(session_id)
-        if context.role != "OFFICER" and (not conversation or conversation.get("user_id") != context.user_id):
-            raise HTTPException(status_code=404, detail="Session not found")
-        return {
-            "session_id": session_id,
-            "events": list(reversed(db.get_audit_events(session_id=session_id, limit=250))),
-        }
 
     @router.get("/api/officer/leads")
     async def get_officer_leads(status: str = None, context=Depends(require_officer)):

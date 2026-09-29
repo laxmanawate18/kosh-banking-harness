@@ -170,7 +170,6 @@ class PortalTests(unittest.TestCase):
         self.assertTrue(any(e['event_type'] == 'INTENT_BOUND' for e in result))
         self.assertNotIn('DO_NOT_EXPOSE', str(result))
         self.assertNotIn('PRIVATE_OTHER_EVENT', str(result))
-        self.assertEqual(self.client.get('/api/audit/replay/OTHER-AUTH-SESSION').status_code, 404)
 
     def test_service_details_are_validated_and_bank_metadata_is_not_customer_controlled(self):
         self.step_up()

@@ -51,7 +51,6 @@
 .fi-p-click { --a: fi-click; --t: 900ms; }
 .fi-p-tilt { --a: fi-tilt; --t: 800ms; --o: 50% 100%; --e: ease-in-out; }
 .fi-p-open { --a: fi-open; --t: 800ms; --o: 50% 0%; }
-.fi-p-bell { --a: fi-bell; --t: 1000ms; --o: 50% 0%; --e: ease-in-out; }
 .fi-p-clap { --a: fi-clap; --t: 1000ms; --e: ease-in-out; }
 .fi-p-emit { --a: fi-emit; --t: 500ms; }
 .fi-p-write { --a: fi-write; --t: 380ms; --o: 0% 50%; }
@@ -194,14 +193,6 @@
   from { transform: scale(0.3, 0.85); }
   70% { transform: scale(1.06, 1); }
   to { transform: none; }
-}
-@keyframes fi-bell {
-  0%, 100% { transform: none; }
-  12% { transform: rotate(16deg); }
-  28% { transform: rotate(-14deg); }
-  44% { transform: rotate(9deg); }
-  60% { transform: rotate(-5deg); }
-  76% { transform: rotate(2deg); }
 }
 @keyframes fi-clap {
   0%, 100% { transform: none; }
