@@ -407,6 +407,9 @@ class WorkflowService:
         if fulfilment:
             notify(self.db, "service_request_update", phone_for(self.db, customer_id), customer_id=customer_id,
                    reference=request_id, service=WORKFLOWS[skill_id]["name"], status="completed")
+            if skill_id == "deposit":  # a deposit opened after the FD offer counts as that offer's conversion
+                from backend.offers import record_conversion
+                record_conversion(self.db, customer_id, "PROD-FD-SMART", request_id)
         return view
 
 

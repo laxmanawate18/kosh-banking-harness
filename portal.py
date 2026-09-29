@@ -23,7 +23,7 @@ from persistence import (
     utc_dt,
 )
 from service_requests import CATALOGUE_BY_ID
-from backend.offers import LEAD_CATEGORY, next_best_offers, record_event as record_offer_event
+from backend.offers import INSTANT_PRODUCTS, LEAD_CATEGORY, next_best_offers, record_event as record_offer_event
 from product_service import get_product_by_id
 
 
@@ -262,8 +262,8 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
         return db.transaction(mutate)
 
     @router.get("/offers")
-    def offers(context=Depends(customer)):
-        return next_best_offers(db, context.customer_id, "DASHBOARD")
+    def offers(lang: str = "en", context=Depends(customer)):
+        return next_best_offers(db, context.customer_id, "DASHBOARD", language=lang if lang in {"en", "hi", "mr"} else "en")
 
     @router.post("/offers/{product_id}")
     def offer_action(product_id: str, body: OfferActionBody, context=Depends(customer_csrf)):
@@ -276,6 +276,9 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
                       if o["product_id"] == product_id), None)
         if not offer:
             raise HTTPException(409, "This offer is no longer available to you")
+        if product_id in INSTANT_PRODUCTS:  # e.g. FD: the customer opens it instantly in the form, no officer lead
+            record_offer_event(db, context.customer_id, product_id, "DASHBOARD", "APPLIED", reference=f"WORKFLOW:{INSTANT_PRODUCTS[product_id]}")
+            return {"ok": True, "open_workflow": INSTANT_PRODUCTS[product_id], "title": offer["title"]}
         lead = db.record_lead(customer_id=context.customer_id, session_id=context.session_id,
                               category=LEAD_CATEGORY[offer["category"]], status="APPLIED", recommended_product_id=product_id,
                               special_offer_note=offer["headline_rate"], follow_up_pitch=offer["reason"],

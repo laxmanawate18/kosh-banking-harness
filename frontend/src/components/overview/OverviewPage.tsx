@@ -67,10 +67,11 @@ type Offer = { product_id: string; title: string; headline_rate: string; reason:
 
 /** Personalised offers from the bank's rules (consent, KYC, caps and suppression are enforced server-side). */
 function PersonalOffers({ onNavigate, ask }: { onNavigate: (r: string) => void; ask: (q: string) => void }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const { startWorkflowById } = useBanking();
   const [state, setState] = useState<{ offers: Offer[]; blocked: string | null } | null>(null);
   const [done, setDone] = useState<Record<string, string>>({});
-  useEffect(() => { get('/api/portal/offers').then(setState).catch(() => setState(null)); }, []);
+  useEffect(() => { get(`/api/portal/offers?lang=${lang}`).then(setState).catch(() => setState(null)); }, [lang]);
   if (!state) return null;
   if (state.blocked === 'MARKETING_CONSENT_REQUIRED') {
     return (
@@ -82,7 +83,8 @@ function PersonalOffers({ onNavigate, ask }: { onNavigate: (r: string) => void; 
   }
   const act = async (o: Offer, action: 'CLICKED' | 'DISMISSED' | 'APPLY') => {
     try {
-      await post(`/api/portal/offers/${o.product_id}`, { action });
+      const res = await post<{ open_workflow?: string }>(`/api/portal/offers/${o.product_id}`, { action });
+      if (res?.open_workflow) { await startWorkflowById(res.open_workflow); return; }  // instant product: open its form
       if (action === 'CLICKED') ask(t('Tell me more about the {title} and why it suits me.', { title: o.title }));
       else setDone(d => ({ ...d, [o.product_id]: action === 'APPLY' ? t('Applied. A Kosh officer will contact you shortly.') : t('Okay, we will not show this offer again.') }));
     } catch {

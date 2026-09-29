@@ -31,6 +31,7 @@ from backend import care, mitra_ops
 from banking_db import db  # the visitor handler logs turns; the customer handler receives its own db
 from product_service import (
     customer_reply_issue,
+    redact_attributed_competitors,
     SalesSessionContext,
     auth_challenge_presentation,
     chat_text,
@@ -777,6 +778,7 @@ async def serve_chat_websocket(
                         s.pop("_tool_name", None)
 
                     clean_text, suggestions = extract_dynamic_suggestions(accumulated_text)
+                    clean_text = redact_attributed_competitors(clean_text)
                     turn_outcome, turn_reason = "ANSWERED", None
                     if leaks_internal_prompt(clean_text):
                         clean_text = CUSTOMER_GUARDED_REPLY

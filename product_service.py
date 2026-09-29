@@ -994,6 +994,19 @@ def get_allowed_corpus() -> str:
     return _ALLOWED_CORPUS
 
 
+_COMPETITOR_RE = re.compile("|".join(rf"\b{re.escape(n)}\b(?: bank\b)?(?:'s)?" if n.isascii() else re.escape(n) for n in _COMPETITOR_NAMES), re.I)
+_ATTRIBUTED = re.compile(r"\byou(?:'ve| have)?\b.{0,25}\b(said|mentioned|told|feel|felt|asked|think|thought|prefer|compared|shared|noted|wrote)\b", re.I)
+
+
+def redact_attributed_competitors(text: str) -> str:
+    """In sentences that only repeat what the customer said ("You mentioned HDFC..."), write "another bank".
+    Sentences where Mitra itself talks about a rival bank are left alone, so the reply check still blocks them."""
+    parts = re.split(r"((?<=[.!?।])\s+|\n+)", text or "")
+    name = lambda m: "another bank's" if m.group().endswith("'s") else "another bank"
+    return "".join(_COMPETITOR_RE.sub(name, part) if i % 2 == 0 and _ATTRIBUTED.search(part) else part
+                   for i, part in enumerate(parts))
+
+
 def customer_reply_issue(text: str) -> Optional[str]:
     """Signed-in replies carry the customer's own figures, so only rival-bank talk and unsafe sales claims are checked."""
     lowered = text.lower()

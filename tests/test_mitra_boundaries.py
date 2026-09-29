@@ -44,6 +44,14 @@ class MitraBoundaryTests(unittest.TestCase):
             self.assertIn(card["title"], reply)
         self.assertNotRegex(reply.lower(), r"hdfc|sbi|icici")
 
+    def test_a_recap_of_the_customer_mentioning_a_rival_bank_is_kept_with_the_name_redacted(self):
+        from product_service import redact_attributed_competitors
+        recap = redact_attributed_competitors("You mentioned that HDFC's card is better than Kosh. You also asked about low fees.")
+        self.assertEqual(recap, "You mentioned that another bank's card is better than Kosh. You also asked about low fees.")
+        self.assertIsNone(validate_sales_response(recap))
+        claim = redact_attributed_competitors("You mentioned fees. HDFC Bank charges ₹500 a year but Neo is free.")
+        self.assertEqual(validate_sales_response(claim), COMPETITOR_REASON)  # Mitra's own rival claim is still blocked
+
     def test_the_same_fallback_is_never_sent_twice_in_a_row(self):
         context = SalesSessionContext(goal="cards", unanswered_question=chat_text("question_cards"))
         replies = [safe_grounded_fallback(context, "en", "numeric rate claim") for _ in range(3)]

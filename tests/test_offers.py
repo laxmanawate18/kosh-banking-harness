@@ -90,18 +90,44 @@ class OfferTests(unittest.TestCase):
 
     def test_funnel_follows_an_offer_from_shown_to_approved(self):
         self.consent()
-        self.assertIn("PROD-FD-SMART", self.offer_ids())
+        self.assertIn("PROD-CARD-CASHBACK", self.offer_ids())
         self.offer_ids()  # a second dashboard load the same day is not a second impression
-        self.client.post("/api/portal/offers/PROD-FD-SMART", headers=self.h, json={"action": "CLICKED"})
-        applied = self.client.post("/api/portal/offers/PROD-FD-SMART", headers=self.h, json={"action": "APPLY"}).json()
-        self.assertNotIn("PROD-FD-SMART", self.offer_ids())  # open application suppresses it
+        self.client.post("/api/portal/offers/PROD-CARD-CASHBACK", headers=self.h, json={"action": "CLICKED"})
+        applied = self.client.post("/api/portal/offers/PROD-CARD-CASHBACK", headers=self.h, json={"action": "APPLY"}).json()
+        self.assertNotIn("PROD-CARD-CASHBACK", self.offer_ids())  # open application suppresses it
         officer, oh = self.login("officer.mumbai")
         self.assertEqual(officer.post(f"/api/officer/leads/{applied['lead_id']}/status", headers=oh, json={"status": "APPROVED"}).status_code, 200)
         row = next(r for r in officer.get("/api/officer/offers/funnel").json()["rows"]
-                   if (r["product_id"], r["channel"]) == ("PROD-FD-SMART", "DASHBOARD"))
+                   if (r["product_id"], r["channel"]) == ("PROD-CARD-CASHBACK", "DASHBOARD"))
         self.assertEqual((row["shown"], row["clicked"], row["applied"], row["approved"]), (1, 1, 1, 1))
         self.assertEqual(row["conversion_rate"], 100.0)
         self.assertEqual(self.client.get("/api/officer/offers/funnel").status_code, 403)
+
+    def test_fd_offer_opens_the_instant_deposit_form_and_counts_the_opened_fd(self):
+        self.consent()
+        self.assertIn("PROD-FD-SMART", self.offer_ids())
+        res = self.client.post("/api/portal/offers/PROD-FD-SMART", headers=self.h, json={"action": "APPLY"}).json()
+        self.assertEqual(res["open_workflow"], "deposit")
+        self.assertNotIn("lead_id", res)
+        _, cookie, csrf = dev_ui.auth_service.create_direct_session("aarav")
+        dev_ui.auth_service.elevate_session(cookie, "L3")
+        c = TestClient(dev_ui.app); c.cookies.set(dev_ui.COOKIE_NAME, cookie); h = {"X-CSRF-Token": csrf}
+        c.post("/api/consent", headers=h, json={"accepted": True})
+        w = c.post("/api/ai/workflows", headers=h, json={"skill_id": "deposit"}).json()
+        w = c.patch(f"/api/ai/workflows/{w['id']}", headers=h, json={"revision": w["revision"], "fields": {
+            "account_id": "ACC-SAV-002", "deposit_type": "FIXED", "amount": "50000", "tenure_months": "12", "maturity_instruction": "CREDIT_ACCOUNT"}}).json()
+        w = c.post(f"/api/ai/workflows/{w['id']}/review", headers=h, json={"revision": w["revision"], "fields": {}}).json()
+        done = c.post(f"/api/ai/workflows/{w['id']}/submit", headers=h, json={"revision": w["revision"], "review_digest": w["review_digest"], "confirmed": True})
+        self.assertEqual(done.json()["status"], "COMPLETED", done.text)
+        officer, _ = self.login("officer.mumbai")
+        row = next(r for r in officer.get("/api/officer/offers/funnel").json()["rows"] if r["product_id"] == "PROD-FD-SMART")
+        self.assertEqual((row["applied"], row["approved"]), (1, 1))
+
+    def test_offer_reasons_follow_the_site_language(self):
+        self.consent()
+        hi = self.client.get("/api/portal/offers?lang=hi").json()["offers"]
+        self.assertTrue(hi and any("\u0900" <= ch <= "\u097F" for ch in hi[0]["reason"]))
+        self.assertIn("₹", hi[0]["reason"])
 
     def test_mitra_pitches_one_offer_a_day_and_records_declines_and_applications(self):
         self.consent()

@@ -11,7 +11,8 @@ Governance, applied to every channel (dashboard and Mitra):
   * frequency caps: a product rests for 30 days after being shown on 3 days without a click; the dashboard
     shows at most 2 offers, Mitra proactively pitches at most 1 offer a day
 
-Funnel: SHOWN -> CLICKED -> APPLIED (a CRM lead) -> APPROVED (that lead approved/converted by an officer).
+Funnel: SHOWN -> CLICKED -> APPLIED (a CRM lead, or an instant-product form) -> APPROVED (lead approved by an officer,
+or the instant product actually opened).
 """
 
 from __future__ import annotations
@@ -73,7 +74,35 @@ def signals(state: Dict[str, Any], customer_id: str) -> Dict[str, Any]:
     }
 
 
-def _candidates(s: Dict[str, Any]) -> List[Dict[str, Any]]:
+REASONS: Dict[str, Dict[str, str]] = {
+    "IDLE_SAVINGS": {
+        "en": "About {surplus} sits in savings beyond two months of your spending. In a Vriddhi FD at 8.10% p.a. it could earn about {yearly} a year.",
+        "hi": "आपकी दो महीने की ख़र्च की ज़रूरत से ऊपर लगभग {surplus} सेविंग्स में पड़ा है। 8.10% सालाना वाली Vriddhi FD में यह साल में लगभग {yearly} कमा सकता है।",
+        "mr": "तुमच्या दोन महिन्यांच्या खर्चापेक्षा जास्त सुमारे {surplus} बचत खात्यात आहेत. 8.10% वार्षिक Vriddhi FD मध्ये ते वर्षाला सुमारे {yearly} कमवू शकतात."},
+    "HIGH_SALARY_NO_CARD": {
+        "en": "Your salary credits of {salary} a month fit our Vajra metal card: 5X rewards, unlimited lounge access and a 1.5% forex markup.",
+        "hi": "हर महीने {salary} की सैलरी के हिसाब से हमारा Vajra मेटल कार्ड आपके लिए सही है: 5X रिवॉर्ड, अनलिमिटेड लाउंज एक्सेस और 1.5% फ़ॉरेक्स मार्कअप।",
+        "mr": "दरमहा {salary} पगारानुसार आमचे Vajra मेटल कार्ड तुमच्यासाठी योग्य आहे: 5X रिवॉर्ड, अमर्यादित लाउंज प्रवेश आणि 1.5% फॉरेक्स मार्कअप."},
+    "EVERYDAY_SPEND_NO_CARD": {
+        "en": "You spent {spend} on groceries, bills and entertainment recently. With the lifetime-free Neo card, 5% back would have been about {back}.",
+        "hi": "हाल में आपने किराना, बिल और मनोरंजन पर {spend} ख़र्च किए। लाइफ़टाइम-फ़्री Neo कार्ड से 5% वापसी लगभग {back} होती।",
+        "mr": "अलीकडे तुम्ही किराणा, बिले आणि मनोरंजनावर {spend} खर्च केले. आयुष्यभर मोफत Neo कार्डवर 5% परतावा सुमारे {back} झाला असता."},
+    "RENT_PAYER": {
+        "en": "You pay rent every month from Kosh. With your salary, a Griha home loan at 8.35% p.a. could turn that rent into your own home. Eligibility is subject to a credit check.",
+        "hi": "आप हर महीने कोष से किराया भरते हैं। आपकी सैलरी के साथ 8.35% सालाना वाला Griha होम लोन वह किराया आपके अपने घर में बदल सकता है। पात्रता क्रेडिट जाँच पर निर्भर है।",
+        "mr": "तुम्ही दरमहा कोषमधून भाडे भरता. तुमच्या पगारासह 8.35% वार्षिक Griha गृहकर्ज ते भाडे तुमच्या स्वतःच्या घरात बदलू शकते. पात्रता क्रेडिट तपासणीवर अवलंबून आहे."},
+    "DIVERSIFY": {
+        "en": "You hold {total} in savings and deposits. A Nivesh demat account with zero brokerage lets you diversify into mutual funds and bonds.",
+        "hi": "आपके पास सेविंग्स और डिपॉज़िट में {total} हैं। ज़ीरो ब्रोकरेज वाला Nivesh डीमैट खाता म्यूचुअल फ़ंड और बॉन्ड में विविधता लाने देता है।",
+        "mr": "तुमच्याकडे बचत आणि ठेवींमध्ये {total} आहेत. शून्य ब्रोकरेज असलेले Nivesh डीमॅट खाते म्युच्युअल फंड आणि बाँडमध्ये विविधता आणू देते."},
+}
+
+
+def _reason(code: str, language: str, **params: str) -> str:
+    return REASONS[code].get(language, REASONS[code]["en"]).format(**params)
+
+
+def _candidates(s: Dict[str, Any], language: str = "en") -> List[Dict[str, Any]]:
     """Rules, most useful first. score: rough customer value, used only for ordering."""
     out = []
     buffer = max(s["everyday_spend_minor"] * 2, 5_000_000)  # keep 2 months of spending (min ₹50,000) liquid
@@ -81,25 +110,20 @@ def _candidates(s: Dict[str, Any]) -> List[Dict[str, Any]]:
     if not s["has_deposit"] and surplus >= 10_000_000:
         yearly = int(surplus * 0.081)
         out.append({"product_id": "PROD-FD-SMART", "reason_code": "IDLE_SAVINGS", "score": yearly,
-                    "reason": f"About {inr(surplus / 100)} sits in savings beyond two months of your spending. "
-                              f"In a Vriddhi FD at 8.10% p.a. it could earn about {inr(yearly / 100)} a year."})
+                    "reason": _reason("IDLE_SAVINGS", language, surplus=inr(surplus / 100), yearly=inr(yearly / 100))})
     if not s["has_credit_card"] and s["monthly_salary_minor"] >= 15_000_000:
         out.append({"product_id": "PROD-CARD-OBSIDIAN", "reason_code": "HIGH_SALARY_NO_CARD", "score": s["monthly_salary_minor"] // 20,
-                    "reason": f"Your salary credits of {inr(s['monthly_salary_minor'] / 100)} a month fit our Vajra metal card: "
-                              "5X rewards, unlimited lounge access and a 1.5% forex markup."})
+                    "reason": _reason("HIGH_SALARY_NO_CARD", language, salary=inr(s["monthly_salary_minor"] / 100))})
     elif not s["has_credit_card"] and s["monthly_salary_minor"] >= 2_500_000 and s["everyday_spend_minor"] >= 500_000:
         back = s["everyday_spend_minor"] * 5 // 100
         out.append({"product_id": "PROD-CARD-CASHBACK", "reason_code": "EVERYDAY_SPEND_NO_CARD", "score": back * 12,
-                    "reason": f"You spent {inr(s['everyday_spend_minor'] / 100)} on groceries, bills and entertainment recently. "
-                              f"With the lifetime-free Neo card, 5% back would have been about {inr(back / 100)}."})
+                    "reason": _reason("EVERYDAY_SPEND_NO_CARD", language, spend=inr(s["everyday_spend_minor"] / 100), back=inr(back / 100))})
     if not s["has_loan"] and s["pays_rent"] and s["monthly_salary_minor"] >= 10_000_000:
         out.append({"product_id": "PROD-LOAN-HOME", "reason_code": "RENT_PAYER", "score": s["monthly_salary_minor"] // 50,
-                    "reason": "You pay rent every month from Kosh. With your salary, a Griha home loan at 8.35% p.a. could turn "
-                              "that rent into your own home. Eligibility is subject to a credit check."})
+                    "reason": _reason("RENT_PAYER", language)})
     if s["has_deposit"] and s["total_balance_minor"] >= 100_000_000:
         out.append({"product_id": "PROD-WEALTH-ALPHA", "reason_code": "DIVERSIFY", "score": s["total_balance_minor"] // 1000,
-                    "reason": f"You hold {inr(s['total_balance_minor'] / 100)} in savings and deposits. A Nivesh demat account "
-                              "with zero brokerage lets you diversify into mutual funds and bonds."})
+                    "reason": _reason("DIVERSIFY", language, total=inr(s["total_balance_minor"] / 100))})
     return sorted(out, key=lambda o: -o["score"])
 
 
@@ -134,7 +158,7 @@ def _suppressed(session, customer_id: str, product_id: str, category: str) -> Op
     return None
 
 
-def next_best_offers(db, customer_id: str, channel: str, *, record: bool = True) -> Dict[str, Any]:
+def next_best_offers(db, customer_id: str, channel: str, *, record: bool = True, language: str = "en") -> Dict[str, Any]:
     """Eligible offers for this customer on this channel, after governance. Records SHOWN once per day."""
     state = db.snapshot()
     if not consented(state, customer_id):
@@ -155,7 +179,7 @@ def next_best_offers(db, customer_id: str, channel: str, *, record: bool = True)
         if channel == "MITRA" and len({e.product_id for e in shown_today}) >= MITRA_DAILY_MAX:
             return {"offers": [], "blocked": "DAILY_CAP"}
         offers = []
-        for candidate in _candidates(facts):
+        for candidate in _candidates(facts, language):
             product = get_product_by_id(candidate["product_id"])
             if not product or _suppressed(session, customer_id, product["id"], product["category"]):
                 continue
@@ -193,6 +217,21 @@ def attribute_lead(db, customer_id: Optional[str], product_id: Optional[str], le
         return True
 
 
+INSTANT_PRODUCTS = {"PROD-FD-SMART": "deposit"}  # opened straight-through by the customer; no officer lead needed
+
+
+def record_conversion(db, customer_id: str, product_id: str, reference: str) -> bool:
+    """The customer completed the product itself (e.g. an instant FD) within 30 days of applying from an offer."""
+    with db.runtime.sessions.begin() as session:
+        applied = session.scalar(select(OfferEventRecord.channel).where(
+            OfferEventRecord.customer_id == customer_id, OfferEventRecord.product_id == product_id, OfferEventRecord.event == "APPLIED",
+            OfferEventRecord.created_at >= _now() - timedelta(days=CAP_WINDOW_DAYS)).order_by(OfferEventRecord.created_at.desc()).limit(1))
+        if not applied:
+            return False
+        _record(session, customer_id, product_id, applied, "CONVERTED", reference=reference)
+        return True
+
+
 def funnel(db, days: int = 30) -> Dict[str, Any]:
     """Distinct customers at each stage, per product and channel. APPROVED = an officer approved the offer's lead."""
     since = _now() - timedelta(days=days)
@@ -204,7 +243,7 @@ def funnel(db, days: int = 30) -> Dict[str, Any]:
     rows: Dict[tuple, Dict[str, set]] = {}
     for e in events:
         stages = rows.setdefault((e.product_id, e.channel), {k: set() for k in ("SHOWN", "CLICKED", "APPLIED", "APPROVED", "DISMISSED")})
-        stages[e.event].add(e.customer_id)
+        stages["APPROVED" if e.event == "CONVERTED" else e.event].add(e.customer_id)
         if e.event == "APPLIED":
             stages["CLICKED"].add(e.customer_id)  # applying implies interest, so the funnel never narrows upwards
             if e.reference in approved:

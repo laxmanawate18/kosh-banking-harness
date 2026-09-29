@@ -15,6 +15,7 @@ from backend.settings import DEFAULT_LOCATION, DEFAULT_MODEL, DEFAULT_PROJECT_ID
 from banking_db import db
 from banking_tools import BANKING_TOOL_NAMES, build_banking_tools
 from product_service import (
+    redact_attributed_competitors,
     PUBLIC_SALES_TOOL_NAMES,
     VISITOR_APPLICATION_TOOL_NAMES,
     SalesSessionContext,
@@ -454,7 +455,7 @@ async def visitor_reply(agent: Agent, prompt: str, sales_context: SalesSessionCo
     parts = task.result()
     if not parts:
         raise RuntimeError("The advisor returned an empty response")
-    text = "".join(parts)
+    text = redact_attributed_competitors("".join(parts))
     reason = validate_sales_response(text, sales_context)
     sales_context.last_reason = reason
     if reason:
