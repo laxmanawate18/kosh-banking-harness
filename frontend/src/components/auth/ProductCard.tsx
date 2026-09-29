@@ -15,7 +15,6 @@ const ICON: Record<string, FeatureIconName> = { savings: 'savings', cards: 'card
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onApply, onAskAI }) => {
   const { t } = useI18n();
   const perks = [product.min_balance, product.joining_fee, product.tenure_range, product.welcome_bonus].filter(Boolean) as string[];
-  const cmp = product.competitor_comparison;
   return (
     <article className={`k-product reveal fi-host ${product.featured ? 'featured' : ''}`}>
       <header>
@@ -39,15 +38,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onApply, onAs
       <ul className="k-product-features">
         {product.features.map((f, i) => <li key={i}><Icon name="check" />{f}</li>)}
       </ul>
-
-      {cmp?.kosh && (
-        <details className="k-product-compare">
-          <summary><Icon name="chevron-right" /> {t('How Kosh compares')}</summary>
-          <div><b>Kosh</b> {cmp.kosh}</div>
-          {cmp.hdfc && <div><b>HDFC</b> {cmp.hdfc}</div>}
-          {cmp.sbi && <div><b>SBI</b> {cmp.sbi}</div>}
-        </details>
-      )}
 
       {product.fact_metadata && (
         <p className="k-product-fine">{t('Reviewed {date}.', { date: product.fact_metadata.last_reviewed_at })} {product.disclosure}</p>

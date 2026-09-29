@@ -8,7 +8,6 @@ export interface Product {
   badge?: string;
   featured?: boolean;
   features: string[];
-  competitor_comparison?: Record<string, string>;
   min_balance?: string;
   interest_payout?: string;
   welcome_bonus?: string;

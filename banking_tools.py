@@ -1003,7 +1003,7 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
                 home_amt_str = inr(amount_minor / 100, 2) if amount_minor else "₹25,00,000"
                 prod_id = "PROD-LOAN-HOME"
                 title = "Kosh Griha Green Home Loan"
-                badge = "Pre-Approved Special"
+                badge = "Special Rate"
                 headline_rate = "8.35% p.a."
                 special_offer = "Exclusive rate: 8.35% p.a. (Special 0.25% green discount) + Zero balance transfer fee"
                 follow_up_pitch = f"Last time you explored a Home Loan of {home_amt_str}. Our rate has just dropped to 8.35% p.a. with zero transfer fees!"
@@ -1013,11 +1013,11 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
                 title = "Kosh Express Personal Loan"
                 badge = "Festive Rate Cut"
                 headline_rate = "10.25% p.a."
-                special_offer = "Exclusive pre-approved rate: 10.25% p.a. (Reduced from 12.50%) + Zero foreclosure fees after 12 EMIs"
-                follow_up_pitch = f"Last time you inquired about a Personal Loan of {loan_amt_str}. We have a special pre-approved rate of 10.25% p.a. with zero foreclosure fees!"
+                special_offer = "Special rate from 10.25% p.a. + zero foreclosure fees after 12 EMIs (subject to credit assessment)"
+                follow_up_pitch = f"Last time you inquired about a Personal Loan of {loan_amt_str}. Our special rate starts at 10.25% p.a. with zero foreclosure fees!"
                 key_perks = ["10-Minute paperless disbursal straight to your account", "Zero pre-closure charges after 12 EMIs"]
             options = [
-                {"label": "⚡ Check Pre-Approved Offer", "prompt": f"Check my pre-approved offer and EMI for {title}"},
+                {"label": "⚡ Check Rate & EMI", "prompt": f"Show the rate and EMI for {title}"},
                 {"label": "📋 Start 2-Min Application", "prompt": f"I want to apply for the {title}"},
             ]
         elif "CARD" in cat_upper:
@@ -1039,7 +1039,7 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
                 follow_up_pitch = "Last time you checked credit cards. The Kosh Neo Card is lifetime free with flat 5% cashback on everyday spends!"
                 key_perks = ["Flat 5.0% instant cashback credited to account", "Lifetime free with zero annual fees", "1% fuel surcharge waiver"]
             options = [
-                {"label": "✨ Check Pre-Approved Limit", "prompt": f"What is my pre-approved credit limit for {title}?"},
+                {"label": "✨ Check Eligibility", "prompt": f"Am I likely to be eligible for {title}?"},
                 {"label": "💳 Apply for this Card", "prompt": f"I would like to apply for the {title}"},
             ]
         elif "DEPOSIT" in cat_upper or "FD" in cat_upper:

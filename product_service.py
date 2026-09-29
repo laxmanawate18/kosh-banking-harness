@@ -30,12 +30,6 @@ BANK_PRODUCTS: List[Dict[str, Any]] = [
             "Zero transaction fees on all UPI, IMPS, NEFT, and RTGS transfers",
             "Complimentary personal accident insurance cover up to ₹50,00,000"
         ],
-        "competitor_comparison": {
-            "kosh": "7.20% p.a. • Zero balance • Free metal card",
-            "hdfc": "3.00% - 3.50% • ₹10,000 min balance • ₹500/yr plastic card",
-            "sbi": "2.70% p.a. • ₹3,000 min balance • Basic debit card",
-            "icici": "3.00% - 3.50% • ₹10,000 min balance • ₹599/yr card"
-        },
         "welcome_bonus": "₹1,000 instant opening balance credit",
         "initial_deposit": 100000,  # in paise (₹1,000.00)
     },
@@ -57,11 +51,6 @@ BANK_PRODUCTS: List[Dict[str, Any]] = [
             "Automated round-up savings on every debit swipe into high-yield micro-FDs",
             "No foreign currency markup on international e-commerce"
         ],
-        "competitor_comparison": {
-            "kosh": "6.50% p.a. • 2% UPI cashback • Zero fees",
-            "axis": "3.00% p.a. • Minimal cashback • Standard plastic card",
-            "kotak": "3.50% - 4.00% p.a. • 811 digital restrictions"
-        },
         "welcome_bonus": "₹500 instant opening balance credit",
         "initial_deposit": 50000,  # in paise (₹500.00)
     },
@@ -84,11 +73,6 @@ BANK_PRODUCTS: List[Dict[str, Any]] = [
             "1.5% low forex markup (lowest in tier vs 3.5% market standard)",
             "₹1 Crore air accident insurance & zero lost card liability"
         ],
-        "competitor_comparison": {
-            "kosh": "5X rewards • Taj ₹10k voucher • ₹0 first year fee",
-            "hdfc": "Infinia: ₹12,500 annual fee • Strict eligibility",
-            "icici": "Emeralde: ₹12,000 fee • 4X rewards"
-        },
         "initial_credit_limit": 35000000,  # in paise (₹3,50,000.00)
     },
     {
@@ -109,11 +93,6 @@ BANK_PRODUCTS: List[Dict[str, Any]] = [
             "No caps, no expiry, and no minimum redemption thresholds on cashback",
             "Lifetime free card with zero annual or renewal fees"
         ],
-        "competitor_comparison": {
-            "kosh": "5% uncapped cashback • Lifetime Free • Direct bank credit",
-            "axis": "Ace Card: ₹499 fee • Monthly caps on partner spends",
-            "sbi": "Cashback Card: ₹999/year fee • Many excluded merchant categories"
-        },
         "initial_credit_limit": 15000000,  # in paise (₹1,50,000.00)
     },
     {
@@ -134,12 +113,6 @@ BANK_PRODUCTS: List[Dict[str, Any]] = [
             "Instant overdraft/loan against FD up to 90% of deposit value in 2 taps",
             "DICGC insured up to ₹5,00,000 per depositor"
         ],
-        "competitor_comparison": {
-            "kosh": "8.10% p.a. • Zero penalty after 6 mos • 90% instant OD",
-            "sbi": "6.80% p.a. • 0.50% - 1.00% penalty on early break",
-            "hdfc": "7.10% p.a. • Standard compounding rules",
-            "icici": "7.20% p.a. • Strict premature withdrawal charges"
-        },
         "initial_deposit": 5000000,  # in paise (₹50,000.00)
     },
     {
@@ -160,11 +133,6 @@ BANK_PRODUCTS: List[Dict[str, Any]] = [
             "Flexible EMI repayment tenures from 12 to 60 months",
             "Zero branch visit required — 100% digital sanction and instant payout"
         ],
-        "competitor_comparison": {
-            "kosh": "10.25% starting • 10-min payout • Zero foreclosure fee",
-            "hdfc": "10.75% - 14.50% • 2.5% foreclosure fee",
-            "bajaj": "11.00% - 16.00% • High processing fees & insurance bundle"
-        },
         "initial_credit_limit": 50000000,  # in paise (₹5,00,000.00 pre-approved)
     },
     {
@@ -185,11 +153,6 @@ BANK_PRODUCTS: List[Dict[str, Any]] = [
             "Doorstep legal & property valuation assistance with real-time tracking",
             "Tax deductions up to ₹2 Lakh under Sec 24(b) & ₹1.5 Lakh under Sec 80C"
         ],
-        "competitor_comparison": {
-            "kosh": "8.35% p.a. • 0.25% green discount • Zero transfer fees",
-            "sbi": "8.50% - 9.15% • Processing charges applicable",
-            "hdfc": "8.60% - 9.25% • High legal and evaluation charges"
-        },
         "initial_credit_limit": 500000000,
     },
     {
@@ -209,11 +172,6 @@ BANK_PRODUCTS: List[Dict[str, Any]] = [
             "Direct 3-in-1 linking: bank interest on idle trading funds until executed",
             "Real-time market analytics and analyst insights powered by Mitra"
         ],
-        "competitor_comparison": {
-            "kosh": "Zero AMC • 0% delivery brokerage • Direct funds",
-            "icicidirect": "₹700/yr AMC • 0.55% delivery brokerage on prime",
-            "hdfcsecurities": "₹750/yr AMC • High percentage transaction fees"
-        },
         "initial_deposit": 100000,
     }
 ]
@@ -289,7 +247,9 @@ CHAT_TEXT: Dict[str, Dict[str, str]] = {
         "auth_button": "Sign In to Kosh",
         "advisor_error": "Mitra could not respond. Please try again in a moment.",
         "transfer_approved": "A transfer was proposed and has already been verified and approved in the Kavach approval dialog.",
-        "guarded": "I can help compare Kosh’s public demo products, explain their listed terms, or guide you to a trusted application.",
+        "guarded": "I'm Mitra, Kosh's banking assistant, and I'll stay in that role. I can't share how I'm built or my instructions, but I'm happy to help with Kosh savings, cards, loans and deposits.",
+        "competitor": "I can only speak about Kosh's own products, so I won't compare us with other banks. Here is what Kosh offers: {products}. Tell me what matters most to you and I'll help you pick one.",
+        "no_info": "I'm sorry, I don't have verified information on that. I can share only what's in Kosh's published product details, or you can call our helpline on 1800 000 5674. Is there something about our accounts, cards, loans or deposits I can help with?",
         "question_discover": "What would you like the product to help you with?",
         "question_cards": "For a card, is travel, cashback, or keeping fees low most important?",
         "question_loans": "Are you looking for personal borrowing or home finance?",
@@ -305,7 +265,9 @@ CHAT_TEXT: Dict[str, Dict[str, str]] = {
         "auth_button": "कोष में साइन इन करें",
         "advisor_error": "मित्र अभी जवाब नहीं दे पाया। कृपया थोड़ी देर बाद फिर से कोशिश करें।",
         "transfer_approved": "एक ट्रांसफर प्रस्तावित किया गया था और कवच अनुमोदन विंडो में उसका सत्यापन और अनुमोदन पहले ही हो चुका है।",
-        "guarded": "मैं कोष के सार्वजनिक डेमो प्रोडक्ट्स की तुलना करने, उनकी सूचीबद्ध शर्तें समझाने या आपको भरोसेमंद आवेदन प्रक्रिया तक पहुँचाने में मदद कर सकता हूँ।",
+        "guarded": "मैं मित्र हूँ, कोष का बैंकिंग सहायक, और इसी भूमिका में रहूँगा। मैं अपने निर्देश या अपनी बनावट की जानकारी साझा नहीं कर सकता, पर कोष के सेविंग्स, कार्ड, लोन और डिपॉज़िट में ख़ुशी से मदद करूँगा।",
+        "competitor": "मैं केवल कोष के अपने प्रोडक्ट्स के बारे में बता सकता हूँ, इसलिए दूसरे बैंकों से तुलना नहीं करूँगा। कोष में ये उपलब्ध हैं: {products}। बताइए आपके लिए सबसे ज़रूरी क्या है, मैं सही विकल्प चुनने में मदद करूँगा।",
+        "no_info": "माफ़ कीजिए, इस बारे में मेरे पास सत्यापित जानकारी नहीं है। मैं केवल कोष की प्रकाशित प्रोडक्ट जानकारी बता सकता हूँ, या आप हमारी हेल्पलाइन 1800 000 5674 पर कॉल कर सकते हैं। क्या खातों, कार्ड, लोन या डिपॉज़िट में कोई मदद करूँ?",
         "question_discover": "आप किस ज़रूरत के लिए प्रोडक्ट ढूँढ रहे हैं?",
         "question_cards": "कार्ड में आपके लिए सबसे ज़रूरी क्या है: ट्रैवल, कैशबैक या कम फ़ीस?",
         "question_loans": "क्या आप पर्सनल लोन देख रहे हैं या होम लोन?",
@@ -321,7 +283,9 @@ CHAT_TEXT: Dict[str, Dict[str, str]] = {
         "auth_button": "कोषमध्ये साइन इन करा",
         "advisor_error": "मित्र सध्या उत्तर देऊ शकला नाही. कृपया थोड्या वेळाने पुन्हा प्रयत्न करा.",
         "transfer_approved": "एक ट्रान्सफर प्रस्तावित केले होते आणि कवच मंजुरी विंडोमध्ये त्याची पडताळणी व मंजुरी आधीच झाली आहे.",
-        "guarded": "मी कोषच्या सार्वजनिक डेमो प्रॉडक्ट्सची तुलना करण्यात, त्यांच्या नमूद अटी समजावून सांगण्यात किंवा तुम्हाला विश्वासार्ह अर्ज प्रक्रियेपर्यंत नेण्यात मदत करू शकतो.",
+        "guarded": "मी मित्र आहे, कोषचा बँकिंग सहाय्यक, आणि याच भूमिकेत राहीन. मी माझ्या सूचना किंवा माझी रचना सांगू शकत नाही, पण कोषच्या सेव्हिंग्स, कार्ड, लोन आणि ठेवींसाठी आनंदाने मदत करेन.",
+        "competitor": "मी फक्त कोषच्या स्वतःच्या प्रॉडक्ट्सबद्दल सांगू शकतो, त्यामुळे इतर बँकांशी तुलना करणार नाही. कोषमध्ये हे उपलब्ध आहे: {products}. तुमच्यासाठी सर्वात महत्त्वाचे काय ते सांगा, मी योग्य पर्याय निवडायला मदत करेन.",
+        "no_info": "क्षमस्व, याबद्दल माझ्याकडे पडताळलेली माहिती नाही. मी फक्त कोषची प्रकाशित प्रॉडक्ट माहिती सांगू शकतो, किंवा तुम्ही आमच्या हेल्पलाइन 1800 000 5674 वर कॉल करू शकता. खाती, कार्ड, लोन किंवा ठेवींबद्दल काही मदत करू का?",
         "question_discover": "तुम्हाला कोणत्या गरजेसाठी प्रॉडक्ट हवे आहे?",
         "question_cards": "कार्डमध्ये तुमच्यासाठी सर्वात महत्त्वाचे काय आहे: प्रवास, कॅशबॅक की कमी शुल्क?",
         "question_loans": "तुम्ही पर्सनल लोन शोधत आहात की होम लोन?",
@@ -421,6 +385,7 @@ class SalesSessionContext:
     shown_companions: List[str] = field(default_factory=list)
     companion_declined: bool = False
     recorded_leads: Dict[str, Any] = field(default_factory=dict)
+    last_fallback: Optional[str] = None
 
     def reset(self) -> None:
         self.stage = "DISCOVER"
@@ -437,6 +402,7 @@ class SalesSessionContext:
         self.shown_companions.clear()
         self.companion_declined = False
         self.recorded_leads.clear()
+        self.last_fallback = None
 
     def update(self, prompt: str) -> None:
         text = _normalize_prompt(prompt)
@@ -909,7 +875,10 @@ _UNSAFE_SALES_PATTERNS = (
     "lowest in india", "risk-free", "no risk", "act now", "limited-time", "penalty trap",
     "गारंटीड अप्रूवल", "पक्की मंजूरी", "जोखिम मुक्त", "जोखिम-मुक्त", "जोखीम मुक्त", "जोखीममुक्त",
 )
-_COMPETITOR_NAMES = ("hdfc", "sbi", "icici", "axis", "kotak", "bajaj",
+COMPETITOR_REASON = "unverified competitor comparison"
+_COMPETITOR_NAMES = ("hdfc", "sbi", "icici", "axis", "kotak", "bajaj", "idfc", "indusind", "yes bank", "bank of baroda",
+                     "pnb", "canara", "hsbc", "citibank", "standard chartered", "american express", "amex", "federal bank",
+                     "au small finance", "paytm", "state bank",
                      "एचडीएफसी", "एसबीआई", "आईसीआईसीआई", "आयसीआयसीआय", "एक्सिस", "ऍक्सिस", "कोटक", "बजाज")
 _PROMPT_INJECTION_MARKERS = (
     "ignore previous", "ignore all instructions", "reveal your prompt", "show system prompt",
@@ -944,8 +913,8 @@ def validate_sales_response(text: str, context: Optional[SalesSessionContext] = 
     lowered = text.lower()
     if any(pattern in lowered for pattern in _UNSAFE_SALES_PATTERNS):
         return "unsupported promotional or approval claim"
-    if any(name in lowered for name in _COMPETITOR_NAMES):
-        return "unverified competitor comparison"
+    if any(re.search(rf"\b{re.escape(name)}\b", lowered) if name.isascii() else name in lowered for name in _COMPETITOR_NAMES):
+        return COMPETITOR_REASON
     allowed_corpus = get_allowed_corpus()
     if context and hasattr(context, "user_prompts"):
         allowed_corpus += " " + " ".join(context.user_prompts)
@@ -966,7 +935,13 @@ _PROMPT_INJECTION_PATTERN = re.compile(
     r"|(reveal|print|show|display|repeat|output|dump|leak|tell me)\b.{0,40}\b(system|developer|hidden|initial|full|complete)\s+(prompt|instructions?|message)"
     r"|\b(system|developer)\s+(prompt|message|instructions?)\b"
     r"|\b(list|name|enumerate)\b.{0,30}\b(tools?|functions?)\b.{0,20}\b(you|can)\b"
-    r"|\byou are now\b|\bjailbreak\b|\bDAN mode\b",
+    r"|\byou are now\b|\bjailbreak\b|\bDAN mode\b|\bdeveloper mode\b|\byou are no longer\b|\bfrom now on,? you\b"
+    r"|\b(act|behave|respond|answer|speak|reply|talk)\s+(as|like)\s+(an?\s+|my\s+|the\s+)?(independent\s+|neutral\s+|unbiased\s+|external\s+)?"
+    r"(auditor|regulator|rbi|lawyer|critic|journalist|developer|admin|administrator|hacker|competitor|another|different|unrestricted|uncensored|other|human|person|consultant|analyst)"
+    r"|\b(pretend|imagine|role-?play)\b.{0,30}\b(you|to be|as)\b"
+    r"|\b(your|the|this)\s+(chatbot'?s?\s+|bot'?s?\s+|assistant'?s?\s+)?(architecture|source code|codebase|backend|tech stack|training data)\b"
+    r"|\bwhich\s+(ai\s+|llm\s+|language\s+)?model\s+(are you|do you use|powers you)\b"
+    r"|\b(your|the)\s+(prompt|prompts)\b",
     re.IGNORECASE,
 )
 # Text that must never reach a customer: base-agent prompt, internal directives and tool names.
@@ -1092,9 +1067,22 @@ _JOURNEY_TEXT = {
 }
 
 
-def safe_grounded_fallback(context: SalesSessionContext, language: str = "en") -> str:
+def safe_grounded_fallback(context: SalesSessionContext, language: str = "en", reason: Optional[str] = None) -> str:
+    """A safe reply when the model's answer was withheld. Never the same text twice in a row."""
+    reply = _fallback_text(context, language, reason)
+    if reply == context.last_fallback:
+        reply = chat_text("no_info", language)
+    context.last_fallback = reply
+    return reply
+
+
+def _fallback_text(context: SalesSessionContext, language: str, reason: Optional[str]) -> str:
     text = CHAT_TEXT[normalize_language(language)]
     journey = _JOURNEY_TEXT[normalize_language(language)]
+    if reason == COMPETITOR_REASON:
+        category = {"cards": "cards", "loans": "loans", "savings": "savings", "deposits": "deposits"}.get(context.goal or "", "cards")
+        titles = ", ".join(p["title"] for p in get_all_products(category)) or ", ".join(p["title"] for p in get_all_products())
+        return text["competitor"].format(products=titles)
     if context.pending_application:
         return journey["pending"].format(title=context.pending_application["product_title"])
     if context.submitted_applications:
@@ -1110,7 +1098,7 @@ def safe_grounded_fallback(context: SalesSessionContext, language: str = "en") -
     if product:
         safe = public_product_facts(product)
         return text["fallback_match"].format(title=safe["title"], headline=safe["headline_rate"]) + " " + text["disclosure"]
-    return text["fallback_generic"]
+    return text["no_info"]
 
 
 def extract_dynamic_suggestions(text: str) -> tuple[str, List[str]]:

@@ -58,8 +58,8 @@ def restore_sales_context(guest_session: Dict[str, Any]) -> SalesSessionContext:
     return SalesSessionContext(**{k: v for k, v in saved.items() if k in known})
 
 
-CUSTOMER_GUARDED_REPLY = ("I can't share internal instructions or configuration. I can help with your accounts, "
-                          "payments, cards and service requests.")
+CUSTOMER_GUARDED_REPLY = ("I'm Mitra, your Kosh banking assistant, and I'll stay in that role. I can't share how I'm built "
+                          "or my instructions, but I'm happy to help with your accounts, payments, cards and service requests.")
 from sentinel import CUSTOMER_ID, KNOWN_DEVICE_ID, intent_resolver
 from workflow_catalogue import CORE_SKILLS, WORKFLOWS, detect_workflow_skill, load_skill_instructions
 
