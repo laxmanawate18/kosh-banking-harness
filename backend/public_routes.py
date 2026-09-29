@@ -1,40 +1,21 @@
-"""Signed-out product catalogue, onboarding, and sales-chat routes."""
+"""Signed-out product catalogue, onboarding, application tracking, voice and feedback routes."""
 
 from __future__ import annotations
 
 import os
-import uuid
-from typing import Callable
-
-try:
-    from asyncio import timeout as async_timeout
-except ImportError:
-    from async_timeout import timeout as async_timeout
-
+from asyncio import timeout as async_timeout
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from backend import voice
-from backend.agent_config import create_agent_config, visitor_reply
-from backend.api_models import ApplicationStatusRequest, ProductApplyRequest, PublicChatRequest, SpeakRequest
+from backend.api_models import ApplicationStatusRequest, ProductApplyRequest, SpeakRequest
 from backend.applications import application_status, bind as bind_applications, submit_application
 from auth_service import AuthService
-from product_service import (
-    SalesSessionContext,
-    auth_challenge_presentation,
-    chat_text,
-    extract_dynamic_suggestions,
-    get_all_products,
-    guarded_sales_prompt_reply,
-    is_auth_required_reply,
-    is_personal_banking_inquiry,
-    leaks_internal_prompt,
-    sales_advisor,
-)
+from product_service import get_all_products
 
 
-def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Callable):
+def make_public_router(db, auth_service: AuthService, limiter):
     router = APIRouter()
     bind_applications(db, auth_service)
 
@@ -161,47 +142,5 @@ def make_public_router(db, auth_service: AuthService, limiter, agent_factory: Ca
         if not text:
             raise HTTPException(422, "Mitra could not hear any speech. Please try again closer to the microphone.")
         return {"text": text[:4000]}
-
-    @router.post("/api/public/chat")
-    @limiter.limit("30/minute")
-    async def public_sales_chat(req: PublicChatRequest, request: Request, response: Response):
-        del response
-        if not req.prompt.strip():
-            raise HTTPException(422, "Enter a non-empty message.")
-        sales_context = SalesSessionContext()
-        answer = sales_advisor.answer_query(req.prompt, context=sales_context)
-        try:
-            async with async_timeout(90):
-                guarded = guarded_sales_prompt_reply(req.prompt)
-
-                if guarded:
-                    answer["text"] = guarded
-                elif is_personal_banking_inquiry(req.prompt):
-                    answer["text"] = chat_text("auth_prompt")
-                    answer["presentation"] = auth_challenge_presentation()
-                    answer["action"] = None
-                else:
-                    async with agent_factory(create_agent_config(
-                        "public-chat", visitor=True, session_context={"sales_context": sales_context}
-                    )) as agent:
-                        raw_reply = "".join([
-                            text async for text in visitor_reply(agent, req.prompt, sales_context)
-                        ])
-                    clean_reply, suggestions = extract_dynamic_suggestions(raw_reply)
-                    answer["text"] = chat_text("guarded") if leaks_internal_prompt(clean_reply) else clean_reply
-                    if suggestions:
-                        answer["suggested_queries"] = suggestions
-                    if answer.get("companion_cross_sell"):
-                        answer["presentation"] = answer["companion_cross_sell"]
-                    if is_auth_required_reply(answer.get("text", "")):
-                        answer["presentation"] = auth_challenge_presentation()
-                        answer["action"] = None
-        except Exception as exc:
-            raise HTTPException(503, chat_text("advisor_error")) from exc
-        return {
-            "role": "assistant",
-            "session_id": req.session_id or f"GUEST-{uuid.uuid4().hex[:8]}",
-            "response": answer,
-        }
 
     return router

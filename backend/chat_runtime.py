@@ -293,28 +293,44 @@ async def serve_visitor_websocket(
                 preface = care.text("self_harm", language) if "SELF_HARM" in intents else ""
                 if preface:
                     await websocket.send_json({"type": "text_delta", "text": preface + "\n\n", "turn_id": turn_id})
+                shown = []
+
+                async def stream_reply() -> str:
+                    async for kind, text in visitor_reply(agent, prompt, sales_context, language, directive):
+                        if kind == "delta":
+                            shown.append(text)
+                            await websocket.send_json({"type": "text_delta", "text": text, "turn_id": turn_id})
+                        else:
+                            return text
+                    return ""
+
                 try:
-                    full_reply = [text async for text in visitor_reply(agent, prompt, sales_context, language, directive)]
+                    final_reply = await stream_reply()
                     logger.info("visitor turn timing: agent_start=%.1fs reply=%.1fs", reply_started - agent_started, time.time() - reply_started)
                 except TimeoutError:
+                    if shown:  # part of the answer is already on screen; a retry would repeat it
+                        raise
                     # The agent connection occasionally stalls; retry once on a fresh one (submissions are idempotent).
                     await agent.__aexit__(None, None, None)
                     agent = await fresh_agent()
-                    full_reply = [text async for text in visitor_reply(agent, prompt, sales_context, language, directive)]
+                    final_reply = await stream_reply()
                 for product_id in set(sales_context.submitted_applications) - submitted_before:
                     record = sales_context.submitted_applications[product_id]
                     await present({"type": "APPLICATION_SUBMITTED", "title": record["product_title"],
                                    "application_ref": record["application_ref"], "status": record["status"],
                                    "next_steps": record["next_steps"], "email": record["email"]})
-                combined_reply, suggestions = extract_dynamic_suggestions("".join(full_reply))
-                if leaks_internal_prompt(combined_reply):
-                    combined_reply = chat_text("guarded", language)
+                combined_reply, suggestions = extract_dynamic_suggestions(final_reply)
                 combined_reply = care.with_disclaimers(combined_reply, language)
-                if preface:
-                    combined_reply = preface + "\n\n" + combined_reply
                 if suggestions:
                     sales_action["suggested_queries"] = suggestions
-                await websocket.send_json({"type": "text_delta", "text": combined_reply[len(preface) + 2:] if preface else combined_reply, "turn_id": turn_id})
+                streamed = "".join(shown).rstrip()  # the final text drops the newlines before the SUGGESTIONS line
+                if combined_reply.startswith(streamed):  # the unreleased tail, the market-risk note, or the whole reply
+                    if combined_reply[len(streamed):]:
+                        await websocket.send_json({"type": "text_delta", "text": combined_reply[len(streamed):], "turn_id": turn_id})
+                else:  # the rest was withheld: replace what was shown with the safe reply
+                    await websocket.send_json({"type": "text_replace", "text": (preface + "\n\n" if preface else "") + combined_reply, "turn_id": turn_id})
+                if preface:
+                    combined_reply = preface + "\n\n" + combined_reply
                 # A submitted applicant is told they will sign in later; that is not a request for personal data.
                 if is_auth_required_reply(combined_reply) and not sales_context.submitted_applications:
                     auth_challenge_triggered = True

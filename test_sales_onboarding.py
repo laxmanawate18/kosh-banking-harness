@@ -76,20 +76,6 @@ class SalesOnboardingTests(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(db.snapshot(), before)
 
-    @patch("dev_ui.Agent", FakeVisitorAgent)
-    def test_public_sales_chat_endpoint(self):
-        """Verify REST public chat endpoint allows non-relationship visitors to consult AI."""
-        payload = {
-            "prompt": "What are your fixed deposit rates and why should I choose Sentinel?",
-            "session_id": "test-guest-session-123"
-        }
-        res = self.client.post("/api/public/chat", json=payload)
-        self.assertEqual(res.status_code, 200)
-        data = res.json()
-        self.assertEqual(data["role"], "assistant")
-        self.assertIn("response", data)
-        self.assertIn("8.10% p.a.", data["response"]["text"])
-
     def test_savings_application_is_queued_without_creating_a_customer(self):
         """The public form records a lead for officer review; no customer, account or login exists yet."""
         phone = f"+9198{uuid.uuid4().int % 100000000:08d}"
@@ -158,11 +144,13 @@ class SalesOnboardingTests(unittest.TestCase):
             self.assertEqual(delta_msg["type"], "text_delta")
             self.assertTrue(delta_msg["text"].startswith("LLM answer:"))
 
-            # Optional companion card and sales action, then turn complete
+            # The reply streams in checked sentences; then optional companion card and sales action, then turn complete
             rest = [ws.receive_json()]
             while rest[-1]["type"] != "turn_complete":
                 rest.append(ws.receive_json())
-            self.assertTrue(set(m["type"] for m in rest) <= {"presentation", "sales_action", "message_saved", "turn_complete"})
+            self.assertTrue(set(m["type"] for m in rest) <= {"text_delta", "presentation", "sales_action", "message_saved", "turn_complete"})
+            streamed = delta_msg["text"] + "".join(m.get("text", "") for m in rest if m["type"] == "text_delta")
+            self.assertEqual(streamed, "LLM answer: demo rates are 7.20% and 8.10% p.a.")
             action = next((m for m in rest if m["type"] == "sales_action"), None)
             if action:
                 self.assertIn("products", action)

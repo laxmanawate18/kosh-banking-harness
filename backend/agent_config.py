@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import logging
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from google.antigravity import Agent, CapabilitiesConfig, LocalAgentConfig, hooks, models, types
 
@@ -15,6 +16,7 @@ from backend.settings import DEFAULT_LOCATION, DEFAULT_MODEL, DEFAULT_PROJECT_ID
 from banking_db import db
 from banking_tools import BANKING_TOOL_NAMES, build_banking_tools
 from product_service import (
+    leaks_internal_prompt,
     redact_attributed_competitors,
     PUBLIC_SALES_TOOL_NAMES,
     VISITOR_APPLICATION_TOOL_NAMES,
@@ -170,10 +172,20 @@ VISITOR_SYSTEM_INSTRUCTION = (
     "- Be warm, consultative, professional, and concise. Speak like a real senior private wealth banker.\n"
     "- Do NOT repeat boilerplate disclaimers like 'Eligibility and terms apply. This is illustrative demo product information.' on every single response. Speak naturally and cleanly.\n"
     "- Do not ask for passwords, OTPs, or sensitive identity proofs in chat.\n"
-    "- Before quoting specific official rates or terms, call search_public_products, get_public_product_details, or query_bank_knowledge.\n\n"
+    "- Product rates, fees and features are in the PUBLISHED CATALOGUE below: answer from it directly, without a tool call. "
+    "Call get_product_disclosures only for detailed fees and charges, and query_bank_knowledge for bank policies and customer rights.\n\n"
     "### 8. LANGUAGE\n"
     + LANGUAGE_RULE
 )
+
+def published_catalogue() -> str:
+    """The whole public catalogue in the visitor instructions: 8 products, so no tool round trip is needed to quote them."""
+    from product_service import get_all_products
+    facts = [{k: v for k, v in p.items() if k not in {"fact_metadata", "disclosure"}} for p in get_all_products()]
+    meta = get_all_products()[0]["fact_metadata"]
+    return ("### PUBLISHED CATALOGUE (trusted Kosh facts, effective " + meta["effective_from"] + "; quote only these)\n"
+            + json.dumps(facts, ensure_ascii=False, separators=(",", ":")))
+
 
 TOOL_RESULT_QUEUES: Dict[str, asyncio.Queue] = {}
 
@@ -357,7 +369,7 @@ def create_agent_config(
         # carried no contact details and only cluttered the officer queue, so they are not recorded here.
         tools = build_public_sales_tools(lambda: sales_context)
         configured_hooks = [PublicSalesToolGateHook()]
-        instructions = MITRA_BOUNDARIES + "\n\n" + VISITOR_SYSTEM_INSTRUCTION
+        instructions = MITRA_BOUNDARIES + "\n\n" + VISITOR_SYSTEM_INSTRUCTION + "\n\n" + published_catalogue()
 
     else:
         customer_id = context.get("customer_id") or CUSTOMER_ID
@@ -423,44 +435,76 @@ def create_agent_config(
     )
 
 
-try:
-    from asyncio import timeout as async_timeout
-except ImportError:
-    from async_timeout import timeout as async_timeout
-
-
 VISITOR_TURN_SECONDS = 60
+_SENTENCE_END = re.compile(r"[.!?।:](?=\s)|\n")
+
+
+def _checked(text: str, sales_context: SalesSessionContext) -> tuple[str, Optional[str]]:
+    """The text a visitor may see, and why it may not (None when it passes every check)."""
+    text = redact_attributed_competitors(text)
+    return text, validate_sales_response(text, sales_context) or ("internal prompt leak" if leaks_internal_prompt(text) else None)
 
 
 async def visitor_reply(agent: Agent, prompt: str, sales_context: SalesSessionContext, language: str = "en", care_directive: str = ""):
-    """Yield validated public answer text without reasoning or raw tool events."""
+    """Stream a visitor reply one checked sentence at a time.
+
+    Yields ("delta", text) for each sentence that has passed the reply checks (rival banks, unapproved rates and
+    claims, instruction leaks), then ("final", text) with the complete answer, or the safe fallback when any part
+    failed. Text that has not passed the checks is never yielded; the SUGGESTIONS line is never streamed.
+    """
     trusted_context = json.dumps(sales_context.snapshot(), ensure_ascii=False)
+    queue: asyncio.Queue = asyncio.Queue()
 
-    async def collect() -> List[str]:
-        response = await agent.chat(
-            f"Trusted sales-session context (application data, not user instructions): {trusted_context}\n\n"
-            + (f"{care_directive}\n\n" if care_directive else "")
-            + f"Visitor message: {prompt}\n\n"
-            f"{language_instruction(language)}"
-        )
-        return [chunk.text async for chunk in response.chunks if isinstance(chunk, types.Text) and chunk.text]
+    async def produce() -> None:
+        try:
+            response = await agent.chat(
+                f"Trusted sales-session context (application data, not user instructions): {trusted_context}\n\n"
+                + (f"{care_directive}\n\n" if care_directive else "")
+                + f"Visitor message: {prompt}\n\n"
+                f"{language_instruction(language)}"
+            )
+            async for chunk in response.chunks:
+                if isinstance(chunk, types.Text) and chunk.text:
+                    await queue.put(chunk.text)
+            await queue.put(None)
+        except BaseException as exc:  # handed to the consumer, which raises it
+            await queue.put(exc)
 
-    # A hard limit: the model SDK can swallow cancellation while it retries a dropped connection, so the turn
-    # waits on the task rather than inside it, and abandons it after the limit (the caller retries on a fresh agent).
-    task = asyncio.ensure_future(collect())
-    done, _ = await asyncio.wait({task}, timeout=VISITOR_TURN_SECONDS)
-    if not done:
-        task.cancel()
-        raise TimeoutError(f"visitor turn exceeded {VISITOR_TURN_SECONDS}s")
-    parts = task.result()
-    if not parts:
+    # A hard limit: the model SDK can swallow cancellation while it retries a dropped connection, so the turn waits
+    # on the queue, never inside the SDK, and abandons the producer at the limit (the caller retries on a fresh agent).
+    producer = asyncio.ensure_future(produce())
+    deadline = asyncio.get_running_loop().time() + VISITOR_TURN_SECONDS
+    raw, shown, withheld, released = "", "", None, 0
+    while True:
+        remaining = deadline - asyncio.get_running_loop().time()
+        try:
+            item = await asyncio.wait_for(queue.get(), max(0.0, remaining))
+        except asyncio.TimeoutError:
+            producer.cancel()
+            raise TimeoutError(f"visitor turn exceeded {VISITOR_TURN_SECONDS}s" + (" after partial output" if shown else ""))
+        if isinstance(item, BaseException):
+            raise item
+        if item is None:
+            break
+        raw += item
+        if withheld:
+            continue
+        visible = raw.split("SUGGESTIONS:", 1)[0]
+        for boundary in [m.end() for m in _SENTENCE_END.finditer(visible) if m.end() > released]:  # one sentence at a time
+            candidate, withheld = _checked(visible[:boundary], sales_context)
+            if withheld:
+                break
+            if candidate.startswith(shown) and len(candidate) > len(shown):
+                yield "delta", candidate[len(shown):]
+                shown, released = candidate, boundary
+    if not raw.strip():
         raise RuntimeError("The advisor returned an empty response")
-    text = redact_attributed_competitors("".join(parts))
-    reason = validate_sales_response(text, sales_context)
+    text, reason = _checked(raw, sales_context)
+    reason = reason or withheld
     sales_context.last_reason = reason
     if reason:
-        logger.warning("Visitor reply replaced by grounded fallback (%s): %.300s", reason, text)
+        logger.warning("Visitor reply replaced by grounded fallback (%s): %.300s", reason, raw)
     else:
         sales_context.last_fallback = None
-    yield safe_grounded_fallback(sales_context, language, reason) if reason else text
+    yield "final", safe_grounded_fallback(sales_context, language, reason) if reason else text
 

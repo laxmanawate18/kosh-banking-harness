@@ -67,6 +67,17 @@ async def lifespan(application: FastAPI):
                 print(f"Retention purge notice: {exc}")
             await asyncio.sleep(24 * 3600)
     retention_task = asyncio.create_task(retention_loop())
+
+    async def loop_watchdog():
+        # Logs when something blocks the event loop (every chat on this instance waits while it is blocked).
+        loop = asyncio.get_running_loop()
+        while True:
+            started = loop.time()
+            await asyncio.sleep(1)
+            lag = loop.time() - started - 1
+            if lag > 2:
+                print(f"Event loop blocked for {lag:.1f}s")
+    watchdog_task = asyncio.create_task(loop_watchdog())
     sync_worker = None
     if os.getenv("ENABLE_CLOUD_SQL_SYNC", "false").lower() in ("1", "true", "yes"):
         try:
@@ -80,6 +91,7 @@ async def lifespan(application: FastAPI):
 
     yield
     retention_task.cancel()
+    watchdog_task.cancel()
     if sync_worker:
         sync_worker.stop()
     get_job_queue().stop_worker()
@@ -106,7 +118,7 @@ oauth_service = OAuthService(auth_service)
 
 request_service = ServiceRequestService(db)
 workflow_service = WorkflowService(db)
-app.include_router(make_public_router(db, auth_service, limiter, lambda config: Agent(config)))
+app.include_router(make_public_router(db, auth_service, limiter))
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):

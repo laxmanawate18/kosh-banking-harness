@@ -186,17 +186,6 @@ class VisitorChatTests(unittest.TestCase):
             self.assertFalse(any(a.prompts for a in FakeVisitorAgent.instances))  # the model never saw it
             self.assertIn('stay in that role', ''.join(event.get('text', '') for event in events))
 
-    def test_rest_uses_llm_and_returns_service_error_on_failure(self):
-        result = self.client.post('/api/public/chat', json={'prompt': 'Deposit options'})
-        self.assertEqual(result.status_code, 200)
-        self.assertTrue(result.json()['response']['text'].startswith('LLM answer:'))
-        self.assertTrue(FakeVisitorAgent.instances[-1].closed)
-        FakeVisitorAgent.fail = True
-        result = self.client.post('/api/public/chat', json={'prompt': 'Help'})
-        self.assertEqual(result.status_code, 503)
-        self.assertNotIn('private-provider-details', result.text)
-        self.assertEqual(self.client.post('/api/public/chat', json={'prompt': 'x' * 4001}).status_code, 422)
-
     def test_visitor_banking_query_triggers_auth_challenge(self):
         with self.client.websocket_connect('/ws/chat') as ws:
             ws.receive_json()
@@ -214,25 +203,27 @@ class VisitorChatTests(unittest.TestCase):
                 sales_actions = [e for e in events if e.get('type') == 'sales_action']
                 self.assertEqual(len(sales_actions), 0)
 
-    def test_rest_banking_query_returns_auth_challenge(self):
-        for query in ('What is my current balance?', 'i want a chequebook'):
-            result = self.client.post('/api/public/chat', json={'prompt': query})
-            self.assertEqual(result.status_code, 200)
-            data = result.json()
-            self.assertIn('sign in securely', data['response']['text'].lower())
-            self.assertEqual(data['response']['presentation']['type'], 'AUTH_CHALLENGE')
-            self.assertEqual(data['response']['presentation']['action'], 'OPEN_LOGIN_MODAL')
-            self.assertIsNone(data['response'].get('action'))
+    def test_reply_streams_checked_sentences_and_replaces_them_if_a_later_one_fails(self):
+        FakeVisitorAgent.output_text = "The Neo card is lifetime free. HDFC charges more for theirs. SUGGESTIONS: [\"Apply\"]"
+        with self.client.websocket_connect('/ws/chat') as ws:
+            ws.receive_json()
+            ws.send_json({'type': 'prompt', 'prompt': 'Tell me about the Neo card'})
+            events = self.read_turn(ws)
+        deltas = [e['text'] for e in events if e['type'] == 'text_delta']
+        replaced = [e['text'] for e in events if e['type'] == 'text_replace']
+        self.assertEqual(deltas, ['The Neo card is lifetime free.'])   # only the checked sentence was ever shown
+        self.assertTrue(replaced and "only speak about Kosh's own products" in replaced[-1])
+        self.assertFalse(any('HDFC' in t or 'SUGGESTIONS' in t for t in deltas + replaced))
 
     def test_reply_level_auth_detection_triggers_presentation(self):
-        FakeVisitorAgent.output_text = "To request this service for an existing account, please sign in to your Sentinel banking profile."
-        result = self.client.post('/api/public/chat', json={'prompt': 'I need service assistance on my account'})
-        self.assertEqual(result.status_code, 200)
-        data = result.json()
-        self.assertEqual(data['response']['presentation']['type'], 'AUTH_CHALLENGE')
-        self.assertEqual(data['response']['presentation']['action'], 'OPEN_LOGIN_MODAL')
-        self.assertIsNone(data['response'].get('action'))
-
+        FakeVisitorAgent.output_text = "To request this service for an existing account, please sign in to your Kosh banking profile."
+        with self.client.websocket_connect('/ws/chat') as ws:
+            ws.receive_json()
+            ws.send_json({'type': 'prompt', 'prompt': 'I need service assistance on my account'})
+            events = self.read_turn(ws)
+        presentations = [e['presentation'] for e in events if e.get('type') == 'presentation']
+        self.assertEqual(presentations[0]['type'], 'AUTH_CHALLENGE')
+        self.assertEqual(presentations[0]['action'], 'OPEN_LOGIN_MODAL')
     def test_visitor_chat_with_stale_or_authenticated_cookie_and_visitor_flag(self):
         context, raw_cookie, _ = dev_ui.auth_service.create_direct_session("aarav", assurance_level="L2")
         self.client.cookies.set(dev_ui.COOKIE_NAME, raw_cookie)
