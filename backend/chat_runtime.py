@@ -428,7 +428,7 @@ async def serve_chat_websocket(
     auth_service,
     workflow_service,
     agent_factory: Callable,
-    oauth_service=None,
+    oauth_service,
     ws_ticket: str | None = None,
     visitor: bool = False,
 ) -> None:
@@ -438,16 +438,16 @@ async def serve_chat_websocket(
         return
 
     auth = None
-    if oauth_service is not None and ws_ticket:
+    if ws_ticket:
         auth = oauth_service.consume_websocket_ticket(ws_ticket, session_id)
     if auth is None:
         auth = auth_service.resolve(websocket.cookies.get(COOKIE_NAME))
-        if auth and oauth_service is not None:
+        if auth:
             auth = oauth_service.enrich_cookie_context(auth)
     if not auth or auth.role != "CUSTOMER" or not auth.customer_id:
         await serve_visitor_websocket(websocket, agent_factory, session_id=session_id)
         return
-    if auth.auth_source == "oidc" and not {"banking.read", "banking.propose"}.issubset(auth.scopes):
+    if not {"banking.read", "banking.propose"}.issubset(auth.scopes):
         await websocket.close(code=4403, reason="Chat grant is missing required scopes")
         return
     if not auth_service.active_consent(auth.customer_id):

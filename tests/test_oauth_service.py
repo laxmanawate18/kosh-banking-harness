@@ -43,9 +43,6 @@ def test_idp_sign_out_url_formatting(oauth, monkeypatch):
     qs = urllib.parse.parse_qs(parsed.query)
     assert qs["return_to"] == [f"{oauth.sentinel_url}/dashboard"]
 
-    monkeypatch.setattr(OAuthService, "oidc_enabled", property(lambda self: False))
-    assert oauth.idp_sign_out_url("/dashboard") is None
-
 
 def test_open_redirect_is_rejected(oauth):
     assert oauth.safe_return_to("https://attacker.example/callback") == "/"
@@ -136,7 +133,6 @@ def test_bff_grant_is_bound_to_provider_session(oauth, monkeypatch):
         ip="127.0.0.1",
         user_agent="pytest",
     )
-    assert context.auth_source == "oidc"
     assert cookie and csrf
     with oauth.runtime.sessions() as session:
         grant = session.scalar(select(OAuthGrantRecord))

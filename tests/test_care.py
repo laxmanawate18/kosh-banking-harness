@@ -27,6 +27,7 @@ class DetectionTests(unittest.TestCase):
             "My father passed away, what about his account?": ["DISTRESS"],
             "I want to file a complaint about wrong charges": ["COMPLAINT"],
             "मुझे शिकायत दर्ज करनी है": ["COMPLAINT"],
+            "mala takrar karaychi aahe, charges chukiche ahet": ["COMPLAINT"],
             "Can I talk to a human please": ["HUMAN"],
             "please call me back": ["HUMAN"],
             "I want to end my life": ["SELF_HARM"],

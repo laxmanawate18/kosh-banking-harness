@@ -1,61 +1,29 @@
-"""
-Transactional email service for Kosh Digital Banking.
+"""Transactional email for Kosh Digital Banking: approved-applicant credentials.
 
-Supports standard SMTP delivery (TLS/SSL) with automatic fallback to
-audit-logged simulated delivery when SMTP configuration is absent.
+Sends over SMTP (STARTTLS) when SMTP_HOST is set; otherwise the send is logged as simulated.
 """
 
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 import logging
 import os
 import smtplib
-from typing import Any, Dict, Optional
+from email.message import EmailMessage
+from typing import Optional
 
-logger = logging.getLogger("sentinel.email")
+logger = logging.getLogger("kosh.email")
 
 
-class EmailService:
-    def __init__(self):
-        self.smtp_host = os.getenv("SMTP_HOST", "").strip()
-        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        self.smtp_user = os.getenv("SMTP_USER", "").strip()
-        self.smtp_password = os.getenv("SMTP_PASSWORD", "").strip()
-        self.smtp_use_tls = os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
-        self.from_email = os.getenv("SMTP_FROM_EMAIL", "no-reply@kosh.bank").strip()
-        self.from_name = os.getenv("SMTP_FROM_NAME", "Kosh Security & Operations").strip()
-        self.public_url = os.getenv("SENTINEL_PUBLIC_URL", "https://sentinel-banking-275388304596.us-central1.run.app").strip().rstrip("/")
+def send_credentials_email(to_email: str, applicant_name: str, username: str, temp_password: str, customer_id: str,
+                           product_title: str, account_number: Optional[str] = None) -> str:
+    """Email approved credentials. Returns the delivery status: SENT, SIMULATED_LOGGED or FAILED."""
+    to_email = (to_email or "").strip()
+    if "@" not in to_email:
+        logger.warning("Credentials email not sent: invalid recipient %r", to_email)
+        return "FAILED"
+    public_url = os.getenv("SENTINEL_PUBLIC_URL", "https://sentinel-banking-275388304596.us-central1.run.app").strip().rstrip("/")
+    subject = f"Your Kosh Digital Banking Credentials - {product_title} Approved"
+    login_url = f"{public_url}/"
 
-    @property
-    def is_configured(self) -> bool:
-        return bool(self.smtp_host)
-
-    def send_credentials_email(
-        self,
-        to_email: str,
-        applicant_name: str,
-        username: str,
-        temp_password: str,
-        customer_id: str,
-        product_title: str,
-        account_number: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """
-        Deliver approved customer credentials via email.
-        """
-        to_email = (to_email or "").strip()
-        if not to_email or "@" not in to_email:
-            return {
-                "success": False,
-                "delivery_status": "FAILED",
-                "error": f"Invalid recipient email address: '{to_email}'",
-                "to": to_email,
-            }
-
-        subject = f"Your Kosh Digital Banking Credentials - {product_title} Approved"
-        login_url = f"{self.public_url}/"
-
-        text_content = f"""Dear {applicant_name},
+    text_content = f"""Dear {applicant_name},
 
 Congratulations! Your application for {product_title} has been reviewed and approved by Kosh Banking Operations.
 
@@ -77,7 +45,7 @@ Sincerely,
 Kosh Digital Banking Operations
 """
 
-        html_content = f"""<!DOCTYPE html>
+    html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -113,25 +81,25 @@ Kosh Digital Banking Operations
       <p>Your secure digital banking access has been provisioned. Please use the credentials below to sign in:</p>
       
       <div class="cred-box">
-        <div class="cred-row">
-          <span class="cred-label">Customer ID</span>
-          <span class="cred-value">{customer_id}</span>
-        </div>
-        <div class="cred-row">
-          <span class="cred-label">Username</span>
-          <span class="cred-value">{username}</span>
-        </div>
-        <div class="cred-row">
-          <span class="cred-label">Temporary Password</span>
-          <span class="cred-value">{temp_password}</span>
-        </div>
-        {f'<div class="cred-row"><span class="cred-label">Account Number</span><span class="cred-value">{account_number}</span></div>' if account_number else ''}
+    <div class="cred-row">
+      <span class="cred-label">Customer ID</span>
+      <span class="cred-value">{customer_id}</span>
+    </div>
+    <div class="cred-row">
+      <span class="cred-label">Username</span>
+      <span class="cred-value">{username}</span>
+    </div>
+    <div class="cred-row">
+      <span class="cred-label">Temporary Password</span>
+      <span class="cred-value">{temp_password}</span>
+    </div>
+    {f'<div class="cred-row"><span class="cred-label">Account Number</span><span class="cred-value">{account_number}</span></div>' if account_number else ''}
       </div>
 
       <a href="{login_url}" class="button">Access Kosh Banking</a>
 
       <div class="notice">
-        <strong>Security Notice:</strong> You will be prompted to change your temporary password and verify your registered mobile number upon first sign-in. Never share these credentials with anyone.
+    <strong>Security Notice:</strong> You will be prompted to change your temporary password and verify your registered mobile number upon first sign-in. Never share these credentials with anyone.
       </div>
     </div>
     <div class="footer">
@@ -142,61 +110,26 @@ Kosh Digital Banking Operations
 </body>
 </html>"""
 
-        if not self.is_configured:
-            logger.info(
-                f"[EmailService SIMULATED] Would send credentials email to '{to_email}' "
-                f"for user '{username}' (Customer: {customer_id}, Product: {product_title}). "
-                f"SMTP not configured (set SMTP_HOST to enable live email delivery)."
-            )
-            return {
-                "success": True,
-                "delivery_status": "SIMULATED_LOGGED",
-                "method": "SIMULATED",
-                "to": to_email,
-                "subject": subject,
-                "preview": {
-                    "username": username,
-                    "customer_id": customer_id,
-                    "product": product_title,
-                },
-            }
-
-        try:
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = f"{self.from_name} <{self.from_email}>"
-            msg["To"] = to_email
-
-            part1 = MIMEText(text_content, "plain")
-            part2 = MIMEText(html_content, "html")
-            msg.attach(part1)
-            msg.attach(part2)
-
-            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=12) as server:
-                if self.smtp_use_tls:
-                    server.starttls()
-                if self.smtp_user and self.smtp_password:
-                    server.login(self.smtp_user, self.smtp_password)
-                server.send_message(msg)
-
-            logger.info(f"[EmailService SENT] Successfully dispatched credentials to {to_email} via {self.smtp_host}")
-            return {
-                "success": True,
-                "delivery_status": "SENT",
-                "method": "SMTP",
-                "to": to_email,
-                "subject": subject,
-            }
-        except Exception as e:
-            logger.error(f"[EmailService ERROR] Failed to dispatch email to {to_email}: {e}", exc_info=True)
-            return {
-                "success": False,
-                "delivery_status": "FAILED",
-                "method": "SMTP",
-                "to": to_email,
-                "error": str(e),
-            }
-
-
-# Global singleton instance
-email_service = EmailService()
+    smtp_host = os.getenv("SMTP_HOST", "").strip()
+    if not smtp_host:
+        logger.info("[email SIMULATED] credentials for %s (customer %s) to %s; set SMTP_HOST to send", username, customer_id, to_email)
+        return "SIMULATED_LOGGED"
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = f"{os.getenv('SMTP_FROM_NAME', 'Kosh Security & Operations').strip()} <{os.getenv('SMTP_FROM_EMAIL', 'no-reply@kosh.bank').strip()}>"
+    msg["To"] = to_email
+    msg.set_content(text_content)
+    msg.add_alternative(html_content, subtype="html")
+    try:
+        with smtplib.SMTP(smtp_host, int(os.getenv("SMTP_PORT", "587")), timeout=12) as server:
+            if os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes"):
+                server.starttls()
+            user, password = os.getenv("SMTP_USER", "").strip(), os.getenv("SMTP_PASSWORD", "").strip()
+            if user and password:
+                server.login(user, password)
+            server.send_message(msg)
+    except Exception as exc:
+        logger.error("Credentials email to %s failed: %s", to_email, exc, exc_info=True)
+        return "FAILED"
+    logger.info("Credentials email sent to %s via %s", to_email, smtp_host)
+    return "SENT"

@@ -57,6 +57,8 @@ class MitraBoundaryTests(unittest.TestCase):
         self.assertIsNone(validate_sales_response("Both accounts are zero-balance, so there is no risk of non-maintenance charges."))
         self.assertIsNotNone(validate_sales_response("This FD is risk-free."))
         self.assertIsNotNone(validate_sales_response("There is no risk to your money."))
+        self.assertIsNone(validate_sales_response("Nivesh does not offer guaranteed returns; markets can fall."))
+        self.assertIsNotNone(validate_sales_response("Nivesh offers guaranteed returns."))
         self.assertFalse(leaks_internal_prompt("I can't share my internal system instructions or prompts, but I can help with cards."))
         self.assertTrue(leaks_internal_prompt("Sure. My system prompt says: you are Mitra..."))
         self.assertTrue(leaks_internal_prompt("I will call search_public_products now."))

@@ -635,10 +635,10 @@ COMPANION_CROSS_SELL: Dict[str, Dict[str, Any]] = {
         "product_id": "PROD-FD-SMART",
         "title": "Kosh Home Buyer Smart Reserve Bundle",
         "badge": "Interest Offset",
-        "headline_rate": "8.10% Guaranteed Yield",
+        "headline_rate": "8.10% Fixed Yield",
         "special_offer": "Park renovation and emergency home funds in a Vriddhi Smart FD at 8.10% with zero break penalties after 6 months to offset home loan interest!",
         "key_perks": [
-            "8.10% guaranteed yield with monthly interest credit",
+            "A fixed 8.10% yield with monthly interest credit",
             "Instant liquidity buffer for emergency home expenses",
             "Zero premature withdrawal penalty after 6 months",
         ],
@@ -653,7 +653,7 @@ COMPANION_CROSS_SELL: Dict[str, Dict[str, Any]] = {
         "title": "Kosh Wealth Backed Credit Booster",
         "badge": "Priority Wealth",
         "headline_rate": "8.10% FD + 5X Points",
-        "special_offer": "Earn 8.10% p.a. guaranteed interest on a Vriddhi Smart FD while enjoying an instant ₹10 Lakh Vajra credit limit and a complimentary ₹10,000 Taj luxury voucher!",
+        "special_offer": "Earn a fixed 8.10% p.a. on a Vriddhi Smart FD, with a Vajra credit limit backed by the FD (subject to credit assessment) and the ₹10,000 Taj voucher on card activation.",
         "key_perks": [
             "Complimentary ₹10,000 Taj Hotels voucher on activation",
             "Unlimited international lounge access & 1.5% forex",
@@ -684,8 +684,8 @@ COMPANION_CROSS_SELL: Dict[str, Dict[str, Any]] = {
     "PROD-SAV-PREMIER": {
         "type": "CROSS_SELL_OFFER",
         "product_id": "PROD-CARD-CASHBACK",
-        "title": "Kosh Instant Pre-Approved Card Companion",
-        "badge": "Pre-Approved",
+        "title": "Kosh Neo Card Companion",
+        "badge": "Lifetime Free",
         "headline_rate": "Lifetime Free + 5% Back",
         "special_offer": "Opening your Premier Savings Account instantly qualifies you for a Lifetime-Free Neo Cashback Card with zero paperwork!",
         "key_perks": [
@@ -694,7 +694,7 @@ COMPANION_CROSS_SELL: Dict[str, Dict[str, Any]] = {
             "Flat 5% cashback on top merchant partners",
         ],
         "options": [
-            {"label": "💳 Add Pre-Approved Neo Card", "prompt": "I would like to add the pre-approved Neo Cashback Card"},
+            {"label": "💳 Add the Neo Card", "prompt": "I would like to add the Neo Cashback Card"},
             {"label": "🏛️ Proceed with Account Opening", "prompt": "Start my Suvarna Premier Savings account application"},
         ],
     },
@@ -719,7 +719,7 @@ COMPANION_CROSS_SELL: Dict[str, Dict[str, Any]] = {
 
 
 def get_companion_cross_sell(product_id: Optional[str]) -> Optional[Dict[str, Any]]:
-    """Return a pre-approved companion cross-sell presentation card for a product."""
+    """Return the companion cross-sell presentation card for a product."""
     if not product_id:
         return None
     norm = product_id.strip().upper()
@@ -1007,10 +1007,24 @@ def redact_attributed_competitors(text: str) -> str:
                    for i, part in enumerate(parts))
 
 
+_NEGATED = re.compile(r"\b(no|not|never|nor|isn'?t|aren'?t|cannot|can'?t|don'?t|doesn'?t|won'?t|without)\b[^.!?\n]{0,25}$")
+
+
+def _makes_unsafe_claim(lowered: str) -> bool:
+    """An unsafe sales phrase that is asserted, not denied ("returns are not guaranteed" is honest)."""
+    for pattern in _UNSAFE_SALES_PATTERNS:
+        start = lowered.find(pattern)
+        while start != -1:
+            if not _NEGATED.search(lowered[max(0, start - 40):start]):
+                return True
+            start = lowered.find(pattern, start + 1)
+    return False
+
+
 def customer_reply_issue(text: str) -> Optional[str]:
     """Signed-in replies carry the customer's own figures, so only rival-bank talk and unsafe sales claims are checked."""
     lowered = text.lower()
-    if any(pattern in lowered for pattern in _UNSAFE_SALES_PATTERNS):
+    if _makes_unsafe_claim(lowered):
         return "unsupported promotional or approval claim"
     if any(re.search(rf"\b{re.escape(name)}\b", lowered) if name.isascii() else name in lowered for name in _COMPETITOR_NAMES):
         return COMPETITOR_REASON
@@ -1021,7 +1035,7 @@ def validate_sales_response(text: str, context: Optional[SalesSessionContext] = 
     """Return a safe replacement reason when generated sales copy exceeds trusted facts."""
     text = _PERCENT_WORDS.sub("%", text.translate(_DEVANAGARI_DIGITS))
     lowered = text.lower()
-    if any(pattern in lowered for pattern in _UNSAFE_SALES_PATTERNS):
+    if _makes_unsafe_claim(lowered):
         return "unsupported promotional or approval claim"
     if any(re.search(rf"\b{re.escape(name)}\b", lowered) if name.isascii() else name in lowered for name in _COMPETITOR_NAMES):
         return COMPETITOR_REASON

@@ -146,7 +146,7 @@ def _resolve_request_auth(request: Request, sentinel_session: Optional[str]) -> 
     authorization = request.headers.get("authorization", "")
     if authorization:
         scheme, _, credential = authorization.partition(" ")
-        if scheme.lower() != "bearer" or not credential or not oauth_service.oidc_enabled:
+        if scheme.lower() != "bearer" or not credential:
             return None
         try:
             return oauth_service.context_from_access_token(credential)
@@ -158,7 +158,7 @@ def _resolve_request_auth(request: Request, sentinel_session: Optional[str]) -> 
     if not context:
         return None
     context = oauth_service.enrich_cookie_context(context)
-    if not context.client_id or context.auth_source != "oidc":
+    if not context.client_id:
         return None
     return context
 
@@ -173,7 +173,7 @@ def require_auth(request: Request, sentinel_session: Optional[str] = Cookie(defa
 def require_customer(context: AuthContext = Depends(require_auth)) -> AuthContext:
     if context.role != "CUSTOMER" or not context.customer_id:
         raise HTTPException(status_code=403, detail="Customer access required")
-    if context.auth_source == "oidc" and "banking.read" not in context.scopes:
+    if "banking.read" not in context.scopes:
         raise HTTPException(status_code=403, detail="banking.read scope required")
     return context
 
@@ -190,7 +190,7 @@ def require_csrf(request: Request,
     context = _resolve_request_auth(request, sentinel_session)
     if not context:
         raise HTTPException(status_code=401, detail="Authentication required")
-    if context.auth_source == "oidc" and "banking.propose" not in context.scopes:
+    if "banking.propose" not in context.scopes:
         raise HTTPException(status_code=403, detail="banking.propose scope required")
     if not request.headers.get("authorization") and (
         not sentinel_session or not auth_service.verify_csrf(sentinel_session, x_csrf_token)

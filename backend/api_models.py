@@ -44,8 +44,6 @@ class ProductApplyRequest(BaseModel):
     loan_purpose: Optional[str] = None
     existing_emi: Optional[float] = None
     username: Optional[str] = None
-    password: Optional[str] = None
-    auto_login: Optional[bool] = False
 
 
 

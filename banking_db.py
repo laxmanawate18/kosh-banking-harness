@@ -56,6 +56,15 @@ def _parse_time(value: str | None) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
+def _lead_dict(row: CrossSellLeadRecord) -> Dict[str, Any]:
+    fields = ("id", "customer_id", "session_id", "category", "sub_type", "amount_requested_minor", "tenure_months",
+              "employment_type", "monthly_income_minor", "preferences", "status", "recommended_product_id",
+              "special_offer_note", "follow_up_pitch", "notes")
+    return {**{f: getattr(row, f) for f in fields},
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None}
+
+
 class BankingDatabase:
     """Atomic repository whose mutable domain snapshot lives in PostgreSQL JSONB.
 
@@ -107,54 +116,23 @@ class BankingDatabase:
                     row.version += 1
                 payload = banking_store.load(session)
                 before = copy.deepcopy(payload)
-                changed = False
-                if "customers" in seed:
-                    payload.setdefault("customers", {})
-                    for cid, cdata in seed["customers"].items():
-                        if cid not in payload["customers"]:
-                            payload["customers"][cid] = cdata
-                            changed = True
-                        elif "kyc" in cdata and "kyc" not in payload["customers"][cid]:
-                            payload["customers"][cid]["kyc"] = copy.deepcopy(cdata["kyc"])
-                            changed = True
-                if "customer" in seed and "kyc" in seed["customer"] and "kyc" not in payload.get("customer", {}):
-                    payload.setdefault("customer", {})
-                    payload["customer"]["kyc"] = copy.deepcopy(seed["customer"]["kyc"])
-                    changed = True
-                for aid, adata in seed.get("accounts", {}).items():
-                    if aid not in payload.get("accounts", {}):
-                        payload.setdefault("accounts", {})[aid] = adata
-                        changed = True
-                for cid, cdata in seed.get("cards", {}).items():
-                    if cid not in payload.get("cards", {}):
-                        payload.setdefault("cards", {})[cid] = cdata
-                        changed = True
-                for bid, bdata in seed.get("bills", {}).items():
-                    if bid not in payload.get("bills", {}):
-                        payload.setdefault("bills", {})[bid] = bdata
-                        changed = True
-                for ben_id, ben_data in seed.get("beneficiaries", {}).items():
-                    if ben_id not in payload.get("beneficiaries", {}):
-                        payload.setdefault("beneficiaries", {})[ben_id] = ben_data
-                        changed = True
-                for did, ddata in seed.get("delegations", {}).items():
-                    if did not in payload.get("delegations", {}):
-                        payload.setdefault("delegations", {})[did] = ddata
-                        changed = True
-                for dev_id, dev_data in seed.get("devices", {}).items():
-                    if dev_id not in payload.get("devices", {}):
-                        payload.setdefault("devices", {})[dev_id] = dev_data
-                        changed = True
-                existing_tx_ids = {t["id"] for t in payload.get("transactions", [])}
-                for t in seed.get("transactions", []):
-                    if t["id"] not in existing_tx_ids:
-                        payload.setdefault("transactions", []).append(t)
-                        changed = True
-                existing_alert_ids = {a["id"] for a in payload.get("security_alerts", [])}
-                for a in seed.get("security_alerts", []):
-                    if a["id"] not in existing_alert_ids:
-                        payload.setdefault("security_alerts", []).append(a)
-                        changed = True
+                # Add seed records a deployed database is missing (new demo customers, accounts, ...); never overwrite.
+                customers = payload.setdefault("customers", {})
+                for cid, cdata in seed.get("customers", {}).items():
+                    if cid not in customers:
+                        customers[cid] = cdata
+                    elif "kyc" in cdata and "kyc" not in customers[cid]:
+                        customers[cid]["kyc"] = copy.deepcopy(cdata["kyc"])
+                if "kyc" in seed.get("customer", {}) and "kyc" not in payload.get("customer", {}):
+                    payload.setdefault("customer", {})["kyc"] = copy.deepcopy(seed["customer"]["kyc"])
+                for kind in ("accounts", "cards", "bills", "beneficiaries", "delegations", "devices"):
+                    target = payload.setdefault(kind, {})
+                    target.update({k: v for k, v in seed.get(kind, {}).items() if k not in target})
+                for kind in ("transactions", "security_alerts"):
+                    target = payload.setdefault(kind, [])
+                    known = {item["id"] for item in target}
+                    target.extend(item for item in seed.get(kind, []) if item["id"] not in known)
+                changed = payload != before
                 if changed:
                     banking_store.save(session, before, payload)
                     row.version += 1
@@ -375,7 +353,7 @@ class BankingDatabase:
     def dashboard(self, customer_id: str = "CUST-1001") -> Dict[str, Any]:
         snap = self.snapshot()
         customers = snap.get("customers", {})
-        customer = customers.get(customer_id) or (snap.get("customer") if snap.get("customer", {}).get("id") == customer_id else None) or snap.get("customer", {})
+        customer = customers.get(customer_id) or snap.get("customer", {})
         accounts = [a for a in snap.get("accounts", {}).values() if a.get("customer_id") == customer_id]
         cards = [c for c in snap.get("cards", {}).values() if c.get("customer_id") == customer_id]
         bills = [b for b in snap.get("bills", {}).values() if b.get("customer_id") == customer_id]
@@ -685,25 +663,7 @@ class BankingDatabase:
                 session.add(lead)
                 target = lead
 
-            lead_dict = {
-                "id": target.id,
-                "customer_id": target.customer_id,
-                "session_id": target.session_id,
-                "category": target.category,
-                "sub_type": target.sub_type,
-                "amount_requested_minor": target.amount_requested_minor,
-                "tenure_months": target.tenure_months,
-                "employment_type": target.employment_type,
-                "monthly_income_minor": target.monthly_income_minor,
-                "preferences": target.preferences,
-                "status": target.status,
-                "recommended_product_id": target.recommended_product_id,
-                "special_offer_note": target.special_offer_note,
-                "follow_up_pitch": target.follow_up_pitch,
-                "notes": target.notes,
-                "created_at": target.created_at.isoformat(),
-                "updated_at": target.updated_at.isoformat(),
-            }
+            lead_dict = _lead_dict(target)
         return lead_dict
 
     def get_active_leads_for_customer(self, customer_id: str) -> List[Dict[str, Any]]:
@@ -715,28 +675,7 @@ class BankingDatabase:
                     CrossSellLeadRecord.status.notin_(["CONVERTED", "DECLINED"]),
                 ).order_by(CrossSellLeadRecord.created_at.desc())
             ).all()
-            return [
-                {
-                    "id": r.id,
-                    "customer_id": r.customer_id,
-                    "session_id": r.session_id,
-                    "category": r.category,
-                    "sub_type": r.sub_type,
-                    "amount_requested_minor": r.amount_requested_minor,
-                    "tenure_months": r.tenure_months,
-                    "employment_type": r.employment_type,
-                    "monthly_income_minor": r.monthly_income_minor,
-                    "preferences": r.preferences,
-                    "status": r.status,
-                    "recommended_product_id": r.recommended_product_id,
-                    "special_offer_note": r.special_offer_note,
-                    "follow_up_pitch": r.follow_up_pitch,
-                    "notes": r.notes,
-                    "created_at": r.created_at.isoformat(),
-                    "updated_at": r.updated_at.isoformat(),
-                }
-                for r in rows
-            ]
+            return [_lead_dict(r) for r in rows]
 
     def get_lead(self, lead_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve a single lead by its ID."""
@@ -744,25 +683,7 @@ class BankingDatabase:
             row = session.get(CrossSellLeadRecord, lead_id)
             if not row:
                 return None
-            return {
-                "id": row.id,
-                "customer_id": row.customer_id,
-                "session_id": row.session_id,
-                "category": row.category,
-                "sub_type": row.sub_type,
-                "amount_requested_minor": row.amount_requested_minor,
-                "tenure_months": row.tenure_months,
-                "employment_type": row.employment_type,
-                "monthly_income_minor": row.monthly_income_minor,
-                "preferences": row.preferences,
-                "status": row.status,
-                "recommended_product_id": row.recommended_product_id,
-                "special_offer_note": row.special_offer_note,
-                "follow_up_pitch": row.follow_up_pitch,
-                "notes": row.notes,
-                "created_at": row.created_at.isoformat() if row.created_at else None,
-                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-            }
+            return _lead_dict(row)
 
     def update_lead_status(
         self,
@@ -804,28 +725,7 @@ class BankingDatabase:
                 query = query.where(CrossSellLeadRecord.status == status)
             query = query.order_by(CrossSellLeadRecord.created_at.desc()).limit(limit)
             rows = session.scalars(query).all()
-            return [
-                {
-                    "id": r.id,
-                    "customer_id": r.customer_id,
-                    "session_id": r.session_id,
-                    "category": r.category,
-                    "sub_type": r.sub_type,
-                    "amount_requested_minor": r.amount_requested_minor,
-                    "tenure_months": r.tenure_months,
-                    "employment_type": r.employment_type,
-                    "monthly_income_minor": r.monthly_income_minor,
-                    "preferences": r.preferences,
-                    "status": r.status,
-                    "recommended_product_id": r.recommended_product_id,
-                    "special_offer_note": r.special_offer_note,
-                    "follow_up_pitch": r.follow_up_pitch,
-                    "notes": r.notes,
-                    "created_at": r.created_at.isoformat(),
-                    "updated_at": r.updated_at.isoformat(),
-                }
-                for r in rows
-            ]
+            return [_lead_dict(r) for r in rows]
 
     def list_customers_summary(self) -> List[Dict[str, Any]]:
         """List all onboarded customers with accounts, balances, and digital user bindings."""
@@ -933,51 +833,18 @@ class BankingDatabase:
                     if (lead.preferences or {}).get("phone_number") == phone_number:
                         session.delete(lead)
 
-        # 5. Clean in-memory/JSON snapshot inside an atomic transaction
+        # 5. Remove the customer's banking records in one atomic transaction
         def _mutate(payload: dict):
-            customers = payload.setdefault("customers", {})
-            accounts = payload.setdefault("accounts", {})
-            cards = payload.setdefault("cards", {})
-            bills = payload.setdefault("bills", {})
-            devices = payload.setdefault("devices", {})
-            delegations = payload.setdefault("delegations", {})
+            removed = {}
+            for kind in ("accounts", "cards", "bills", "devices", "delegations"):
+                rows = payload.get(kind, {})
+                removed[kind] = [key for key, row in rows.items() if row.get("customer_id") == customer_id]
+                payload[kind] = {key: row for key, row in rows.items() if row.get("customer_id") != customer_id}
+            payload["transactions"] = [t for t in payload.get("transactions", []) if t.get("customer_id") != customer_id]
+            return {"customer_id": customer_id, "removed_customer": payload.setdefault("customers", {}).pop(customer_id, None),
+                    "removed_accounts": removed["accounts"], "removed_cards": removed["cards"], "cleaned_users": cleaned_users}
 
-            removed_customer = customers.pop(customer_id, None)
-
-            acc_ids = [aid for aid, acc in accounts.items() if acc.get("customer_id") == customer_id]
-            for aid in acc_ids:
-                accounts.pop(aid, None)
-
-            card_ids = [cid for cid, card in cards.items() if card.get("customer_id") == customer_id]
-            for cid in card_ids:
-                cards.pop(cid, None)
-
-            bill_ids = [bid for bid, bill in bills.items() if bill.get("customer_id") == customer_id]
-            for bid in bill_ids:
-                bills.pop(bid, None)
-
-            dev_ids = [did for did, dev in devices.items() if dev.get("customer_id") == customer_id]
-            for did in dev_ids:
-                devices.pop(did, None)
-
-            dlg_ids = [did for did, dlg in delegations.items() if dlg.get("customer_id") == customer_id]
-            for did in dlg_ids:
-                delegations.pop(did, None)
-
-            payload["transactions"] = [
-                t for t in payload.get("transactions", []) if t.get("customer_id") != customer_id
-            ]
-
-            return {
-                "customer_id": customer_id,
-                "removed_customer": removed_customer,
-                "removed_accounts": acc_ids,
-                "removed_cards": card_ids,
-                "cleaned_users": cleaned_users,
-            }
-
-        res = self.transaction(_mutate)
-        return res
+        return self.transaction(_mutate)
 
 
 db = BankingDatabase()

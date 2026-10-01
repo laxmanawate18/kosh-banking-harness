@@ -72,7 +72,7 @@ class SalesOnboardingTests(unittest.TestCase):
         before = db.snapshot()
         response = self.client.post('/api/products/apply', json={
             'product_id':'PROD-SAV-PREMIER', 'full_name':'Other Person',
-            'phone_number':'+919899887766', 'username':'officer.mumbai', 'auto_login':False})
+            'phone_number':'+919899887766', 'username':'officer.mumbai'})
         self.assertEqual(response.status_code, 409)
         self.assertEqual(db.snapshot(), before)
 

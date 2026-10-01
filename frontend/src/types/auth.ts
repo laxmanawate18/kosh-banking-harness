@@ -17,7 +17,6 @@ export interface AuthContext {
   session_id: string;
   user: User;
   assurance_level: string;
-  auth_source?: 'oidc';
   client_id?: string | null;
   scopes?: string[];
   csrf_token: string;

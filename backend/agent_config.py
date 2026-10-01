@@ -184,7 +184,7 @@ def published_catalogue() -> str:
     facts = [{k: v for k, v in p.items() if k not in {"fact_metadata", "disclosure"}} for p in get_all_products()]
     meta = get_all_products()[0]["fact_metadata"]
     return ("### PUBLISHED CATALOGUE (trusted Kosh facts, effective " + meta["effective_from"] + "; quote only these)\n"
-            + json.dumps(facts, ensure_ascii=False, separators=(",", ":")))
+            + json.dumps(facts, ensure_ascii=False, separators=(",", ":"), sort_keys=True))  # stable: the prompt version hashes it
 
 
 TOOL_RESULT_QUEUES: Dict[str, asyncio.Queue] = {}

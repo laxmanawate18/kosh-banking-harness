@@ -48,6 +48,55 @@ def _without_token(decision: Dict[str, Any]) -> Dict[str, Any]:
     return safe
 
 
+# Offer cards for record_customer_lead: catalogue facts only, no "guaranteed", "highest" or invented rate cuts.
+LEAD_OFFERS: Dict[str, Dict[str, Any]] = {
+    "PROD-LOAN-HOME": dict(
+        title="Kosh Griha Green Home Loan", badge="Special Rate", headline_rate="8.35% p.a.", default_amount="₹25,00,000",
+        special_offer="Rates from 8.35% p.a. with a 0.25% green-home discount + zero balance transfer fee (subject to credit assessment)",
+        pitch="Last time you explored a Home Loan of {amount}. Rates start at 8.35% p.a. with zero balance transfer fees.",
+        key_perks=["Doorstep legal valuation", "Tax deductions up to ₹3.5 Lakh under Sec 24(b) & 80C"],
+        options=[("⚡ Check Rate & EMI", "Show the rate and EMI for {title}"), ("📋 Start 2-Min Application", "I want to apply for the {title}")]),
+    "PROD-LOAN-EXPRESS": dict(
+        title="Kosh Express Personal Loan", badge="Special Rate", headline_rate="10.25% p.a.", default_amount="₹5,00,000",
+        special_offer="Rates from 10.25% p.a. + zero foreclosure fees after 12 EMIs (subject to credit assessment)",
+        pitch="Last time you asked about a Personal Loan of {amount}. Rates start at 10.25% p.a. with zero foreclosure fees after 12 EMIs.",
+        key_perks=["10-Minute paperless disbursal straight to your account", "Zero pre-closure charges after 12 EMIs"],
+        options=[("⚡ Check Rate & EMI", "Show the rate and EMI for {title}"), ("📋 Start 2-Min Application", "I want to apply for the {title}")]),
+    "PROD-CARD-OBSIDIAN": dict(
+        title="Kosh Vajra Metal Credit Card", badge="Travel Rewards", headline_rate="5X Rewards",
+        special_offer="Complimentary ₹10,000 Taj Hotels voucher on card activation, 5X rewards, unlimited lounge access and a 1.5% forex markup",
+        pitch="Last time you explored our travel credit cards. The Vajra Metal Card gives 5X rewards and unlimited lounge access.",
+        key_perks=["₹10,000 Taj Hotels voucher on activation", "Unlimited domestic & international lounge access", "1.5% forex markup"],
+        options=[("✨ Check Eligibility", "Am I likely to be eligible for {title}?"), ("💳 Apply for this Card", "I would like to apply for the {title}")]),
+    "PROD-CARD-CASHBACK": dict(
+        title="Kosh Neo Cashback Credit Card", badge="Lifetime Free", headline_rate="5% Flat Cashback",
+        special_offer="Lifetime free with flat 5% cashback on Amazon, Flipkart, Swiggy, Zomato and Uber",
+        pitch="Last time you checked credit cards. The Kosh Neo Card is lifetime free with 5% cashback on everyday spends.",
+        key_perks=["Flat 5% cashback on partner merchants", "Lifetime free with zero annual fees", "1% fuel surcharge waiver"],
+        options=[("✨ Check Eligibility", "Am I likely to be eligible for {title}?"), ("💳 Apply for this Card", "I would like to apply for the {title}")]),
+    "PROD-FD-SMART": dict(
+        title="Kosh Vriddhi Smart FD", badge="Fixed 8.10%", headline_rate="8.10% p.a.",
+        special_offer="A fixed 8.10% p.a. (8.60% for senior citizens), no premature penalty after 6 months, overdraft up to 90%",
+        pitch="Last time you asked about growing your savings. The Vriddhi Smart FD pays a fixed 8.10% p.a.",
+        key_perks=["8.10% p.a. (8.60% for senior citizens)", "Zero penalty on early break after 6 months", "Overdraft up to 90%"],
+        options=[("📈 Calculate Maturity Return", "Calculate my returns for a 1-year Smart FD"), ("🏦 Open Fixed Deposit", "Start a fixed deposit application")]),
+    "PROD-SAV-PREMIER": dict(
+        title="Kosh Suvarna Premier Savings", badge="Zero Balance", headline_rate="7.20% p.a.",
+        special_offer="7.20% p.a. interest credited monthly + Suvarna Metal Debit Card",
+        pitch="Last time you explored banking options. Suvarna Premier pays 7.20% p.a. monthly with zero balance requirement.",
+        key_perks=["7.20% p.a. credited monthly", "Zero balance requirement", "Free airport lounge access"],
+        options=[("🔍 Explore Benefits", "Tell me more about Suvarna Premier Savings")]),
+}
+
+
+def _audit_event(event_type: str, session_id: Optional[str], intent_id: Optional[str], decision_id: Optional[str],
+                 summary: str, details: Dict[str, Any], *, severity: str = "INFO", created_at: Optional[str] = None) -> Dict[str, Any]:
+    """An audit event appended inside the same banking transaction as the change it records."""
+    return {"id": new_id("AUD"), "event_type": event_type, "session_id": session_id, "intent_id": intent_id,
+            "decision_id": decision_id, "summary": summary, "details": details, "severity": severity,
+            "created_at": created_at or utc_now()}
+
+
 class SecureBankingService:
     """Application boundary for proposals, challenges, and exactly-once execution."""
 
@@ -205,19 +254,9 @@ class SecureBankingService:
 
         def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
             data.setdefault("payment_intents", []).append(payment)
-            data.setdefault("audit_events", []).append(
-                {
-                    "id": new_id("AUD"),
-                    "event_type": "PAYMENT_PROPOSED",
-                    "session_id": payment["session_id"],
-                    "intent_id": payment["intent_id"],
-                    "decision_id": None,
-                    "summary": f"Agent proposed {action['action_type']}",
-                    "details": {"payment_intent_id": payment["id"], "action": action},
-                    "severity": "INFO",
-                    "created_at": payment["created_at"],
-                }
-            )
+            data.setdefault("audit_events", []).append(_audit_event(
+                "PAYMENT_PROPOSED", payment["session_id"], payment["intent_id"], None, f"Agent proposed {action['action_type']}",
+                {"payment_intent_id": payment["id"], "action": action}, severity="INFO", created_at=payment["created_at"]))
             return payment
 
         return self.db.transaction(mutate)
@@ -340,19 +379,9 @@ class SecureBankingService:
                         "created_at": utc_now(),
                     }
                 )
-                data.setdefault("audit_events", []).append(
-                    {
-                        "id": new_id("AUD"),
-                        "event_type": "PAYMENT_EXECUTED",
-                        "session_id": stored_payment["session_id"],
-                        "intent_id": stored_payment["intent_id"],
-                        "decision_id": stored_decision["id"],
-                        "summary": f"{action['action_type']} executed exactly once",
-                        "details": {"reference": reference, "amount_minor": amount, "payee_name": payee_name},
-                        "severity": "INFO",
-                        "created_at": utc_now(),
-                    }
-                )
+                data.setdefault("audit_events", []).append(_audit_event(
+                    "PAYMENT_EXECUTED", stored_payment["session_id"], stored_payment["intent_id"], stored_decision["id"], f"{action['action_type']} executed exactly once",
+                    {"reference": reference, "amount_minor": amount, "payee_name": payee_name}, severity="INFO"))
                 return receipt
 
             receipt = self.db.transaction(mutate)
@@ -484,19 +513,9 @@ class SecureBankingService:
             stored_payment = next(item for item in data["payment_intents"] if item["id"] == payment["id"])
             stored_payment["challenge_id"] = challenge_id
             stored_payment["updated_at"] = utc_now()
-            data.setdefault("audit_events", []).append(
-                {
-                    "id": new_id("AUD"),
-                    "event_type": "CHALLENGE_ISSUED",
-                    "session_id": payment["session_id"],
-                    "intent_id": payment["intent_id"],
-                    "decision_id": decision["id"],
-                    "summary": "Step-up challenge issued for payment approval",
-                    "details": {"challenge_id": challenge_id, "action": payment["action"]},
-                    "severity": "WARNING",
-                    "created_at": utc_now(),
-                }
-            )
+            data.setdefault("audit_events", []).append(_audit_event(
+                "CHALLENGE_ISSUED", payment["session_id"], payment["intent_id"], decision["id"], "Step-up challenge issued for payment approval",
+                {"challenge_id": challenge_id, "action": payment["action"]}, severity="WARNING"))
             return challenge
 
         self.db.transaction(mutate)
@@ -668,15 +687,9 @@ class SecureBankingService:
             stored_payment["updated_at"] = utc_now()
             stored_decision = next(item for item in data["sentinel_decisions"] if item["id"] == decision["id"])
             stored_decision["consumed_at"] = utc_now()
-            data.setdefault("audit_events", []).append(
-                {
-                    "id": new_id("AUD"), "event_type": "CARD_FROZEN", "session_id": payment["session_id"],
-                    "intent_id": payment["intent_id"], "decision_id": decision["id"],
-                    "summary": "Debit card frozen as a protective action",
-                    "details": {"card_id": card["id"], "card_masked": stored["card_number_masked"]},
-                    "severity": "WARNING", "created_at": utc_now()
-                }
-            )
+            data.setdefault("audit_events", []).append(_audit_event(
+                "CARD_FROZEN", payment["session_id"], payment["intent_id"], decision["id"], "Debit card frozen as a protective action",
+                {"card_id": card["id"], "card_masked": stored["card_number_masked"]}, severity="WARNING"))
             return stored
 
         frozen = self.db.transaction(mutate)
@@ -984,83 +997,20 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
         cat_upper = category.strip().upper()
         norm_sub_type = sub_type.strip().upper() if sub_type else None
 
-        prod_id = None
-        special_offer = None
-        follow_up_pitch = None
-        title = "Kosh Financial Recommendation"
-        badge = "Special Offer"
-        headline_rate = ""
-        key_perks = []
-        options = []
-
         if "LOAN" in cat_upper:
-            loan_amt_str = inr(amount_minor / 100, 2) if amount_minor else "₹5,00,000"
-            if norm_sub_type and "HOME" in norm_sub_type:
-                home_amt_str = inr(amount_minor / 100, 2) if amount_minor else "₹25,00,000"
-                prod_id = "PROD-LOAN-HOME"
-                title = "Kosh Griha Green Home Loan"
-                badge = "Special Rate"
-                headline_rate = "8.35% p.a."
-                special_offer = "Exclusive rate: 8.35% p.a. (Special 0.25% green discount) + Zero balance transfer fee"
-                follow_up_pitch = f"Last time you explored a Home Loan of {home_amt_str}. Our rate has just dropped to 8.35% p.a. with zero transfer fees!"
-                key_perks = ["Doorstep legal valuation", "Tax deductions up to ₹3.5 Lakh under Sec 24(b) & 80C"]
-            else:
-                prod_id = "PROD-LOAN-EXPRESS"
-                title = "Kosh Express Personal Loan"
-                badge = "Festive Rate Cut"
-                headline_rate = "10.25% p.a."
-                special_offer = "Special rate from 10.25% p.a. + zero foreclosure fees after 12 EMIs (subject to credit assessment)"
-                follow_up_pitch = f"Last time you inquired about a Personal Loan of {loan_amt_str}. Our special rate starts at 10.25% p.a. with zero foreclosure fees!"
-                key_perks = ["10-Minute paperless disbursal straight to your account", "Zero pre-closure charges after 12 EMIs"]
-            options = [
-                {"label": "⚡ Check Rate & EMI", "prompt": f"Show the rate and EMI for {title}"},
-                {"label": "📋 Start 2-Min Application", "prompt": f"I want to apply for the {title}"},
-            ]
+            prod_id = "PROD-LOAN-HOME" if norm_sub_type and "HOME" in norm_sub_type else "PROD-LOAN-EXPRESS"
         elif "CARD" in cat_upper:
-            pref_lower = (preferences_summary or "").lower()
-            if "travel" in pref_lower or "lounge" in pref_lower or "forex" in pref_lower or "luxury" in pref_lower or (norm_sub_type and "OBSIDIAN" in norm_sub_type):
-                prod_id = "PROD-CARD-OBSIDIAN"
-                title = "Kosh Vajra Metal Credit Card"
-                badge = "Exclusive Luxury Perk"
-                headline_rate = "5X Rewards + Taj Voucher"
-                special_offer = "Complimentary ₹10,000 Taj Hotels luxury voucher on card activation + 1.5% low forex markup"
-                follow_up_pitch = "Last time you explored our travel credit cards. The Obsidian Metal Card is currently offering a complimentary ₹10,000 Taj luxury voucher!"
-                key_perks = ["Aerospace tungsten metal card", "Unlimited domestic & international lounge access + spa", "₹10,000 Taj luxury voucher"]
-            else:
-                prod_id = "PROD-CARD-CASHBACK"
-                title = "Kosh Neo Cashback Credit Card"
-                badge = "Lifetime Free"
-                headline_rate = "5% Flat Cashback"
-                special_offer = "Lifetime Free with flat 5% instant cashback on Amazon, Flipkart, Swiggy, Zomato & Utility bills"
-                follow_up_pitch = "Last time you checked credit cards. The Kosh Neo Card is lifetime free with flat 5% cashback on everyday spends!"
-                key_perks = ["Flat 5.0% instant cashback credited to account", "Lifetime free with zero annual fees", "1% fuel surcharge waiver"]
-            options = [
-                {"label": "✨ Check Eligibility", "prompt": f"Am I likely to be eligible for {title}?"},
-                {"label": "💳 Apply for this Card", "prompt": f"I would like to apply for the {title}"},
-            ]
+            travel = any(k in (preferences_summary or "").lower() for k in ("travel", "lounge", "forex", "luxury"))
+            prod_id = "PROD-CARD-OBSIDIAN" if travel or (norm_sub_type and "OBSIDIAN" in norm_sub_type) else "PROD-CARD-CASHBACK"
         elif "DEPOSIT" in cat_upper or "FD" in cat_upper:
             prod_id = "PROD-FD-SMART"
-            title = "Kosh Vriddhi Smart FD"
-            badge = "Guaranteed 8.10%"
-            headline_rate = "8.10% p.a."
-            special_offer = "8.10% p.a. guaranteed interest with zero premature penalty after 6 months + instant 90% overdraft"
-            follow_up_pitch = "Last time you asked about high-yield savings. Our Smart FD guarantees 8.10% p.a. with zero premature penalties!"
-            key_perks = ["8.10% p.a. (8.60% for senior citizens)", "Zero penalty on early break after 6 months", "Instant overdraft up to 90%"]
-            options = [
-                {"label": "📈 Calculate Maturity Return", "prompt": "Calculate my returns for a 1-year Smart FD"},
-                {"label": "🏦 Open Fixed Deposit", "prompt": "Start a fixed deposit application"},
-            ]
         else:
             prod_id = "PROD-SAV-PREMIER"
-            title = "Kosh Suvarna Premier Savings"
-            badge = "Highest Yield"
-            headline_rate = "7.20% p.a."
-            special_offer = "7.20% p.a. interest credited monthly + Free Sovereign Metal Debit Card"
-            follow_up_pitch = "Last time you explored banking options. Our Sovereign Premier account offers 7.20% p.a. monthly yield with zero balance requirement!"
-            key_perks = ["7.20% p.a. monthly compounding", "Zero balance requirement", "Free airport lounge access"]
-            options = [
-                {"label": "🔍 Explore Benefits", "prompt": "Tell me more about Sovereign Premier Savings"},
-            ]
+        offer = LEAD_OFFERS[prod_id]
+        title, badge, headline_rate, special_offer, key_perks = (offer[k] for k in ("title", "badge", "headline_rate", "special_offer", "key_perks"))
+        amount = inr(amount_minor / 100, 2) if amount_minor else offer.get("default_amount", "")
+        follow_up_pitch = offer["pitch"].format(amount=amount)
+        options = [{"label": label, "prompt": prompt.format(title=title)} for label, prompt in offer["options"]]
 
         lead = banking_service.db.record_lead(
             customer_id=cid,

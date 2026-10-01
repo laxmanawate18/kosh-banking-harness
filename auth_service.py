@@ -59,7 +59,6 @@ class AuthContext:
     auth_subject: str | None = None
     client_id: str | None = None
     scopes: tuple[str, ...] = ()
-    auth_source: str = "oidc"
 
     def safe_dict(self) -> dict[str, Any]:
         return {
@@ -69,7 +68,6 @@ class AuthContext:
                      "role": self.role, "customer_id": self.customer_id, "phone_number": self.phone_number},
             "assurance_level": self.assurance_level,
             "csrf_token": self.csrf_token,
-            "auth_source": self.auth_source,
             "client_id": self.client_id,
             "scopes": list(self.scopes),
         }
@@ -165,7 +163,6 @@ class AuthService:
                         "auth_subject": user.auth_subject or f"sub-{user.id}",
                         "client_id": client_id,
                         "scopes": scopes,
-                        "auth_source": "oidc",
                     }
                 ),
                 raw_token,
@@ -210,7 +207,6 @@ class AuthService:
                         "auth_subject": auth_subject,
                         "client_id": client_id,
                         "scopes": scopes,
-                        "auth_source": "oidc",
                     }
                 ),
                 raw_token,
@@ -242,7 +238,6 @@ class AuthService:
                 auth_subject=auth_subject,
                 client_id=client_id,
                 scopes=scopes,
-                auth_source="oidc",
             )
 
     def profile_exists(self, phone_number: str) -> bool:
@@ -279,8 +274,7 @@ class AuthService:
                 return None
             return AuthContext(row.id, user.id, user.username, user.display_name, user.role,
                                user.customer_id, row.assurance_level, user.phone_number,
-                               auth_subject=user.auth_subject,
-                               auth_source="oidc")
+                               auth_subject=user.auth_subject)
 
     def elevate_session(self, raw_token: str, assurance_level: str = "L3") -> None:
         with self.runtime.sessions.begin() as session:

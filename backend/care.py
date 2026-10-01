@@ -50,7 +50,7 @@ PATTERNS = {
     "COMPLAINT": re.compile(
         r"\bcomplain|\bgrievance|\bescalat|ombudsman|not (happy|satisfied) with|unhappy with|worst (bank|service)|pathetic"
         r"|(terrible|bad|poor) service|charged (me )?wrongly|wrong(ly)? charged|hidden charges?|refund (not|hasn'?t|has not)"
-        r"|still not (received|resolved|refunded)|shikayat|शिकायत|तक्रार", _I),
+        r"|still not (received|resolved|refunded)|shikayat|takrar|शिकायत|तक्रार", _I),
     "HUMAN": re.compile(
         r"\b(talk|speak|connect|chat)\b.{0,12}\b(to|with)\b.{0,12}\b(a |an |the |some |real )?(human|person|agent|executive|representative"
         r"|someone|customer care|manager|officer|banker)\b|\bcall me\b|\bcall ?back\b|\breal person\b|\bhuman agent\b"

@@ -28,7 +28,7 @@ def make_auth_router(
     require_customer,
     require_customer_csrf,
     active_consent,
-    oauth_service=None,
+    oauth_service,
 ):
     router = APIRouter()
 
@@ -52,7 +52,7 @@ def make_auth_router(
         if sentinel_session:
             try:
                 context = auth_service.resolve(sentinel_session)
-                if context and oauth_service is not None:
+                if context:
                     await asyncio.to_thread(oauth_service.revoke_session_grants, context.session_id)
             except Exception:
                 pass
@@ -61,7 +61,7 @@ def make_auth_router(
             except Exception:
                 pass
         response.delete_cookie(COOKIE_NAME, path="/")
-        idp_sign_out = oauth_service.idp_sign_out_url("/") if oauth_service else None
+        idp_sign_out = oauth_service.idp_sign_out_url("/")
         return {"logged_out": True, "idp_sign_out_url": idp_sign_out}
 
     @router.post("/api/auth/firebase-step-up")
@@ -73,8 +73,6 @@ def make_auth_router(
         context=Depends(require_customer_csrf),
     ):
         del request, response  # slowapi injects rate-limit headers into `response`
-        if oauth_service is None or context.auth_source != "oidc":
-            raise HTTPException(status_code=404, detail="OIDC step-up is not available")
         if context.client_id != oauth_service.web_client_id:
             raise HTTPException(status_code=403, detail="Step-up is restricted to the first-party Kosh client")
         try:
@@ -125,16 +123,13 @@ def make_auth_router(
         req: ChallengeVerifyRequest,
         context=Depends(require_customer_csrf),
     ):
-        if (
-            oauth_service is not None
-            and context.client_id != oauth_service.web_client_id
-        ):
+        if context.client_id != oauth_service.web_client_id:
             raise HTTPException(status_code=403, detail={
                 "code": "FIRST_PARTY_APPROVAL_REQUIRED",
                 "message": "Final execution must be approved inside Kavach.",
                 "approval_deep_link": f"/approvals/{challenge_id}",
             })
-        if context.auth_source != "oidc" or context.assurance_level != "L3":
+        if context.assurance_level != "L3":
             raise HTTPException(status_code=403, detail={
                 "code": "STEP_UP_REQUIRED",
                 "message": "Fresh Firebase verification is required before payment execution.",

@@ -12,14 +12,14 @@ import urllib.parse
 import urllib.request
 import uuid
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 
 import jwt
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy import select
 
-from auth_service import AuthContext, AuthService
+from auth_service import AuthContext, AuthService, _aware, _hash
 from persistence import (
     ConversationRecord,
     AuthSessionRecord,
@@ -37,18 +37,8 @@ SENTINEL_USERNAME_CLAIM = "https://sentinel/auth/username"
 DEFAULT_SCOPES = ("openid", "profile", "offline_access", "banking.read", "banking.propose")
 
 
-def _hash(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
 def _b64url(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
-
-
-def _aware(value: datetime | None) -> datetime | None:
-    if value is None or value.tzinfo is not None:
-        return value
-    return value.replace(tzinfo=timezone.utc)
 
 
 class TokenCipher:
@@ -70,10 +60,6 @@ class OAuthService:
     def __init__(self, auth_service: AuthService) -> None:
         self.auth_service = auth_service
         self.runtime = auth_service.runtime
-        self.mode = os.getenv("AUTH_MODE", "oidc").strip().lower()
-        if self.mode != "oidc":
-            raise RuntimeError("Kosh supports only AUTH_MODE=oidc")
-
         self.auth_url = os.getenv("BETTER_AUTH_URL", "http://127.0.0.1:8020").rstrip("/")
         self.issuer = os.getenv("BETTER_AUTH_ISSUER", f"{self.auth_url}/api/auth").rstrip("/")
         self.audience = os.getenv("OAUTH_AUDIENCE", "http://127.0.0.1:8017/api")
@@ -83,6 +69,7 @@ class OAuthService:
         self.chat_client_id = os.getenv("OAUTH_CHAT_CLIENT_ID", "sentinel-chat")
         self.chat_client_secret = os.getenv("OAUTH_CHAT_CLIENT_SECRET", "sentinel-chat-development-secret")
         self.allowed_clients = {self.web_client_id, self.chat_client_id}
+        self._secrets = {self.web_client_id: self.web_client_secret, self.chat_client_id: self.chat_client_secret}
         self.authorization_endpoint = os.getenv("OAUTH_AUTHORIZATION_ENDPOINT", f"{self.issuer}/oauth2/authorize")
         self.token_endpoint = os.getenv("OAUTH_TOKEN_ENDPOINT", f"{self.issuer}/oauth2/token")
         self.revocation_endpoint = os.getenv("OAUTH_REVOCATION_ENDPOINT", f"{self.issuer}/oauth2/revoke")
@@ -97,10 +84,6 @@ class OAuthService:
             encryption_secret = "sentinel-only-for-local-development"
         self.cipher = TokenCipher(encryption_secret)
         self._jwks_client: jwt.PyJWKClient | None = None
-
-    @property
-    def oidc_enabled(self) -> bool:
-        return True
 
     @staticmethod
     def safe_return_to(value: str | None, default: str = "/") -> str:
@@ -122,8 +105,6 @@ class OAuthService:
         return_to: str = "/",
         chat_session_id: str | None = None,
     ) -> str:
-        if not self.oidc_enabled:
-            raise PermissionError("OIDC authentication is disabled")
         client_id, _, redirect_uri = self._client(kind)
         state = secrets.token_urlsafe(32)
         verifier = secrets.token_urlsafe(64)
@@ -157,8 +138,6 @@ class OAuthService:
         return f"{self.authorization_endpoint}?{query}"
 
     def idp_sign_out_url(self, return_to: str | None = None) -> str | None:
-        if not self.oidc_enabled:
-            return None
         target = self.sentinel_url if not return_to or not return_to.startswith("/") else f"{self.sentinel_url}{return_to}"
         base = self.issuer.replace("/api/auth", "")
         query = urllib.parse.urlencode({"return_to": target})
@@ -348,7 +327,7 @@ class OAuthService:
             refresh_token = self.cipher.decrypt(grant.encrypted_refresh_token)
             client_id = grant.client_id
             auth_subject = grant.auth_subject
-            secret = self.chat_client_secret if client_id == self.chat_client_id else self.web_client_secret
+            secret = self._secrets[client_id]
 
         try:
             tokens = self._post_form(self.token_endpoint, {
@@ -417,7 +396,6 @@ class OAuthService:
             auth_subject=auth_subject,
             client_id=client_id,
             scopes=scopes,
-            auth_source="oidc",
         )
 
     def create_websocket_ticket(self, context: AuthContext, chat_session_id: str | None) -> str:
@@ -457,7 +435,7 @@ class OAuthService:
                 display_name=record.display_name, role=record.role, customer_id=record.customer_id,
                 assurance_level="L2", phone_number=record.phone_number,
                 auth_subject=record.auth_subject, client_id=self.chat_client_id,
-                scopes=("openid", "profile", "banking.read", "banking.propose"), auth_source="oidc",
+                scopes=("openid", "profile", "banking.read", "banking.propose"),
             )
 
     def transfer_chat(self, chat_session_id: str | None, context: AuthContext) -> None:
@@ -494,7 +472,7 @@ class OAuthService:
             for row in rows:
                 row.revoked_at = now
                 if row.encrypted_refresh_token:
-                    secret = self.chat_client_secret if row.client_id == self.chat_client_id else self.web_client_secret
+                    secret = self._secrets[row.client_id]
                     pending.append((self.cipher.decrypt(row.encrypted_refresh_token), row.client_id, secret))
         for refresh_token, client_id, secret in pending:
             try:
@@ -516,11 +494,7 @@ class OAuthService:
             if not grant or not grant.encrypted_refresh_token or not grant.provider_session_id:
                 raise PermissionError("No refreshable OAuth grant is active")
             provider_session_id = grant.provider_session_id
-            refresh_token = self.cipher.decrypt(grant.encrypted_refresh_token)
-            client_id = grant.client_id
-            auth_subject = grant.auth_subject
             grant_id = grant.id
-            secret = self.chat_client_secret if client_id == self.chat_client_id else self.web_client_secret
 
         request = urllib.request.Request(
             f"{self.issuer}/firebase/step-up",
@@ -537,27 +511,7 @@ class OAuthService:
         except (urllib.error.URLError, TimeoutError) as exc:
             raise ConnectionError("OAuth authority is unavailable") from exc
 
-        tokens = self._post_form(self.token_endpoint, {
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-            "resource": self.audience,
-        }, client_id, secret)
-        access_token = str(tokens.get("access_token") or "")
-        claims = self.decode_token(access_token, audience=self.audience)
-        if claims.get("sub") != auth_subject or self.assurance_from_claims(claims) != "L3":
+        _, assurance = self._refresh_grant(grant_id)  # rotates the grant; new JWTs carry the step-up
+        if assurance != "L3":
             raise PermissionError("Refreshed token did not satisfy L3 assurance")
-
-        now = utc_dt()
-        with self.runtime.sessions.begin() as session:
-            stored = session.get(OAuthGrantRecord, grant_id)
-            auth_session = session.get(AuthSessionRecord, auth_session_id)
-            if not stored or stored.revoked_at or not auth_session or auth_session.revoked_at:
-                raise PermissionError("Authentication session is no longer active")
-            stored.encrypted_access_token = self.cipher.encrypt(access_token)
-            if tokens.get("refresh_token"):
-                stored.encrypted_refresh_token = self.cipher.encrypt(str(tokens["refresh_token"]))
-            stored.access_expires_at = now + timedelta(seconds=max(1, int(tokens.get("expires_in") or 300)))
-            stored.updated_at = now
-            auth_session.assurance_level = "L3"
-            auth_session.step_up_expires_at = now + timedelta(minutes=5)
         return 300
