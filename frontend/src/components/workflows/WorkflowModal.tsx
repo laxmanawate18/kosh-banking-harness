@@ -10,8 +10,7 @@ import {
   reviewWorkflow,
   submitWorkflow,
 } from '../../services/workflows';
-import { firebaseStepUp } from '../../services/auth';
-import { sendRealPhoneOtp } from '../../services/firebaseAuth';
+import { completeStepUp, sendStepUpCode } from '../../services/firebaseAuth';
 import { useBanking } from '../../context/BankingContext';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
@@ -59,7 +58,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
 
   // Step-up authentication
   const [stepUpOpen, setStepUpOpen] = useState<boolean>(false);
-  const [stepUpCode, setStepUpCode] = useState<string>('246810');
+  const [stepUpCode, setStepUpCode] = useState<string>('');
   const [stepUpError, setStepUpError] = useState<string | null>(null);
   const [stepUpBusy, setStepUpBusy] = useState<boolean>(false);
   const [stepUpConfirmation, setStepUpConfirmation] = useState<ConfirmationResult | null>(null);
@@ -418,8 +417,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
       if (!stepUpConfirmation) {
         throw new Error('Send a fresh Firebase verification code first.');
       }
-      const credential = await stepUpConfirmation.confirm(stepUpCode.trim());
-      await firebaseStepUp(await credential.user.getIdToken(true));
+      await completeStepUp(stepUpConfirmation, stepUpCode);
       setStepUpOpen(false);
       setStepUpConfirmation(null);
       // Retry submission with elevated L3 assurance
@@ -439,18 +437,9 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
     setStepUpBusy(true);
     setStepUpError(null);
     try {
-      const confirmation = await sendRealPhoneOtp(
-        auth.user.phone_number,
-        publicConfig,
-        'step-up-recaptcha',
-        true,
-      );
-      setStepUpConfirmation(confirmation);
-      if (['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)) {
-        setStepUpCode(publicConfig.firebase_test_code ?? '');
-      } else {
-        setStepUpCode('');
-      }
+      const sent = await sendStepUpCode(auth.user.phone_number, publicConfig, 'step-up-recaptcha');
+      setStepUpConfirmation(sent.confirmation);
+      setStepUpCode(sent.prefill);
     } catch (err: any) {
       setStepUpError(err.message || 'Could not send a fresh Firebase verification code.');
     } finally {

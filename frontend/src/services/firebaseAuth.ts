@@ -7,6 +7,7 @@ import {
   type ConfirmationResult,
 } from 'firebase/auth';
 import type { PublicAuthConfig } from '../types/auth';
+import { firebaseStepUp } from './auth';
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
@@ -72,4 +73,17 @@ export async function sendRealPhoneOtp(
   }
   const verifier = setupRecaptcha(containerId, authInstance);
   return signInWithPhoneNumber(authInstance, formatted, verifier);
+}
+
+
+/** Send a fresh step-up code to the customer's phone; on a local run the Firebase test code is prefilled. */
+export async function sendStepUpCode(phoneNumber: string, config: PublicAuthConfig, containerId: string): Promise<{ confirmation: ConfirmationResult; prefill: string }> {
+  const confirmation = await sendRealPhoneOtp(phoneNumber, config, containerId, true);
+  return { confirmation, prefill: config.is_local ? config.firebase_test_code ?? '' : '' };
+}
+
+/** Confirm the code with Firebase and elevate the Kosh session to L3. */
+export async function completeStepUp(confirmation: ConfirmationResult, code: string): Promise<void> {
+  const credential = await confirmation.confirm(code.trim());
+  await firebaseStepUp(await credential.user.getIdToken(true));
 }

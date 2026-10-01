@@ -7,8 +7,7 @@ import { ShieldCheck, ArrowRight } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
-import { firebaseStepUp } from '../../services/auth';
-import { sendRealPhoneOtp } from '../../services/firebaseAuth';
+import { completeStepUp, sendStepUpCode } from '../../services/firebaseAuth';
 
 interface PaymentChallengeModalProps {
   challenge: Challenge | null;
@@ -37,16 +36,9 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
     setIsLoading(true);
     setError('');
     try {
-      const result = await sendRealPhoneOtp(
-        auth.user.phone_number,
-        publicConfig,
-        'payment-step-up-recaptcha',
-        true,
-      );
-      setConfirmation(result);
-      setCode(['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
-        ? publicConfig.firebase_test_code ?? ''
-        : '');
+      const sent = await sendStepUpCode(auth.user.phone_number, publicConfig, 'payment-step-up-recaptcha');
+      setConfirmation(sent.confirmation);
+      setCode(sent.prefill);
     } catch (err: any) {
       setError(err.message || 'Could not send a fresh Firebase verification code.');
     } finally {
@@ -60,8 +52,7 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
     setIsLoading(true);
     try {
       if (!confirmation) throw new Error('Send a fresh Firebase verification code first.');
-      const credential = await confirmation.confirm(code.trim());
-      await firebaseStepUp(await credential.user.getIdToken(true));
+      await completeStepUp(confirmation, code);
       const res = await verifyChallenge();
       if (res.success || res.status === 'SUCCESS' || res.status === 'APPROVED') {
         const receipt = res.receipt || {

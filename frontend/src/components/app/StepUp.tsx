@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import type { ConfirmationResult } from 'firebase/auth';
-import { firebaseStepUp } from '../../services/auth';
-import { sendRealPhoneOtp } from '../../services/firebaseAuth';
+import { completeStepUp, sendStepUpCode } from '../../services/firebaseAuth';
 import { useAuth } from '../../context/AuthContext';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
@@ -18,8 +17,7 @@ export function useStepUp() {
   const run = async <T,>(action: () => Promise<T>): Promise<T | undefined> => {
     if (needed) {
       if (!confirmation) throw new Error('A verification code could not be sent. Please try again.');
-      const credential = await confirmation.confirm(otp.trim());
-      await firebaseStepUp(await credential.user.getIdToken(true));
+      await completeStepUp(confirmation, otp);
     }
     try {
       const result = await action();
@@ -30,9 +28,9 @@ export function useStepUp() {
     } catch (err: any) {
       if (err.detail?.code === 'STEP_UP_REQUIRED') {
         if (!publicConfig || !user?.phone_number) throw new Error('Extra verification is not configured for this account.');
-        const next = await sendRealPhoneOtp(user.phone_number, publicConfig, 'inline-step-up-recaptcha', true);
-        setConfirmation(next);
-        setOtp(publicConfig.is_local ? publicConfig.firebase_test_code ?? '' : '');
+        const sent = await sendStepUpCode(user.phone_number, publicConfig, 'inline-step-up-recaptcha');
+        setConfirmation(sent.confirmation);
+        setOtp(sent.prefill);
         setNeeded(true);
         return undefined;
       }
