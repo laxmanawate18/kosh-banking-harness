@@ -33,7 +33,6 @@
 .fi-p-dot { --a: fi-dot; --t: 900ms; --e: ease-in-out; }
 .fi-p-print { --a: fi-print; --t: 800ms; }
 .fi-p-grow { --a: fi-grow; --t: 700ms; --o: 50% 100%; }
-.fi-p-spin { --a: fi-spin; --t: 1100ms; --e: ease-in-out; }
 .fi-p-fly { --a: fi-fly; --t: 1100ms; --e: cubic-bezier(0.5, 0, 0.2, 1); }
 .fi-p-fade { --a: fi-fade; --t: 500ms; }
 .fi-p-orbit { --a: fi-orbit; --t: 1100ms; --e: cubic-bezier(0.45, 0, 0.2, 1); }
@@ -45,14 +44,7 @@
 .fi-p-bob { --a: fi-bob; --t: 900ms; --o: 50% 100%; --e: ease-in-out; }
 .fi-p-arrow { --a: fi-arrow; --t: 900ms; --e: ease-in-out; }
 .fi-p-pop { --a: fi-pop; --t: 550ms; }
-.fi-p-press { --a: fi-press; --t: 280ms; --e: ease-in-out; }
 .fi-p-lid { --a: fi-lid; --t: 1000ms; --o: 0% 100%; --e: ease-in-out; }
-.fi-p-shackle { --a: fi-shackle; --t: 900ms; --e: ease-in-out; }
-.fi-p-click { --a: fi-click; --t: 900ms; }
-.fi-p-tilt { --a: fi-tilt; --t: 800ms; --o: 50% 100%; --e: ease-in-out; }
-.fi-p-open { --a: fi-open; --t: 800ms; --o: 50% 0%; }
-.fi-p-clap { --a: fi-clap; --t: 1000ms; --e: ease-in-out; }
-.fi-p-emit { --a: fi-emit; --t: 500ms; }
 .fi-p-write { --a: fi-write; --t: 380ms; --o: 0% 50%; }
 
 @keyframes fi-coin {
