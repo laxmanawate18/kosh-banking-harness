@@ -18,9 +18,6 @@ def _now() -> str:
 
 
 class RPAJobQueue:
-    _instance = None
-    _instance_lock = threading.Lock()
-
     def __init__(self) -> None:
         self._jobs: Dict[str, Dict[str, Any]] = {}
         self._q: queue.Queue[Dict[str, Any] | None] = queue.Queue()
@@ -29,13 +26,6 @@ class RPAJobQueue:
         self._stop = threading.Event()
         self._cbs_base_url = "http://127.0.0.1:8995"
         self._result_handler: Callable[[str, Dict[str, Any]], None] | None = None
-
-    @classmethod
-    def get_instance(cls) -> "RPAJobQueue":
-        with cls._instance_lock:
-            if cls._instance is None:
-                cls._instance = cls()
-            return cls._instance
 
     def enqueue(self, request_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         with self._jobs_lock:
@@ -142,17 +132,7 @@ class RPAJobQueue:
                         started_at=_now(), attempts=job["attempts"] + 1)
         self.add_event(request_id, {"phase": "EXECUTING", "label": "Browser automation started"})
         try:
-            pan_val = payload.get("pan_number") or payload.get("pan") or ""
-            if not pan_val and payload.get("workflow_id"):
-                try:
-                    from persistence import BankingWorkflowRecord
-                    from banking_db import db
-                    with db.runtime.sessions() as s:
-                        wf = s.get(BankingWorkflowRecord, payload["workflow_id"])
-                        if wf and wf.payload and wf.payload.get("fields"):
-                            pan_val = wf.payload["fields"].get("pan_number", "")
-                except Exception:
-                    pass
+            pan_val = payload.get("pan_number") or payload.get("pan") or ""  # the officer decision already restored it
             if not pan_val and payload.get("pan_masked"):
                 masked = str(payload.get("pan_masked", "")).strip()
                 if len(masked) == 10 and not masked.startswith("•"):
@@ -220,5 +200,8 @@ class RPAJobQueue:
                 break
 
 
+_QUEUE = RPAJobQueue()  # one queue per process
+
+
 def get_job_queue() -> RPAJobQueue:
-    return RPAJobQueue.get_instance()
+    return _QUEUE

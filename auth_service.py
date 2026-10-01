@@ -33,7 +33,6 @@ def _aware(value: datetime | None) -> datetime | None:
         return value
     return value.replace(tzinfo=timezone.utc)
 
-DEMO_OTP = os.getenv("DEMO_OTP", "246810")
 
 
 def normalize_phone(value: str) -> str:

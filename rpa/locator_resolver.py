@@ -18,12 +18,8 @@ async def resolve_locator(page: Page, target: Dict[str, SelectorStrategy], timeo
                 loc = page.locator(f"[name='{spec.value}']")
             elif spec.strategy == "css":
                 loc = page.locator(spec.value)
-            elif spec.strategy == "xpath":
-                loc = page.locator(f"xpath={spec.value}")
             elif spec.strategy == "label_text":
                 loc = page.get_by_label(spec.value)
-            elif spec.strategy == "relative":
-                loc = page.locator(f"{spec.anchor} >> {spec.offset or 'input'}")
 
             if loc is not None:
                 await loc.first.wait_for(state="attached", timeout=timeout_ms)

@@ -14,33 +14,6 @@ from product_service import get_product_by_id, inr
 from sentinel import AGENT_ID, CUSTOMER_ID, KNOWN_DEVICE_ID, SentinelService, sentinel
 
 
-ALLOWED_PRESENTATIONS = {
-    "ACCOUNT_SUMMARY",
-    "TRANSACTION_LIST",
-    "BILL_LIST",
-    "PAYMENT_RECEIPT",
-    "PAYMENT_CHALLENGE",
-    "SENTINEL_DENIAL",
-    "SECURITY_ALERT",
-    "CARD_FROZEN",
-    "CLARIFICATION",
-    "KYC_STATUS",
-    "KYC_FORM",
-    "INITIAL_KYC_FORM",
-    "KYC_IN_REVIEW",
-    "KYC_SUBMISSION_RECEIPT",
-    "BANKING_WORKFLOW",
-    "CHOICE_SELECTION",
-    "TRANSFER_FORM",
-    "BILL_PAY_FORM",
-    "RPA_ACCOUNT_OPENING_STATUS",
-    "RPA_ACCOUNT_OPENED",
-    "CROSS_SELL_OFFER",
-    "VIDEO_KYC",
-    "LEAD_QUALIFICATION",
-}
-
-
 def _without_token(decision: Dict[str, Any]) -> Dict[str, Any]:
     safe = copy.deepcopy(decision)
     safe.pop("authorization_token", None)

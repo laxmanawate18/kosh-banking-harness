@@ -5,7 +5,7 @@ from rpa.sanitizer import sanitize_field
 from rpa.field_mapper import map_application_to_cbs
 
 
-def test_snapshot_hashing_and_validation():
+def test_snapshot_validation():
     data = {
         "application_reference": "APP-2026-9812",
         "customer_name": "Aarav Mehta",
@@ -21,13 +21,12 @@ def test_snapshot_hashing_and_validation():
         "nominee_name": "Priya Mehta",
         "nominee_relationship": "SPOUSE",
     }
-    snapshot = AccountApplicationSnapshot(**data)
-    digest1 = snapshot.compute_digest()
-    assert len(digest1) == 64  # SHA-256 hex string
-
-    # Modifying a field changes digest
-    snapshot2 = AccountApplicationSnapshot(**{**data, "customer_name": "Aarav S Mehta"})
-    assert snapshot2.compute_digest() != digest1
+    assert AccountApplicationSnapshot(**data).pan == "ABCDE1234F"
+    import pytest
+    from pydantic import ValidationError
+    for bad in ({"pan": "ABC123"}, {"mobile": "12345"}, {"pincode": "40005"}, {"application_reference": "BAD"}):
+        with pytest.raises(ValidationError):
+            AccountApplicationSnapshot(**{**data, **bad})
 
 
 def test_field_sanitizer_prevents_prompt_injection_and_tampering():

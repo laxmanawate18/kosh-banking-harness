@@ -1,28 +1,13 @@
-import threading
-import time
 import pytest
-import uvicorn
 from banking_db import db
 from service_requests import ServiceRequestService
 from rpa.rpa_runner import RPARunner
 from rpa.models import AccountApplicationSnapshot, JobStatus
 from rpa.job_dispatcher import get_job_queue
-from rpa.cbs_mock_server import mock_cbs_app
-
-
-@pytest.fixture(scope="module")
-def cbs_server_url():
-    config = uvicorn.Config(mock_cbs_app, host="127.0.0.1", port=8996, log_level="error")
-    server = uvicorn.Server(config)
-    t = threading.Thread(target=server.run, daemon=True)
-    t.start()
-    time.sleep(1)
-    yield "http://127.0.0.1:8996"
-    server.should_exit = True
 
 
 @pytest.mark.asyncio
-async def test_full_chatbot_rpa_cbs_lifecycle(cbs_server_url):
+async def test_full_chatbot_rpa_cbs_lifecycle(cbs_url):
     # 1. Customer submits account opening application via Sentinel Chatbot
     req_svc = ServiceRequestService(db)
     queue = get_job_queue()
@@ -77,7 +62,7 @@ async def test_full_chatbot_rpa_cbs_lifecycle(cbs_server_url):
         account_type=job["payload"]["account_scheme"],
     )
 
-    runner = RPARunner(cbs_base_url=cbs_server_url, headless=True)
+    runner = RPARunner(cbs_base_url=cbs_url, headless=True)
     rpa_result = await runner.run_account_opening(snapshot)
 
     assert rpa_result["status"] == JobStatus.COMPLETED

@@ -103,12 +103,7 @@ def notify_session_payment_verified(session_id: str, receipt: Dict[str, Any]) ->
             "receipt": receipt,
         }],
     }
-    if not any(
-        m.get("presentation", {}).get("type") == "PAYMENT_RECEIPT" and
-        (m.get("presentation", {}).get("receipt", {}).get("payment_ref") == ref or
-         m.get("presentation", {}).get("receipt", {}).get("reference") == ref)
-        for m in session.session_data.get("messages", [])
-    ):
+    if ref not in _receipt_refs(session.session_data.get("messages", [])):
         session.session_data.setdefault("messages", []).append(receipt_msg)
 
     try:
@@ -186,6 +181,15 @@ class SessionManager:
                 pass
 
 
+def _receipt_ref(message: Dict[str, Any]) -> Optional[str]:
+    receipt = message.get("presentation", {}).get("receipt", {})
+    return receipt.get("payment_ref") or receipt.get("reference")
+
+
+def _receipt_refs(messages: List[Dict[str, Any]]) -> set:
+    return {_receipt_ref(m) for m in messages if m.get("presentation", {}).get("type") == "PAYMENT_RECEIPT"}
+
+
 async def serve_visitor_websocket(
     websocket: WebSocket,
     agent_factory: Callable,
@@ -197,21 +201,7 @@ async def serve_visitor_websocket(
     if existing and (existing.get("user_id") or time.time() - existing.get("updated_at", 0) > VISITOR_CHAT_TTL_SECONDS):
         existing = None
     guest_id = existing["id"] if existing else f"GUEST-{secrets.token_urlsafe(24)}"
-    if existing:
-        guest_session = existing
-    else:
-        guest_session = {
-            "id": guest_id,
-            "title": "Visitor chat",
-            "created_at": time.time(),
-            "updated_at": time.time(),
-            "product": "sentinel-v2",
-            "user_id": None,
-            "customer_id": None,
-            "messages": [],
-            "traces": [],
-        }
-        save_session(guest_session)
+    guest_session = existing or create_session_data("Visitor chat", session_id=guest_id)
     sales_context = restore_sales_context(guest_session)
     await websocket.send_json({
         "type": "connection_ready",
@@ -850,24 +840,14 @@ async def serve_chat_websocket(
                         assistant_message["presentation"] = presentations[-1]
                         assistant_message["presentations"] = presentations
 
-                    latest_conv = db.get_conversation(session.session_id)
-                    if latest_conv:
-                        existing_msgs = latest_conv.get("messages", [])
-                        receipt_msgs = [m for m in existing_msgs if m.get("presentation", {}).get("type") == "PAYMENT_RECEIPT"]
-                        session.session_data["messages"].append(assistant_message)
-                        saved_index = len(session.session_data["messages"]) - 1
-                        for rmsg in receipt_msgs:
-                            ref = rmsg.get("presentation", {}).get("receipt", {}).get("payment_ref") or rmsg.get("presentation", {}).get("receipt", {}).get("reference")
-                            if not any(
-                                m.get("presentation", {}).get("type") == "PAYMENT_RECEIPT" and
-                                (m.get("presentation", {}).get("receipt", {}).get("payment_ref") == ref or
-                                 m.get("presentation", {}).get("receipt", {}).get("reference") == ref)
-                                for m in session.session_data["messages"]
-                            ):
-                                session.session_data["messages"].append(rmsg)
-                    else:
-                        session.session_data["messages"].append(assistant_message)
-                        saved_index = len(session.session_data["messages"]) - 1
+                    # Receipts the payment-approval callback saved meanwhile are kept, once each.
+                    stored_receipts = [m for m in (db.get_conversation(session.session_id) or {}).get("messages", [])
+                                       if m.get("presentation", {}).get("type") == "PAYMENT_RECEIPT"]
+                    session.session_data["messages"].append(assistant_message)
+                    saved_index = len(session.session_data["messages"]) - 1
+                    for rmsg in stored_receipts:
+                        if _receipt_ref(rmsg) not in _receipt_refs(session.session_data["messages"]):
+                            session.session_data["messages"].append(rmsg)
 
                     save_session(session.session_data)
                     await websocket.send_json({"type": "message_saved", "turn_id": turn_id, "message_index": saved_index})

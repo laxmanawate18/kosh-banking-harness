@@ -30,10 +30,11 @@ def create_session_data(
     user_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     initial_messages: Optional[List[Dict[str, Any]]] = None,
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     now = time.time()
     session = {
-        "id": str(uuid.uuid4()),
+        "id": session_id or str(uuid.uuid4()),
         "title": title or "New Chat",
         "created_at": now,
         "updated_at": now,

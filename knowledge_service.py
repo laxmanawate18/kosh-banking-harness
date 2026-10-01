@@ -1,7 +1,7 @@
-"""File-based SQLite RAG knowledge service for Kosh Banking.
+"""Kosh bank-document search: SQLite FTS5 with BM25 ranking over data/bank_documents/*.md.
 
-Indexes bank policy documents, product terms, disclosure codes, and regulatory charters
-using SQLite FTS5 with BM25 ranking. Completely in-process, self-contained, and packaged in Docker.
+The index is a local file rebuilt from the markdown when the documents change (checked at startup), so every
+instance, including each Cloud Run container, has its own copy and needs no database server.
 """
 
 from __future__ import annotations
@@ -17,26 +17,6 @@ DOCS_DIR = Path(__file__).resolve().parent / "data" / "bank_documents"
 DB_PATH = Path(os.getenv("SENTINEL_KB_DB_PATH") or (Path(__file__).resolve().parent / "data" / "bank_knowledge.sqlite3"))
 
 
-def _get_pg_conn():
-    url = os.getenv("SENTINEL_DATABASE_URL", "")
-    if "://" in url:
-        from urllib.parse import unquote, urlparse
-        p = urlparse(url.replace("+psycopg", ""))
-        user = p.username or "sentinel"
-        password = unquote(p.password or "")
-        host = p.hostname or "127.0.0.1"
-        port = p.port or 5432
-        dbname = p.path.lstrip("/") or "sentinel"
-        import psycopg
-        return psycopg.connect(host=host, port=port, user=user, password=password, dbname=dbname)
-    return None
-
-
-def is_postgres() -> bool:
-    url = os.getenv("SENTINEL_DATABASE_URL", "")
-    return url.startswith("postgres")
-
-
 def get_db_connection() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(str(DB_PATH), check_same_thread=False)
@@ -45,30 +25,6 @@ def get_db_connection() -> sqlite3.Connection:
 
 
 def init_db(con: Optional[sqlite3.Connection] = None) -> None:
-    if is_postgres():
-        pg = _get_pg_conn()
-        if pg:
-            with pg:
-                with pg.cursor() as cur:
-                    cur.execute("""
-                        CREATE TABLE IF NOT EXISTS kb_meta (
-                            key VARCHAR(80) PRIMARY KEY,
-                            value TEXT
-                        );
-                        CREATE TABLE IF NOT EXISTS bank_knowledge (
-                            id SERIAL PRIMARY KEY,
-                            doc_id VARCHAR(120),
-                            doc_title VARCHAR(240),
-                            section_title VARCHAR(240),
-                            category VARCHAR(60),
-                            content TEXT,
-                            keywords TEXT,
-                            tsv tsvector
-                        );
-                        CREATE INDEX IF NOT EXISTS ix_bank_knowledge_tsv ON bank_knowledge USING gin(tsv);
-                    """)
-            pg.close()
-            return
     if con is not None:
         with con:
             con.execute(
@@ -161,47 +117,6 @@ def _chunk_markdown(file_path: Path) -> List[Dict[str, str]]:
 
 def ingest_documents(force: bool = False) -> int:
     """Ingest markdown files from data/bank_documents into the index."""
-    if is_postgres():
-        pg = _get_pg_conn()
-        if not pg:
-            return 0
-        init_db()
-        current_hash = _compute_docs_hash()
-        with pg:
-            with pg.cursor() as cur:
-                if not force:
-                    cur.execute("SELECT value FROM kb_meta WHERE key = 'docs_hash'")
-                    row = cur.fetchone()
-                    if row and row[0] == current_hash:
-                        cur.execute("SELECT count(*) FROM bank_knowledge")
-                        c = cur.fetchone()[0]
-                        if c > 0:
-                            pg.close()
-                            return c
-                all_chunks = []
-                if DOCS_DIR.exists():
-                    for file in sorted(DOCS_DIR.glob("*.md")):
-                        all_chunks.extend(_chunk_markdown(file))
-                cur.execute("DELETE FROM bank_knowledge;")
-                for i, chunk in enumerate(all_chunks):
-                    doc_id = f"{chunk['category']}-{i+1}"
-                    words = set(re.findall(r"\b[a-zA-Z]{3,}\b", chunk["content"].lower()))
-                    keywords = " ".join(sorted(words)[:30])
-                    combined_text = f"{chunk['doc_title']} {chunk['section_title']} {chunk['category']} {keywords} {chunk['content']}"
-                    cur.execute("""
-                        INSERT INTO bank_knowledge (doc_id, doc_title, section_title, category, content, keywords, tsv)
-                        VALUES (%s, %s, %s, %s, %s, %s, to_tsvector('english', %s))
-                    """, (
-                        doc_id, chunk["doc_title"], chunk["section_title"], chunk["category"],
-                        chunk["content"], keywords, combined_text
-                    ))
-                cur.execute("""
-                    INSERT INTO kb_meta (key, value) VALUES ('docs_hash', %s)
-                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-                """, (current_hash,))
-        pg.close()
-        return len(all_chunks)
-
     con = get_db_connection()
     init_db(con)
 
@@ -266,54 +181,6 @@ def search_bank_knowledge(
     limit: int = 4,
 ) -> List[Dict[str, Any]]:
     """Retrieve truth-grounded passages from Kosh Bank documents."""
-    if is_postgres():
-        pg = _get_pg_conn()
-        if not pg:
-            return []
-        init_db()
-        fts_tokens = [t for t in sanitize_query(query).split(" OR ") if t.strip()]
-        if not fts_tokens:
-            pg.close()
-            return []
-        or_query = " | ".join(fts_tokens)
-        cat_filter = category.strip().lower() if category and category.strip().lower() not in ("", "all", "general") else None
-
-        with pg:
-            with pg.cursor() as cur:
-                where_clauses = ["(tsv @@ to_tsquery('english', %s) OR content ILIKE %s)"]
-                like_q = f"%{query.strip()}%"
-                params: List[Any] = [or_query, like_q]
-                if cat_filter:
-                    where_clauses.append("category = %s")
-                    params.append(cat_filter)
-                where_sql = " AND ".join(where_clauses)
-                sql = f"""
-                    SELECT doc_id, doc_title, section_title, category, content,
-                           ts_rank(tsv, to_tsquery('english', %s)) AS rank
-                    FROM bank_knowledge
-                    WHERE {where_sql}
-                    ORDER BY rank DESC, id ASC
-                    LIMIT %s
-                """
-                cur.execute(sql, [or_query] + params + [limit])
-                rows = cur.fetchall()
-        pg.close()
-        results = []
-        for r in rows:
-            content_text = r[4] or ""
-            snippet = content_text[:200] + "..." if len(content_text) > 200 else content_text
-            results.append({
-                "doc_id": r[0],
-                "doc_title": r[1],
-                "section_title": r[2],
-                "category": r[3],
-                "citation": f"{r[1]} — {r[2]}",
-                "snippet": snippet,
-                "content": content_text,
-                "score": round(float(r[5] or 1.0), 4),
-            })
-        return results
-
     if not DB_PATH.exists():
         ingest_documents()
 
@@ -355,9 +222,7 @@ def search_bank_knowledge(
         cur = con.execute(sql, params)
         rows = cur.fetchall()
     except sqlite3.OperationalError:
-        # Fallback if match fails
-        con.close()
-        return []
+        con.close()  # an FTS syntax the sanitiser did not catch: no passages rather than an error
         return []
 
     results = []

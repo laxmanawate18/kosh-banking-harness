@@ -1,25 +1,9 @@
-import threading
-import time
 import pytest
-import uvicorn
 from rpa.models import AccountApplicationSnapshot, JobStatus
 
 
-@pytest.fixture(scope="module")
-def cbs_test_url():
-    from rpa.cbs_mock_server import mock_cbs_app
-    config = uvicorn.Config(mock_cbs_app, host="127.0.0.1", port=8995, log_level="error")
-    server = uvicorn.Server(config)
-    
-    t = threading.Thread(target=server.run, daemon=True)
-    t.start()
-    time.sleep(1)  # wait for uvicorn to bind
-    yield "http://127.0.0.1:8995"
-    server.should_exit = True
-
-
 @pytest.mark.asyncio
-async def test_rpa_executor_end_to_end_against_mock_cbs(cbs_test_url):
+async def test_rpa_executor_end_to_end_against_mock_cbs(cbs_url):
     snapshot = AccountApplicationSnapshot(
         application_reference="APP-2026-9812",
         customer_name="Aarav Mehta",
@@ -35,7 +19,7 @@ async def test_rpa_executor_end_to_end_against_mock_cbs(cbs_test_url):
     )
 
     from rpa.rpa_runner import RPARunner
-    runner = RPARunner(cbs_base_url=cbs_test_url)
+    runner = RPARunner(cbs_base_url=cbs_url)
     result = await runner.run_account_opening(snapshot)
 
     assert result["status"] == JobStatus.COMPLETED
@@ -45,7 +29,7 @@ async def test_rpa_executor_end_to_end_against_mock_cbs(cbs_test_url):
 
 
 @pytest.mark.asyncio
-async def test_rpa_progress_callback_receives_screenshots(cbs_test_url):
+async def test_rpa_progress_callback_receives_screenshots(cbs_url):
     snapshot = AccountApplicationSnapshot(
         application_reference="APP-2026-9813",
         customer_name="Priya Sharma",
@@ -61,7 +45,7 @@ async def test_rpa_progress_callback_receives_screenshots(cbs_test_url):
     )
     events = []
     from rpa.rpa_runner import RPARunner
-    runner = RPARunner(cbs_base_url=cbs_test_url, headless=True,
+    runner = RPARunner(cbs_base_url=cbs_url, headless=True,
                        progress_callback=lambda ev: events.append(ev))
     result = await runner.run_account_opening(snapshot)
     assert result["status"] == JobStatus.COMPLETED

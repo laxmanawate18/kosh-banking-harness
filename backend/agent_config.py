@@ -28,7 +28,7 @@ from product_service import (
     validate_sales_response,
 )
 from sentinel import CUSTOMER_ID, KNOWN_DEVICE_ID
-from workflow_catalogue import skill_instructions
+from workflow_catalogue import workflow_contract, skill_instructions
 
 
 logger = logging.getLogger(__name__)
@@ -419,7 +419,7 @@ def create_agent_config(
                 "rates or vouchers that are not in the recorded offer text or a tool result.\n"
             )
 
-        instructions = MITRA_BOUNDARIES + "\n\n" + (system_prompt or DEFAULT_SYSTEM_INSTRUCTION) + banner + sales_guidance + lead_reengagement_banner + "\n\n" + skill_instructions()
+        instructions = MITRA_BOUNDARIES + "\n\n" + (system_prompt or DEFAULT_SYSTEM_INSTRUCTION) + banner + sales_guidance + lead_reengagement_banner + "\n\n" + workflow_contract() + "\n\n" + skill_instructions()
 
     skills_dir = Path(__file__).resolve().parent.parent / "skills"
     skills_paths = [str(skills_dir)] if skills_dir.exists() else []

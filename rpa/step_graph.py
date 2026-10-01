@@ -10,7 +10,6 @@ def load_account_opening_graph(cbs_url: str = "") -> List[StepDefinition]:
             action=StepAction.NAVIGATE,
             screen_name="cbs_home",
             expected_value=nav_url,
-            is_state_changing=False,
         ),
         StepDefinition(
             step_id="AO-002",
@@ -92,7 +91,6 @@ def load_account_opening_graph(cbs_url: str = "") -> List[StepDefinition]:
             step_id="AO-009",
             action=StepAction.READ_BACK,
             screen_name="cbs_account_scheme",
-            is_state_changing=False,
         ),
         StepDefinition(
             step_id="AO-010",
@@ -103,6 +101,5 @@ def load_account_opening_graph(cbs_url: str = "") -> List[StepDefinition]:
                 "fallback_1": SelectorStrategy(strategy="css", value="button[type='submit']"),
                 "fallback_2": SelectorStrategy(strategy="label_text", value="Submit for Verification"),
             },
-            can_retry_on_failure=False,  # CRITICAL: Never auto-retry submit
         ),
     ]

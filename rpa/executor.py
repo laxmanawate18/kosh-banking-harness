@@ -31,6 +31,7 @@ class StepExecutor:
         self.progress_callback(event)
 
     async def execute_job(self, snapshot: AccountApplicationSnapshot) -> Dict[str, Any]:
+        """Run the steps once, in order. The first failure stops the job; nothing is retried, so a submit never repeats."""
         cbs_data = map_application_to_cbs(snapshot)
         last_step_id = None
 

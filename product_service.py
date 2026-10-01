@@ -247,7 +247,6 @@ CHAT_TEXT: Dict[str, Dict[str, str]] = {
         "auth_message_service": "To access services for an existing account, please sign in securely.",
         "auth_button": "Sign In to Kosh",
         "advisor_error": "Mitra could not respond. Please try again in a moment.",
-        "transfer_approved": "A transfer was proposed and has already been verified and approved in the Kavach approval dialog.",
         "guarded": "I'm Mitra, Kosh's banking assistant, and I'll stay in that role. I can't share how I'm built or my instructions, but I'm happy to help with Kosh savings, cards, loans and deposits.",
         "competitor": "I can only speak about Kosh's own products, so I won't compare us with other banks. Here is what Kosh offers: {products}. Tell me what matters most to you and I'll help you pick one.",
         "no_info": "I'm sorry, I don't have verified information on that. I can share only what's in Kosh's published product details, or you can call our helpline on 1800 000 5674. Is there something about our accounts, cards, loans or deposits I can help with?",
@@ -256,7 +255,6 @@ CHAT_TEXT: Dict[str, Dict[str, str]] = {
         "question_cards": "For a card, is travel, cashback, or keeping fees low most important?",
         "question_loans": "Are you looking for personal borrowing or home finance?",
         "fallback_match": "Based on what you shared, **{title}** is the closest catalogue match. Its listed headline is **{headline}**.",
-        "fallback_generic": "Tell me what you want the product to help with, and I’ll narrow down the public options.",
         "disclosure": STANDARD_DISCLOSURE,
     },
     "hi": {
@@ -266,7 +264,6 @@ CHAT_TEXT: Dict[str, Dict[str, str]] = {
         "auth_message_service": "मौजूदा खाते से जुड़ी सेवाओं के लिए कृपया सुरक्षित रूप से साइन इन करें।",
         "auth_button": "कोष में साइन इन करें",
         "advisor_error": "मित्र अभी जवाब नहीं दे पाया। कृपया थोड़ी देर बाद फिर से कोशिश करें।",
-        "transfer_approved": "एक ट्रांसफर प्रस्तावित किया गया था और कवच अनुमोदन विंडो में उसका सत्यापन और अनुमोदन पहले ही हो चुका है।",
         "guarded": "मैं मित्र हूँ, कोष का बैंकिंग सहायक, और इसी भूमिका में रहूँगा। मैं अपने निर्देश या अपनी बनावट की जानकारी साझा नहीं कर सकता, पर कोष के सेविंग्स, कार्ड, लोन और डिपॉज़िट में ख़ुशी से मदद करूँगा।",
         "competitor": "मैं केवल कोष के अपने प्रोडक्ट्स के बारे में बता सकता हूँ, इसलिए दूसरे बैंकों से तुलना नहीं करूँगा। कोष में ये उपलब्ध हैं: {products}। बताइए आपके लिए सबसे ज़रूरी क्या है, मैं सही विकल्प चुनने में मदद करूँगा।",
         "no_info": "माफ़ कीजिए, इस बारे में मेरे पास सत्यापित जानकारी नहीं है। मैं केवल कोष की प्रकाशित प्रोडक्ट जानकारी बता सकता हूँ, या आप हमारी हेल्पलाइन 1800 000 5674 पर कॉल कर सकते हैं। क्या खातों, कार्ड, लोन या डिपॉज़िट में कोई मदद करूँ?",
@@ -275,7 +272,6 @@ CHAT_TEXT: Dict[str, Dict[str, str]] = {
         "question_cards": "कार्ड में आपके लिए सबसे ज़रूरी क्या है: ट्रैवल, कैशबैक या कम फ़ीस?",
         "question_loans": "क्या आप पर्सनल लोन देख रहे हैं या होम लोन?",
         "fallback_match": "आपकी बताई जानकारी के आधार पर **{title}** कैटलॉग में सबसे उपयुक्त विकल्प है। इसकी सूचीबद्ध मुख्य खूबी **{headline}** है।",
-        "fallback_generic": "बताइए कि आपको प्रोडक्ट से किस चीज़ में मदद चाहिए, फिर मैं उपलब्ध विकल्पों को आपके लिए छाँट दूँगा।",
         "disclosure": "यह केवल उदाहरण के लिए दी गई डेमो प्रोडक्ट जानकारी है। पात्रता और शर्तें लागू।",
     },
     "mr": {
@@ -285,7 +281,6 @@ CHAT_TEXT: Dict[str, Dict[str, str]] = {
         "auth_message_service": "विद्यमान खात्याशी संबंधित सेवांसाठी कृपया सुरक्षितपणे साइन इन करा.",
         "auth_button": "कोषमध्ये साइन इन करा",
         "advisor_error": "मित्र सध्या उत्तर देऊ शकला नाही. कृपया थोड्या वेळाने पुन्हा प्रयत्न करा.",
-        "transfer_approved": "एक ट्रान्सफर प्रस्तावित केले होते आणि कवच मंजुरी विंडोमध्ये त्याची पडताळणी व मंजुरी आधीच झाली आहे.",
         "guarded": "मी मित्र आहे, कोषचा बँकिंग सहाय्यक, आणि याच भूमिकेत राहीन. मी माझ्या सूचना किंवा माझी रचना सांगू शकत नाही, पण कोषच्या सेव्हिंग्स, कार्ड, लोन आणि ठेवींसाठी आनंदाने मदत करेन.",
         "competitor": "मी फक्त कोषच्या स्वतःच्या प्रॉडक्ट्सबद्दल सांगू शकतो, त्यामुळे इतर बँकांशी तुलना करणार नाही. कोषमध्ये हे उपलब्ध आहे: {products}. तुमच्यासाठी सर्वात महत्त्वाचे काय ते सांगा, मी योग्य पर्याय निवडायला मदत करेन.",
         "no_info": "क्षमस्व, याबद्दल माझ्याकडे पडताळलेली माहिती नाही. मी फक्त कोषची प्रकाशित प्रॉडक्ट माहिती सांगू शकतो, किंवा तुम्ही आमच्या हेल्पलाइन 1800 000 5674 वर कॉल करू शकता. खाती, कार्ड, लोन किंवा ठेवींबद्दल काही मदत करू का?",
@@ -294,7 +289,6 @@ CHAT_TEXT: Dict[str, Dict[str, str]] = {
         "question_cards": "कार्डमध्ये तुमच्यासाठी सर्वात महत्त्वाचे काय आहे: प्रवास, कॅशबॅक की कमी शुल्क?",
         "question_loans": "तुम्ही पर्सनल लोन शोधत आहात की होम लोन?",
         "fallback_match": "तुम्ही सांगितलेल्या माहितीनुसार **{title}** हा कॅटलॉगमधील सर्वात योग्य पर्याय आहे. त्याचे नमूद मुख्य वैशिष्ट्य **{headline}** आहे.",
-        "fallback_generic": "प्रॉडक्टकडून तुम्हाला कशासाठी मदत हवी आहे ते सांगा, मग मी उपलब्ध पर्याय तुमच्यासाठी निवडून देतो.",
         "disclosure": "ही केवळ उदाहरणादाखल दिलेली डेमो प्रॉडक्ट माहिती आहे. पात्रता आणि अटी लागू.",
     },
 }

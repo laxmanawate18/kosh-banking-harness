@@ -147,7 +147,6 @@ venv/bin/python -m unittest discover -v
 venv/bin/pytest -q
 venv/bin/python -m playwright install chromium
 # With the app running on PORT=8018 in another terminal:
-venv/bin/python tests/browser_chat_regression.py --url http://127.0.0.1:8018
 ```
 
 The suite covers atomic/reset behavior, integer money, concurrency, exactly-once execution, hard-deny and risk-score matrices, OAuth state/PKCE/scope enforcement, WebSocket ticket replay, challenge tampering, HMAC token misuse/reuse, poisoned replay, secure Antigravity configuration, REST/WebSocket compatibility, masked dashboard data, and sanitized event output.

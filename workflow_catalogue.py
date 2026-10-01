@@ -129,8 +129,14 @@ def load_skill_instructions(skill_id_or_key: str) -> str:
     skill_name = CORE_SKILLS.get(skill_id_or_key, {}).get("skill") or WORKFLOWS.get(skill_id_or_key, {}).get("skill", skill_id_or_key)
     skill_file = root / skill_name / "SKILL.md"
     if skill_file.exists():
-        return skill_file.read_text()
+        return workflow_contract() + "\n\n" + skill_file.read_text()
     return ""
+
+
+def workflow_contract() -> str:
+    """Rules shared by every banking workflow skill (kept once, in skills/WORKFLOW_CONTRACT.md)."""
+    path = Path(__file__).parent / "skills" / "WORKFLOW_CONTRACT.md"
+    return path.read_text() if path.exists() else ""
 
 
 def detect_workflow_skill(text: str) -> str | None:

@@ -50,12 +50,6 @@ def new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:12].upper()}"
 
 
-def _parse_time(value: str | None) -> datetime:
-    if not value:
-        return utc_dt()
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
-
-
 def _lead_dict(row: CrossSellLeadRecord) -> Dict[str, Any]:
     fields = ("id", "customer_id", "session_id", "category", "sub_type", "amount_requested_minor", "tenure_months",
               "employment_type", "monthly_income_minor", "preferences", "status", "recommended_product_id",
@@ -168,7 +162,7 @@ class BankingDatabase:
                 details=details,
                 previous_hash=previous_hash,
                 integrity_hash=integrity_hash,
-                created_at=_parse_time(event.get("created_at")),
+                created_at=datetime.fromisoformat(event["created_at"]) if event.get("created_at") else utc_dt(),
             )
         )
 
