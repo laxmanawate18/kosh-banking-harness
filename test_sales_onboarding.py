@@ -9,10 +9,7 @@ from fastapi.testclient import TestClient
 from dev_ui import app, auth_service
 from banking_db import db
 from auth_service import COOKIE_NAME, normalize_phone
-from product_service import (
-    BANK_PRODUCTS, SalesSessionContext, build_public_sales_tools, get_all_products,
-    get_product_by_id, sales_advisor, validate_sales_response,
-)
+from product_service import SalesSessionContext, build_public_sales_tools, sales_advisor, validate_sales_response
 
 
 class SalesOnboardingTests(unittest.TestCase):

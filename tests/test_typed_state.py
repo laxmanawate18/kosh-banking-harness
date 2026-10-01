@@ -1,7 +1,6 @@
 """Typed banking tables: the legacy JSON state migrates losslessly, order is kept, and only changed rows are written."""
 import copy
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path

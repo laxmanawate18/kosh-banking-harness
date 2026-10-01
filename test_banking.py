@@ -1,6 +1,5 @@
 """Security and state-machine tests for the Sentinel banking boundary."""
 
-import json
 import os
 import tempfile
 import unittest
@@ -13,7 +12,7 @@ os.environ["SENTINEL_DATABASE_URL"] = f"sqlite+pysqlite:///{Path(_SUITE_DATABASE
 
 from banking_db import BankingDatabase
 from banking_tools import BANKING_TOOL_NAMES, SecureBankingService, build_banking_tools
-from sentinel import AGENT_ID, CUSTOMER_ID, IntentResolver, SentinelService
+from sentinel import CUSTOMER_ID, IntentResolver, SentinelService
 
 
 class SentinelBankingTests(unittest.TestCase):

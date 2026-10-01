@@ -1,4 +1,3 @@
-import pytest
 from banking_db import db
 from service_requests import ServiceRequestService
 from rpa.job_dispatcher import get_job_queue

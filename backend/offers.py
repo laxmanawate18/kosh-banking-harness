@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import select
 
-from persistence import CrossSellLeadRecord, OfferEventRecord, utc_dt
+from persistence import CrossSellLeadRecord, OfferEventRecord
 from product_service import get_product_by_id, inr
 
 CHANNELS = {"DASHBOARD", "MITRA"}

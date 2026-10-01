@@ -1,6 +1,5 @@
 import pytest
-from pydantic import ValidationError
-from rpa.models import AccountApplicationSnapshot, SelectorStrategy, StepDefinition
+from rpa.models import AccountApplicationSnapshot
 from rpa.sanitizer import sanitize_field
 from rpa.field_mapper import map_application_to_cbs
 
