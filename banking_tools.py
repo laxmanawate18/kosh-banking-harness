@@ -1156,27 +1156,4 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
 
 
 # Names are used by the Antigravity gate and tests; tools themselves are session-bound.
-BANKING_TOOL_NAMES = {
-    "get_customer_summary",
-    "get_transaction_history",
-    "get_outstanding_bills",
-    "get_security_alerts",
-    "propose_bill_payment",
-    "propose_transfer",
-    "freeze_card",
-    "get_kyc_status",
-    "validate_kyc_document",
-    "start_banking_workflow",
-    "record_document_extraction",
-    "start_account_opening",
-    "check_account_opening_status",
-    "record_customer_lead",
-    "get_lead_reengagement_offer",
-    "get_next_best_offer",
-    "decline_offer",
-    "start_video_kyc",
-    "register_complaint",
-    "request_callback",
-    "check_loan_affordability",
-    "query_bank_knowledge",
-}
+BANKING_TOOL_NAMES = {tool.__name__ for tool in build_banking_tools(dict)}

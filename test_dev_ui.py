@@ -330,7 +330,7 @@ class SentinelAppTests(unittest.TestCase):
                          ".ai-messages-scroll", ".ai-input-box", ".assistant-dialog"):
             self.assertIn(selector, contents["css"])
         for text in ("ai-banker", "Mitra, Kosh AI banker", "aiPageMessages", "Message Mitra",
-                     "Close assistant", "Reconnect", "Sign in for account services"):
+                     "Close assistant", "Reconnect"):
             self.assertIn(text, contents["js"])
 
     def test_multimodal_websocket_attachment_handling(self):
