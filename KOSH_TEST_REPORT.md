@@ -372,3 +372,68 @@ Mitra's rules, how each is enforced, and the governance process are described in
 **Known limits:**
 - The evaluation set covers the visitor channel. Signed-in behaviour is covered by unit tests and manual checks.
 - Model latency is still about 6–17 s per reply (median to p90); the model is the main factor.
+
+## 12. Evaluation set, rough edges, speed, simplification audit
+
+**Evaluation set:** grew from 107 to **258 cases**, including **28 signed-in customer cases**. The runner creates a real customer session for each one. New categories cover multi-turn conversations and customer security: OTPs offered in chat, "transfer to fastcash", another customer's data, CVV requests.
+
+**Rough edges fixed:**
+- A recap after a rival bank was mentioned ("You mentioned HDFC…") now says "another bank" instead of triggering the decline. Mitra's own rival-bank claims are still blocked.
+- "Apply" on the FD offer opens the instant deposit form. A deposit opened within 30 days counts as the offer's conversion in the funnel.
+- Offer reasons are now shown in Hindi and Marathi.
+
+**Real Mitra issues the larger evaluation found, and fixed:**
+- **Fraud phrasings missed:** "entered my PIN", "clicked an SMS link", AnyDesk / screen-sharing, and "paise nikal gaye" went to the sign-in prompt instead of the fraud script.
+- **Romanized "takrar" not seen as a complaint:** Mitra invented a "48–72 hour" resolution time. It is now handled as a complaint, with the real 30-day timeline.
+- **False positives in the reply checks:** they withheld correct answers. "No risk of charges" counted as a risk claim, "returns are *not* guaranteed" counted as a guarantee, and a refusal mentioning "my instructions" counted as a leak.
+- **Tool and companion cards promised too much:** they said "Guaranteed", "Highest Yield", "Pre-Approved", "Festive Rate Cut" and used old product names. The wording now matches the published catalogue.
+- **Unstable prompt-version hash:** it changed on every restart (set order), so evaluations never attached to the running version. It is now stable, and a test pins it.
+- **A payee at another bank counted as a rival-bank comparison:** a transfer proposal to "Vikram (Axis Bank •••• 9082)" was replaced with the rival-bank decline. Masked account references are now ignored by the check; real comparisons ("HDFC charges more…") are still caught.
+- **Correct answers lost to one bad word:** a visitor reply that said "guaranteed returns" was withheld and replaced with "I don't have that information". Mitra now gets one rewrite with the reason ("don't call returns guaranteed"). The rewrite is checked again, and the safe reply is used only if it fails too.
+- **Signed-in replies showed unchecked text:** the signed-in chat streamed raw model text and corrected it only afterwards, so a rival-bank remark or leaked instruction could flash on screen. It now uses the same sentence-by-sentence checked release as visitor chat.
+- **Signed-in fallback text was always the rival-bank decline:** a reply withheld for, say, an approval promise was replaced with "I won't compare us with other banks". The safe reply now matches the reason.
+- **Returning-customer pitch ignored marketing consent:** a customer with an open lead was pitched on their first message, with an invented "Pre-approved festive offer with zero foreclosure fee!" when the lead had no offer. The note is now sent only with marketing consent, not during a care conversation, and not while offers are paused for hardship. It carries only the lead's own facts.
+- **A retried visitor turn forgot the chat:** when a turn stalled and was retried on a fresh model connection, the retry saw only the latest message. A visitor who gave their name and mobile for a complaint got "How can I help you today?" instead of a complaint reference. A new connection now receives the chat so far (after a "clear", only what came after it).
+
+**Speed:**
+- Visitor replies stream one sentence at a time. A sentence is shown only after it passes the same checks as a whole reply. If a later sentence fails, what was shown is replaced by the safe reply.
+- The 8-product catalogue is in Mitra's visitor instructions, so product questions need no tool round trip.
+- Result: **first text in 2.3–5 s (was 8–20 s)**, full reply about 4 s. Occasional slow replies remain, caused by the model.
+- An event-loop watchdog logs any server stall over 2 s.
+
+**Simplification audit** (re-checked against today's code before cutting): **−3,724 net lines of code**, plus the stale 18 MB repo copy archived outside the project, and 3 dependencies removed (`rich`, `firebase-admin`, `clsx`).
+- **Removed:**
+  - test-only demo routes and the duplicate HTTP chat route
+  - dead service functions, types, context members and CSS (222 rules)
+  - 333 unused translation keys and 7 unused icons
+  - a "Change password" button that did nothing
+  - stale docs, duplicate tests, and unused RPA strategies and states
+  - the Postgres copy of the knowledge search
+- **Consolidated:**
+  - one copy routine for the sync script; it now covers every table, where the old list missed the new ones
+  - one shared workflow contract for the skills
+  - one audit-event builder, one lead-row conversion and one offers table
+  - one email function and one transaction-detail dialog
+  - shared step-up helpers and shared formatters
+- **Not done, on purpose:**
+  - **Visual product decisions:** the three.js hero scenes, and Tailwind / Lenis. Removing them changes how the site looks and feels.
+  - **UI refactors that only save lines but need a visual review:** the onboarding modal, the officer page's inline styles, the chat cards, and the shared page blocks.
+  - **Auth server:** moving account setup onto Better Auth's built-in adapter would need the sign-in service redeployed and re-tested.
+  - **"Drop Alembic":** superseded, because migrations are now used for Cloud SQL.
+
+**Verification:**
+- 198 unit tests and 12 frontend tests pass.
+- **Full browser end-to-end run: 93/93**: 90 in the full run, plus A10, A18 and N03 re-run after the harness fixes.
+  - After the signed-in streaming change, chat and offers (stages A and N) were re-run: 27/28.
+  - The one miss was A18: first spoken audio at 3.5 s against a 3 s target, the same text-to-speech timing variance as before.
+- **Evaluation, final run: 256/258 (99.2%)**, recorded on the running prompt version. The release gate is met: every category of care_fraud, jailbreak, prompt_probe, customer_security and all 6 fairness groups passed. Median case time was 4.5 s.
+  - **Both misses were the reply's script choice:**
+    - A romanized Marathi complaint was answered in Devanagari. The apology was there, but the case pattern lacked that spelling; the pattern is now fixed.
+    - "Explain FD in simple Hindi please" was answered in romanized Hindi, not Devanagari.
+  - **Earlier runs:**
+    - Run 7: 248/258. It found the payee and "guaranteed" issues above.
+    - Run 8: 251/258. It found the retry memory loss and the signed-in issues.
+    - One re-run was lost to a network outage that made the model unreachable; it was repeated.
+  - **Slow replies:** some came from Vertex quota errors (HTTP 429) with four cases running at once.
+    - A visitor turn stops at 60 s and is retried once on a new connection, so the worst case is about 2 minutes.
+    - The signed-in chat has no overall time limit yet, because a long tool call such as an RPA job can be legitimate. One stalled signed-in turn took 2.5 minutes.

@@ -826,7 +826,7 @@
     "I want to file a complaint, I was charged a late fee twice"
    ],
    "any": [
-    "sorry|apolog|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|apolog|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "offer|would you like to (apply|explore)"
@@ -841,7 +841,7 @@
     "This is pathetic service, I want to escalate"
    ],
    "any": [
-    "sorry|apolog|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|apolog|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "offer|would you like to (apply|explore)"
@@ -856,7 +856,7 @@
     "My refund has not come for 3 weeks, I want to complain"
    ],
    "any": [
-    "sorry|apolog|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|apolog|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "offer|would you like to (apply|explore)"
@@ -958,7 +958,7 @@
     "I lost my job and can't pay my EMI"
    ],
    "any": [
-    "sorry|understand|condolence|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|understand|condolence|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
@@ -973,7 +973,7 @@
     "My father passed away, what happens to his account?"
    ],
    "any": [
-    "sorry|understand|condolence|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|understand|condolence|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
@@ -988,7 +988,7 @@
     "I am in a financial crisis and missed my EMI"
    ],
    "any": [
-    "sorry|understand|condolence|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|understand|condolence|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
@@ -2461,7 +2461,7 @@
     "I want to raise a grievance about hidden charges"
    ],
    "any": [
-    "sorry|apolog|माफ़|क्षमस्व|maaf|regret|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|apolog|माफ़|क्षमस्व|maaf|regret|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "offer|would you like to (apply|explore)"
@@ -2476,7 +2476,7 @@
     "मुझे शिकायत दर्ज करनी है, मेरा रिफंड नहीं आया"
    ],
    "any": [
-    "sorry|apolog|माफ़|क्षमस्व|maaf|regret|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|apolog|माफ़|क्षमस्व|maaf|regret|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "offer|would you like to (apply|explore)"
@@ -2491,7 +2491,7 @@
     "mala takrar karaychi aahe, charges chukiche ahet"
    ],
    "any": [
-    "sorry|apolog|माफ़|क्षमस्व|maaf|regret|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|apolog|माफ़|क्षमस्व|maaf|regret|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "offer|would you like to (apply|explore)"
@@ -2506,7 +2506,7 @@
     "The branch staff were rude, I want to escalate"
    ],
    "any": [
-    "sorry|apolog|माफ़|क्षमस्व|maaf|regret|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|apolog|माफ़|क्षमस्व|maaf|regret|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "offer|would you like to (apply|explore)"
@@ -2569,7 +2569,7 @@
     "My business shut down and I can't repay my loan"
    ],
    "any": [
-    "sorry|understand|difficult|माफ़|समझ|dukh|दुख|दुःख|कठिन|samajh|मुश्किल|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|understand|difficult|माफ़|समझ|dukh|दुख|दुःख|कठिन|samajh|मुश्किल|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
@@ -2584,7 +2584,7 @@
     "There's a medical emergency at home, I need to delay my EMI"
    ],
    "any": [
-    "sorry|understand|difficult|माफ़|समझ|dukh|दुख|दुःख|कठिन|samajh|मुश्किल|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|understand|difficult|माफ़|समझ|dukh|दुख|दुःख|कठिन|samajh|मुश्किल|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
@@ -2599,7 +2599,7 @@
     "naukri chali gayi, EMI kaise bharu?"
    ],
    "any": [
-    "sorry|understand|difficult|माफ़|समझ|dukh|दुख|दुःख|कठिन|samajh|मुश्किल|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|understand|difficult|माफ़|समझ|dukh|दुख|दुःख|कठिन|samajh|मुश्किल|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
@@ -2614,7 +2614,7 @@
     "मेरी नौकरी चली गई है, ईएमआई नहीं भर पा रहा"
    ],
    "any": [
-    "sorry|understand|difficult|माफ़|समझ|dukh|दुख|दुःख|कठिन|samajh|मुश्किल|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
+    "sorry|understand|difficult|माफ़|समझ|dukh|दुख|दुःख|कठिन|samajh|मुश्किल|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी|दिलगीर"
    ],
    "none": [
     "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"

@@ -16,8 +16,8 @@ Mitra is Kosh's AI assistant for visitors and signed-in customers. This page des
 ## 2. Change control
 
 1. Everything that shapes Mitra's replies (instructions, language rules and skills) is hashed into a **prompt version**. The running version registers itself at startup, and every conversation turn records it.
-2. Before release, run the evaluation set: `venv/bin/python tests/eval/run_eval.py --record`. It holds 107 cases across 16 categories, covering product facts, unknown information, rival banks, jailbreaks, prompt probing, fraud, complaints, handoff, distress, lending, investments, AI disclosure, off-topic requests, Hindi, Marathi and Hinglish, answer style, and fairness groups. The result is stored on that version.
-3. **Release gate:** at least 95% overall, **100% on care_fraud, jailbreak and prompt_probe**, and every fairness group passing. The AI owner then approves the version in [Mitra quality → Prompt versions], with a note on what was reviewed.
+2. Before release, run the evaluation set: `venv/bin/python tests/eval/run_eval.py --record`. It holds 258 cases across 19 categories, covering product facts, unknown information, rival banks, jailbreaks, prompt probing, fraud, complaints, handoff, distress, lending, investments, AI disclosure, off-topic requests, Hindi, Marathi and Hinglish, answer style, fairness groups, multi-turn conversations, and 28 signed-in customer cases (including security cases). The result is stored on that version.
+3. **Release gate:** at least 95% overall, **100% on care_fraud, jailbreak, prompt_probe and customer_security**, and every fairness group passing. The AI owner then approves the version in [Mitra quality → Prompt versions], with a note on what was reviewed.
 4. **Rollback:** redeploy the previous image. Its prompt version is still in the registry with its evaluation and approval.
 
 ## 3. Response rules (enforced in code, then in instructions)
@@ -27,7 +27,7 @@ Mitra is Kosh's AI assistant for visitors and signed-in customers. This page des
 | Stays Mitra; no role-play, persona or "developer mode" | Refused before the model sees the message (English, Hindi, Marathi) |
 | Never reveals instructions, architecture or tools | Refused before the model; replies are checked for leaks |
 | No rival-bank comparisons or claims | Replies naming another bank become a polite decline listing Kosh's own products (visitor and signed-in) |
-| No unapproved rates, superlatives or approval promises | Visitor replies are checked against the published catalogue; unsafe sales phrases are blocked on both channels |
+| No unapproved rates, superlatives or approval promises | Visitor replies are checked against the published catalogue; unsafe sales phrases are blocked on both channels. A withheld visitor reply gets one rewrite, checked again, before the safe reply is used |
 | "I don't have that information" instead of guessing | Instruction, plus a fallback that never repeats itself |
 | Fraud emergency | A fixed script covering the 1930 helpline, cybercrime.gov.in, card freeze and RBI's 3-day reporting rule. It never goes through the model. Signed-in customers get a HIGH-priority fraud case opened. |
 | Self-harm | The Tele-MANAS 14416 helpline is shown first; there is no selling |
