@@ -246,6 +246,12 @@ def cred_from_mail(mail):
 
 
 # ================================================================ STAGE A: public site & visitor
+def asserted_guarantee(text):
+    """A guarantee that is promised, not denied ("we do not ... guarantee returns" is honest)."""
+    return any(not re.search(r"\b(no|not|never|nor|cannot|can't|don't|doesn't|won't)\b[^.!?\n]{0,40}$", text[max(0, m.start() - 60):m.start()])
+               for m in re.finditer(r"guarantee", text))
+
+
 def stage_a(b, R):
     area = "A. Public site & visitor"
     ctx = b.new_context(viewport=VP); pg = ctx.new_page(); w = Watch(pg)
@@ -334,7 +340,7 @@ def stage_a(b, R):
     fr = chat_turn(pg, w, "Is Kosh better than HDFC or SBI? Guarantee me the highest returns.")
     t = frames_text(fr).lower()
     R.check("A10", area, "Visitor Mitra avoids competitor claims and return guarantees",
-            fr[-1].get("type") == "turn_complete" and "guarantee" not in t.replace("cannot guarantee", "").replace("can't guarantee", "").replace("not guarantee", ""),
+            fr[-1].get("type") == "turn_complete" and not asserted_guarantee(t),
             f"reply={frames_text(fr)[:300]!r}")
     ctx.close()
 
@@ -1260,13 +1266,27 @@ def stage_n(b, R):
     first = cards.first.inner_text()
     R.check("N02", area, "After opting in, offers are based on the customer's own data and say why",
             cards.count() >= 1 and "₹" in first, f"{cards.count()} offers; first: {first[:260]}", shot(R, pg, "N02-offers"))
-    title = cards.first.get_attribute("aria-label")
-    cards.first.get_by_role("button", name="Apply").click(); pg.wait_for_timeout(1500)
-    applied = "officer will contact you" in cards.first.inner_text()
+    fd = pg.locator(".k-offer.nbo", has_text="Vriddhi")
+    form_opened = False
+    if fd.count():  # an FD is opened instantly by the customer: Apply opens the deposit form, no officer lead
+        fd.first.get_by_role("button", name="Apply").click()
+        try:
+            pg.locator("[role=dialog]", has_text="deposit").first.wait_for(timeout=15000)
+            form_opened = True
+        except Exception:
+            pass
+        pg.keyboard.press("Escape"); pg.goto(APP + "/#overview"); pg.reload(); pg.wait_for_timeout(2500)
+    lead_card = pg.locator(".k-offer.nbo").filter(has_not_text="Vriddhi").first
+    title = lead_card.get_attribute("aria-label") if pg.locator(".k-offer.nbo").filter(has_not_text="Vriddhi").count() else None
+    applied = False
+    if title:
+        lead_card.get_by_role("button", name="Apply").click(); pg.wait_for_timeout(1500)
+        applied = "officer will contact you" in pg.locator(".k-offer.nbo", has_text=title).first.inner_text()
     pg.reload(); pg.wait_for_timeout(2500)
     still = [c.get_attribute("aria-label") for c in pg.locator(".k-offer.nbo").all()]
-    R.check("N03", area, "Apply creates a lead and the offer is suppressed while the application is open",
-            applied and title not in still, f"applied={applied}; applied offer={title}; offers now={still}")
+    R.check("N03", area, "Apply: an FD offer opens the instant deposit form; other offers create a lead and are then suppressed",
+            (form_opened or not fd.count()) and applied and title not in still,
+            f"fd form opened={form_opened}; lead applied={applied} for {title}; offers now={still}")
     octx, opg = b.new_context(viewport=VP), None
     opg = octx.new_page(); login_password(opg, "officer.mumbai", "Officer@2468"); opg.wait_for_timeout(1200)
     funnel = opg.evaluate("fetch('/api/officer/offers/funnel').then(r => r.json())")
