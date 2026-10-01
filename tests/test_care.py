@@ -133,6 +133,28 @@ class TurnLimitTests(unittest.TestCase):
             loop.close()
 
 
+    def test_a_silent_signed_in_model_is_abandoned_but_a_slow_tool_may_finish(self):
+        import asyncio
+        from google.antigravity import types
+        from backend import chat_runtime
+
+        async def stuck():
+            yield types.Text(step_index=0, text="Let me check. ")
+            await asyncio.sleep(30)
+
+        async def slow_tool():
+            yield types.ToolCall(name="run_rpa_job", args={})
+            await asyncio.sleep(0.6)  # longer than the limit, but a tool is running
+            yield types.ToolResult(name="run_rpa_job", result={"ok": True})
+            yield types.Text(step_index=1, text="Done.")
+
+        async def collect(chunks):
+            return [c async for c in chat_runtime._until_idle(chunks)]
+        with patch.object(chat_runtime, "CUSTOMER_IDLE_SECONDS", 0.2):
+            with self.assertRaises(TimeoutError):
+                asyncio.run(asyncio.wait_for(collect(stuck()), 5))
+            self.assertEqual(len(asyncio.run(collect(slow_tool()))), 3)
+
 class VisitorChatCareTests(unittest.TestCase):
     def setUp(self):
         dev_ui.limiter.reset()

@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { toNodeHandler } from "better-auth/node";
 import { auth, authPool } from "./auth.js";
 import { config, isAllowedReturnURL } from "./config.js";
@@ -91,28 +91,19 @@ const server = createServer(async (request, response) => {
           );
           userId = created.id;
         } else {
-          await authPool.query(
-            'UPDATE "user" SET "phoneNumber" = COALESCE($1, "phoneNumber"), "name" = COALESCE($2, "name"), "username" = $3 WHERE "id" = $4',
-            [phoneNumber || null, name || null, username, userId],
-          );
+          const current = await authContext.internalAdapter.findUserById(userId);  // the username plugin refuses an unchanged name
+          await authContext.internalAdapter.updateUser(userId, {
+            ...((current as any)?.username !== username ? { username } : {}),
+            ...(phoneNumber ? { phoneNumber } : {}), ...(name ? { name } : {}),
+          });
         }
 
-        // Create or update credential account
-        const existingAccount = await authPool.query(
-          'SELECT "id" FROM "account" WHERE "userId" = $1 AND "providerId" = $2 LIMIT 1',
-          [userId, "credential"],
-        );
-        if (existingAccount.rowCount) {
-          await authPool.query(
-            'UPDATE "account" SET "password" = $1, "updatedAt" = NOW() WHERE "id" = $2',
-            [hashedPassword, existingAccount.rows[0].id],
-          );
+        // The credential (password) account: re-issue updates it, a first issue links it.
+        const accounts = await authContext.internalAdapter.findAccounts(userId);
+        if (accounts.some((a) => a.providerId === "credential")) {
+          await authContext.internalAdapter.updatePassword(userId, hashedPassword);
         } else {
-          const accountId = randomBytes(16).toString("hex");
-          await authPool.query(
-            'INSERT INTO "account" ("id", "userId", "accountId", "providerId", "password", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, NOW(), NOW())',
-            [accountId, userId, userId, "credential", hashedPassword],
-          );
+          await authContext.internalAdapter.linkAccount({ userId, accountId: userId, providerId: "credential", password: hashedPassword });
         }
 
         response.writeHead(200, { "content-type": "application/json" });

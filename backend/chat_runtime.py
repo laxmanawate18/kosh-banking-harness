@@ -63,6 +63,43 @@ def restore_sales_context(guest_session: Dict[str, Any]) -> SalesSessionContext:
     return SalesSessionContext(**{k: v for k, v in saved.items() if k in known})
 
 
+CUSTOMER_IDLE_SECONDS = 60
+
+
+async def _until_idle(chunks):
+    """The model's chunks, raising TimeoutError if it is silent for CUSTOMER_IDLE_SECONDS while no tool is running.
+
+    A running tool call (an RPA job, a document scan) may take as long as it needs. Like the visitor turn, the wait is on
+    a queue, never inside the SDK, which can swallow cancellation while it retries a dropped connection.
+    """
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def produce() -> None:
+        try:
+            async for chunk in chunks:
+                await queue.put(chunk)
+            await queue.put(None)
+        except BaseException as exc:
+            await queue.put(exc)
+    producer = asyncio.ensure_future(produce())
+    tools_running = 0
+    while True:
+        try:
+            item = await asyncio.wait_for(queue.get(), None if tools_running else CUSTOMER_IDLE_SECONDS)
+        except asyncio.TimeoutError:
+            producer.cancel()
+            raise TimeoutError(f"the model was silent for {CUSTOMER_IDLE_SECONDS}s")
+        if item is None:
+            return
+        if isinstance(item, BaseException):
+            raise item
+        if isinstance(item, types.ToolCall):
+            tools_running += 1
+        elif isinstance(item, types.ToolResult):
+            tools_running = max(0, tools_running - 1)
+        yield item
+
+
 def _customer_checked(text: str) -> tuple[str, Optional[str]]:
     """The text a signed-in customer may see, and why it may not (None when it passes every check)."""
     text = redact_attributed_competitors(text)
@@ -739,10 +776,14 @@ async def serve_chat_websocket(
                             else:
                                 content.insert(0, lead_note)
                     chat_input = content[0] if len(content) == 1 and isinstance(content[0], str) else content
-                    response = await agent.chat(chat_input)
+                    started_chat = asyncio.ensure_future(agent.chat(chat_input))
+                    if not (await asyncio.wait({started_chat}, timeout=CUSTOMER_IDLE_SECONDS))[0]:
+                        started_chat.cancel()
+                        raise TimeoutError(f"the model did not start within {CUSTOMER_IDLE_SECONDS}s")
+                    response = started_chat.result()
                     session.active_response = response
                     gate = CheckedRelease(_customer_checked)  # only checked sentences reach the screen
-                    async for chunk in response.chunks:
+                    async for chunk in _until_idle(response.chunks):
                         now = time.time()
                         if isinstance(chunk, types.ToolCall):
                             args = getattr(chunk, "args", None)
@@ -894,8 +935,18 @@ async def serve_chat_websocket(
                         "turn_id": turn_id,
                         "message": str(exc),
                     })
+                    message = str(exc)
+                    if isinstance(exc, TimeoutError):  # drop the stalled agent; the next turn starts fresh with the history
+                        logger.warning("Customer turn abandoned: %s", exc)
+                        stalled, session.agent = session.agent, None
+                        if stalled:
+                            asyncio.ensure_future(stalled.__aexit__(None, None, None))
+                        message = chat_text("advisor_error", language)
+                        mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome="ERROR",
+                                              reason="TimeoutError", intents=intents, latency_ms=int((time.time() - started) * 1000),
+                                              model=DEFAULT_MODEL)
                     try:
-                        await websocket.send_json({"type": "error", "turn_id": turn_id, "message": str(exc)})
+                        await websocket.send_json({"type": "error", "turn_id": turn_id, "message": message})
                     except (WebSocketDisconnect, RuntimeError):
                         pass
                     save_session(session.session_data)
