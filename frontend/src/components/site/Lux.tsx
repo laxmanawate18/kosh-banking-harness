@@ -59,7 +59,7 @@ export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({
         </div>
       </div>
       <ul className="kl-trustline" aria-label={t('Why bank with Kosh')}>
-        <li>{t('Deposits insured up to ₹5 lakh by DICGC')}</li>
+        <li>{t('Demo bank — no real deposits or money')}</li>
         <li>{t('Sentinel checks every payment')}</li>
         <li>{t('Mitra answers 24×7 in English, हिन्दी and मराठी')}</li>
       </ul>

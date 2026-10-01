@@ -9,11 +9,13 @@ const brand = () => `<div class="brand" aria-label="Kosh — Bharosa, har kadam"
     <path d="M13 37.5Q24 42.5 35 37.5" fill="none" stroke="#e4e6ea" stroke-width="1.6" stroke-linecap="round"/>
   </svg>
   <span class="brand-copy"><span><strong>kosh</strong><b lang="hi">कोष</b></span><small>Bharosa, har kadam.</small></span>
-</div>`;
+</div>
+<p class="demo-notice">Demo bank — not a real financial institution. Never enter real OTPs, PINs, passwords or card details here.</p>`;
 
 function shell(title: string, body: string, script = ""): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>${title}</title><style>
 :root{font-family:"Anek Devanagari","Mukta",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#f2f2f0;background:#0a0a0c;color-scheme:dark}*{box-sizing:border-box}
 body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px;overflow-x:hidden;background:radial-gradient(circle at 18% 12%,#2a2c32 0,transparent 34%),radial-gradient(circle at 84% 82%,#221b10 0,transparent 27%),#0a0a0c}
@@ -21,6 +23,7 @@ body:before{content:"";position:fixed;inset:auto -12vw -36vw auto;width:min(78vw
 main{position:relative;width:min(470px,100%);background:linear-gradient(160deg,#1c1d21,#121316);border:1px solid #34363d;border-radius:24px;padding:34px;box-shadow:0 34px 80px -30px #000;overflow:hidden}
 main:before{content:"";position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,transparent,#d9b36a,transparent)}
 .brand{display:flex;align-items:center;gap:12px}.mark{width:42px;height:42px;flex:0 0 auto}.brand-copy{display:grid;line-height:1}.brand-copy>span{display:flex;align-items:baseline}.brand-copy strong{font-size:25px;letter-spacing:-.04em}.brand-copy b{margin-left:7px;color:#d9b36a;font-size:14px}.brand-copy small{margin-top:5px;color:#9c9ea6;font-size:11px;font-weight:600;letter-spacing:.02em}
+.demo-notice{margin-top:14px;padding:10px 12px;border:1px solid #71302b;background:#331614;color:#ff9b91;border-radius:11px;font-size:12px;line-height:1.5}
 h1{font-size:clamp(32px,7vw,40px);line-height:1.05;letter-spacing:-1.4px;margin:32px 0 10px;text-wrap:balance}p{color:#a9abb2;font-size:14px;line-height:1.6;margin:0}.tabs{display:flex;gap:5px;background:#0e0f12;padding:5px;border:1px solid #2a2c32;border-radius:13px;margin:26px 0 20px}
 button{border:1px solid transparent;border-radius:999px;padding:12px 16px;font:inherit;font-weight:700;cursor:pointer;transition:transform 140ms ease,background-color 160ms ease,border-color 160ms ease,color 160ms ease}button:active{transform:scale(.98)}button:focus-visible,input:focus-visible{outline:3px solid #d4a24c;outline-offset:3px}
 .tabs button{flex:1;border-radius:9px;background:transparent;color:#9c9ea6;line-height:1.15}.tabs button.active{background:#e4e6ea;color:#0e0f12;box-shadow:0 8px 20px -14px #fff}
@@ -43,7 +46,7 @@ export function signInPage(): string {
     testCode: config.localFirebaseTestCode,
   }).replaceAll("<", "\\u003c");
   return shell(
-    "Sign in | Kosh",
+    "Sign in | Kosh (Demo)",
     `${brand()}
 <h1>Secure sign in</h1><p>One trusted sign-in for Kosh banking, Mitra guidance and Kavach approvals.</p>
 <div class="tabs"><button id="phoneTab" class="active">Mobile OTP</button><button id="staffTab">Net Banking / Password</button></div>
@@ -106,7 +109,7 @@ export function consentPage(url: URL): string {
     .split(" ")
     .filter((scope) => scope.startsWith("banking."));
   return shell(
-    "Authorize | Kosh",
+    "Authorize | Kosh (Demo)",
     `${brand()}<h1>Allow Mitra access?</h1>
 <p>The banking assistant is requesting delegated access. It cannot execute payments.</p>
 ${scopes.map((scope) => `<div class="scope">${scope === "banking.read" ? "View balances, accounts and transactions" : "Prepare banking and service requests"}</div>`).join("")}

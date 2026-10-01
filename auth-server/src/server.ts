@@ -41,6 +41,11 @@ const server = createServer(async (request, response) => {
     response.end(JSON.stringify({ error: "internal endpoint requires the Kosh service token" }));
     return;
   }
+  if (url.pathname === "/robots.txt") {
+    response.writeHead(200, { "content-type": "text/plain" });
+    response.end("User-agent: *\nDisallow: /\n");
+    return;
+  }
   if (url.pathname === "/healthz") {
     response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
     response.end(JSON.stringify({ status: "ok", issuer: `${config.baseURL}/api/auth` }));

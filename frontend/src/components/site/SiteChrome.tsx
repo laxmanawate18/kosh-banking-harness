@@ -24,7 +24,6 @@ const TICKER = [
   'Kosh will never ask for your OTP, PIN or password on call, SMS or chat.',
   'Cyber fraud? Call 1930 or report at cybercrime.gov.in.',
   'Digital arrest is a scam. No police or court asks for money on a video call.',
-  'Demo banking environment. No real money moves.',
 ];
 
 const FESTIVE_COLORS = ['#f5b53d', '#e8740c', '#e5487a', '#4c5bd4', '#0c7461'];
@@ -50,6 +49,7 @@ export const UtilityBar: React.FC = () => {
         >
           {t('Skip to main content')}
         </button>
+        <strong style={{ flexShrink: 0, color: '#fff', fontSize: 13 }}>{t('DEMO BANK — no real money')}</strong>
         <div className={`k-ticker ${paused ? 'paused' : ''}`} role="region" aria-label={t('Safety notices')}>
           <button
             type="button"
@@ -188,8 +188,8 @@ export const SiteFooter: React.FC<{ onAsk: (q: string) => void }> = ({ onAsk }) 
       </div>
       <div className="k-regulatory">
         <div>
-          <strong><Icon name="shield" /> {t('Deposit insurance')}</strong>
-          <p>{t('Deposits in Indian banks are insured by DICGC up to ₹5 lakh per depositor. Kosh is a demo and holds no real deposits.')}</p>
+          <strong><Icon name="shield" /> {t('Demo environment')}</strong>
+          <p>{t('Kosh is a demonstration bank built to showcase Mitra and Kavach. It is not a licensed bank, holds no real deposits and is not insured by DICGC. Never enter real OTPs, PINs or card details.')}</p>
         </div>
         <div>
           <strong><Icon name="building" /> {t('Regulated banking')}</strong>
