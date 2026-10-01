@@ -10,14 +10,12 @@ import { useI18n } from '../../i18n';
 interface SettingsPageProps {
   onOpenService?: (serviceId: string) => void;
   onStartKyc?: () => void;
-  onChangePassword?: () => void;
   onBookAppointment?: () => void;
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
   onOpenService,
   onStartKyc,
-  onChangePassword,
   onBookAppointment,
 }) => {
   const { auth, user, setConsent } = useAuth();
@@ -284,16 +282,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
         <div className="stack">
           <section className="panel panel-pad">
-            <h2>{t('Password & sign-in')}</h2>
-            <p className="form-hint">{t('Change your password and sign out other sessions.')}</p>
-            <button
-              type="button"
-              className="button"
-              onClick={() => onChangePassword?.()}
-            >
-              {t('Change password')}
-            </button>
-
             <div className="section-heading">
               <h2>{t('Digital banking consent')}</h2>
             </div>

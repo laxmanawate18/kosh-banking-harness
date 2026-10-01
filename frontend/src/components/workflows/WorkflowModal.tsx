@@ -18,15 +18,11 @@ import { useAuth } from '../../context/AuthContext';
 interface WorkflowModalProps {
   workflowId: string | null;
   onClose: () => void;
-  onCompleted?: (workflow: BankingWorkflow) => void;
-  onSubmitted?: (workflow: BankingWorkflow) => void;
 }
 
 export const WorkflowModal: React.FC<WorkflowModalProps> = ({
   workflowId,
   onClose,
-  onCompleted,
-  onSubmitted,
 }) => {
   const { overview, refreshOverview } = useBanking();
   const { sendMessage } = useChat();
@@ -392,7 +388,6 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
       setWorkflow(updated);
       setStage('complete');
       await refreshOverview();
-      onCompleted?.(updated);
     } catch (err: any) {
       if (err.detail?.code === 'STEP_UP_REQUIRED' || err.status === 403) {
         setStepUpOpen(true);
