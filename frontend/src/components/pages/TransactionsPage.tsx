@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatMoney } from '../common/Formatters';
 import { useBanking } from '../../context/BankingContext';
 import { Icon } from '../common/Icon';
 import { Badge } from '../common/Badge';
@@ -33,14 +34,6 @@ export const TransactionsPage: React.FC = () => {
 
     return matchesSearch && matchesAccount && matchesDirection;
   });
-
-  const formatMoney = (minor: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-    }).format((minor || 0) / 100);
-  };
 
   const formatDate = (isoStr: string) => {
     try {

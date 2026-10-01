@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { formatDate } from '../common/Formatters';
 import { useBanking } from '../../context/BankingContext';
 import {
   fetchOfficerRpaStatus,
@@ -478,10 +479,6 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
   const escalated = operations.filter((r) => r.status === 'ESCALATED').length;
   const automating = operations.filter((r) => ['QUEUED_FOR_CBS', 'RPA_EXECUTING'].includes(r.status)).length;
   const decisionsRecorded = operations.filter((r) => ['APPROVED', 'REJECTED', 'COMPLETED'].includes(r.status)).length;
-
-  const formatDate = (dateStr?: string) => dateStr
-    ? new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '';
 
   const getBadgeVariant = (status: string) => {
     if (['DENY', 'DENIED', 'REJECTED', 'BLOCKED_MULE', 'LOCKED', 'RPA_FAILED', 'FAILED'].includes(status)) return 'danger';

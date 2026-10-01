@@ -5,10 +5,6 @@ export async function fetchServices(): Promise<WorkflowServicesResponse> {
   return get<WorkflowServicesResponse>('/api/ai/services');
 }
 
-export async function fetchWorkflows(): Promise<{ workflows: BankingWorkflow[] }> {
-  return get<{ workflows: BankingWorkflow[] }>('/api/ai/workflows');
-}
-
 export async function startWorkflow(skillId: string): Promise<BankingWorkflow> {
   return post<BankingWorkflow>('/api/ai/workflows', { skill_id: skillId });
 }
@@ -66,8 +62,4 @@ export async function submitWorkflow(
   }
 ): Promise<BankingWorkflow> {
   return post<BankingWorkflow>(`/api/ai/workflows/${encodeURIComponent(workflowId)}/submit`, payload);
-}
-
-export async function reopenWorkflow(workflowId: string): Promise<BankingWorkflow> {
-  return post<BankingWorkflow>(`/api/ai/workflows/${encodeURIComponent(workflowId)}/reopen`, {});
 }

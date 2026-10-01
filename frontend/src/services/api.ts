@@ -4,10 +4,6 @@ export function setCsrfToken(token: string | null) {
   csrfToken = token;
 }
 
-export function getCsrfToken(): string | null {
-  return csrfToken;
-}
-
 async function refreshCsrfToken(): Promise<boolean> {
   // Another tab (or a session read) rotates the token; fetch the current one.
   const res = await fetch('/api/auth/session', { credentials: 'same-origin' });

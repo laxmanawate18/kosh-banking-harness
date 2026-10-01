@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDate } from '../common/Formatters';
 import { useBanking } from '../../context/BankingContext';
 import { Icon } from '../common/Icon';
 import { useI18n } from '../../i18n';
@@ -10,16 +11,6 @@ interface AuditActivityPageProps {
 export const AuditActivityPage: React.FC<AuditActivityPageProps> = ({ onExportAudit }) => {
   const { events } = useBanking();
   const { t } = useI18n();
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
 
   const formatTime = (dateStr?: string) => {
     if (!dateStr) return '';

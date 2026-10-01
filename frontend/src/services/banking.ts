@@ -89,13 +89,6 @@ export async function verifyChallenge(challengeId: string, payload: {
   return post(`/api/challenges/${encodeURIComponent(challengeId)}/verify`, payload);
 }
 
-export async function decideChallenge(challengeId: string, decision: 'APPROVE' | 'REJECT', rationale?: string): Promise<any> {
-  return post(`/api/officer/challenges/${encodeURIComponent(challengeId)}/decision`, {
-    decision,
-    rationale,
-  });
-}
-
 export async function submitServiceRequest(payload: {
   service_id: string;
   data: Record<string, any>;
@@ -104,26 +97,6 @@ export async function submitServiceRequest(payload: {
     service_id: payload.service_id,
     data: { ...payload.data, channel: 'DIGITAL_BANKING' },
   });
-}
-
-export async function updatePreferences(payload: {
-  email_updates: boolean;
-  payment_alerts: boolean;
-  monthly_statement: boolean;
-}): Promise<any> {
-  return patch('/api/portal/preferences', payload);
-}
-
-export async function revokeSession(sessionId: string): Promise<any> {
-  return del(`/api/portal/security/sessions/${encodeURIComponent(sessionId)}`);
-}
-
-export async function replyToRequest(requestId: string, message: string): Promise<any> {
-  return post(`/api/portal/requests/${encodeURIComponent(requestId)}/reply`, { message });
-}
-
-export async function cancelRequest(requestId: string): Promise<any> {
-  return post(`/api/portal/requests/${encodeURIComponent(requestId)}/cancel`, {});
 }
 
 export async function fetchOperationsQueue(): Promise<{ cases: any[] }> {

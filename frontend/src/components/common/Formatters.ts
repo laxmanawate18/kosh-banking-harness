@@ -68,8 +68,3 @@ export function formatDateTime(isoString: string): string {
   }
 }
 
-export function maskAccountNumber(accNo: string): string {
-  if (!accNo) return '••••';
-  if (accNo.length <= 4) return accNo;
-  return `•••• ${accNo.slice(-4)}`;
-}

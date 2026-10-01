@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { formatDate } from '../common/Formatters';
 import { useAuth } from '../../context/AuthContext';
 import { useBanking } from '../../context/BankingContext';
 import { Badge } from '../common/Badge';
@@ -65,15 +66,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       .toUpperCase();
   };
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '31 Mar 2027';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
+  const dateOr = (dateStr?: string) => (dateStr ? formatDate(dateStr) : '31 Mar 2027');
 
   const handlePreferencesSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,7 +157,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
             <div className="info-row">
               <span>{t('Periodic due date')}</span>
-              <strong>{formatDate(customerKyc.due_date)}</strong>
+              <strong>{dateOr(customerKyc.due_date)}</strong>
             </div>
             <div className="info-row">
               <span>{t('Risk classification')}</span>

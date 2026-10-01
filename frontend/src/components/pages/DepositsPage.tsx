@@ -4,7 +4,7 @@ import { Icon } from '../common/Icon';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 import { submitServiceRequest } from '../../services/banking';
-import { fdMaturity, rdMaturity } from '../common/Formatters';
+import { fdMaturity, formatRupees, rdMaturity } from '../common/Formatters';
 import { useI18n } from '../../i18n';
 
 interface DepositsPageProps {
@@ -48,14 +48,6 @@ export const DepositsPage: React.FC<DepositsPageProps> = ({
   const estimatedMaturity = Math.round(modalType === 'FD'
     ? fdMaturity(numAmount, interestRate, numMonths / 12)
     : rdMaturity(numAmount, interestRate, numMonths));
-
-  const formatMoney = (val: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(val);
-  };
 
   const handleApplyDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -257,7 +249,7 @@ export const DepositsPage: React.FC<DepositsPageProps> = ({
 
             <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: '8px', margin: '14px 0', border: '1px solid var(--line)' }}>
               <div className="info-row"><span>{t('Interest rate')}</span><strong>{t('{rate}% p.a.', { rate: interestRate })}</strong></div>
-              <div className="info-row"><span>{t('Estimated maturity value')}</span><strong style={{ color: 'var(--ok)', fontSize: '14px' }}>{formatMoney(estimatedMaturity)}</strong></div>
+              <div className="info-row"><span>{t('Estimated maturity value')}</span><strong style={{ color: 'var(--ok)', fontSize: '14px' }}>{formatRupees(estimatedMaturity)}</strong></div>
             </div>
 
             {formError && <div className="form-error" role="alert">{formError}</div>}

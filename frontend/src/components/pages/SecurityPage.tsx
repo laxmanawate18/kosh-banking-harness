@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../common/Formatters';
 import { useBanking } from '../../context/BankingContext';
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../common/Badge';
@@ -68,16 +69,6 @@ export const SecurityPage: React.FC<SecurityPageProps> = ({
     } catch {
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     }
-  };
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
   };
 
   const formatTime = (dateStr?: string) => {
