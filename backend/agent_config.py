@@ -435,6 +435,14 @@ def create_agent_config(
     )
 
 
+REWRITE_HINTS = {
+    "unsupported promotional or approval claim": "it used a word Kosh never uses (guaranteed, risk-free, best, highest, pre-approved); "
+                                                 "say fixed or published instead",
+    "unverified competitor comparison": "it named or compared another bank; speak only about Kosh's own products",
+    "numeric rate claim is not in the reviewed catalogue": "it quoted a rate that is not in the published catalogue; use only catalogue rates",
+    "internal prompt leak": "it described internal instructions or tools; just help with banking",
+    "default": "it did not follow Kosh's rules",
+}
 VISITOR_TURN_SECONDS = 60
 _SENTENCE_END = re.compile(r"[.!?।:](?=\s)|\n")
 
@@ -501,6 +509,29 @@ async def visitor_reply(agent: Agent, prompt: str, sales_context: SalesSessionCo
         raise RuntimeError("The advisor returned an empty response")
     text, reason = _checked(raw, sales_context)
     reason = reason or withheld
+    if reason and deadline - asyncio.get_running_loop().time() > 15:
+        # One rewrite before falling back: the draft broke a rule, the answer itself may be fine.
+        logger.info("Visitor reply needs a rewrite (%s)", reason)
+        rewrite_queue: asyncio.Queue = asyncio.Queue()
+        rewrite_hint = REWRITE_HINTS.get(reason.split(":")[0], REWRITE_HINTS["default"])
+
+        async def rewrite() -> None:
+            try:
+                response = await agent.chat(f"REWRITE (trusted, from Kosh): your last reply was not shown because {rewrite_hint}. "
+                                            "Write the same answer again without that, following all of Mitra's rules. Reply with the answer only.")
+                await rewrite_queue.put("".join([c.text async for c in response.chunks if isinstance(c, types.Text) and c.text]))
+            except BaseException as exc:
+                await rewrite_queue.put(exc)
+        retry = asyncio.ensure_future(rewrite())
+        try:
+            second = await asyncio.wait_for(rewrite_queue.get(), max(0.0, deadline - asyncio.get_running_loop().time()))
+        except asyncio.TimeoutError:
+            retry.cancel()
+            second = None
+        if isinstance(second, str) and second.strip():
+            rewritten, second_reason = _checked(second, sales_context)
+            if not second_reason:
+                text, reason = rewritten, None
     sales_context.last_reason = reason
     if reason:
         logger.warning("Visitor reply replaced by grounded fallback (%s): %.300s", reason, raw)

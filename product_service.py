@@ -1004,6 +1004,15 @@ def redact_attributed_competitors(text: str) -> str:
 _NEGATED = re.compile(r"\b(no|not|never|nor|isn'?t|aren'?t|cannot|can'?t|don'?t|doesn'?t|won'?t|without)\b[^.!?\n]{0,25}$")
 
 
+# "Axis Bank •••• 9082" is the customer's own payee or account, not a rival-bank comparison.
+_MASKED_ACCOUNT_REF = re.compile(r"\b\w+(?: \w+)?\s+(?:a/c\s+|account\s+|ending\s+)?\(?[•*]{2,}\s*\d{2,6}\)?", re.I)
+
+
+def _mentions_rival(lowered: str) -> bool:
+    lowered = _MASKED_ACCOUNT_REF.sub(" ", lowered)
+    return any(re.search(rf"\b{re.escape(name)}\b", lowered) if name.isascii() else name in lowered for name in _COMPETITOR_NAMES)
+
+
 def _makes_unsafe_claim(lowered: str) -> bool:
     """An unsafe sales phrase that is asserted, not denied ("returns are not guaranteed" is honest)."""
     for pattern in _UNSAFE_SALES_PATTERNS:
@@ -1020,7 +1029,7 @@ def customer_reply_issue(text: str) -> Optional[str]:
     lowered = text.lower()
     if _makes_unsafe_claim(lowered):
         return "unsupported promotional or approval claim"
-    if any(re.search(rf"\b{re.escape(name)}\b", lowered) if name.isascii() else name in lowered for name in _COMPETITOR_NAMES):
+    if _mentions_rival(lowered):
         return COMPETITOR_REASON
     return None
 
@@ -1031,7 +1040,7 @@ def validate_sales_response(text: str, context: Optional[SalesSessionContext] = 
     lowered = text.lower()
     if _makes_unsafe_claim(lowered):
         return "unsupported promotional or approval claim"
-    if any(re.search(rf"\b{re.escape(name)}\b", lowered) if name.isascii() else name in lowered for name in _COMPETITOR_NAMES):
+    if _mentions_rival(lowered):
         return COMPETITOR_REASON
     allowed_corpus = get_allowed_corpus()
     if context and hasattr(context, "user_prompts"):

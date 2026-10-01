@@ -215,6 +215,27 @@ class VisitorChatTests(unittest.TestCase):
         self.assertTrue(replaced and "only speak about Kosh's own products" in replaced[-1])
         self.assertFalse(any('HDFC' in t or 'SUGGESTIONS' in t for t in deltas + replaced))
 
+    def test_a_rule_breaking_draft_gets_one_rewrite_before_the_fallback(self):
+        replies = iter(["Our FD gives guaranteed returns of 8.10% p.a.", "Our FD pays a fixed 8.10% p.a."])
+
+        async def chat(self, prompt):
+            self.prompts.append(prompt)
+            text = next(replies)
+            async def chunks():
+                yield types.Text(step_index=0, text=text)
+            return SimpleNamespace(chunks=chunks())
+        with patch.object(FakeVisitorAgent, "chat", chat):
+            with self.client.websocket_connect('/ws/chat') as ws:
+                ws.receive_json()
+                ws.send_json({'type': 'prompt', 'prompt': 'What does the FD pay?'})
+                events = self.read_turn(ws)
+        shown = "".join(e['text'] for e in events if e['type'] == 'text_delta')
+        replaced = [e['text'] for e in events if e['type'] == 'text_replace']
+        final = replaced[-1] if replaced else shown
+        self.assertIn("fixed 8.10%", final)
+        self.assertNotIn("guaranteed", final)
+        self.assertTrue(any("REWRITE" in p for a in FakeVisitorAgent.instances for p in a.prompts))
+
     def test_reply_level_auth_detection_triggers_presentation(self):
         FakeVisitorAgent.output_text = "To request this service for an existing account, please sign in to your Kosh banking profile."
         with self.client.websocket_connect('/ws/chat') as ws:
