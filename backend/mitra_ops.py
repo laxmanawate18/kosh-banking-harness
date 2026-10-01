@@ -47,13 +47,13 @@ def mask_messages(messages: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def prompt_version() -> str:
-    """Stable hash of everything that shapes Mitra's replies: instructions, language rules, fixed care/safety texts and skills."""
+    """Stable hash of everything that shapes Mitra's replies: instructions, language rules, fixed care/safety texts, rewrite hints and skills."""
     import json
     from backend import agent_config, care
     import product_service
     parts = [agent_config.MITRA_BOUNDARIES, agent_config.DEFAULT_SYSTEM_INSTRUCTION, agent_config.VISITOR_SYSTEM_INSTRUCTION,
              agent_config.LANGUAGE_RULE, agent_config.published_catalogue(), product_service.language_instruction("en"),
-             json.dumps([care.TEXT, care.DIRECTIVES, product_service.CHAT_TEXT], ensure_ascii=False, sort_keys=True)]
+             json.dumps([care.TEXT, care.DIRECTIVES, product_service.CHAT_TEXT, agent_config.REWRITE_HINTS], ensure_ascii=False, sort_keys=True)]
     skills = Path(__file__).resolve().parent.parent / "skills"
     parts += [p.read_text(encoding="utf-8") for p in sorted(skills.glob("*/SKILL.md")) + sorted(skills.glob("*.md"))]
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:12]

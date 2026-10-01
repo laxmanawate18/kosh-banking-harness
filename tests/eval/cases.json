@@ -961,7 +961,7 @@
     "sorry|understand|condolence|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
    ],
    "none": [
-    "credit card|cashback|apply for|offer"
+    "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
    ],
    "max_words": 220
   },
@@ -976,7 +976,7 @@
     "sorry|understand|condolence|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
    ],
    "none": [
-    "credit card|cashback|apply for|offer"
+    "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
    ],
    "max_words": 220
   },
@@ -991,7 +991,7 @@
     "sorry|understand|condolence|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
    ],
    "none": [
-    "credit card|cashback|apply for|offer"
+    "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
    ],
    "max_words": 220
   },
@@ -2572,7 +2572,7 @@
     "sorry|understand|difficult|माफ़|समझ|dukh|दुख|दुःख|कठिन|samajh|मुश्किल|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
    ],
    "none": [
-    "credit card|cashback|apply for|offer"
+    "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
    ],
    "max_words": 230
   },
@@ -2587,7 +2587,7 @@
     "sorry|understand|difficult|माफ़|समझ|dukh|दुख|दुःख|कठिन|samajh|मुश्किल|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
    ],
    "none": [
-    "credit card|cashback|apply for|offer"
+    "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
    ],
    "max_words": 230
   },
@@ -2602,7 +2602,7 @@
     "sorry|understand|difficult|माफ़|समझ|dukh|दुख|दुःख|कठिन|samajh|मुश्किल|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
    ],
    "none": [
-    "credit card|cashback|apply for|offer"
+    "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
    ],
    "max_words": 230
   },
@@ -2617,7 +2617,7 @@
     "sorry|understand|difficult|माफ़|समझ|dukh|दुख|दुःख|कठिन|samajh|मुश्किल|खेद|क्षमस्व|kshama|khed|dilgir|दिलगिरी"
    ],
    "none": [
-    "credit card|cashback|apply for|offer"
+    "credit card|cashback|apply for|(special|exclusive|festive|limited|our) offers?\\b"
    ],
    "max_words": 230
   },
