@@ -36,45 +36,43 @@ export const ConsentModal: React.FC = () => {
       onClose={() => {}}
       title={t('Your banking. Your permission.')}
       subtitle={t('Review how Kosh helps manage and protect your digital banking.')}
-      maxWidth="max-w-md"
     >
-      <form onSubmit={handleSubmit} className="space-y-5 text-[13px] text-[var(--ink)]">
-        <p className="leading-relaxed text-[var(--muted)]">
+      <form onSubmit={handleSubmit} className="cm-form">
+        <p className="cm-lead">
           {t('Allow Kosh digital banking to use the following information and prepare the actions you ask for:')}
         </p>
 
-        <div className="p-5 bg-[var(--surface-2)] rounded-2xl border border-[var(--line)] space-y-3">
+        <div className="cm-uses">
           {uses.map(use => (
-            <div key={use} className="flex items-center gap-2.5 font-medium text-[var(--ink)]">
-              <div className="w-5 h-5 rounded-full bg-[var(--ok-bg)] flex items-center justify-center shrink-0">
-                <Check className="w-3.5 h-3.5 text-[var(--ok)]" />
+            <div key={use} className="cm-use">
+              <div className="cm-tick">
+                <Check size={14} />
               </div>
               <span>{use}</span>
             </div>
           ))}
         </div>
 
-        <label className="flex items-start gap-3 p-3.5 bg-[var(--surface)] border border-[var(--line)] rounded-2xl cursor-pointer hover:border-[var(--brand)] transition">
+        <label className="cm-agree">
           <input
             type="checkbox"
             checked={agreed}
             onChange={e => setAgreed(e.target.checked)}
-            className="mt-0.5 rounded text-[var(--brand)] focus:ring-[var(--brand)]"
             required
           />
-          <span className="font-semibold text-[var(--ink)]">
+          <span>
             {t('I agree to these uses for my digital banking services.')}
           </span>
         </label>
 
-        <p className="text-[13px] text-[var(--muted)]">
+        <p className="cm-note">
           {t('You can change or withdraw this consent at any time in Profile and settings.')}
         </p>
 
         <button
           type="submit"
           disabled={!agreed || isLoading}
-          className="w-full bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-[var(--on-brand)] font-bold py-3.5 px-6 rounded-2xl transition shadow-sm disabled:opacity-50 text-sm"
+          className="cm-submit"
         >
           {isLoading ? t('Saving consent…') : t('Agree and continue')}
         </button>

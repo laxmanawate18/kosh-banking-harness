@@ -879,7 +879,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
 
       {selectedCase && (
         <Modal isOpen onClose={handleCloseCase}
-          maxWidth="max-w-3xl"
+          wide
           title={selectedCase.service_name || selectedCase.prompt || selectedCase.id}
           subtitle={`Submitted ${formatDate(selectedCase.created_at)} · ${selectedCase.customer_id || selectedCase.user_id}`}>
           <div className="case-summary-strip">
@@ -1187,7 +1187,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
         <Modal
           isOpen
           onClose={() => setSelectedLead(null)}
-          maxWidth="max-w-2xl"
+          wide
           title={`Lead: ${selectedLead.category?.replace(/_/g, ' ') || 'Inquiry'} (${selectedLead.preferences?.app_ref || selectedLead.id})`}
           subtitle={`Applicant: ${selectedLead.preferences?.applicant_name || selectedLead.customer_id || 'Visitor / Prospect'} · ${formatDate(selectedLead.created_at)}`}
         >

@@ -1031,3 +1031,201 @@ input[type=checkbox], input[type=radio] { min-height: 0; accent-color: var(--bra
 .ai-feedback button:hover { border-color: var(--line-strong); }
 .ai-feedback-done { margin-left: 8px; font-size: 12px; color: var(--muted); }
 .ai-disclosure { opacity: .8; }
+
+/* ==========================================================================
+   Former Tailwind utilities, ported 1:1 (Tailwind v4 defaults).
+   Kept in a cascade layer so that, exactly as with Tailwind's utilities layer,
+   every unlayered rule in bank.css / kosh.css / index.css still wins.
+   ========================================================================== */
+@layer utils {
+/* Line heights stay in custom properties, as in Tailwind, so the minifier cannot round them. */
+:root {
+  --lh-xs: calc(1 / .75); --lh-sm: calc(1.25 / .875); --lh-base: calc(1.5 / 1); --lh-lg: calc(1.75 / 1.125); --lh-2xl: calc(2 / 1.5); --lh-3xl: calc(2.25 / 1.875);
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --tw-ease: cubic-bezier(.4, 0, .2, 1);
+  --tw-transition: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, content-visibility, overlay, pointer-events;
+}
+
+/* Accidental match: Tailwind's `.outline` utility used to give every .k-btn.outline a 1px currentColor outline. */
+.k-btn.outline { outline: 1px solid; }
+
+/* --- SalesActionCard --- */
+.sac { margin-top: .5rem; }
+:where(.sac > :not(:last-child)) { margin-block: 0 .5rem; }
+.sac-next { padding-top: .25rem; }
+.sac-queries { display: flex; flex-wrap: wrap; gap: .375rem; padding-top: .25rem; }
+
+/* --- GlobalSearchModal --- */
+.gsm-scrim { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding: 5rem 1rem 0; background-color: color-mix(in oklab, #000 50%, transparent); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+
+/* --- MarkdownRenderer --- */
+.mdr-p { margin-block: .25rem; line-height: 1.5; }
+.mdr-strong { font-weight: 600; }
+.mdr-em { font-style: italic; }
+.mdr-list { padding-left: 1rem; margin-block: .25rem; }
+ul.mdr-list { list-style-type: disc; }
+ol.mdr-list { list-style-type: decimal; }
+:where(.mdr-list > :not(:last-child)) { margin-block: 0 .125rem; }
+.mdr-li { margin-block: .125rem; line-height: 1.375; }
+.mdr-h1, .mdr-h2, .mdr-h3 { font-weight: 700; margin-top: .5rem; margin-bottom: .25rem; }
+.mdr-h1 { font-size: .875rem; line-height: var(--lh-sm); }
+.mdr-h2, .mdr-h3 { font-size: .75rem; line-height: var(--lh-xs); }
+.mdr-h3 { text-transform: uppercase; letter-spacing: .05em; margin-top: .375rem; margin-bottom: .125rem; }
+.mdr-p:first-child, .mdr-list:first-child, .mdr-h1:first-child, .mdr-h2:first-child, .mdr-h3:first-child { margin-top: 0; }
+.mdr-p:last-child, .mdr-list:last-child { margin-bottom: 0; }
+.mdr-quote { border-left-width: 2px; border-color: var(--accent); padding: .125rem 0 .125rem .75rem; margin-block: .375rem; font-style: italic; opacity: .9; }
+.mdr-code { background-color: var(--surface-2); padding: .125rem .25rem; border-radius: .25rem; font-size: 11px; font-weight: 500; }
+.mdr-a { color: var(--brand); text-decoration-line: underline; text-underline-offset: 2px; }
+@media (hover: hover) { .mdr-a:hover { opacity: .8; } }
+
+/* --- ConsentModal --- */
+.cm-form { font-size: 13px; color: var(--ink); }
+:where(.cm-form > :not(:last-child)) { margin-block: 0 1.25rem; }
+.cm-lead { line-height: 1.625; color: var(--muted); }
+.cm-uses { padding: 1.25rem; background-color: var(--surface-2); border-radius: 1rem; border: 1px solid var(--line); }
+:where(.cm-uses > :not(:last-child)) { margin-block: 0 .75rem; }
+.cm-use { display: flex; align-items: center; gap: .625rem; font-weight: 500; color: var(--ink); }
+.cm-tick { width: 1.25rem; height: 1.25rem; border-radius: 2147483647px; background-color: var(--ok-bg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.cm-tick svg { color: var(--ok); }
+.cm-agree { display: flex; align-items: flex-start; gap: .75rem; padding: .875rem; background-color: var(--surface); border: 1px solid var(--line); border-radius: 1rem; cursor: pointer; }
+@media (hover: hover) { .cm-agree:hover { border-color: var(--brand); } }
+.cm-agree input { margin-top: .125rem; border-radius: .25rem; color: var(--brand); }
+.cm-agree span { font-weight: 600; color: var(--ink); }
+.cm-note { font-size: 13px; color: var(--muted); }
+.cm-submit { width: 100%; background-color: var(--brand); color: var(--on-brand); font-weight: 700; padding: .875rem 1.5rem; border-radius: 1rem; box-shadow: 0 1px 3px 0 #0000001a, 0 1px 2px -1px #0000001a; font-size: .875rem; line-height: var(--lh-sm); }
+@media (hover: hover) { .cm-submit:hover { background-color: var(--brand-hover); } }
+.cm-submit:disabled { opacity: .5; }
+.cm-agree, .cm-submit { transition-property: var(--tw-transition); transition-timing-function: var(--tw-ease); transition-duration: .15s; }
+
+/* --- WorkflowModal --- */
+.wfm-scrim { position: fixed; inset: 0; background-color: color-mix(in oklab, #000 60%, transparent); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); z-index: 50; display: flex; align-items: center; justify-content: center; padding: .75rem; overflow-y: auto; }
+@media (width >= 40rem) { .wfm-scrim { padding: 1.25rem; } }
+.wfm-dialog { position: relative; display: flex; flex-direction: column; overflow: hidden; max-height: 92vh; width: 100%; max-width: 1050px; }
+.wfm-body { flex: 1; overflow-y: auto; }
+.wfm-dot { display: inline-block; width: .5rem; height: .5rem; border-radius: 2147483647px; }
+.wfm-dot.pulse { background-color: #006b5e; animation: pulse 2s cubic-bezier(.4, 0, .6, 1) infinite; }
+.wfm-dot.ping { background-color: #fff; animation: wfm-ping 1s cubic-bezier(0, 0, .2, 1) infinite; }
+@keyframes wfm-ping { 75%, 100% { transform: scale(2); opacity: 0; } }
+.wfm-stepup { position: fixed; inset: 0; background-color: color-mix(in oklab, #000 50%, transparent); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.wfm-stepup-card { background-color: #fff; border-radius: 1rem; padding: 1.5rem; max-width: 24rem; width: 100%; box-shadow: 0 25px 50px -12px #00000040; border: 1px solid #dce3dc; }
+.wfm-stepup-card h3 { font-size: 1rem; line-height: var(--lh-base); font-weight: 700; margin-bottom: .25rem; }
+.wfm-stepup-card > p { font-size: .75rem; line-height: var(--lh-xs); color: #66746c; margin-bottom: 1rem; }
+.wfm-stepup-error { padding: .625rem; background-color: #fdf2f2; border: 1px solid #f8b4b4; border-radius: .5rem; font-size: .75rem; line-height: var(--lh-xs); color: #9b1c1c; margin-bottom: .75rem; }
+.wfm-otp { display: block; font-size: .75rem; line-height: var(--lh-xs); font-weight: 600; margin-bottom: .5rem; }
+.wfm-otp input { width: 100%; margin-top: .25rem; padding: .5rem .75rem; border: 1px solid #d9e2da; border-radius: .5rem; text-align: center; font-size: 1.125rem; line-height: var(--lh-lg); letter-spacing: .1em; }
+.wfm-actions { display: flex; gap: .5rem; justify-content: flex-end; }
+/* --- Shared by PaymentChallengeModal and InstantOnboardingModal --- */
+.mf-label { display: block; font-size: 10px; font-weight: 700; color: #667a7c; text-transform: uppercase; letter-spacing: .05em; margin-bottom: .375rem; }
+.mf-focus:focus { box-shadow: 0 0 0 2px #006b5e; outline-style: none; }
+.mf-transition { transition-property: var(--tw-transition); transition-timing-function: var(--tw-ease); transition-duration: .15s; }
+.mf-go { width: 100%; background-color: #006b5e; color: #fff; font-weight: 700; border-radius: 1rem; }
+.mf-go:disabled { opacity: .5; }
+@media (hover: hover) { .mf-go:hover:not(.pcm-send) { background-color: #00544a; } }
+
+/* --- PaymentChallengeModal --- */
+.pcm-form { font-size: .75rem; line-height: var(--lh-xs); }
+:where(.pcm-form > :not(:last-child)) { margin-block: 0 1rem; }
+.pcm-error { padding: .875rem; background-color: #f9e7e4; color: #ad413c; border: 1px solid #f2ccc7; border-radius: 1rem; font-weight: 500; }
+.pcm-bound { padding: .875rem; background-color: #e1f0e9; border: 1px solid #c9d9d1; border-radius: 1rem; color: #006b5e; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+.pcm-bound > span:first-child { display: flex; align-items: center; gap: .5rem; font-size: .75rem; line-height: var(--lh-xs); }
+.pcm-tag { font-size: 10px; color: #006b5e; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; background-color: color-mix(in oklab, #fff 60%, transparent); padding: .125rem .5rem; border-radius: 2147483647px; }
+.pcm-amount { padding: 1.5rem; border-radius: 1rem; background-color: #f1f5f2; border: 1px solid #d7e1dc; text-align: center; }
+:where(.pcm-amount > :not(:last-child)) { margin-block: 0 .25rem; }
+.pcm-amount > span { color: #667a7c; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; display: block; }
+.pcm-amount > div { font-size: 1.875rem; line-height: var(--lh-3xl); font-family: var(--font-serif); font-weight: 700; color: #102a2f; }
+.pcm-amount > p { font-size: .75rem; line-height: var(--lh-xs); font-weight: 600; color: #102a2f; margin-top: .25rem; }
+.pcm-send, .pcm-submit { padding: .75rem 1.5rem; font-size: .875rem; line-height: var(--lh-sm); }
+.pcm-submit { padding-block: .875rem; display: flex; align-items: center; justify-content: center; gap: .5rem; box-shadow: 0 1px 3px 0 #0000001a, 0 1px 2px -1px #0000001a; }
+.pcm-code { width: 100%; padding: .75rem 1rem; background-color: #fff; border: 1px solid #d7e1dc; border-radius: 1rem; text-align: center; letter-spacing: .5em; font-size: 1.5rem; line-height: var(--lh-2xl); font-weight: 700; color: #102a2f; }
+.pcm-note { font-size: 11px; color: #667a7c; line-height: 1.625; }
+/* --- InstantOnboardingModal --- */
+.iob-error { margin-bottom: 1rem; padding: .75rem; background-color: oklch(97.1% .013 17.38); color: oklch(50.5% .213 27.518); border: 1px solid oklch(88.5% .062 18.334); border-radius: .75rem; font-size: .75rem; line-height: var(--lh-xs); }
+.iob-stack { font-size: .75rem; line-height: var(--lh-xs); }
+:where(.iob-stack > :not(:last-child)) { margin-block: 0 1rem; }
+.iob-card { border-radius: 1rem; border: 1px solid #d7e1dc; }
+.iob-banner { padding: 1rem; background-color: #e1f0e9; border-color: #c9d9d1; display: flex; align-items: flex-start; gap: .75rem; }
+.iob-banner.pending { background-color: #fffaf0; border-color: #fbd38d; }
+.iob-banner > svg { color: #006b5e; flex-shrink: 0; margin-top: .125rem; }
+.iob-banner.pending > svg { color: #b86e24; }
+.iob-banner-head { display: flex; align-items: center; gap: .5rem; }
+.iob-banner h4 { font-size: .875rem; line-height: var(--lh-sm); font-family: var(--font-serif); font-weight: 700; color: #006b5e; }
+.iob-banner.pending h4 { color: #b86e24; }
+.iob-tag { background-color: #006b5e; color: #fff; font-size: 9px; padding: .125rem .5rem; border-radius: 2147483647px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.pending .iob-tag { background-color: #b86e24; }
+.iob-banner p { font-size: .75rem; line-height: 1.625; color: #102a2f; margin-top: .25rem; }
+.iob-banner p.tight { line-height: var(--lh-xs); margin-top: .125rem; }
+.iob-table { padding: 1rem; background-color: #f1f5f2; }
+:where(.iob-table > :not(:last-child)) { margin-block: 0 .625rem; }
+.iob-table.roomy { padding: 1.25rem; }
+:where(.iob-table.roomy > :not(:last-child)) { margin-block: 0 .75rem; }
+.iob-row { display: flex; justify-content: space-between; align-items: center; }
+.iob-row.ref { padding-bottom: .5rem; border-bottom-width: 1px; border-color: #d7e1dc; }
+.iob-row > span:first-child { color: #667a7c; text-transform: uppercase; font-size: 10px; }
+.iob-ref { display: flex; align-items: center; gap: .375rem; }
+.iob-ref strong { color: #006b5e; font-size: .75rem; line-height: var(--lh-xs); font-weight: 700; }
+.iob-ref button { color: #667a7c; padding: .25rem; }
+@media (hover: hover) { .iob-ref button:hover { color: #006b5e; } }
+.iob-big { font-size: .875rem; line-height: var(--lh-sm); font-weight: 700; color: #102a2f; }
+.iob-big.green, .iob-green { color: #006b5e; }
+.iob-ink { color: #102a2f; }
+.iob-semi { color: #102a2f; font-weight: 600; }
+.iob-email { font-size: .75rem; line-height: var(--lh-xs); color: #006b5e; }
+.iob-status { color: #006b5e; font-weight: 600; display: flex; align-items: center; gap: .25rem; }
+.iob-chip { color: #006b5e; background-color: #fff; padding: .125rem .5rem; border-radius: .25rem; border: 1px solid #d7e1dc; }
+.iob-next { padding: .875rem; background-color: #fff; }
+:where(.iob-next > :not(:last-child), .iob-xsell > :not(:last-child)) { margin-block: 0 .5rem; }
+.iob-next-head { display: flex; align-items: center; gap: .375rem; color: #006b5e; font-weight: 600; font-size: .75rem; line-height: var(--lh-xs); }
+.iob-small { font-size: 11px; color: #667a7c; line-height: 1.625; }
+.iob-xsell { padding: 1rem; background-image: linear-gradient(to right in oklab, #fffaf1 0%, #f4fbf7 100%); border-color: oklab(81.8674% .0304806 .120968 / .5); }
+.iob-xsell-kicker { display: flex; align-items: center; gap: .375rem; color: #b86e24; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+.iob-xsell h5 { font-family: var(--font-serif); font-weight: 700; font-size: .75rem; line-height: var(--lh-xs); color: #102a2f; }
+.iob-xsell button { width: 100%; margin-top: .25rem; background-color: #fff; border: 1px solid #f2b860; color: #b86e24; padding-block: .5rem; border-radius: .75rem; font-size: .75rem; line-height: var(--lh-xs); font-weight: 700; display: flex; align-items: center; justify-content: center; gap: .375rem; }
+@media (hover: hover) { .iob-xsell button:hover { background-color: #fffaf1; } }
+.iob-done { padding-block: .75rem; font-size: .75rem; line-height: var(--lh-xs); box-shadow: 0 1px #0000000d; }
+.iob-pair { display: flex; gap: .625rem; padding-top: .25rem; }
+.iob-pair button { flex: 1; padding-block: .875rem; border-radius: 1rem; font-size: .75rem; line-height: var(--lh-xs); font-weight: 700; display: flex; align-items: center; justify-content: center; gap: .375rem; }
+.iob-pair .iob-copy { border: 1px solid #d7e1dc; color: #102a2f; }
+.iob-copy svg { color: #667a7c; }
+@media (hover: hover) { .iob-pair .iob-copy:hover { background-color: #f1f5f2; } }
+.iob-pair .iob-signin { background-color: #006b5e; color: #fff; box-shadow: 0 1px #0000000d; }
+@media (hover: hover) { .iob-pair .iob-signin:hover { background-color: #00544a; } }
+.iob-product { padding: .875rem; background-color: #f1f5f2; display: flex; align-items: center; justify-content: space-between; }
+.iob-product-id { display: flex; align-items: center; gap: .625rem; }
+.iob-product-icon { padding: .5rem; background-color: #fff; border-radius: .75rem; border: 1px solid #d7e1dc; color: #006b5e; }
+.iob-product h4 { font-family: var(--font-serif); font-weight: 700; font-size: .75rem; line-height: var(--lh-xs); color: #102a2f; }
+.iob-product p { font-size: 10px; color: #667a7c; }
+.iob-product-rate { text-align: right; }
+.iob-product-rate span { font-size: .75rem; line-height: var(--lh-xs); font-weight: 700; color: #006b5e; background-color: #fff; padding: .25rem .5rem; border-radius: .5rem; border: 1px solid #d7e1dc; }
+.iob-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: .875rem; }
+.iob-grid.loan { gap: .75rem; }
+@media (width >= 40rem) { .iob-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.iob-field > label { display: block; font-size: 10px; color: #667a7c; text-transform: uppercase; margin-bottom: .375rem; }
+.iob-field:not(.loan) > label { font-weight: 700; letter-spacing: .05em; }
+.iob-field > :is(input, select) { width: 100%; padding: .625rem .875rem; background-color: #fff; border: 1px solid #d7e1dc; border-radius: .75rem; font-size: .75rem; line-height: var(--lh-xs); color: #102a2f; }
+.iob-field:not(.loan) > :is(input, select):focus { box-shadow: 0 0 0 2px #006b5e; outline-style: none; }
+.iob-field > .iob-pan { text-transform: uppercase; }
+.iob-field.loan > label { margin-bottom: .25rem; }
+.iob-field.loan > :is(input, select) { padding: .5rem .75rem; }
+.iob-field.loan > .is-strong { font-weight: 600; }
+.iob-amounts { display: flex; gap: .375rem; margin-top: .375rem; }
+.iob-amounts button { font-size: 9px; padding: .125rem .5rem; border-radius: .5rem; border: 1px solid #d7e1dc; background-color: #fff; color: #667a7c; transition-property: var(--tw-transition); transition-timing-function: var(--tw-ease); transition-duration: .15s; }
+.iob-amounts button.on { background-color: #006b5e; color: #fff; border-color: #006b5e; }
+.iob-loan { padding: 1rem; background-color: #f8faf8; }
+:where(.iob-loan > :not(:last-child)) { margin-block: 0 .875rem; }
+.iob-loan-head { display: flex; align-items: center; justify-content: space-between; }
+.iob-loan-head > span:first-child { font-size: 11px; font-weight: 700; color: #006b5e; text-transform: uppercase; letter-spacing: .05em; display: flex; align-items: center; gap: .375rem; }
+.iob-loan-head > span:last-child { font-size: 11px; color: #667a7c; }
+.iob-emi { padding: .75rem; background-color: #fff; border-radius: .75rem; border: 1px solid #c9d9d1; display: flex; align-items: center; justify-content: space-between; }
+.iob-emi > span:first-child { font-size: 11px; color: #667a7c; }
+.iob-emi > span:last-child { font-size: .875rem; line-height: var(--lh-sm); font-weight: 700; color: #006b5e; }
+.iob-notice { padding: .75rem; background-color: oklab(94.2004% -.0178784 .00433642 / .5); border: 1px solid #c9d9d1; border-radius: .75rem; color: #006b5e; font-size: 11px; line-height: 1.625; display: flex; align-items: flex-start; gap: .5rem; }
+.iob-notice > svg { flex-shrink: 0; margin-top: .125rem; }
+.iob-submit { padding: .875rem 1.5rem; display: flex; align-items: center; justify-content: center; gap: .5rem; box-shadow: 0 1px #0000000d; font-size: .75rem; line-height: var(--lh-xs); letter-spacing: .025em; }
+}
+
+/* Monospace text. Unlayered on purpose: it replaces the hand-written .font-mono that
+   used to live (unlayered) in index.css and overrode Tailwind's own font-mono. */
+:root { --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+.mdr-code, .wfm-otp input, .mf-label, .pcm-bound > span:first-child, .pcm-tag, .pcm-amount > span, .pcm-code,
+.iob-tag, .iob-row > span:first-child, .iob-ref strong, .iob-mono, .iob-email, .iob-chip, .iob-product p, .iob-product-rate span,
+.iob-field > label, .iob-field > .iob-pan, .iob-amounts button, .iob-loan-head > span, .iob-emi > span:last-child { font-family: var(--font-mono); }

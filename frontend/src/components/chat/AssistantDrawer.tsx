@@ -40,7 +40,7 @@ export function AssistantDrawer() {
         <ChatMessageList messages={messages} onSuggestedQuery={sendMessage} onOpenWorkflow={openWorkflow} onStartWorkflow={startWorkflowById} onApplyProduct={handleApplyProduct} />
         <ChatComposer />
       </section>
-      <InstantOnboardingModal isOpen={!!selectedProduct} onClose={() => setSelectedProduct(null)} product={selectedProduct} />
+      <InstantOnboardingModal key={selectedProduct?.id} isOpen={!!selectedProduct} onClose={() => setSelectedProduct(null)} product={selectedProduct} />
     </dialog>
   </>;
 }

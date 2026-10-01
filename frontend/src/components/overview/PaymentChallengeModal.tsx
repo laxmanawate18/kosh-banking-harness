@@ -81,40 +81,39 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
       onClose={onClose}
       title="Approve this payment"
       subtitle="Confirm your intent with a fresh Firebase phone verification."
-      maxWidth="max-w-md"
     >
-      <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+      <form onSubmit={handleSubmit} className="pcm-form">
         {error && (
-          <div className="p-3.5 bg-[#f9e7e4] text-[#ad413c] border border-[#f2ccc7] rounded-2xl font-medium">
+          <div className="pcm-error">
             {error}
           </div>
         )}
 
-        <div className="p-3.5 bg-[#e1f0e9] border border-[#c9d9d1] rounded-2xl text-[#006b5e] font-semibold flex items-center justify-between">
-          <span className="flex items-center gap-2 font-mono text-xs">
-            <ShieldCheck className="w-4 h-4 text-[#006b5e]" /> Transaction-bound approval
+        <div className="pcm-bound">
+          <span>
+            <ShieldCheck size={16} /> Transaction-bound approval
           </span>
-          <span className="text-[10px] text-[#006b5e] uppercase tracking-widest font-mono font-bold bg-white/60 px-2 py-0.5 rounded-full">
+          <span className="pcm-tag">
             Immutable
           </span>
         </div>
 
-        <div className="p-6 rounded-2xl bg-[#f1f5f2] border border-[#d7e1dc] text-center space-y-1">
-          <span className="text-[#667a7c] font-mono text-[11px] uppercase tracking-wider block">Payment Amount</span>
-          <div className="text-3xl font-serif font-bold text-[#102a2f]">{formatMoney(challenge.amount_minor)}</div>
-          <p className="text-xs font-semibold text-[#102a2f] mt-1">To: {challenge.payee_name}</p>
+        <div className="pcm-amount">
+          <span>Payment Amount</span>
+          <div>{formatMoney(challenge.amount_minor)}</div>
+          <p>To: {challenge.payee_name}</p>
         </div>
 
         <div id="payment-step-up-recaptcha" />
 
         {!confirmation && (
-          <button type="button" onClick={handleSendCode} disabled={isLoading} className="w-full bg-[#006b5e] text-white font-bold py-3 px-6 rounded-2xl disabled:opacity-50 text-sm">
+          <button type="button" onClick={handleSendCode} disabled={isLoading} className="mf-go pcm-send">
             {isLoading ? 'Sending…' : 'Send fresh verification code'}
           </button>
         )}
 
         {confirmation && <div>
-          <label className="block font-mono text-[10px] font-bold text-[#667a7c] uppercase tracking-wider mb-1.5">
+          <label className="mf-label">
             One-time verification code
           </label>
           <input
@@ -123,20 +122,20 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
             onChange={e => setCode(e.target.value)}
             maxLength={6}
             required
-            className="w-full px-4 py-3 bg-white border border-[#d7e1dc] rounded-2xl focus:ring-2 focus:ring-[#006b5e] focus:outline-none text-center tracking-[0.5em] font-mono text-2xl font-bold text-[#102a2f]"
+            className="pcm-code mf-focus"
           />
         </div>}
 
-        <p className="text-[11px] text-[#667a7c] leading-relaxed">
+        <p className="pcm-note">
           Firebase verifies the code, and the auth server grants this Kosh session five minutes of L3 assurance.
         </p>
 
         <button
           type="submit"
           disabled={isLoading || !confirmation || code.length !== 6}
-          className="w-full bg-[#006b5e] hover:bg-[#00544a] text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 transition shadow-sm disabled:opacity-50 text-sm"
+          className="mf-go mf-transition pcm-submit"
         >
-          {isLoading ? 'Verifying…' : 'Verify & send payment'} <ArrowRight className="w-4 h-4" />
+          {isLoading ? 'Verifying…' : 'Verify & send payment'} <ArrowRight size={16} />
         </button>
       </form>
     </Modal>

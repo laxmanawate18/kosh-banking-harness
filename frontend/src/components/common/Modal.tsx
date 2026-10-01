@@ -8,11 +8,11 @@ interface ModalProps {
   title: string;
   subtitle?: string;
   children: ReactNode;
-  maxWidth?: string;
+  wide?: boolean;
 }
 
 /** Native <dialog>: focus trap, Esc and top-layer stacking come from the platform. */
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, subtitle, children, maxWidth = '' }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, subtitle, children, wide }) => {
   const { t } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -24,7 +24,6 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, subtitle, 
   }, [isOpen]);
 
   if (!isOpen) return null;
-  const wide = /max-w-(2xl|3xl|4xl|5xl|6xl)/.test(maxWidth);
 
   return (
     <dialog

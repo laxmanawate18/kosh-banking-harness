@@ -23,21 +23,21 @@ export const SalesActionCard: React.FC<SalesActionCardProps> = ({
   }
 
   return (
-    <div className="mt-2 space-y-2">
+    <div className="sac">
       {nextAction?.label && onApplyProduct && nextAction.product_id && (
-        <div className="pt-1">
+        <div className="sac-next">
           <button
             onClick={() => onApplyProduct(nextAction.product_id!)}
             className="button primary"
             style={{ fontSize: '13px', padding: '6px 14px' }}
           >
-            {nextAction.label} <ArrowRight className="w-3 h-3" />
+            {nextAction.label} <ArrowRight size={12} />
           </button>
         </div>
       )}
 
       {queries.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pt-1">
+        <div className="sac-queries">
           {queries.map((q, idx) => (
             <button
               key={idx}

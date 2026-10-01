@@ -46,7 +46,7 @@ export const ProductsCatalogView: React.FC<ProductsCatalogViewProps> = ({ produc
           : visible.map(p => <ProductCard key={p.id} product={p} onApply={setSelected} onAskAI={handleAskAI} />)}
       </div>
 
-      <InstantOnboardingModal isOpen={!!selected} onClose={() => setSelected(null)} product={selected} />
+      <InstantOnboardingModal key={selected?.id} isOpen={!!selected} onClose={() => setSelected(null)} product={selected} />
     </div>
   );
 };

@@ -475,13 +475,13 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-[3px] z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+      className="wfm-scrim"
       onClick={e => {
         if (e.target === e.currentTarget) handleClose();
       }}
     >
       <div
-        className={`workflow-dialog relative flex flex-col overflow-hidden max-h-[92vh] w-full max-w-[1050px] ${
+        className={`workflow-dialog wfm-dialog ${
           saving ? 'wf-busy' : ''
         }`}
         role="dialog"
@@ -510,7 +510,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
         </header>
 
         {/* Body */}
-        <div ref={modalBodyRef} className="wf-body flex-1 overflow-y-auto">
+        <div ref={modalBodyRef} className="wf-body wfm-body">
           <div className="wf-main">
             {/* Progress Stepper */}
             <div className="wf-progress">
@@ -548,7 +548,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
             {statusMessage && !isExtracting && (
               <div className="wf-alert-box info">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="inline-block w-2 h-2 rounded-full bg-[#006b5e] animate-pulse" />
+                  <span className="wfm-dot pulse" />
                   <span>{statusMessage}</span>
                 </div>
               </div>
@@ -719,7 +719,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
                     >
                       {isExtracting ? (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span className="inline-block w-2 h-2 rounded-full bg-white animate-ping" />
+                          <span className="wfm-dot ping" />
                           Extracting…
                         </span>
                       ) : (
@@ -937,17 +937,17 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
         {/* Step-Up OTP Modal */}
         {stepUpOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-60 flex items-center justify-center p-4"
+            className="wfm-stepup"
             onClick={e => {
               if (e.target === e.currentTarget) setStepUpOpen(false);
             }}
           >
             <div
-              className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-[#dce3dc]"
+              className="wfm-stepup-card"
               onClick={e => e.stopPropagation()}
             >
-              <h3 className="text-base font-bold mb-1" style={{ color: '#1b3028' }}>Step-Up Authorization Required</h3>
-              <p className="text-xs text-[#66746c] mb-4">
+              <h3 style={{ color: '#1b3028' }}>Step-Up Authorization Required</h3>
+              <p>
                 This action requires a fresh Firebase phone verification. L3 lasts for five minutes.
               </p>
 
@@ -959,24 +959,23 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
               )}
 
               {stepUpError && (
-                <div className="p-2.5 bg-[#fdf2f2] border border-[#f8b4b4] rounded-lg text-xs text-[#9b1c1c] mb-3">
+                <div className="wfm-stepup-error">
                   {stepUpError}
                 </div>
               )}
 
-              {stepUpConfirmation && <label className="block text-xs font-semibold mb-2" style={{ color: '#1b3028' }}>
+              {stepUpConfirmation && <label className="wfm-otp" style={{ color: '#1b3028' }}>
                 One-Time Password (OTP)
                 <input
                   type="text"
                   maxLength={6}
                   value={stepUpCode}
                   onChange={e => setStepUpCode(e.target.value.replace(/\D/g, ''))}
-                  className="w-full mt-1 px-3 py-2 border border-[#d9e2da] rounded-lg font-mono text-center text-lg tracking-widest"
                   placeholder="6-digit code"
                   autoFocus
                 />
               </label>}
-              <div className="flex gap-2 justify-end">
+              <div className="wfm-actions">
                 <button
                   type="button"
                   className="button"
