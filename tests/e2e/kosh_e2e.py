@@ -19,7 +19,7 @@ CUSTOMER_ROUTES = ["overview", "ai-banker", "accounts", "transactions", "upi", "
                    "bills", "cards", "deposits", "services", "requests", "security", "settings"]
 OFFICER_ROUTES = ["operations", "leads", "history", "audit"]
 ERROR_MARKERS = ("Something went wrong", "Failed to load", "Unexpected error", "Traceback", "Internal Server Error")
-INTERNAL_MARKERS = ("get_customer_summary", "propose_transfer", "query_bank_knowledge", "SYSTEM SALES DIRECTIVE",
+INTERNAL_MARKERS = ("get_customer_summary", "propose_transfer", "query_bank_knowledge", "SYSTEM SALES DIRECTIVE", "Trusted context from Kosh",
                     "record_customer_lead", "SecureToolGateHook")
 
 

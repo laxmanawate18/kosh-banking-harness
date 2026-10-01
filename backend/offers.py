@@ -137,6 +137,14 @@ def consented(state: Dict[str, Any], customer_id: str) -> bool:
     return bool((state.get("preferences", {}).get(customer_id) or {}).get("marketing_offers"))
 
 
+def marketing_block(state: Dict[str, Any], customer_id: str) -> Optional[str]:
+    """Why this customer may not be marketed to right now (no marketing consent, offers paused for hardship), or None."""
+    if not consented(state, customer_id):
+        return "MARKETING_CONSENT_REQUIRED"
+    paused = (state.get("preferences", {}).get(customer_id) or {}).get("offers_paused_until")
+    return "PAUSED_FOR_HARDSHIP" if paused and paused > _now().isoformat() else None
+
+
 def _suppressed(session, customer_id: str, product_id: str, category: str) -> Optional[str]:
     now = _now()
     events = session.scalars(select(OfferEventRecord).where(OfferEventRecord.customer_id == customer_id,
@@ -161,11 +169,9 @@ def _suppressed(session, customer_id: str, product_id: str, category: str) -> Op
 def next_best_offers(db, customer_id: str, channel: str, *, record: bool = True, language: str = "en") -> Dict[str, Any]:
     """Eligible offers for this customer on this channel, after governance. Records SHOWN once per day."""
     state = db.snapshot()
-    if not consented(state, customer_id):
-        return {"offers": [], "blocked": "MARKETING_CONSENT_REQUIRED"}
-    paused = (state.get("preferences", {}).get(customer_id) or {}).get("offers_paused_until")
-    if paused and paused > _now().isoformat():
-        return {"offers": [], "blocked": "PAUSED_FOR_HARDSHIP"}
+    blocked = marketing_block(state, customer_id)
+    if blocked:
+        return {"offers": [], "blocked": blocked}
     facts = signals(state, customer_id)
     if not facts["kyc_verified"]:
         return {"offers": [], "blocked": "KYC_NOT_VERIFIED"}

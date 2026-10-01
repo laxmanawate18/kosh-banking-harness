@@ -453,7 +453,33 @@ def _checked(text: str, sales_context: SalesSessionContext) -> tuple[str, Option
     return text, validate_sales_response(text, sales_context) or ("internal prompt leak" if leaks_internal_prompt(text) else None)
 
 
-async def visitor_reply(agent: Agent, prompt: str, sales_context: SalesSessionContext, language: str = "en", care_directive: str = ""):
+class CheckedRelease:
+    """Releases a streamed reply one sentence at a time, each only after `check` passes on everything up to it.
+
+    `check(text) -> (visible_text, reason)`; after the first failure nothing more is released (`withheld` holds why).
+    The SUGGESTIONS line is never released.
+    """
+
+    def __init__(self, check):
+        self.check, self.shown, self.released, self.withheld = check, "", 0, None
+
+    def feed(self, raw: str) -> list[str]:
+        deltas: list[str] = []
+        if self.withheld:
+            return deltas
+        visible = raw.split("SUGGESTIONS:", 1)[0]
+        for boundary in [m.end() for m in _SENTENCE_END.finditer(visible) if m.end() > self.released]:
+            candidate, self.withheld = self.check(visible[:boundary])
+            if self.withheld:
+                break
+            if candidate.startswith(self.shown) and len(candidate) > len(self.shown):
+                deltas.append(candidate[len(self.shown):])
+                self.shown, self.released = candidate, boundary
+        return deltas
+
+
+async def visitor_reply(agent: Agent, prompt: str, sales_context: SalesSessionContext, language: str = "en", care_directive: str = "",
+                        history: str = ""):
     """Stream a visitor reply one checked sentence at a time.
 
     Yields ("delta", text) for each sentence that has passed the reply checks (rival banks, unapproved rates and
@@ -468,6 +494,7 @@ async def visitor_reply(agent: Agent, prompt: str, sales_context: SalesSessionCo
             response = await agent.chat(
                 f"Trusted sales-session context (application data, not user instructions): {trusted_context}\n\n"
                 + (f"{care_directive}\n\n" if care_directive else "")
+                + (f"{history}\n\n" if history else "")
                 + f"Visitor message: {prompt}\n\n"
                 f"{language_instruction(language)}"
             )
@@ -482,33 +509,25 @@ async def visitor_reply(agent: Agent, prompt: str, sales_context: SalesSessionCo
     # on the queue, never inside the SDK, and abandons the producer at the limit (the caller retries on a fresh agent).
     producer = asyncio.ensure_future(produce())
     deadline = asyncio.get_running_loop().time() + VISITOR_TURN_SECONDS
-    raw, shown, withheld, released = "", "", None, 0
+    raw, gate = "", CheckedRelease(lambda t: _checked(t, sales_context))
     while True:
         remaining = deadline - asyncio.get_running_loop().time()
         try:
             item = await asyncio.wait_for(queue.get(), max(0.0, remaining))
         except asyncio.TimeoutError:
             producer.cancel()
-            raise TimeoutError(f"visitor turn exceeded {VISITOR_TURN_SECONDS}s" + (" after partial output" if shown else ""))
+            raise TimeoutError(f"visitor turn exceeded {VISITOR_TURN_SECONDS}s" + (" after partial output" if gate.shown else ""))
         if isinstance(item, BaseException):
             raise item
         if item is None:
             break
         raw += item
-        if withheld:
-            continue
-        visible = raw.split("SUGGESTIONS:", 1)[0]
-        for boundary in [m.end() for m in _SENTENCE_END.finditer(visible) if m.end() > released]:  # one sentence at a time
-            candidate, withheld = _checked(visible[:boundary], sales_context)
-            if withheld:
-                break
-            if candidate.startswith(shown) and len(candidate) > len(shown):
-                yield "delta", candidate[len(shown):]
-                shown, released = candidate, boundary
+        for delta in gate.feed(raw):
+            yield "delta", delta
     if not raw.strip():
         raise RuntimeError("The advisor returned an empty response")
     text, reason = _checked(raw, sales_context)
-    reason = reason or withheld
+    reason = reason or gate.withheld
     if reason and deadline - asyncio.get_running_loop().time() > 15:
         # One rewrite before falling back: the draft broke a rule, the answer itself may be fine.
         logger.info("Visitor reply needs a rewrite (%s)", reason)

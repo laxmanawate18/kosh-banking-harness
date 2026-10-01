@@ -236,6 +236,25 @@ class VisitorChatTests(unittest.TestCase):
         self.assertNotIn("guaranteed", final)
         self.assertTrue(any("REWRITE" in p for a in FakeVisitorAgent.instances for p in a.prompts))
 
+    def test_a_new_agent_gets_the_chat_so_far_but_not_a_cleared_one(self):
+        with self.client.websocket_connect('/ws/chat') as ws:
+            ws.receive_json()
+            ws.send_json({'type': 'prompt', 'prompt': 'I want to complain about a double card fee'})
+            self.read_turn(ws)
+            self.assertNotIn("Earlier in this chat", FakeVisitorAgent.instances[-1].prompts[-1])
+            ws.send_json({'type': 'cancel'})
+            ws.receive_json()
+            ws.send_json({'type': 'prompt', 'prompt': 'My name is Asha Rao'})
+            self.read_turn(ws)
+            sent = FakeVisitorAgent.instances[-1].prompts[-1]
+            self.assertIn("Earlier in this chat", sent)
+            self.assertIn("double card fee", sent)
+            ws.send_json({'type': 'clear'})
+            ws.receive_json()
+            ws.send_json({'type': 'prompt', 'prompt': 'What does the FD pay?'})
+            self.read_turn(ws)
+            self.assertNotIn("Earlier in this chat", FakeVisitorAgent.instances[-1].prompts[-1])
+
     def test_reply_level_auth_detection_triggers_presentation(self):
         FakeVisitorAgent.output_text = "To request this service for an existing account, please sign in to your Kosh banking profile."
         with self.client.websocket_connect('/ws/chat') as ws:

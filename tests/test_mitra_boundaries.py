@@ -70,6 +70,20 @@ class MitraBoundaryTests(unittest.TestCase):
         self.assertEqual(customer_reply_issue("HDFC charges more than Kosh, so pay Vikram (Axis Bank •••• 9082) from Kosh."), COMPETITOR_REASON)
         self.assertEqual(customer_reply_issue("HDFC charges more than Kosh."), COMPETITOR_REASON)
 
+    def test_signed_in_replies_stream_only_checked_sentences(self):
+        from backend.agent_config import CheckedRelease
+        from backend.chat_runtime import _customer_checked
+        gate, shown = CheckedRelease(_customer_checked), []
+        reply = ""
+        for chunk in ("Your salary account balance is ₹1,20,000. ", "HDFC would charge you", " more for this. Anything else?"):
+            reply += chunk
+            shown += gate.feed(reply)
+        self.assertEqual("".join(shown), "Your salary account balance is ₹1,20,000.")
+        self.assertEqual(gate.withheld, COMPETITOR_REASON)
+        gate = CheckedRelease(_customer_checked)
+        self.assertEqual(gate.feed("You mentioned HDFC earlier. Here is your balance.\nSUGGESTIONS: [\"a\"]"),
+                         ["You mentioned another bank earlier.", " Here is your balance.", "\n"])
+
     def test_the_same_fallback_is_never_sent_twice_in_a_row(self):
         context = SalesSessionContext(goal="cards", unanswered_question=chat_text("question_cards"))
         replies = [safe_grounded_fallback(context, "en", "numeric rate claim") for _ in range(3)]
