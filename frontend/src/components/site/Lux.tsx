@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
 import { Card3D } from '../common/Card3D';
@@ -9,26 +9,6 @@ import { rich, useScrollProgress, WordReveal } from './Story';
 import '../../lux.css';
 
 type Vars = React.CSSProperties & Record<`--${string}`, string | number>;
-type Mount = (host: HTMLElement, opts: { still: boolean }) => () => void;
-
-/** Smooth, weighted scrolling for the public site (Lenis). Off for reduced motion; inner scrollers opt out. */
-export function useSmoothScroll(enabled = true) {
-  useEffect(() => {
-    if (!enabled || prefersReducedMotion()) return;
-    let lenis: { raf: (t: number) => void; destroy: () => void } | null = null, raf = 0, dead = false;
-    import('lenis').then(({ default: Lenis }) => {
-      if (dead) return;
-      lenis = new Lenis({
-        lerp: 0.1,
-        wheelMultiplier: 0.9,
-        prevent: (node: HTMLElement) => !!node.closest?.('dialog, [popover], [data-lenis-prevent]'),
-      });
-      const tick = (t: number) => { lenis?.raf(t); raf = requestAnimationFrame(tick); };
-      raf = requestAnimationFrame(tick);
-    });
-    return () => { dead = true; cancelAnimationFrame(raf); lenis?.destroy(); };
-  }, [enabled]);
-}
 
 /** Buttons that lean toward the cursor (fine pointers only). */
 const magnetic = {
@@ -44,39 +24,8 @@ const magnetic = {
   },
 };
 
-/** Lazy three.js scene: the chunk loads on demand and the mount function owns the canvas. */
-const lazyScene = (load: () => Promise<Mount>) => lazy(async () => {
-  const mount = await load();
-  const Scene: React.FC = () => {
-    const ref = useRef<HTMLDivElement>(null);
-    useEffect(() => mount(ref.current!, { still: prefersReducedMotion() }), []);
-    return <div ref={ref} className="kl-canvas" />;
-  };
-  return { default: Scene };
-});
-const CardScene = lazyScene(() => import('./cardScene').then(m => m.mountCardScene));
-const RingScene = lazyScene(() => import('./ringScene').then(m => m.mountRingScene));
-const SpheresScene = lazyScene(() => import('./spheresScene').then(m => m.mountSpheresScene));
-
-const hasWebGL = () => {
-  try { return !!document.createElement('canvas').getContext('webgl2'); } catch { return false; }
-};
-
-/** Renders children only once the slot comes within ~one screen of the viewport. */
-const NearView: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const [near, setNear] = useState(false);
-  useEffect(() => {
-    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setNear(true); io.disconnect(); } }, { rootMargin: '100% 0px' });
-    if (ref.current) io.observe(ref.current);
-    return () => io.disconnect();
-  }, []);
-  return <div ref={ref} className="kl-canvas">{near && <Suspense fallback={null}>{children}</Suspense>}</div>;
-};
-
 export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({ onOpen, onLogin }) => {
   const { t } = useI18n();
-  const [webgl] = useState(hasWebGL);
 
   // Marks the page so the floating "Ask Mitra" button takes the glass style.
   useEffect(() => {
@@ -104,11 +53,9 @@ export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({
             <button type="button" className="kl-link" onClick={onLogin}>{t('Login')} <Icon name="arrow-right" /></button>
           </div>
         </div>
-        <div className="kl-card3d" aria-hidden="true">
+        <div className="kl-card3d" aria-hidden="true" inert>
           <div className="kl-card-glow" />
-          {webgl
-            ? <Suspense fallback={<div className="kl-canvas kl-canvas-wait" />}><CardScene /></Suspense>
-            : <div className="kl-card-css"><Card3D float /></div>}
+          <div className="kl-card-css"><Card3D float /></div>
         </div>
       </div>
       <ul className="kl-trustline" aria-label={t('Why bank with Kosh')}>
@@ -125,7 +72,6 @@ export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({
 
 export const CardRing: React.FC = () => {
   const { t } = useI18n();
-  const [webgl] = useState(hasWebGL);
   return (
     <section className="kl-ring" aria-labelledby="ring-title">
       <div className="kl-ring-copy">
@@ -134,8 +80,8 @@ export const CardRing: React.FC = () => {
         <p>{t('Accounts, cards, deposits and loans in one place. Reminders before every due date, no hidden charges, and a clear view of what your money earns.')}</p>
         <a className="kl-link" href="#/products">{t('Explore products')} <Icon name="arrow-right" /></a>
       </div>
-      <div className="kl-ring-stage" aria-hidden="true">
-        {webgl ? <NearView><RingScene /></NearView> : <div className="kl-card-css"><Card3D float /></div>}
+      <div className="kl-ring-stage" aria-hidden="true" inert>
+        <div className="kl-card-css"><Card3D float /></div>
       </div>
     </section>
   );
@@ -230,10 +176,9 @@ export const UpgradeRail: React.FC<{ onAsk: (prompt: string) => void }> = ({ onA
 
 export const Rewards: React.FC = () => {
   const { t } = useI18n();
-  const [webgl] = useState(hasWebGL);
   return (
     <section className="kl-rewards" aria-labelledby="rewards-title">
-      <div className="kl-rewards-stage" aria-hidden="true">{webgl && <NearView><SpheresScene /></NearView>}</div>
+      <div className="kl-rewards-stage" aria-hidden="true"><Rangoli rings={18} /></div>
       <div className="kl-rewards-copy">
         <h2 id="rewards-title">{rich(t('rewards that *find* you.'))}</h2>
         <p>{t('Cashback on UPI, points on every card swipe and members-only offers from brands you love. No coupons to chase.')}</p>

@@ -13,6 +13,21 @@ interface ChatPresentationCardProps {
   onPaymentChallenge?: (challenge: any) => void;
 }
 
+const Row: React.FC<{ label: React.ReactNode; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="info-row"><span>{label}</span><strong>{children}</strong></div>
+);
+
+// Simple list cards, checked in order: [type, result key, empty text, (item) => [label, value]].
+const LIST_CARDS: [string, string, string | null, (x: any) => [string, string]][] = [
+  ['TRANSACTION_LIST', 'transactions', 'No recent activity found.',
+    (t) => [t.description || t.narration || t.note || 'Transaction', formatMoney(t.amount_minor ?? t.amount_paise ?? 0)]],
+  ['ACCOUNT_SUMMARY', 'accounts', null,
+    (a) => [`${a.name || 'Account'} ${a.account_number_masked ? `(${a.account_number_masked})` : ''}`, formatMoney(a.available_balance_minor ?? a.balance_paise ?? 0)]],
+  ['BILL_LIST', 'bills', 'No bills currently due.',
+    (b) => [b.biller_name || b.name || 'Biller', formatMoney(b.amount_minor ?? b.amount_paise ?? 0)]],
+  ['SECURITY_ALERT', 'alerts', null, (a) => [a.title || a.message || 'Alert', a.status || 'Active']],
+];
+
 export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
   presentation,
   toolResult,
@@ -27,78 +42,15 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
   const type = pres.type || result.type || '';
   const title = pres.title || (type ? type.replace(/_/g, ' ') : 'Activity & Details');
 
-  // 1. Transaction List (e.g. "Recent activity")
-  if (type === 'TRANSACTION_LIST' || (result.transactions && Array.isArray(result.transactions))) {
-    const transactions = result.transactions || pres.transactions || [];
+  for (const [listType, key, empty, row] of LIST_CARDS) {
+    if (type !== listType && !Array.isArray(result[key])) continue;
+    const items: any[] = (result[key] || pres[key] || []).slice(0, key === 'transactions' ? 8 : undefined);
     return (
       <article className="chat-result">
-        <h3>{title || 'Recent activity'}</h3>
-        {transactions.length === 0 ? (
-          <p className="muted" style={{ fontSize: '11px', margin: '4px 0' }}>No recent activity found.</p>
-        ) : (
-          transactions.slice(0, 8).map((t: any, idx: number) => {
-            const amountPaise = t.amount_minor ?? t.amount_paise ?? 0;
-            const formatted = formatMoney(amountPaise);
-            return (
-              <div key={idx} className="info-row">
-                <span>{t.description || t.narration || t.note || 'Transaction'}</span>
-                <strong>{formatted}</strong>
-              </div>
-            );
-          })
-        )}
-      </article>
-    );
-  }
-
-  // 2. Account Summary (e.g. "Your money at a glance")
-  if (type === 'ACCOUNT_SUMMARY' || (result.accounts && Array.isArray(result.accounts))) {
-    const accounts = result.accounts || pres.accounts || [];
-    return (
-      <article className="chat-result">
-        <h3>{title || 'Your money at a glance'}</h3>
-        {accounts.map((a: any, idx: number) => (
-          <div key={idx} className="info-row">
-            <span>{a.name || 'Account'} {a.account_number_masked ? `(${a.account_number_masked})` : ''}</span>
-            <strong>{formatMoney(a.available_balance_minor ?? a.balance_paise ?? 0)}</strong>
-          </div>
-        ))}
-      </article>
-    );
-  }
-
-  // 3. Bill List (e.g. "Bills due")
-  if (type === 'BILL_LIST' || (result.bills && Array.isArray(result.bills))) {
-    const bills = result.bills || pres.bills || [];
-    return (
-      <article className="chat-result">
-        <h3>{title || 'Bills due'}</h3>
-        {bills.length === 0 ? (
-          <p className="muted" style={{ fontSize: '11px', margin: '4px 0' }}>No bills currently due.</p>
-        ) : (
-          bills.map((b: any, idx: number) => (
-            <div key={idx} className="info-row">
-              <span>{b.biller_name || b.name || 'Biller'}</span>
-              <strong>{formatMoney(b.amount_minor ?? b.amount_paise ?? 0)}</strong>
-            </div>
-          ))
-        )}
-      </article>
-    );
-  }
-
-  // 4. Security Alerts
-  if (type === 'SECURITY_ALERT' || (result.alerts && Array.isArray(result.alerts))) {
-    const alerts = result.alerts || pres.alerts || [];
-    return (
-      <article className="chat-result">
-        <h3>{title || 'Security alerts'}</h3>
-        {alerts.map((a: any, idx: number) => (
-          <div key={idx} className="info-row">
-            <span>{a.title || a.message || 'Alert'}</span>
-            <strong>{a.status || 'Active'}</strong>
-          </div>
-        ))}
+        <h3>{title}</h3>
+        {empty && items.length === 0
+          ? <p className="muted cr-empty">{empty}</p>
+          : items.map((item, idx) => { const [label, value] = row(item); return <Row key={idx} label={label}>{value}</Row>; })}
       </article>
     );
   }
@@ -108,12 +60,8 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
     const options = result.options || pres.options || [];
     return (
       <article className="chat-result">
-        <h3>{title || 'Choose an Option'}</h3>
-        {pres.description && (
-          <p className="muted" style={{ fontSize: '11px', margin: '4px 0 10px' }}>
-            {pres.description}
-          </p>
-        )}
+        <h3>{title}</h3>
+        {pres.description && <p className="muted cr-note">{pres.description}</p>}
         <div className="action-chips">
           {options.map((o: any, idx: number) => (
             <button
@@ -137,27 +85,14 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
     const reqId = result.pending_request_id || pres.pending_request_id;
     return (
       <article className="chat-result">
-        <h3>{title || 'KYC profile'}</h3>
-        {kycStatus && (
-          <div className="info-row">
-            <span>Status</span>
-            <strong>{String(kycStatus).replace(/_/g, ' ')}</strong>
-          </div>
-        )}
-        {pan && (
-          <div className="info-row">
-            <span>PAN</span>
-            <strong>{pan}</strong>
-          </div>
-        )}
+        <h3>{title}</h3>
+        {kycStatus && <Row label="Status">{String(kycStatus).replace(/_/g, ' ')}</Row>}
+        {pan && <Row label="PAN">{pan}</Row>}
         {reqId ? (
-          <div className="info-row">
-            <span>Request</span>
-            <strong>{reqId}</strong>
-          </div>
+          <Row label="Request">{reqId}</Row>
         ) : (
           <div style={{ marginTop: '8px' }}>
-            <p className="muted" style={{ fontSize: '11px', margin: '4px 0 10px' }}>
+            <p className="muted cr-note">
               Scan documents, review prefilled details and complete declarations in your saved form.
             </p>
             <button
@@ -186,12 +121,8 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
   if (type === 'CLARIFICATION') {
     return (
       <article className="chat-result" style={{ borderLeft: '3px solid #ffab00' }}>
-        <h3>{title || 'Clarification needed'}</h3>
-        {pres.message && (
-          <p className="muted" style={{ fontSize: '11px', margin: '4px 0 10px' }}>
-            {pres.message}
-          </p>
-        )}
+        <h3>{title}</h3>
+        {pres.message && <p className="muted cr-note">{pres.message}</p>}
       </article>
     );
   }
@@ -211,31 +142,15 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
 
     return (
       <article className="chat-result">
-        <h3>{isCompleted ? 'Approval verified' : (title || 'Approval required')}</h3>
+        <h3>{isCompleted ? 'Approval verified' : title}</h3>
         {(challenge?.payee_name || challenge?.beneficiary_name) && (
-          <div className="info-row">
-            <span>Payee</span>
-            <strong>{challenge.payee_name || challenge.beneficiary_name}</strong>
-          </div>
+          <Row label="Payee">{challenge.payee_name || challenge.beneficiary_name}</Row>
         )}
-        {challenge?.amount_minor != null && (
-          <div className="info-row">
-            <span>Amount</span>
-            <strong>{formatMoney(challenge.amount_minor)}</strong>
-          </div>
-        )}
+        {challenge?.amount_minor != null && <Row label="Amount">{formatMoney(challenge.amount_minor)}</Row>}
         {isCompleted ? (
-          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', color: '#006b5e', fontWeight: 600, fontSize: '0.85rem' }}>
-            <span>✓</span>
-            <span>Approved &amp; verified</span>
-          </div>
+          <div className="cr-ok"><span>✓</span><span>Approved &amp; verified</span></div>
         ) : (
-          <button
-            type="button"
-            className="button primary"
-            style={{ marginTop: '10px' }}
-            onClick={() => onPaymentChallenge?.(challenge)}
-          >
+          <button type="button" className="button primary" onClick={() => onPaymentChallenge?.(challenge)}>
             Review & verify
           </button>
         )}
@@ -252,35 +167,12 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
 
     return (
       <article className="chat-result">
-        <h3>{title || 'Transfer complete'}</h3>
-        {payee && (
-          <div className="info-row">
-            <span>Paid to</span>
-            <strong>{payee}</strong>
-          </div>
-        )}
-        {sourceAcc && (
-          <div className="info-row">
-            <span>From</span>
-            <strong>{sourceAcc}</strong>
-          </div>
-        )}
-        {receipt?.amount_minor != null && (
-          <div className="info-row">
-            <span>Amount</span>
-            <strong>{formatMoney(receipt.amount_minor)}</strong>
-          </div>
-        )}
-        {ref && (
-          <div className="info-row">
-            <span>Reference</span>
-            <strong>{ref}</strong>
-          </div>
-        )}
-        <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', color: '#006b5e', fontWeight: 600, fontSize: '0.85rem' }}>
-          <span>✓</span>
-          <span>Payment executed successfully</span>
-        </div>
+        <h3>{title}</h3>
+        {payee && <Row label="Paid to">{payee}</Row>}
+        {sourceAcc && <Row label="From">{sourceAcc}</Row>}
+        {receipt?.amount_minor != null && <Row label="Amount">{formatMoney(receipt.amount_minor)}</Row>}
+        {ref && <Row label="Reference">{ref}</Row>}
+        <div className="cr-ok"><span>✓</span><span>Payment executed successfully</span></div>
       </article>
     );
   }
@@ -290,12 +182,9 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
     const reasons = result.sentinel?.reason_codes || pres.sentinel?.reason_codes || [result.reason || 'Policy restriction'];
     return (
       <article className="chat-result">
-        <h3>{title || 'Payment could not be completed'}</h3>
+        <h3>{title}</h3>
         {reasons.map((r: string, idx: number) => (
-          <div key={idx} className="info-row">
-            <span>Policy reason</span>
-            <strong>{String(r).replace(/_/g, ' ')}</strong>
-          </div>
+          <Row key={idx} label="Policy reason">{String(r).replace(/_/g, ' ')}</Row>
         ))}
       </article>
     );
@@ -306,15 +195,9 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
     const card = result.card || pres.card;
     return (
       <article className="chat-result">
-        <h3>{title || 'Card frozen'}</h3>
-        <div className="info-row">
-          <span>Card</span>
-          <strong>{card?.card_number_masked || '•••• 9821'}</strong>
-        </div>
-        <div className="info-row">
-          <span>Status</span>
-          <strong>Frozen</strong>
-        </div>
+        <h3>{title}</h3>
+        <Row label="Card">{card?.card_number_masked || '•••• 9821'}</Row>
+        <Row label="Status">Frozen</Row>
       </article>
     );
   }
@@ -322,11 +205,11 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
   // 11. Banking Workflow Draft
   if (type === 'BANKING_WORKFLOW' || pres.workflow_id) {
     const wfId = result.id || pres.workflow_id || result.workflow_id;
-    const wfName = result.name || pres.name || title || 'Banking workflow';
+    const wfName = result.name || pres.name || title;
     return (
       <article className="chat-result">
         <h3>{wfName}</h3>
-        <p className="muted" style={{ fontSize: '11px', margin: '4px 0 10px' }}>
+        <p className="muted cr-note">
           Your saved form is ready. Review details and use the form to continue.
         </p>
         <button
@@ -373,10 +256,7 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
           </span>
         </div>
 
-        <div className="info-row">
-          <span>Application Ref</span>
-          <strong>{ref}</strong>
-        </div>
+        <Row label="Application Ref">{ref}</Row>
 
         {isCompleted ? (
           <>
@@ -404,10 +284,7 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
           </>
         ) : (
           <>
-            <div className="info-row">
-              <span>Verification Status</span>
-              <strong>✓ Verified by Officer</strong>
-            </div>
+            <Row label="Verification Status">✓ Verified by Officer</Row>
             <div className="info-row">
               <span>CBS Automation</span>
               <span>Headless Playwright Runner (Maker)</span>
@@ -423,51 +300,34 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
 
   // 13. Secure Authentication Challenge (Out-of-band sign-in prompt)
   if (type === 'AUTH_CHALLENGE') {
-    const cardTitle = pres.title || title || 'Sign In to Access Your Accounts';
     const message = pres.message || 'To view your personal account balance, transactions, cards, or make transfers, please sign in securely.';
     const buttonText = pres.button_text || 'Sign In to Kosh';
 
     if (isAuthenticated) {
       const displayName = user?.display_name || user?.username || 'Authenticated Customer';
       return (
-        <article className="chat-result" style={{ borderLeft: '3px solid #166534', background: 'rgba(22, 101, 52, 0.05)', borderRadius: '8px', padding: '14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <span style={{ fontSize: '18px', color: '#166534' }} role="img" aria-label="Verified">✅</span>
-            <h3 style={{ margin: 0, color: '#166534', fontSize: '14px', fontWeight: 700 }}>Signed In & Verified</h3>
+        <article className="chat-result cr-auth ok">
+          <div className="cr-auth-head">
+            <span role="img" aria-label="Verified">✅</span>
+            <h3>Signed In & Verified</h3>
           </div>
-          <p style={{ fontSize: '12px', color: '#374151', margin: '4px 0 0', lineHeight: 1.5 }}>
+          <p>
             You are securely authenticated as <strong>{displayName}</strong>. Your account services and banking tools are unlocked.
           </p>
         </article>
       );
     }
     return (
-      <article className="chat-result" style={{ borderLeft: '3px solid #19382e', background: 'rgba(25, 56, 46, 0.04)', borderRadius: '8px', padding: '14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-          <span style={{ fontSize: '20px' }} role="img" aria-label="Security">🔐</span>
-          <h3 style={{ margin: 0, color: '#19382e', fontSize: '14px', fontWeight: 700 }}>{cardTitle}</h3>
+      <article className="chat-result cr-auth">
+        <div className="cr-auth-head">
+          <span role="img" aria-label="Security">🔐</span>
+          <h3>{title}</h3>
         </div>
-        <p style={{ fontSize: '12px', color: '#42526e', margin: '4px 0 12px', lineHeight: 1.5 }}>
-          {message}
-        </p>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <p>{message}</p>
+        <div className="cr-auth-actions">
           <button
             type="button"
             className="button primary"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '13px',
-              fontWeight: 600,
-              padding: '8px 16px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              background: '#19382e',
-              color: '#ffffff',
-              border: 'none',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-            }}
             onClick={() => {
               if (pres.action_url) {
                 window.location.assign(pres.action_url);
@@ -482,19 +342,6 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
           <button
             type="button"
             className="button secondary"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '12px',
-              fontWeight: 500,
-              padding: '8px 12px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              background: '#ffffff',
-              color: '#19382e',
-              border: '1px solid #c1c7d0'
-            }}
             onClick={() => {
               window.dispatchEvent(new CustomEvent('open-login-modal', { detail: { tab: 'password' } }));
             }}
@@ -502,7 +349,7 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
             <span>Sign in with Password</span>
           </button>
         </div>
-        <div style={{ marginTop: '10px', fontSize: '11px', color: '#6b778c' }}>
+        <div className="cr-auth-foot">
           <span>🔒 Kosh never asks for passwords, PINs, or OTPs in chat. Sign in via the official secure prompt.</span>
         </div>
       </article>
@@ -514,9 +361,9 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
     return (
       <article className="chat-result">
         <h3>Application submitted</h3>
-        <div className="info-row"><span>Product</span><strong>{pres.title}</strong></div>
-        <div className="info-row"><span>Reference</span><strong>{pres.application_ref}</strong></div>
-        <div className="info-row"><span>Status</span><strong>Awaiting bank officer review</strong></div>
+        <Row label="Product">{pres.title}</Row>
+        <Row label="Reference">{pres.application_ref}</Row>
+        <Row label="Status">Awaiting bank officer review</Row>
         {pres.next_steps && <p style={{ marginTop: 10 }}>{pres.next_steps}</p>}
         <p style={{ marginTop: 6 }}><a href={`#/track/${encodeURIComponent(pres.application_ref || '')}`}>Track this application</a></p>
       </article>
@@ -535,7 +382,6 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
   }
 
   if (type === 'CROSS_SELL_OFFER') {
-    const cardTitle = pres.title || title || 'Pre-Approved Recommendation';
     const badge = pres.badge || 'Exclusive Offer';
     const headline = pres.headline_rate || '';
     const specialOffer = pres.special_offer || '';
@@ -544,100 +390,36 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
     const leadId = pres.lead_id || '';
 
     return (
-      <article
-        className="chat-result"
-        style={{
-          border: '1px solid #d4af37',
-          borderLeft: '4px solid #b8860b',
-          background: 'linear-gradient(135deg, rgba(254, 252, 232, 0.95) 0%, rgba(255, 255, 255, 0.98) 100%)',
-          borderRadius: '10px',
-          padding: '16px',
-          boxShadow: '0 4px 12px rgba(184, 134, 11, 0.08)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '18px' }} role="img" aria-label="Star">✨</span>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: '#92400e',
-                background: '#fef3c7',
-                padding: '2px 8px',
-                borderRadius: '12px',
-                border: '1px solid #fde68a',
-              }}
-            >
-              {badge}
-            </span>
+      <article className="chat-result cr-offer">
+        <div className="cr-offer-head">
+          <div>
+            <span role="img" aria-label="Star">✨</span>
+            <span className="cr-offer-badge">{badge}</span>
           </div>
-          {headline && (
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#166534' }}>
-              {headline}
-            </span>
-          )}
+          {headline && <span className="cr-offer-rate">{headline}</span>}
         </div>
 
-        <h3 style={{ margin: '0 0 6px 0', color: '#1e293b', fontSize: '15px', fontWeight: 700 }}>
-          {cardTitle}
-        </h3>
+        <h3>{title}</h3>
 
         {specialOffer && (
-          <p
-            style={{
-              fontSize: '12px',
-              color: '#854d0e',
-              background: 'rgba(254, 240, 138, 0.35)',
-              padding: '8px 10px',
-              borderRadius: '6px',
-              margin: '0 0 10px 0',
-              lineHeight: 1.45,
-              fontWeight: 500,
-              border: '1px dashed #facc15',
-            }}
-          >
+          <p className="cr-offer-special">
             🔥 <strong>Special Incentive:</strong> {specialOffer}
           </p>
         )}
 
         {perks.length > 0 && (
-          <ul
-            style={{
-              fontSize: '12px',
-              color: '#334155',
-              margin: '0 0 12px 0',
-              paddingLeft: '18px',
-              lineHeight: 1.5,
-            }}
-          >
-            {perks.map((perk: string, idx: number) => (
-              <li key={idx} style={{ marginBottom: '3px' }}>
-                {perk}
-              </li>
-            ))}
+          <ul>
+            {perks.map((perk: string, idx: number) => <li key={idx}>{perk}</li>)}
           </ul>
         )}
 
         {options.length > 0 && (
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+          <div className="cr-offer-options">
             {options.map((opt: any, idx: number) => (
               <button
                 key={idx}
                 type="button"
                 className={`button ${idx === 0 ? 'primary' : 'secondary'}`}
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  padding: '7px 14px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  background: idx === 0 ? '#19382e' : '#ffffff',
-                  color: idx === 0 ? '#ffffff' : '#19382e',
-                  border: idx === 0 ? 'none' : '1px solid #cbd5e1',
-                }}
                 onClick={() => {
                   if (leadId) {
                     fetch(`/api/leads/${leadId}/action`, {
@@ -666,13 +448,8 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
   if (entries.length > 0) {
     return (
       <article className="chat-result">
-        <h3>{title || 'Information'}</h3>
-        {entries.map(([k, v], idx) => (
-          <div key={idx} className="info-row">
-            <span>{k.replace(/_/g, ' ')}</span>
-            <strong>{String(v)}</strong>
-          </div>
-        ))}
+        <h3>{title}</h3>
+        {entries.map(([k, v], idx) => <Row key={idx} label={k.replace(/_/g, ' ')}>{String(v)}</Row>)}
       </article>
     );
   }

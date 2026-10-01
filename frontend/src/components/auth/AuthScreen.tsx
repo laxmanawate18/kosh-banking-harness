@@ -8,14 +8,12 @@ import { useI18n } from '../../i18n';
 import { UtilityBar, SiteHeader, SiteFooter, useHashRoute } from '../site/SiteChrome';
 import { HomePage } from '../site/HomePage';
 import { ProductsPage } from '../site/ProductsPage';
-import { useSmoothScroll } from '../site/Lux';
 import { CalculatorsPage } from '../site/Calculators';
 import { TrackApplicationPage } from '../site/TrackApplication';
 import { RatesPage, FeesPage, HelpPage, FaqsPage, SegmentsPage, LearnPage, NotFound } from '../site/InfoPages';
 import type { Product, ProductCategory } from '../../types/products';
 
 export const AuthScreen: React.FC = () => {
-  useSmoothScroll();
   const { t } = useI18n();
   const { publicConfig } = useAuth();
   const { setIsOpen, sendMessage } = useChat();
@@ -35,7 +33,7 @@ export const AuthScreen: React.FC = () => {
 
   useEffect(() => {
     if (route[0] === 'products') setCategory(route[1] || 'all');
-    window.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }, [route.join('/')]);
 
   const openLogin = useCallback(() => {

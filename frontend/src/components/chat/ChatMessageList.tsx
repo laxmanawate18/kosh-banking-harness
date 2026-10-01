@@ -69,18 +69,16 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages, onSu
               const hasSteps = !!(msg.steps && msg.steps.length > 0);
               const hasTextOrAttachments = (msg.text && msg.text.trim().length > 0) || (msg.attachments && msg.attachments.length > 0) || msg.isStreaming;
               const hasPresentation = !!(msg.presentation || msg.toolResult);
+              const card = hasPresentation && (
+                <ChatPresentationCard presentation={msg.presentation} toolResult={msg.toolResult}
+                  onPromptClick={q => sendMessage(q)} onOpenWorkflow={openWorkflow}
+                  onStartWorkflow={startWorkflowById} onPaymentChallenge={challenge => setActiveChallenge(challenge)} />
+              );
 
               if (!hasTextOrAttachments && !hasSteps && hasPresentation) {
                 return (
                   <div key={msg.id} style={{ alignSelf: 'flex-start', width: '100%', maxWidth: '680px' }}>
-                    <ChatPresentationCard
-                      presentation={msg.presentation}
-                      toolResult={msg.toolResult}
-                      onPromptClick={q => sendMessage(q)}
-                      onOpenWorkflow={openWorkflow}
-                      onStartWorkflow={startWorkflowById}
-                      onPaymentChallenge={challenge => setActiveChallenge(challenge)}
-                    />
+                    {card}
                   </div>
                 );
               }
@@ -145,16 +143,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages, onSu
                   )}
 
                   {/* Presentation UI Component */}
-                  {hasPresentation && (
-                    <ChatPresentationCard
-                      presentation={msg.presentation}
-                      toolResult={msg.toolResult}
-                      onPromptClick={q => sendMessage(q)}
-                      onOpenWorkflow={openWorkflow}
-                      onStartWorkflow={startWorkflowById}
-                      onPaymentChallenge={challenge => setActiveChallenge(challenge)}
-                    />
-                  )}
+                  {card}
 
                   {msg.salesAction && msg.presentation?.type !== 'AUTH_CHALLENGE' && (
                     <SalesActionCard

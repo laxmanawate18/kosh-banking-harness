@@ -6,8 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   // Fonts stay as files: the backend CSP (font-src 'self') blocks data: URLs.
-  // three.js is lazy-loaded for the hero card only, so its large chunk never blocks first paint.
-  build: { chunkSizeWarningLimit: 700, assetsInlineLimit: (file: string) => (/\.woff2?$/.test(file) ? false : undefined) },
+  build: { assetsInlineLimit: (file: string) => (/\.woff2?$/.test(file) ? false : undefined) },
   server: {
     port: 3000,
     proxy: {

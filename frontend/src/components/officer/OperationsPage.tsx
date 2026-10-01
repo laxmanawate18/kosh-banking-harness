@@ -596,7 +596,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
         </div>
         <div className="heading-actions">
           {leadActionMsg && (
-            <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 600, marginRight: '10px' }}>
+            <span className="ops-flash">
               ✓ {leadActionMsg}
             </span>
           )}
@@ -610,15 +610,15 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
         <div className="metric"><small>CBS automation</small><strong>{automating}</strong></div>
         <div className="metric"><small>Decisions recorded</small><strong>{decisionsRecorded}</strong></div>
         {!isHistory && (
-          <div className="metric" style={{ borderColor: 'var(--brand)', cursor: 'pointer', background: filter === 'leads' ? '#e1f0e9' : undefined }} onClick={() => setFilter('leads')}>
+          <div className={`metric ops-tile ${filter === 'leads' ? 'active' : ''}`} onClick={() => setFilter('leads')}>
             <small>AI Sales Leads</small>
-            <strong style={{ color: 'var(--brand)' }}>{openLeadsCount}</strong>
+            <strong>{openLeadsCount}</strong>
           </div>
         )}
         {!isHistory && (
-          <div className="metric" style={{ borderColor: '#2563eb', cursor: 'pointer', background: filter === 'customers' ? '#eff6ff' : undefined }} onClick={() => setFilter('customers')}>
+          <div className={`metric ops-tile blue ${filter === 'customers' ? 'active' : ''}`} onClick={() => setFilter('customers')}>
             <small>Customers & Relationships</small>
-            <strong style={{ color: '#2563eb' }}>{customers.length}</strong>
+            <strong>{customers.length}</strong>
           </div>
         )}
       </div>
@@ -654,29 +654,29 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                       <td>
                         <strong>{lead.category ? lead.category.replace(/_/g, ' ') : 'INQUIRY'}</strong>
                         <br />
-                        <span style={{ color: '#006b5e', fontWeight: 600, fontSize: '11px' }}>
+                        <span className="ops-subtype">
                           {lead.sub_type || lead.recommended_product_id || lead.id}
                         </span>
                       </td>
                       <td>
-                        <strong style={{ color: '#102a2f' }}>
+                        <strong className="ops-name">
                           {lead.preferences?.applicant_name || lead.customer_id || 'Visitor / Prospect'}
                         </strong>
                         {lead.preferences?.phone_number && (
-                          <div style={{ marginTop: '2px' }}>
-                            <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#006b5e', fontWeight: 600 }}>
+                          <div className="ops-line">
+                            <span className="ops-phone">
                               📞 {lead.preferences.phone_number}
                             </span>
                           </div>
                         )}
                         {lead.preferences?.app_ref && (
-                          <div style={{ marginTop: '2px' }}>
-                            <span style={{ fontFamily: 'monospace', fontSize: '10px', background: '#e1f0e9', color: '#006b5e', padding: '1px 5px', borderRadius: '4px', border: '1px solid #c9d9d1', fontWeight: 600 }}>
+                          <div className="ops-line">
+                            <span className="ops-ref-chip">
                               {lead.preferences.app_ref}
                             </span>
                           </div>
                         )}
-                        <small className="muted" style={{ display: 'block', marginTop: '2px' }}>
+                        <small className="muted ops-sub">
                           {formatDate(lead.created_at)}
                         </small>
                       </td>
@@ -707,22 +707,21 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                           {lead.status}
                         </Badge>
                       </td>
-                      <td style={{ maxWidth: '240px' }}>
-                        <div style={{ fontSize: '11.5px', color: 'var(--ink)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td className="ops-offer-col">
+                        <div>
                           {lead.special_offer_note || lead.follow_up_pitch || 'Pre-approved terms'}
                         </div>
                         {lead.follow_up_pitch && (
-                          <small className="muted" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: 'italic' }}>
+                          <small className="muted">
                             "{lead.follow_up_pitch}"
                           </small>
                         )}
                       </td>
                       <td>
-                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                        <div className="ops-actions">
                           <button
                             type="button"
-                            className="button text"
-                            style={{ fontSize: '11px', padding: '3px 6px' }}
+                            className="button text ops-xs"
                             onClick={() => setSelectedLead(lead)}
                           >
                             Details
@@ -730,8 +729,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                           {!['CONTACTED', 'CONVERTED', 'LOST', 'DECLINED'].includes(lead.status) && (
                             <button
                               type="button"
-                              className="button"
-                              style={{ fontSize: '11px', padding: '3px 8px' }}
+                              className="button ops-xs"
                               onClick={() => handleUpdateLeadStatus(lead.id, 'CONTACTED')}
                             >
                               Contacted
@@ -740,8 +738,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                           {lead.status !== 'CONVERTED' && (
                             <button
                               type="button"
-                              className="button primary"
-                              style={{ fontSize: '11px', padding: '3px 8px' }}
+                              className="button primary ops-xs"
                               onClick={() => handleUpdateLeadStatus(lead.id, 'CONVERTED')}
                             >
                               Convert 🏆
@@ -778,43 +775,43 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                   {customers.map((c) => (
                     <tr key={c.customer_id}>
                       <td>
-                        <strong style={{ color: '#102a2f' }}>{c.full_name}</strong>
+                        <strong className="ops-name">{c.full_name}</strong>
                         <br />
-                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--brand)', fontSize: '11px' }}>
+                        <span className="ops-cid">
                           {c.customer_id}
                         </span>
                         {c.member_since && (
-                          <small className="muted" style={{ display: 'block', fontSize: '10px' }}>
+                          <small className="muted ops-note">
                             Since {c.member_since}
                           </small>
                         )}
                       </td>
                       <td>
-                        <div style={{ fontSize: '12px' }}>
-                          <span style={{ fontWeight: 600 }}>📞 {c.phone_number || 'N/A'}</span>
+                        <div className="ops-contact">
+                          <span>📞 {c.phone_number || 'N/A'}</span>
                           <br />
-                          <span className="muted" style={{ fontSize: '11px' }}>✉️ {c.email || 'N/A'}</span>
+                          <span className="muted">✉️ {c.email || 'N/A'}</span>
                         </div>
                       </td>
                       <td>
                         {c.username ? (
                           <div>
-                            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#006b5e', fontSize: '12px' }}>
+                            <span className="ops-user">
                               @{c.username}
                             </span>
                             <br />
-                            <small className="muted" style={{ fontSize: '10px' }}>
+                            <small className="muted ops-fine">
                               {c.user_id ? 'Authenticated profile' : 'Unbound'}
                             </small>
                           </div>
                         ) : (
-                          <span className="muted" style={{ fontSize: '12px' }}>No user login</span>
+                          <span className="muted ops-contact">No user login</span>
                         )}
                       </td>
                       <td>
-                        <strong style={{ color: '#006b5e', fontSize: '13px' }}>{c.total_balance_formatted}</strong>
+                        <strong className="ops-balance">{c.total_balance_formatted}</strong>
                         <br />
-                        <small className="muted" style={{ fontFamily: 'monospace', fontSize: '11px' }}>
+                        <small className="muted ops-acct">
                           {c.primary_account_number || 'No account'}
                         </small>
                       </td>
@@ -823,23 +820,15 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                           {c.status}
                         </Badge>
                         <br />
-                        <small className="muted" style={{ textTransform: 'uppercase', fontSize: '10px', fontWeight: 600 }}>
+                        <small className="muted ops-tier">
                           {c.tier} · KYC: {c.kyc_status}
                         </small>
                       </td>
                       <td>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <div className="ops-actions roomy">
                           <button
                             type="button"
-                            className="button"
-                            style={{
-                              fontSize: '11px',
-                              padding: '4px 10px',
-                              color: '#0369a1',
-                              borderColor: '#bae6fd',
-                              background: '#f0f9ff',
-                              fontWeight: 700,
-                            }}
+                            className="button ops-pill info"
                             disabled={resendingCids[c.customer_id]}
                             onClick={() => handleResendCredentials(c)}
                           >
@@ -847,15 +836,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                           </button>
                           <button
                             type="button"
-                            className="button"
-                            style={{
-                              fontSize: '11px',
-                              padding: '4px 10px',
-                              color: '#b91c1c',
-                              borderColor: '#fca5a5',
-                              background: '#fef2f2',
-                              fontWeight: 700,
-                            }}
+                            className="button ops-pill wipe"
                             onClick={() => setCustomerToWipe(c)}
                           >
                             Wipe Out 🗑️
@@ -930,16 +911,16 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
 
               {selectedCase.discrepancy_flags && selectedCase.discrepancy_flags.length > 0 && (
                 <div className="discrepancy-callout">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <div className="ops-row">
                     <Badge variant="warning">ATTENTION REQUIRED</Badge>
-                    <strong style={{ fontSize: '12px' }}>
+                    <strong>
                       Discrepancy / Review Flags ({selectedCase.discrepancy_flags.length})
                     </strong>
                   </div>
-                  <p style={{ margin: '0 0 8px', fontSize: '11px', color: '#685025', lineHeight: 1.5 }}>
+                  <p>
                     The system flagged the following items for mandatory independent officer verification and override justification before approval:
                   </p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  <div className="ops-flags">
                     {selectedCase.discrepancy_flags.map((flag: string, idx: number) => (
                       <span key={idx} className="discrepancy-tag">
                         ⚠️ {flag.replace(/_/g, ' ')}
@@ -981,13 +962,12 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
             <section className="case-section rpa-panel" aria-live="polite">
               <div className="case-section-heading">
                 <div><small>CBS AUTOMATION</small><h3>Account-opening RPA</h3></div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="ops-row">
                   <a
                     href="/cbs/retail/account_opening"
                     target="_blank"
                     rel="noreferrer"
-                    className="button secondary"
-                    style={{ fontSize: '11px', padding: '3px 8px', height: 'auto', textDecoration: 'none' }}
+                    className="button secondary ops-xs"
                   >
                     Open Mock CBS ↗
                   </a>
@@ -997,7 +977,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
               <p className="rpa-caption">Automated Playwright worker entering this approved application in the Finacle CBS maker terminal.</p>
               <div className="rpa-live-grid">
                 <div className="rpa-timeline-col">
-                  <div className="rpa-timeline" style={{ gridTemplateColumns: '1fr' }}>
+                  <div className="rpa-timeline">
                     {Object.entries(rpaStepLabels).map(([stepId, label]) => {
                       const event = stepEvents.find((entry) => entry.step_id === stepId);
                       const state = event?.phase === 'COMPLETED' ? 'done' : event?.phase === 'FAILED' ? 'failed'
@@ -1008,18 +988,17 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                       </div>;
                     })}
                   </div>
-                  {selectedCase.rpa_job.status === 'COMPLETED' && <div className="rpa-result" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                  {selectedCase.rpa_job.status === 'COMPLETED' && <div className="rpa-result">
                     <div><span>CIF</span><strong>{selectedCase.rpa_job.cif_number}</strong></div>
                     <div><span>Account number</span><strong>{selectedCase.rpa_job.account_number}</strong></div>
-                    <div style={{ gridColumn: '1/-1' }}><span>CBS status</span><strong>{displayValue('cbs_status', selectedCase.rpa_job.cbs_status)}</strong></div>
+                    <div className="wide"><span>CBS status</span><strong>{displayValue('cbs_status', selectedCase.rpa_job.cbs_status)}</strong></div>
                   </div>}
                   {selectedCase.rpa_job.error && (
-                    <div className="rpa-error" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div className="rpa-error">
                       <div>{selectedCase.rpa_job.error}</div>
                       <button
                         type="button"
                         className="button primary"
-                        style={{ alignSelf: 'flex-start', fontSize: '11px', padding: '5px 12px', height: 'auto' }}
                         disabled={isDeciding}
                         onClick={() => handleDecision('APPROVE')}
                       >
@@ -1051,9 +1030,9 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                         />
                       ) : (
                         <div className="rpa-terminal-placeholder">
-                          <span className="ai-streaming-cursor" style={{ width: '8px', height: '16px' }} />
+                          <span className="ai-streaming-cursor" />
                           <div>Connecting to Finacle Core Banking Session...</div>
-                          <small style={{ color: '#5b7162' }}>Live browser screenshots stream here during RPA automation</small>
+                          <small>Live browser screenshots stream here during RPA automation</small>
                         </div>
                       )}
                     </div>
@@ -1065,7 +1044,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                           ? 'Application submission completed successfully'
                           : 'Queue initialized · Standing by'}
                       </span>
-                      <span style={{ fontFamily: 'ui-monospace, monospace', opacity: 0.8 }}>
+                      <span>
                         {selectedCase.rpa_job.current_step || 'AO-INIT'}
                       </span>
                     </div>
@@ -1079,27 +1058,26 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
             <div className="decision-box">
               {decisionError && (
                 <div className="decision-error-banner" role="alert">
-                  <span style={{ fontSize: '15px' }}>⚠️</span>
+                  <span>⚠️</span>
                   <div>{decisionError}</div>
                 </div>
               )}
 
               {selectedCase.service_id === 'P1-17' && (
                 <div className="kyc-checklist-box">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <strong style={{ fontSize: '12px', color: 'var(--brand)' }}>
+                  <div className="ops-kyc-head">
+                    <strong>
                       Independent KYC Verification Checks (RBI / PMLA)
                     </strong>
                     <button
                       type="button"
                       className="button text"
-                      style={{ fontSize: '10.5px', padding: '2px 6px', height: 'auto' }}
                       onClick={() => setVerificationChecks(['document_authenticity', 'pan_or_form60', 'identity_match', 'screening', 'declarations'])}
                     >
                       Select all checks
                     </button>
                   </div>
-                  <p className="muted" style={{ fontSize: '10.5px', margin: '0 0 10px' }}>
+                  <p className="muted">
                     Confirm the following independent bank checks before recording an approval decision:
                   </p>
                   <div className="kyc-checklist-grid">
@@ -1118,34 +1096,26 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                         />
                         <div>
                           <strong>{check.label}</strong>
-                          <span className="muted" style={{ display: 'block', fontSize: '10px' }}>{check.description}</span>
+                          <span className="muted">{check.description}</span>
                         </div>
                       </label>
                     ))}
                   </div>
 
-                  <div style={{ marginTop: '12px' }}>
-                    <label style={{ display: 'block' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>
+                  <div className="ops-ref">
+                    <label>
+                      <span className="ops-label">
                         Bank Verification Reference (minimum 8 characters)
                       </span>
                       <input
                         type="text"
-                        className="input"
+                        className="input ops-field"
                         value={verificationReference}
                         onChange={(e) => setVerificationReference(e.target.value)}
                         placeholder="e.g. KYC-VERIF-2026-0923"
-                        style={{
-                          width: '100%',
-                          marginTop: '4px',
-                          fontSize: '12px',
-                          padding: '7px 10px',
-                          border: '1px solid var(--line)',
-                          borderRadius: '6px',
-                        }}
                       />
                     </label>
-                    <small className="muted" style={{ fontSize: '9.5px' }}>
+                    <small className="muted">
                       Audit reference code recorded permanently in the bank compliance ledger.
                     </small>
                   </div>
@@ -1153,34 +1123,25 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
               )}
 
               {selectedCase.discrepancy_flags && selectedCase.discrepancy_flags.length > 0 && (
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#7b5b28' }}>
+                <div className="ops-fieldset">
+                  <label>
+                    <span className="ops-label warn">
                       Officer Override Justification (Required for Discrepancy Flags)
                     </span>
                     <textarea
                       rows={2}
-                      className="input"
+                      className="input ops-field warn"
                       value={overrideJustification}
                       onChange={(e) => setOverrideJustification(e.target.value)}
                       placeholder="Explain how the flagged discrepancies were independently vetted and verified..."
-                      style={{
-                        width: '100%',
-                        marginTop: '4px',
-                        fontSize: '12px',
-                        padding: '7px 10px',
-                        border: '1px solid #e7d9be',
-                        background: '#fffdf9',
-                        borderRadius: '6px',
-                      }}
                     />
                   </label>
                 </div>
               )}
 
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>
+              <div className="ops-fieldset last">
+                <label>
+                  <span className="ops-label">
                     Decision rationale / audit notes
                   </span>
                   <textarea
@@ -1188,14 +1149,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                     placeholder="Record what you verified and why the decision is appropriate."
                     value={decisionNotes}
                     onChange={(event) => setDecisionNotes(event.target.value)}
-                    style={{
-                      width: '100%',
-                      marginTop: '4px',
-                      fontSize: '12px',
-                      padding: '7px 10px',
-                      border: '1px solid var(--line)',
-                      borderRadius: '6px',
-                    }}
+                    className="ops-field"
                   />
                 </label>
               </div>
@@ -1238,11 +1192,11 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
           subtitle={`Applicant: ${selectedLead.preferences?.applicant_name || selectedLead.customer_id || 'Visitor / Prospect'} · ${formatDate(selectedLead.created_at)}`}
         >
           {selectedLead.status === 'PENDING_APPROVAL' && (
-            <div style={{ background: '#fffaf0', border: '1px solid #fbd38d', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <span style={{ fontSize: '20px' }}>⏳</span>
+            <div className="ops-notice pending">
+              <span>⏳</span>
               <div>
-                <strong style={{ color: '#b86e24', fontSize: '13px' }}>Awaiting Officer Credential Provisioning</strong>
-                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#744210', lineHeight: 1.4 }}>
+                <strong>Awaiting Officer Credential Provisioning</strong>
+                <p>
                   Applicant has no prior banking relationship. Review details below and click <strong>Approve & Send Credentials</strong> to provision their customer profile and dispatch temporary credentials to <strong>{selectedLead.preferences?.email || 'email'}</strong>.
                 </p>
               </div>
@@ -1250,11 +1204,11 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
           )}
 
           {selectedLead.status === 'CONVERTED' && (
-            <div style={{ background: '#e1f0e9', border: '1px solid #c9d9d1', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <span style={{ fontSize: '20px' }}>✅</span>
+            <div className="ops-notice done">
+              <span>✅</span>
               <div>
-                <strong style={{ color: '#006b5e', fontSize: '13px' }}>Credentials Dispatched via Email</strong>
-                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#102a2f', lineHeight: 1.4 }}>
+                <strong>Credentials Dispatched via Email</strong>
+                <p>
                   Profile provisioned for Customer <strong>{selectedLead.customer_id}</strong>. Credentials dispatched to <strong>{selectedLead.preferences?.email || 'email'}</strong> ({selectedLead.preferences?.delivery_status || 'SENT'}).
                 </p>
               </div>
@@ -1262,7 +1216,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
           )}
 
           {decisionError && (
-            <div style={{ background: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px', color: '#c53030', fontSize: '12px' }}>
+            <div className="ops-lead-error">
               {decisionError}
             </div>
           )}
@@ -1289,17 +1243,17 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
               </div>
               <div>
                 <span>Mobile Phone</span>
-                <strong style={{ color: '#006b5e', fontFamily: 'monospace' }}>
+                <strong className="ops-teal ops-mono">
                   {selectedLead.preferences?.phone_number || 'Unstated'}
                 </strong>
               </div>
               <div>
                 <span>Email Address</span>
-                <strong style={{ color: '#006b5e' }}>{selectedLead.preferences?.email || '—'}</strong>
+                <strong className="ops-teal">{selectedLead.preferences?.email || '—'}</strong>
               </div>
               <div>
                 <span>PAN Masked</span>
-                <strong style={{ fontFamily: 'monospace' }}>{selectedLead.preferences?.pan_masked || '—'}</strong>
+                <strong className="ops-mono">{selectedLead.preferences?.pan_masked || '—'}</strong>
               </div>
               <div>
                 <span>Requested Amount / Limit</span>
@@ -1322,7 +1276,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
               </div>
               <div className="wide">
                 <span>Preferences & Underwriting Notes</span>
-                <p style={{ margin: 0, fontSize: '12px', color: '#102a2f', lineHeight: 1.5 }}>
+                <p>
                   {selectedLead.notes || (typeof selectedLead.preferences === 'string' ? selectedLead.preferences : selectedLead.preferences?.summary || 'Standard terms')}
                 </p>
               </div>
@@ -1333,43 +1287,41 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
             <div className="case-section-heading">
               <div><small>SALES STRATEGY</small><h3>AI Re-engagement Offer & Pitch</h3></div>
             </div>
-            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--line)', marginBottom: '10px' }}>
-              <strong style={{ fontSize: '12px', color: 'var(--brand)', display: 'block', marginBottom: '4px' }}>
+            <div className="ops-pitch offer">
+              <strong>
                 Special Incentive / Counter-Offer
               </strong>
-              <p style={{ margin: 0, fontSize: '13px', color: 'var(--ink)', fontWeight: 500 }}>
+              <p>
                 {selectedLead.special_offer_note || 'Exclusive reduced rate and zero processing fee'}
               </p>
             </div>
-            <div style={{ background: '#fff', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--line)' }}>
-              <strong style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>
+            <div className="ops-pitch quote">
+              <strong>
                 AI Follow-up Pitch (Presented on Return Login)
               </strong>
-              <p style={{ margin: 0, fontSize: '12px', color: 'var(--ink)', fontStyle: 'italic', lineHeight: 1.5 }}>
+              <p>
                 "{selectedLead.follow_up_pitch || 'Welcome back! We noticed your prior interest and have an exclusive pre-approved rate ready.'}"
               </p>
             </div>
           </section>
 
-          <div className="dialog-footer" style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+          <div className="dialog-footer ops-lead-foot">
+            <span>
               Officer CRM Pipeline · Lead ID: {selectedLead.id}
             </span>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div className="ops-row">
               {selectedLead.status === 'PENDING_APPROVAL' ? (
                 <>
                   <button
                     type="button"
-                    className="button"
-                    style={{ color: '#c53030' }}
+                    className="button ops-decline"
                     onClick={() => handleUpdateLeadStatus(selectedLead.id, 'DECLINED', 'Application declined by officer.')}
                   >
                     Decline
                   </button>
                   <button
                     type="button"
-                    className="button primary"
-                    style={{ background: '#006b5e', borderColor: '#006b5e' }}
+                    className="button primary teal"
                     disabled={isApprovingLead}
                     onClick={() => handleApproveLead(selectedLead.id)}
                   >
@@ -1418,22 +1370,14 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
           onClose={() => !isWipingCustomer && setCustomerToWipe(null)}
           title={`Wipe Out Customer: ${customerToWipe.customer_id}`}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{
-              background: '#fef2f2',
-              border: '1px solid #f87171',
-              borderRadius: '8px',
-              padding: '14px',
-              color: '#991b1b',
-              fontSize: '13px',
-              lineHeight: '1.5',
-            }}>
+          <div className="ops-wipe">
+            <div className="ops-wipe-warn">
               <strong>⚠️ Permanent Customer & Credential Wipe Out:</strong>
-              <p style={{ margin: '8px 0 0' }}>
+              <p>
                 You are about to permanently purge the customer profile, user login credentials, accounts, and CRM leads for{' '}
                 <strong>{customerToWipe.full_name}</strong> (<code>{customerToWipe.customer_id}</code>).
               </p>
-              <ul style={{ margin: '8px 0 0', paddingLeft: '20px' }}>
+              <ul>
                 <li>Registered Mobile: <strong>{customerToWipe.phone_number || 'N/A'}</strong> (will be completely freed for clean visitor re-testing)</li>
                 <li>Digital Username: <strong>@{customerToWipe.username || 'unlinked'}</strong> (will be deleted from auth records)</li>
                 <li>Primary Account: <strong>{customerToWipe.primary_account_number || 'N/A'}</strong> (balance: {customerToWipe.total_balance_formatted})</li>
@@ -1442,12 +1386,12 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
             </div>
 
             {customerWipeError && (
-              <div style={{ background: '#fef2f2', border: '1px solid #ef4444', color: '#b91c1c', padding: '10px', borderRadius: '6px', fontSize: '13px' }}>
+              <div className="ops-wipe-error">
                 {customerWipeError}
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+            <div className="ops-wipe-actions">
               <button
                 type="button"
                 className="button"
@@ -1458,14 +1402,8 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
               </button>
               <button
                 type="button"
-                className="button"
+                className="button ops-confirm"
                 disabled={isWipingCustomer}
-                style={{
-                  background: '#dc2626',
-                  color: '#ffffff',
-                  borderColor: '#dc2626',
-                  fontWeight: 700,
-                }}
                 onClick={() => handleWipeCustomer(customerToWipe.customer_id)}
               >
                 {isWipingCustomer ? 'Wiping Out...' : 'Confirm Wipe Out 🗑️'}
