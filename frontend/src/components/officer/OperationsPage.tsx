@@ -276,40 +276,30 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
   const [overrideJustification, setOverrideJustification] = useState('');
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [leads, setLeads] = useState<any[]>([]);
-  const [loadingLeads, setLoadingLeads] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [leadActionMsg, setLeadActionMsg] = useState<string | null>(null);
   const [isApprovingLead, setIsApprovingLead] = useState(false);
-  const [leadApprovalSuccess, setLeadApprovalSuccess] = useState<string | null>(null);
 
   const [customers, setCustomers] = useState<any[]>([]);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [customerToWipe, setCustomerToWipe] = useState<any | null>(null);
   const [isWipingCustomer, setIsWipingCustomer] = useState(false);
-  const [customerWipeSuccess, setCustomerWipeSuccess] = useState<string | null>(null);
   const [customerWipeError, setCustomerWipeError] = useState<string | null>(null);
 
   const loadLeads = async () => {
     try {
-      setLoadingLeads(true);
       const res = await fetchOfficerLeads();
       setLeads(res.leads || []);
     } catch (err) {
       console.error('Failed to load officer leads', err);
-    } finally {
-      setLoadingLeads(false);
     }
   };
 
   const loadCustomers = async () => {
     try {
-      setLoadingCustomers(true);
       const res = await fetchOfficerCustomers();
       setCustomers(res.customers || []);
     } catch (err) {
       console.error('Failed to load officer customers', err);
-    } finally {
-      setLoadingCustomers(false);
     }
   };
 
@@ -317,10 +307,8 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
     try {
       setIsWipingCustomer(true);
       setCustomerWipeError(null);
-      const res = await wipeOfficerCustomer(customerId);
-      setCustomerWipeSuccess(res.message || `Customer ${customerId} wiped successfully.`);
+      await wipeOfficerCustomer(customerId);
       setLeadActionMsg(`Customer ${customerId} and login credentials wiped successfully.`);
-      setTimeout(() => setCustomerWipeSuccess(null), 4000);
       await loadCustomers();
       await loadLeads();
       setCustomerToWipe(null);
@@ -387,9 +375,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
     try {
       setIsApprovingLead(true);
       setDecisionError(null);
-      setLeadApprovalSuccess(null);
       const res = await approveOfficerLead(leadId);
-      setLeadApprovalSuccess(res.message || 'Credentials successfully dispatched to email.');
       setLeadActionMsg(`Application approved! Credentials emailed to ${res.email_sent_to || 'applicant'}.`);
       await loadLeads();
       await loadCustomers();

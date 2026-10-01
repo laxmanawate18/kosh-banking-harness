@@ -5,7 +5,7 @@ import { useChat } from '../../context/ChatContext';
 import { useI18n } from '../../i18n';
 import { get, post } from '../../services/api';
 import { startVideoKyc } from '../../services/banking';
-import { RecentTransactions } from './RecentTransactions';
+import { RecentTransactions, TransactionDetailModal } from './RecentTransactions';
 import { SpendingBreakdown } from './SpendingBreakdown';
 import { formatMoney, formatDate, formatDateTime } from '../common/Formatters';
 import { Icon } from '../common/Icon';
@@ -279,18 +279,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {selectedTx && (
-        <Modal isOpen onClose={() => setSelectedTx(null)} title={t('Transaction details')} subtitle={t('Reference {ref}', { ref: selectedTx.reference_number || selectedTx.id })}>
-          <div className="review-amount">{formatMoney(amt(selectedTx))}</div>
-          <div className="info-row"><span>{t('Description')}</span><strong>{selectedTx.description}</strong></div>
-          <div className="info-row"><span>{t('Date and time')}</span><strong>{formatDateTime(selectedTx.created_at)}</strong></div>
-          <div className="info-row"><span>{t('Category')}</span><strong>{selectedTx.category || t('General')}</strong></div>
-          <div className="info-row"><span>{t('Status')}</span><Badge status={selectedTx.status}>{selectedTx.status}</Badge></div>
-          <div className="k-dialog-actions">
-            <button type="button" className="k-btn primary wide" onClick={() => setSelectedTx(null)}>{t('Done')}</button>
-          </div>
-        </Modal>
-      )}
+      {selectedTx && <TransactionDetailModal tx={selectedTx} onClose={() => setSelectedTx(null)} />}
     </div>
   );
 };

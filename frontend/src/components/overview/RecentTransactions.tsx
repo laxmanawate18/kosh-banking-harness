@@ -1,6 +1,7 @@
 import React from 'react';
 import { Transaction } from '../../types/banking';
-import { formatMoney, formatDate } from '../common/Formatters';
+import { formatMoney, formatDate, formatDateTime } from '../common/Formatters';
+import { Modal } from '../common/Modal';
 import { Badge } from '../common/Badge';
 import { Icon } from '../common/Icon';
 import { useI18n } from '../../i18n';
@@ -122,5 +123,24 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
         </tbody>
       </table>
     </div>
+  );
+};
+
+/** The transaction detail dialog used by the dashboard and the transactions page. */
+export const TransactionDetailModal: React.FC<{ tx: Transaction; onClose: () => void }> = ({ tx, onClose }) => {
+  const { t } = useI18n();
+  const ref = tx.reference_number || tx.id;
+  return (
+    <Modal isOpen onClose={onClose} title={t('Transaction details')} subtitle={t('Reference {ref}', { ref })}>
+      <div className="review-amount">{formatMoney(tx.amount_minor ?? tx.amount_paise ?? 0)}</div>
+      <div className="info-row"><span>{t('Description')}</span><strong>{tx.description}</strong></div>
+      <div className="info-row"><span>{t('Date and time')}</span><strong>{formatDateTime(tx.created_at)}</strong></div>
+      <div className="info-row"><span>{t('Category')}</span><strong>{tx.category || t('General')}</strong></div>
+      <div className="info-row"><span>{t('Status')}</span><Badge status={tx.status}>{tx.status}</Badge></div>
+      <div className="info-row"><span>{t('Reference')}</span><strong>{ref}</strong></div>
+      <div className="k-dialog-actions">
+        <button type="button" className="k-btn primary wide" onClick={onClose}>{t('Done')}</button>
+      </div>
+    </Modal>
   );
 };

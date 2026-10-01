@@ -3,7 +3,7 @@ import { formatMoney } from '../common/Formatters';
 import { useBanking } from '../../context/BankingContext';
 import { Icon } from '../common/Icon';
 import { Badge } from '../common/Badge';
-import { Modal } from '../common/Modal';
+import { TransactionDetailModal } from '../overview/RecentTransactions';
 import type { Transaction } from '../../types/banking';
 import { useI18n } from '../../i18n';
 
@@ -39,18 +39,6 @@ export const TransactionsPage: React.FC = () => {
     try {
       const d = new Date(isoStr);
       return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-    } catch {
-      return isoStr;
-    }
-  };
-
-  const formatDateTime = (isoStr: string) => {
-    try {
-      const d = new Date(isoStr);
-      return t('{date} at {time}', {
-        date: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-        time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-      });
     } catch {
       return isoStr;
     }
@@ -187,44 +175,7 @@ export const TransactionsPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Transaction Detail Dialog */}
-      {selectedTx && (
-        <Modal
-          isOpen={true}
-          onClose={() => setSelectedTx(null)}
-          title={t('Transaction details')}
-          subtitle={t('Reference {id}', { id: selectedTx.reference_number || selectedTx.id })}
-        >
-          <div className="review-amount" style={{ textAlign: 'center', margin: '14px 0' }}>
-            {formatMoney(selectedTx.amount_minor ?? selectedTx.amount_paise ?? 0)}
-          </div>
-          <div className="info-row">
-            <span>{t('Description')}</span>
-            <strong>{selectedTx.description}</strong>
-          </div>
-          <div className="info-row">
-            <span>{t('Date & time')}</span>
-            <strong>{formatDateTime(selectedTx.created_at)}</strong>
-          </div>
-          <div className="info-row">
-            <span>{t('Category')}</span>
-            <strong>{selectedTx.category || t('General')}</strong>
-          </div>
-          <div className="info-row">
-            <span>{t('Status')}</span>
-            <Badge status={selectedTx.status}>{selectedTx.status}</Badge>
-          </div>
-          <div className="info-row">
-            <span>{t('Reference')}</span>
-            <strong>{selectedTx.reference_number || selectedTx.id}</strong>
-          </div>
-          <div className="dialog-footer" style={{ marginTop: '20px' }}>
-            <button type="button" className="button wide primary" onClick={() => setSelectedTx(null)}>
-              {t('Done')}
-            </button>
-          </div>
-        </Modal>
-      )}
+      {selectedTx && <TransactionDetailModal tx={selectedTx} onClose={() => setSelectedTx(null)} />}
     </>
   );
 };
