@@ -133,7 +133,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--skip-tests", action="store_true")
-    ap.add_argument("--fallback-model", default="gemini-2.5-flash")
+    ap.add_argument("--fallback-model", default="gemini-3.7-flash")
     args = ap.parse_args()
     step = lambda n, text: print(f"\n[{n}] {text}")
 
