@@ -8,7 +8,6 @@ import dataclasses
 import re
 import secrets
 import json
-import os
 from collections import defaultdict, deque
 import time
 import traceback
@@ -29,7 +28,7 @@ from backend.agent_config import TOOL_RESULT_QUEUES, CheckedRelease, create_agen
 from backend.conversations import create_session_data, load_session, save_session
 from backend.settings import DEFAULT_MODEL, FALLBACK_MODEL
 from auth_service import COOKIE_NAME, AuthContext
-from backend import care, mitra_ops, offers
+from backend import care, harness, mitra_ops, offers
 from document_processing import cipher
 from banking_db import db  # the visitor handler logs turns; the customer handler receives its own db
 from product_service import (
@@ -68,8 +67,8 @@ def restore_sales_context(guest_session: Dict[str, Any]) -> SalesSessionContext:
     return SalesSessionContext(**{k: v for k, v in saved.items() if k in known})
 
 
-CUSTOMER_IDLE_SECONDS = 60
-CHAT_MESSAGES_PER_MINUTE = int(os.getenv("CHAT_MESSAGES_PER_MINUTE", "12"))
+CUSTOMER_IDLE_SECONDS = harness.policy()["chat"]["customer_idle_seconds"]
+CHAT_MESSAGES_PER_MINUTE = harness.policy()["chat"]["messages_per_minute"]
 # ponytail: per-instance memory; move to a shared store (Redis/Memorystore) once Kosh runs on more than one instance.
 _RECENT_MESSAGES: Dict[str, Deque[float]] = defaultdict(deque)
 

@@ -1,0 +1,36 @@
+{
+  "_about": "Kosh banking harness policy. Change only through review: the version and a hash of this file are recorded on every Sentinel decision.",
+  "version": "2026-10-05.1",
+  "sentinel": {
+    "deny_at_score": 80,
+    "challenge_at_score": 30,
+    "always_customer_approval": ["TRANSFER", "PAY_BILL"],
+    "high_value_minor": 5000000,
+    "baseline_multiple": 3,
+    "default_normal_transfer_minor": 800000,
+    "unusual_hours_before": 6,
+    "velocity_count": 3,
+    "velocity_window_seconds": 600,
+    "challenge_ttl_seconds": 300,
+    "challenge_max_attempts": 3,
+    "weights": {
+      "NEW_BENEFICIARY": 25,
+      "TRUSTED_PRIOR_BENEFICIARY": -15,
+      "AMOUNT_ABOVE_BASELINE": 25,
+      "HIGH_VALUE_TRANSFER": 20,
+      "NEW_DEVICE": 20,
+      "KNOWN_BOUND_DEVICE": -10,
+      "SUSPECTED_INDIRECT_PROMPT_INJECTION": 40,
+      "KNOWN_RECURRING_BILL": -20,
+      "BILL_ABOVE_AUTONOMY_LIMIT": 30,
+      "UNUSUAL_TRANSACTION_TIME": 10,
+      "VELOCITY_LIMIT": 20
+    }
+  },
+  "chat": {
+    "messages_per_minute": 12,
+    "max_tool_calls_per_turn": 12,
+    "customer_idle_seconds": 60,
+    "visitor_turn_seconds": 60
+  }
+}

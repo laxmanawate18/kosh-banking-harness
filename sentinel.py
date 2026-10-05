@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
+from backend import harness
 from backend.settings import required_secret
 from banking_db import BankingDatabase, db, new_id, utc_now
 
@@ -392,42 +393,37 @@ class SentinelService:
             score = 100
             decision = "DENY"
         else:
+            policy = harness.policy()["sentinel"]
+            weights = policy["weights"]
+
+            def signal(code: str) -> None:
+                nonlocal score
+                score += weights[code]
+                reasons.append(code)
+
             if beneficiary and beneficiary.get("relationship") == "NEW":
-                score += 25
-                reasons.append("NEW_BENEFICIARY")
+                signal("NEW_BENEFICIARY")
             if beneficiary and beneficiary.get("relationship") == "TRUSTED":
-                score -= 15
-                reasons.append("TRUSTED_PRIOR_BENEFICIARY")
+                signal("TRUSTED_PRIOR_BENEFICIARY")
             customer = self.db.get_customer(context.get("customer_id", CUSTOMER_ID)) or {}
-            normal = int(customer.get("normal_transfer_minor", 800000))
-            if action_type == "TRANSFER" and amount_minor > normal * 3:
-                score += 25
-                reasons.append("AMOUNT_ABOVE_BASELINE")
-            policy = self.db.snapshot().get("policy_config", {})
-            if amount_minor > int(policy.get("high_value_minor", 5000000)):
-                score += 20
-                reasons.append("HIGH_VALUE_TRANSFER")
-            if device.get("status") == "NEW":
-                score += 20
-                reasons.append("NEW_DEVICE")
-            else:
-                score -= 10
-                reasons.append("KNOWN_BOUND_DEVICE")
+            normal = int(customer.get("normal_transfer_minor", policy["default_normal_transfer_minor"]))
+            if action_type == "TRANSFER" and amount_minor > normal * policy["baseline_multiple"]:
+                signal("AMOUNT_ABOVE_BASELINE")
+            if amount_minor > policy["high_value_minor"]:
+                signal("HIGH_VALUE_TRANSFER")
+            signal("NEW_DEVICE" if device.get("status") == "NEW" else "KNOWN_BOUND_DEVICE")
             if context.get("untrusted_content_detected"):
-                score += 40
+                signal("SUSPECTED_INDIRECT_PROMPT_INJECTION")
             if action_type == "PAY_BILL" and bill and bill.get("autopay_eligible"):
-                score -= 20
-                reasons.append("KNOWN_RECURRING_BILL")
+                signal("KNOWN_RECURRING_BILL")
                 if amount_minor > int(delegation.get("max_autonomous_bill_minor", 0)):
-                    score += 30
-                    reasons.append("BILL_ABOVE_AUTONOMY_LIMIT")
+                    signal("BILL_ABOVE_AUTONOMY_LIMIT")
 
             # The browser/device can provide a trusted local-hour signal. The demo
             # defaults to a normal daytime hour so outcomes remain reproducible.
             local_hour = int(context.get("local_hour", 14))
-            if action_type in {"PAY_BILL", "TRANSFER"} and local_hour < 6:
-                score += 10
-                reasons.append("UNUSUAL_TRANSACTION_TIME")
+            if action_type in {"PAY_BILL", "TRANSFER"} and local_hour < policy["unusual_hours_before"]:
+                signal("UNUSUAL_TRANSACTION_TIME")
 
             recent_attempts = 0
             now = datetime.now(timezone.utc)
@@ -441,21 +437,20 @@ class SentinelService:
                     moves_money = (proposal.get("action") or {}).get("action_type") in {"PAY_BILL", "TRANSFER"}
                     if proposal.get("decision_id") in kyc_blocked:
                         continue
-                    if moves_money and proposal.get("customer_id") == context.get("customer_id") and 0 <= age <= int(policy.get("velocity_window_seconds", 600)):
+                    if moves_money and proposal.get("customer_id") == context.get("customer_id") and 0 <= age <= policy["velocity_window_seconds"]:
                         recent_attempts += 1
                 except Exception:
                     continue
-            if recent_attempts >= int(policy.get("velocity_count", 3)):
-                score += 20
-                reasons.append("VELOCITY_LIMIT")
+            if recent_attempts >= policy["velocity_count"]:
+                signal("VELOCITY_LIMIT")
 
             score = max(0, min(score, 100))
-            if score >= 80:
+            if score >= policy["deny_at_score"]:
                 decision = "DENY"
             elif context.get("step_up_verified"):
                 decision = "ALLOW"
                 reasons.append("STEP_UP_AUTH_VERIFIED")
-            elif action_type in {"TRANSFER", "PAY_BILL"} or score >= 30:  # every money movement needs the customer's own approval
+            elif action_type in policy["always_customer_approval"] or score >= policy["challenge_at_score"]:
                 decision = "CHALLENGE"
             else:
                 decision = "ALLOW"
@@ -482,7 +477,7 @@ class SentinelService:
             "checks": checks,
             "obligations": obligations,
             "request_digest": request_digest,
-            "policy_version": self.db.snapshot().get("policy_config", {}).get("version", "sentinel-demo-v1"),
+            "policy_version": harness.policy_version(),
             "authorization_token_hash": hashlib.sha256(token.encode()).hexdigest() if token else None,
             "created_at": created_at,
             "expires_at": expires_at,

@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 
+from backend import harness
 from banking_db import BankingDatabase, db, new_id, utc_now
 from product_service import get_product_by_id, inr
 from sentinel import AGENT_ID, CUSTOMER_ID, KNOWN_DEVICE_ID, SentinelService, sentinel
@@ -475,9 +476,9 @@ class SecureBankingService:
             "session_id": payment["session_id"],
             "request_digest": decision["request_digest"],
             "transaction_digest": decision["request_digest"],
-            "attempts_remaining": 3,
+            "attempts_remaining": harness.policy()["sentinel"]["challenge_max_attempts"],
             "status": "OPEN",
-            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat().replace("+00:00", "Z"),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=harness.policy()["sentinel"]["challenge_ttl_seconds"])).isoformat().replace("+00:00", "Z"),
             "created_at": utc_now(),
         }
 

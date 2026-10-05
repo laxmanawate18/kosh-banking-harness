@@ -82,3 +82,18 @@ def check_call(channel: str, name: str, args: Dict[str, Any], scopes: Optional[I
         if problem := _value_problem(arg_spec, value, arg):
             return problem
     return None
+
+
+POLICY_PATH = REGISTRY_PATH.parent / "policy.json"
+
+
+@lru_cache(maxsize=1)
+def policy() -> Dict[str, Any]:
+    return json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+
+
+@lru_cache(maxsize=1)
+def policy_version() -> str:
+    """The reviewed version plus a hash of the file, so an unreviewed edit still shows on every decision."""
+    import hashlib
+    return f"{policy()['version']}+{hashlib.sha256(POLICY_PATH.read_bytes()).hexdigest()[:8]}"
