@@ -1,4 +1,5 @@
 import json
+import asyncio
 import logging
 import os
 import re
@@ -286,6 +287,11 @@ def make_session_router(
     async def officer_notifications(context=Depends(require_officer)):
         del context
         return {"notifications": recent_notifications(db)}
+
+    @router.get("/api/officer/audit/verify")
+    async def officer_verify_audit(context=Depends(require_officer)):
+        del context
+        return await asyncio.to_thread(db.verify_audit_chain)
 
     @router.get("/api/officer/mitra-quality")
     async def officer_mitra_quality(days: int = 7, context=Depends(require_officer)):

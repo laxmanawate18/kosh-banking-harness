@@ -14,6 +14,7 @@ from google.antigravity import Agent, CapabilitiesConfig, LocalAgentConfig, hook
 
 from backend.settings import DEFAULT_LOCATION, DEFAULT_MODEL, DEFAULT_PROJECT_ID, USE_VERTEXAI
 from banking_db import db
+from backend.mitra_ops import mask_pii
 from banking_tools import BANKING_TOOL_NAMES, build_banking_tools
 from product_service import (
     leaks_internal_prompt,
@@ -240,6 +241,27 @@ _PUBLIC_TOOL_ARGUMENTS = {
 
 
 
+_SECRET_FIELDS = re.compile(r'("[^"]*(?:token|secret|password|otp)[^"]*"\s*:\s*)"[^"]*"', re.I)
+
+
+def _audit_payload(value: Any, limit: int = 2000) -> str:
+    """Tool arguments/results as stored in the audit trail: secrets redacted, identifiers masked, size capped."""
+    text = json.dumps(value, ensure_ascii=False, default=str)
+    return mask_pii(_SECRET_FIELDS.sub(r'\1"[REDACTED]"', text))[:limit]
+
+
+def audit_tool_decision(session_id: Optional[str], customer_id: Optional[str], data: types.ToolCall,
+                        result: types.HookResult) -> types.HookResult:
+    db.append_audit(
+        "AGENT_TOOL_ALLOWED" if result.allow else "AGENT_TOOL_DENIED",
+        session_id=session_id, customer_id=customer_id, actor="agent", severity="INFO" if result.allow else "WARNING",
+        summary=f"{'Allowed' if result.allow else 'Denied'} {data.name}",
+        details={"tool": str(data.name), "tool_call_id": getattr(data, "id", None), "arguments": _audit_payload(getattr(data, "args", None) or {}),
+                 "gate_message": result.message or None},
+    )
+    return result
+
+
 class SecureToolGateHook(hooks.PreToolCallDecideHook):
     """Restrict agents to the registered banking and sales tool contract with auth gating."""
 
@@ -248,6 +270,10 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
 
     async def run(self, context: hooks.HookContext, data: types.ToolCall) -> types.HookResult:
         del context
+        return audit_tool_decision(self.trusted_context.get("session_id"), self.trusted_context.get("customer_id"),
+                                   data, self.decide(data))
+
+    def decide(self, data: types.ToolCall) -> types.HookResult:
         name = str(data.name)
         args = data.args if isinstance(data.args, dict) else {}
         if name in PUBLIC_SALES_TOOL_NAMES:
@@ -285,8 +311,14 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
 class PublicSalesToolGateHook(hooks.PreToolCallDecideHook):
     """Keep signed-out agents inside the read-only public catalogue boundary and gate banking tools."""
 
+    def __init__(self, session_id: Optional[str] = None):
+        self.session_id = session_id
+
     async def run(self, context: hooks.HookContext, data: types.ToolCall) -> types.HookResult:
         del context
+        return audit_tool_decision(self.session_id, None, data, self.decide(data))
+
+    def decide(self, data: types.ToolCall) -> types.HookResult:
         name = str(data.name)
         args = data.args if isinstance(data.args, dict) else {}
         allowed = PUBLIC_SALES_TOOL_NAMES | VISITOR_APPLICATION_TOOL_NAMES
@@ -304,16 +336,20 @@ class PublicSalesToolGateHook(hooks.PreToolCallDecideHook):
 
 
 class SessionPostToolCallHook(hooks.PostToolCallHook):
-    def __init__(self, session_id: str):
+    def __init__(self, session_id: str, customer_id: Optional[str] = None):
         self.session_id = session_id
+        self.customer_id = customer_id
 
     async def run(self, context: hooks.HookContext, data: types.ToolResult) -> None:
         del context
+        failed = bool(data.error or data.exception)
         db.append_audit(
-            "AGENT_TOOL_COMPLETED",
-            session_id=self.session_id,
-            summary=f"Antigravity completed {data.name}",
-            details={"tool": str(data.name)},
+            "AGENT_TOOL_FAILED" if failed else "AGENT_TOOL_COMPLETED",
+            session_id=self.session_id, customer_id=self.customer_id, actor="agent",
+            severity="WARNING" if failed else "INFO",
+            summary=f"Antigravity {'failed' if failed else 'completed'} {data.name}",
+            details={"tool": str(data.name), "tool_call_id": data.id, "result": _audit_payload(data.result),
+                     "error": _audit_payload(data.error or data.exception) if failed else None},
         )
         queue = TOOL_RESULT_QUEUES.get(self.session_id)
         if queue is not None:
@@ -368,7 +404,7 @@ def create_agent_config(
         # Visitors apply for real through prepare/submit_product_application; anonymous "interest" leads
         # carried no contact details and only cluttered the officer queue, so they are not recorded here.
         tools = build_public_sales_tools(lambda: sales_context)
-        configured_hooks = [PublicSalesToolGateHook()]
+        configured_hooks = [PublicSalesToolGateHook(session_id), SessionPostToolCallHook(session_id)]
         instructions = MITRA_BOUNDARIES + "\n\n" + VISITOR_SYSTEM_INSTRUCTION + "\n\n" + published_catalogue()
 
     else:
@@ -400,7 +436,7 @@ def create_agent_config(
                 seen_names.add(name)
                 deduped_tools.append(t)
         tools = deduped_tools
-        configured_hooks = [SecureToolGateHook(context), SessionPostToolCallHook(session_id)]
+        configured_hooks = [SecureToolGateHook(context), SessionPostToolCallHook(session_id, context.get("customer_id"))]
         active_leads = db.get_active_leads_for_customer(customer_id)
         lead_reengagement_banner = ""
         if active_leads:

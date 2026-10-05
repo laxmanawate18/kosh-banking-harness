@@ -131,40 +131,61 @@ class BankingDatabase:
                     banking_store.save(session, before, payload)
                     row.version += 1
 
+    _AUDIT_HASHED = ("event_id", "session_id", "customer_id_token", "event_type", "service_id", "actor",
+                     "model_version", "prompt_version", "policy_version", "consent_id", "approval_request_id",
+                     "approver_id", "severity", "summary", "details")
+
+    @staticmethod
+    def _audit_hmac(previous_hash: str, fields: Dict[str, Any]) -> str:
+        canonical = json.dumps({"previous_hash": previous_hash, "record": fields}, sort_keys=True,
+                               separators=(",", ":"), ensure_ascii=False, default=str).encode("utf-8")
+        return hmac.new(os.getenv("SENTINEL_AUDIT_HMAC_KEY", "sentinel-demo-audit-key").encode("utf-8"),
+                        canonical, hashlib.sha256).hexdigest()
+
     def _persist_audit(self, session: Any, event: Dict[str, Any]) -> None:
         existing = session.scalar(select(AuditEventRecord.sequence).where(AuditEventRecord.event_id == event["id"]))
         if existing is not None:
             return
         details = copy.deepcopy(event.get("details") or {})
-        policy_version = details.get("policy_version")
+        for key in ("intent_id", "decision_id"):
+            if event.get(key):
+                details.setdefault(key, event[key])
+        details["recorded_at"] = event.get("created_at") or utc_now()
+        details["chain"] = 2  # every hashed field is stored, so the record can be re-verified
+        fields = {
+            "event_id": event["id"], "session_id": event.get("session_id"),
+            "customer_id_token": hashlib.sha256(str(event.get("customer_id") or "UNKNOWN").encode()).hexdigest()[:24],
+            "event_type": event.get("event_type", "UNKNOWN"), "service_id": event.get("service_id"),
+            "actor": event.get("actor", "system"), "model_version": event.get("model_version"),
+            "prompt_version": event.get("prompt_version"),
+            "policy_version": event.get("policy_version") or details.get("policy_version"),
+            "consent_id": event.get("consent_id"), "approval_request_id": event.get("approval_request_id"),
+            "approver_id": event.get("approver_id"), "severity": event.get("severity", "INFO"),
+            "summary": event.get("summary", ""), "details": details,
+        }
         previous = session.scalar(select(AuditEventRecord).order_by(AuditEventRecord.sequence.desc()).limit(1))
         previous_hash = previous.integrity_hash if previous and previous.integrity_hash else "0" * 64
-        canonical = json.dumps({"previous_hash": previous_hash, "event": event}, sort_keys=True,
-                               separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-        integrity_hash = hmac.new(os.getenv("SENTINEL_AUDIT_HMAC_KEY", "sentinel-demo-audit-key").encode("utf-8"),
-                                  canonical, hashlib.sha256).hexdigest()
-        session.add(
-            AuditEventRecord(
-                event_id=event["id"],
-                session_id=event.get("session_id"),
-                customer_id_token=hashlib.sha256(str(event.get("customer_id", "CUST-1001")).encode()).hexdigest()[:24],
-                event_type=event.get("event_type", "UNKNOWN"),
-                service_id=event.get("service_id"),
-                actor=event.get("actor", "system"),
-                model_version=event.get("model_version"),
-                prompt_version=event.get("prompt_version"),
-                policy_version=event.get("policy_version") or policy_version,
-                consent_id=event.get("consent_id"),
-                approval_request_id=event.get("approval_request_id"),
-                approver_id=event.get("approver_id"),
-                severity=event.get("severity", "INFO"),
-                summary=event.get("summary", ""),
-                details=details,
-                previous_hash=previous_hash,
-                integrity_hash=integrity_hash,
-                created_at=datetime.fromisoformat(event["created_at"]) if event.get("created_at") else utc_dt(),
-            )
-        )
+        session.add(AuditEventRecord(
+            **fields, previous_hash=previous_hash, integrity_hash=self._audit_hmac(previous_hash, fields),
+            created_at=datetime.fromisoformat(event["created_at"]) if event.get("created_at") else utc_dt(),
+        ))
+
+    def verify_audit_chain(self) -> Dict[str, Any]:
+        """Re-check every link and every re-verifiable record. Records written before chain v2 are checked for linkage only."""
+        previous_hash, verified, linked_only = "0" * 64, 0, 0
+        with self.runtime.sessions() as session:
+            for row in session.scalars(select(AuditEventRecord).order_by(AuditEventRecord.sequence)):
+                if row.previous_hash != previous_hash:
+                    return {"valid": False, "broken_at": row.event_id, "reason": "LINK_MISMATCH", "verified": verified}
+                if (row.details or {}).get("chain") == 2:
+                    fields = {name: getattr(row, name) for name in self._AUDIT_HASHED}
+                    if not hmac.compare_digest(self._audit_hmac(previous_hash, fields), row.integrity_hash):
+                        return {"valid": False, "broken_at": row.event_id, "reason": "RECORD_ALTERED", "verified": verified}
+                    verified += 1
+                else:
+                    linked_only += 1
+                previous_hash = row.integrity_hash
+        return {"valid": True, "verified": verified, "linked_only": linked_only, "head": previous_hash}
 
     def reset_to_seed(self) -> Dict[str, Any]:
         seed = copy.deepcopy(self._seed())
@@ -315,9 +336,10 @@ class BankingDatabase:
                      severity: str = "INFO", actor: str = "system", service_id: Optional[str] = None,
                      consent_id: Optional[str] = None, approval_request_id: Optional[str] = None,
                      approver_id: Optional[str] = None, model_version: Optional[str] = None,
-                     prompt_version: Optional[str] = None, policy_version: Optional[str] = None) -> Dict[str, Any]:
+                     prompt_version: Optional[str] = None, policy_version: Optional[str] = None,
+                     customer_id: Optional[str] = None) -> Dict[str, Any]:
         event = {
-            "id": new_id("AUD"), "event_type": event_type, "session_id": session_id,
+            "id": new_id("AUD"), "event_type": event_type, "session_id": session_id, "customer_id": customer_id,
             "intent_id": intent_id, "decision_id": decision_id, "summary": summary,
             "details": details or {}, "severity": severity, "actor": actor, "service_id": service_id,
             "consent_id": consent_id, "approval_request_id": approval_request_id, "approver_id": approver_id,
