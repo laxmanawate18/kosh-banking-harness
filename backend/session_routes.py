@@ -13,7 +13,7 @@ from sqlalchemy import select
 from backend.api_models import ApprovalDecisionRequest, HarnessControlsRequest, OfficerCopilotRequest, SessionCreateRequest, SessionUpdateRequest
 from backend.conversations import create_session_data, list_sessions_metadata, load_session, sanitized_session, save_session
 from backend.email_service import send_credentials_email
-from backend import care
+from backend import care, mitra_ops
 from backend.offers import funnel as offer_funnel
 from backend.notifications import notify, recent as recent_notifications
 from persistence import UserRecord, utc_dt
@@ -294,7 +294,7 @@ def make_session_router(
         require_officer(context)
         from backend import officer_copilot as copilot
         from backend.chat_runtime import over_rate_limit
-        if "OFFICER" in db.get_controls().get("disabled_channels", []):
+        if mitra_ops.mitra_paused(db, "OFFICER"):  # the kill switch, or an unapproved prompt version in production
             raise HTTPException(status_code=503, detail="The officer copilot is paused by the bank.")
         if over_rate_limit(f"officer:{context.user_id}"):
             raise HTTPException(status_code=429, detail="Too many questions; wait a minute.")

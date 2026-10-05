@@ -4,7 +4,8 @@
   venv/bin/python tests/eval/run_eval.py --only jailbreak,competitor
   venv/bin/python tests/eval/run_eval.py --record              # also store the result on the running prompt version
 
-Cases with "channel": "customer" run signed in as the demo customer (--customer), in a fresh chat each.
+Cases with "channel": "customer" run signed in as the demo customer (--customer), in a fresh chat each; cases with
+"channel": "officer" ask the officer copilot as --officer.
 A case passes when every reply check holds on the LAST reply: at least one `any` pattern matches, no `none` pattern
 matches, and it stays under `max_words`. Fairness groups pass when every member mentions the same Kosh products.
 Results: .local/eval-results/<timestamp>.json
@@ -29,11 +30,41 @@ PRODUCTS = {"Suvarna Premier": "Suvarna Premier Savings", "Digital Smart": "Digi
             "Griha": "Griha Green Home Loan", "Nivesh": "Nivesh Demat & Wealth"}
 
 
-async def run_case(url: str, case: dict, timeout: float, cookie: str | None = None) -> dict:
+def _ask_copilot(base: str, session: tuple, message: str, history: list, timeout: float) -> str:
+    import urllib.error
+    import urllib.request
+    cookie, csrf = session
+    req = urllib.request.Request(base + "/api/officer/copilot", method="POST",
+                                 data=json.dumps({"message": message, "history": history}).encode(),
+                                 headers={"Content-Type": "application/json", "X-CSRF-Token": csrf, "Cookie": f"sentinel_session={cookie}"})
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                return json.loads(response.read())["reply"]
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429 and attempt < 3:  # the per-officer rate limit is working; wait for the next minute
+                time.sleep(30)
+                continue
+            return f"[ERROR {exc.code} {exc.read()[:200]!r}]"
+    return "[ERROR rate limited]"
+
+
+async def run_case(url: str, case: dict, timeout: float, cookie: str | None = None, officer: tuple | None = None) -> dict:
     started, replies = time.time(), []
     customer = case.get("channel") == "customer"
     if customer:
         url = url.split("?", 1)[0]
+    if case.get("channel") == "officer":  # the officer copilot, over its REST endpoint, multi-turn through history
+        base = url.replace("ws://", "http://").replace("wss://", "https://").split("/ws/")[0]
+        history: list = []
+        try:
+            for prompt in case["turns"]:
+                reply = await asyncio.to_thread(_ask_copilot, base, officer, prompt, history, timeout)
+                history += [{"role": "officer", "text": prompt}, {"role": "copilot", "text": reply}]
+                replies.append(reply)
+        except Exception as exc:
+            replies.append(f"[RUNNER ERROR {type(exc).__name__}: {exc}]")
+        return _score(case, replies, started)
     try:
         async with websockets.connect(url, open_timeout=20, max_size=4_000_000,
                                       additional_headers={"Cookie": f"sentinel_session={cookie}"} if customer else None) as ws:
@@ -55,6 +86,10 @@ async def run_case(url: str, case: dict, timeout: float, cookie: str | None = No
                 replies.append(text)
     except Exception as exc:  # a broken case is a failed case, never a crashed run
         replies.append(f"[RUNNER ERROR {type(exc).__name__}: {exc}]")
+    return _score(case, replies, started)
+
+
+def _score(case: dict, replies: list, started: float) -> dict:
     reply = re.sub(r"\n?SUGGESTIONS:\s*\[.*?\]\s*$", "", replies[-1] if replies else "", flags=re.S)
     problems = []
     if case.get("any") and not any(re.search(p, reply, re.I) for p in case["any"]):
@@ -70,6 +105,16 @@ async def run_case(url: str, case: dict, timeout: float, cookie: str | None = No
     return {**{k: case[k] for k in ("id", "category", "language")}, "channel": case.get("channel", "visitor"), "group": case.get("group"), "prompt": case["turns"][-1],
             "reply": reply, "words": words, "seconds": round(time.time() - started, 1), "passed": not problems, "problems": problems,
             "products": [name for _, name in sorted((reply.find(k), name) for k, name in PRODUCTS.items() if k in reply)]}
+
+
+def officer_session(args) -> tuple:
+    """A signed-in officer session (cookie, CSRF token) in the app's own database, for officer copilot cases."""
+    import os
+    os.environ.update(ENABLE_CLOUD_SQL_SYNC="false", SENTINEL_DATABASE_URL=args.db)
+    from auth_service import AuthService
+    from banking_db import db
+    _, cookie, csrf = AuthService(db.runtime).create_direct_session(args.officer)
+    return cookie, csrf
 
 
 def customer_session(args) -> str:
@@ -96,6 +141,7 @@ async def main() -> int:
     ap.add_argument("--record", action="store_true", help="store the result on the running prompt version (model_registry)")
     ap.add_argument("--db", default=f"sqlite+pysqlite:///{ROOT / '.local' / 'e2e.sqlite3'}", help="the app's database (customer session, --record)")
     ap.add_argument("--customer", default="aarav", help="demo customer the signed-in cases run as")
+    ap.add_argument("--officer", default="officer.mumbai", help="officer the copilot cases run as")
     args = ap.parse_args()
     cases = json.loads((ROOT / "tests/eval/cases.json").read_text())["cases"]
     if args.only:
@@ -105,7 +151,8 @@ async def main() -> int:
         async with gate:
             # A fresh signed-in session per customer case: sessions expire after 10 minutes idle.
             cookie = customer_session(args) if case.get("channel") == "customer" else None
-            result = await run_case(args.url, case, args.timeout, cookie)
+            officer = officer_session(args) if case.get("channel") == "officer" else None
+            result = await run_case(args.url, case, args.timeout, cookie, officer)
             print(f"{'PASS' if result['passed'] else 'FAIL'} {result['id']:<18} {result['seconds']:>5}s {'; '.join(result['problems'])}", flush=True)
             return result
 

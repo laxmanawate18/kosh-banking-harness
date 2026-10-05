@@ -118,16 +118,25 @@ async def ask(agent_factory, db, request_service, *, officer_user_id: str, messa
               + (f"The officer is looking at request {request_id}.\n\n" if request_id else "") + f"Officer: {message}")
     from google.antigravity import types
     text, tools_used = "", []
-    async with agent_factory(config) as agent:
-        async def run():
-            nonlocal text
+
+    async def run_once() -> None:
+        nonlocal text
+        async with agent_factory(config) as agent:
             response = await agent.chat(prompt)
             async for chunk in response.chunks:
                 if isinstance(chunk, types.Text) and chunk.text:
                     text += chunk.text
                 elif isinstance(chunk, types.ToolCall):
                     tools_used.append(str(chunk.name))
-        await asyncio.wait_for(run(), TURN_SECONDS)
+    try:
+        await asyncio.wait_for(run_once(), TURN_SECONDS)
+    except (asyncio.TimeoutError, TimeoutError):
+        if "draft_decision_note" in tools_used:  # something was saved; a retry could save it twice
+            raise
+        # The model connection occasionally stalls; retry once on a fresh agent, as Mitra does.
+        text, tools_used = "", []
+        context["tool_calls_this_turn"] = 0
+        await asyncio.wait_for(run_once(), TURN_SECONDS)
     db.append_audit("COPILOT_TURN", actor="officer", approver_id=officer_user_id, session_id=session_id,
                     summary="Officer copilot answered", details={"tools": tools_used, "instructions_version": instructions_version()})
     return {"reply": mask_deep(text.strip()), "tools": tools_used, "instructions_version": instructions_version()}

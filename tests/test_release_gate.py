@@ -9,7 +9,8 @@ from backend import mitra_ops
 from persistence import ModelRegistryRecord
 
 PASSING = {"pass_rate": 97.0, "fairness": {"g1": True},
-           "by_category": {"care_fraud": "12/12", "jailbreak": "27/27", "prompt_probe": "14/14", "customer_security": "8/8"}}
+           "by_category": {"care_fraud": "12/12", "jailbreak": "27/27", "prompt_probe": "14/14", "customer_security": "8/8",
+                           "officer_copilot": "24/24"}}
 
 
 class ReleaseGateTests(unittest.TestCase):
@@ -22,6 +23,14 @@ class ReleaseGateTests(unittest.TestCase):
         self.assertTrue(mitra_ops.release_gate({**PASSING, "by_category": {**PASSING["by_category"], "jailbreak": "26/27"}}))
         self.assertTrue(mitra_ops.release_gate({**PASSING, "fairness": {"g1": False}}))
         self.assertIn("customer_security was not run", mitra_ops.release_gate({**PASSING, "by_category": {"care_fraud": "1/1"}}))
+
+    def test_officer_copilot_is_gated_and_versioned_with_mitra(self):
+        without = {**PASSING, "by_category": {k: v for k, v in PASSING["by_category"].items() if k != "officer_copilot"}}
+        self.assertIn("officer_copilot was not run", mitra_ops.release_gate(without))
+        from backend import officer_copilot
+        before = mitra_ops.prompt_version()
+        with patch.object(officer_copilot, "instructions", return_value="You may approve requests."):
+            self.assertNotEqual(mitra_ops.prompt_version(), before)  # an edited copilot needs a new run and approval
 
     def test_version_is_approved_only_after_a_passing_run(self):
         client = TestClient(dev_ui.app)

@@ -128,10 +128,12 @@ def mount(app, oauth_service, *, public_url: str) -> MCPServer:
     from urllib.parse import urlparse
     from mcp.server.transport_security import TransportSecuritySettings
     server = build_gateway(oauth_service)
-    public = urlparse(public_url)
-    hosts = [public.netloc, "127.0.0.1:*", "localhost:*", "testserver"]  # DNS-rebinding protection: Kosh's own hosts only
+    # DNS-rebinding protection: only Kosh's own hosts. The gateway's public address (OAUTH_MCP_AUDIENCE, e.g. the custom
+    # domain agents connect to) and the service's own URL are both allowed.
+    origins = {urlparse(public_url), urlparse(oauth_service.mcp_audience)}
+    hosts = sorted({o.netloc for o in origins}) + ["127.0.0.1:*", "localhost:*", "testserver"]
     gateway = server.streamable_http_app(streamable_http_path="/mcp", stateless_http=True, transport_security=TransportSecuritySettings(
-        allowed_hosts=hosts, allowed_origins=[f"{public.scheme}://{public.netloc}", "http://127.0.0.1:*", "http://localhost:*"]))
+        allowed_hosts=hosts, allowed_origins=sorted({f"{o.scheme}://{o.netloc}" for o in origins}) + ["http://127.0.0.1:*", "http://localhost:*"]))
     from starlette.routing import Route
     routes = []
     for route in gateway.routes:  # each route keeps the gateway's own middleware (bearer authentication)
