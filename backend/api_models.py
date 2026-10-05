@@ -69,6 +69,17 @@ class ApplicationStatusRequest(BaseModel):
     mobile: str = Field(min_length=10, max_length=20)
 
 
+class CopilotMessage(BaseModel):
+    role: str = Field(pattern="^(officer|copilot)$")
+    text: str = Field(max_length=4000)
+
+
+class OfficerCopilotRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    history: list[CopilotMessage] = Field(default_factory=list, max_length=20)
+    request_id: str | None = Field(default=None, pattern="^REQ-[A-Z0-9]{1,40}$")
+
+
 class HarnessControlsRequest(BaseModel):
     disabled_channels: list[str] = Field(default_factory=list)
     disabled_tools: list[str] = Field(default_factory=list)

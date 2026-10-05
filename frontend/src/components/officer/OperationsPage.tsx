@@ -14,6 +14,7 @@ import {
 import { get, post } from '../../services/api';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { OfficerCopilot } from './OfficerCopilot';
 
 interface OperationsPageProps {
   isHistory?: boolean;
@@ -603,6 +604,8 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
           <button type="button" className="button" onClick={handleRefresh}>Refresh queue</button>
         </div>
       </header>
+
+      {!isHistory && filter !== 'leads' && filter !== 'customers' && <OfficerCopilot requestId={selectedCase?.id} />}
 
       <div className="metric-strip">
         <div className="metric"><small>Awaiting review</small><strong>{awaitingReview}</strong></div>

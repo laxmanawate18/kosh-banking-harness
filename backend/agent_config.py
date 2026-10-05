@@ -308,6 +308,67 @@ class SessionPostToolCallHook(hooks.PostToolCallHook):
             queue.put_nowait(data)
 
 
+def _model_settings(model: Optional[str] = None, *, api_key: Optional[str] = None,
+                    project_id: Optional[str] = None) -> tuple[models.ModelTarget, Dict[str, Any]]:
+    """The model target and provider settings shared by every harness agent."""
+    resolved_api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    resolved_project = project_id or os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID") or DEFAULT_PROJECT_ID
+    resolved_location = os.getenv("GOOGLE_CLOUD_LOCATION") or DEFAULT_LOCATION
+    if USE_VERTEXAI or bool(resolved_project and not resolved_api_key):
+        endpoint = models.VertexEndpoint(project=resolved_project, location=resolved_location, options=MODEL_OPTIONS)
+        return models.ModelTarget(name=model or DEFAULT_MODEL, endpoint=endpoint), {
+            "vertex": True, "project": resolved_project, "location": resolved_location,
+            "env": {"GOOGLE_GENAI_USE_VERTEXAI": "True", "GOOGLE_CLOUD_PROJECT": resolved_project,
+                    "GOOGLE_CLOUD_LOCATION": resolved_location, "PROJECT_ID": resolved_project}}
+    endpoint = models.GeminiAPIEndpoint(api_key=resolved_api_key, options=MODEL_OPTIONS)
+    return models.ModelTarget(name=model or DEFAULT_MODEL, endpoint=endpoint), {"api_key": resolved_api_key, "project": resolved_project}
+
+
+class HarnessGateHook(hooks.PreToolCallDecideHook):
+    """The generic gate for any agent built on the harness: the registry channel decides what may run."""
+
+    def __init__(self, channel: str, trusted_context: Dict[str, Any]):
+        self.channel = channel
+        self.trusted_context = trusted_context
+
+    async def run(self, context: hooks.HookContext, data: types.ToolCall) -> types.HookResult:
+        del context
+        return audit_tool_decision(self.trusted_context.get("session_id"), self.trusted_context.get("customer_id"),
+                                   data, self.decide(data))
+
+    def decide(self, data: types.ToolCall) -> types.HookResult:
+        name = str(data.name)
+        args = data.args if isinstance(data.args, dict) else {}
+        if name in db.get_controls().get("disabled_tools", []):
+            return types.HookResult(allow=False, message="TOOL_PAUSED: The bank has paused this action.")
+        calls = self.trusted_context["tool_calls_this_turn"] = self.trusted_context.get("tool_calls_this_turn", 0) + 1
+        if calls > MAX_TOOL_CALLS_PER_TURN:
+            return types.HookResult(allow=False, message="TURN_TOOL_LIMIT: Too many actions in one turn. Answer with what you have.")
+        problem = harness.check_call(self.channel, name, args, self.trusted_context.get("scopes"))
+        if problem:
+            return types.HookResult(allow=False, message=f"Denied: {problem}.")
+        return types.HookResult(allow=True)
+
+
+def create_harness_agent_config(channel: str, session_id: str, instructions: str, tools: list,
+                                context: Dict[str, Any], *, model: Optional[str] = None) -> LocalAgentConfig:
+    """A new agent on the harness: its registry channel, its instructions and its tools; gate, audit and model are shared."""
+    declared = set(harness.tools(channel))
+    undeclared = sorted({t.__name__ for t in tools} - declared)
+    if undeclared:
+        raise ValueError(f"Tools not declared for channel {channel}: {undeclared}")
+    target, provider_args = _model_settings(model)
+    return LocalAgentConfig(
+        system_instructions=instructions,
+        capabilities=CapabilitiesConfig(enable_subagents=False, enabled_tools=[], agent_behavior=types.AgentBehavior.INTERACTIVE),
+        tools=tools,
+        hooks=[HarnessGateHook(channel, context), SessionPostToolCallHook(session_id, context.get("customer_id"))],
+        model=target,
+        retry_config=MODEL_RETRY,
+        **provider_args,
+    )
+
+
 def create_agent_config(
     session_id: str,
     *,
@@ -319,9 +380,6 @@ def create_agent_config(
     model: Optional[str] = None,
 ) -> LocalAgentConfig:
     """Create a fixed-model Antigravity configuration for one isolated chat session."""
-    resolved_api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    resolved_project = project_id or os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID") or DEFAULT_PROJECT_ID
-    resolved_location = os.getenv("GOOGLE_CLOUD_LOCATION") or DEFAULT_LOCATION
     context = session_context if session_context is not None else (
         {} if visitor else {"session_id": session_id, "customer_id": None, "device_id": KNOWN_DEVICE_ID}
     )
@@ -330,23 +388,7 @@ def create_agent_config(
         enabled_tools=[],
         agent_behavior=types.AgentBehavior.INTERACTIVE,
     )
-    if USE_VERTEXAI or bool(resolved_project and not resolved_api_key):
-        endpoint = models.VertexEndpoint(project=resolved_project, location=resolved_location, options=MODEL_OPTIONS)
-        target = models.ModelTarget(name=model or DEFAULT_MODEL, endpoint=endpoint)
-        provider_args: Dict[str, Any] = {
-            "vertex": True,
-            "project": resolved_project,
-            "location": resolved_location,
-            "env": {
-                "GOOGLE_GENAI_USE_VERTEXAI": "True",
-                "GOOGLE_CLOUD_PROJECT": resolved_project,
-                "GOOGLE_CLOUD_LOCATION": resolved_location,
-                "PROJECT_ID": resolved_project,
-            },
-        }
-    else:
-        target = models.ModelTarget(name=model or DEFAULT_MODEL, endpoint=models.GeminiAPIEndpoint(api_key=resolved_api_key, options=MODEL_OPTIONS))
-        provider_args = {"api_key": resolved_api_key, "project": resolved_project}
+    target, provider_args = _model_settings(model, api_key=api_key, project_id=project_id)
 
     sales_context = context.get("sales_context")
     if not isinstance(sales_context, SalesSessionContext):

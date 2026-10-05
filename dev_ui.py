@@ -257,6 +257,7 @@ app.include_router(make_session_router(
     require_officer,
     active_consent,
     auth_service=auth_service,
+    agent_factory=lambda config: Agent(config),  # looked up at call time, so tests can substitute the model
 ))
 
 

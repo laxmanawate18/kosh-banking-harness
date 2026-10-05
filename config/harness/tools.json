@@ -856,6 +856,156 @@
           }
         }
       }
+    },
+    "officer": {
+      "list_pending_requests": {
+        "description": "Service requests waiting for an officer decision",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "officer.read"
+        ],
+        "args": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING_APPROVAL",
+              "ESCALATED",
+              "MORE_INFO_REQUIRED",
+              "RPA_FAILED"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "min": 1,
+            "max": 50
+          }
+        }
+      },
+      "get_request_details": {
+        "description": "One request: collected data (masked), findings, discrepancies, confidence and history",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "officer.read"
+        ],
+        "args": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^(?i:REQ-[A-Z0-9]{1,40})$",
+            "required": true
+          }
+        }
+      },
+      "get_customer_profile": {
+        "description": "A customer's KYC standing, risk category and accounts (masked)",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "officer.read"
+        ],
+        "args": {
+          "customer_id": {
+            "type": "string",
+            "pattern": "^(?i:CUST-[A-Z0-9-]{1,40})$",
+            "required": true
+          }
+        }
+      },
+      "list_care_cases": {
+        "description": "Open customer-care cases: complaints, fraud reports, callbacks and hardship",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "officer.read"
+        ],
+        "args": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "IN_PROGRESS",
+              "RESOLVED",
+              "ESCALATED"
+            ]
+          }
+        }
+      },
+      "get_last_reconciliation": {
+        "description": "The latest reconciliation between Kosh and the core banking journal",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "officer.read"
+        ],
+        "args": {}
+      },
+      "verify_audit_trail": {
+        "description": "Re-check the tamper-evident audit chain",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "officer.read"
+        ],
+        "args": {}
+      },
+      "query_bank_knowledge": {
+        "description": "Search Kosh's policy and help documents",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "officer.read"
+        ],
+        "args": {
+          "query": {
+            "type": "string",
+            "max_length": 300,
+            "required": true
+          },
+          "category": {
+            "type": "string",
+            "max_length": 40
+          }
+        }
+      },
+      "draft_decision_note": {
+        "description": "Record a draft recommendation on a request for the officer to review; it is not a decision",
+        "effect": "write",
+        "risk": "low",
+        "approval": "officer",
+        "scopes": [
+          "officer.draft"
+        ],
+        "args": {
+          "request_id": {
+            "type": "string",
+            "pattern": "^(?i:REQ-[A-Z0-9]{1,40})$",
+            "required": true
+          },
+          "recommendation": {
+            "type": "string",
+            "enum": [
+              "APPROVE",
+              "REJECT",
+              "REQUEST_MORE_INFO",
+              "ESCALATE"
+            ],
+            "required": true
+          },
+          "reasoning": {
+            "type": "string",
+            "max_length": 1000,
+            "required": true
+          }
+        }
+      }
     }
   }
 }

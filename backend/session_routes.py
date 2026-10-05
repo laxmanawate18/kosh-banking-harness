@@ -10,7 +10,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
-from backend.api_models import ApprovalDecisionRequest, HarnessControlsRequest, SessionCreateRequest, SessionUpdateRequest
+from backend.api_models import ApprovalDecisionRequest, HarnessControlsRequest, OfficerCopilotRequest, SessionCreateRequest, SessionUpdateRequest
 from backend.conversations import create_session_data, list_sessions_metadata, load_session, sanitized_session, save_session
 from backend.email_service import send_credentials_email
 from backend import care
@@ -74,6 +74,7 @@ def make_session_router(
     require_officer,
     active_consent,
     auth_service,
+    agent_factory=None,
 ):
     router = APIRouter()
 
@@ -288,6 +289,24 @@ def make_session_router(
         del context
         return {"notifications": recent_notifications(db)}
 
+    @router.post("/api/officer/copilot")
+    async def officer_copilot(req: OfficerCopilotRequest, context=Depends(require_csrf)):
+        require_officer(context)
+        from backend import officer_copilot as copilot
+        from backend.chat_runtime import over_rate_limit
+        if "OFFICER" in db.get_controls().get("disabled_channels", []):
+            raise HTTPException(status_code=503, detail="The officer copilot is paused by the bank.")
+        if over_rate_limit(f"officer:{context.user_id}"):
+            raise HTTPException(status_code=429, detail="Too many questions; wait a minute.")
+        try:
+            return await copilot.ask(agent_factory, db, request_service, officer_user_id=context.user_id, message=req.message,
+                                     history=[m.model_dump() for m in req.history], request_id=req.request_id)
+        except (asyncio.TimeoutError, TimeoutError):
+            raise HTTPException(status_code=504, detail="The copilot did not answer in time; try again.")
+        except Exception:
+            logger.exception("Officer copilot failed")
+            raise HTTPException(status_code=502, detail="The copilot could not answer right now.")
+
     @router.get("/api/officer/controls")
     async def officer_get_controls(context=Depends(require_officer)):
         del context
@@ -298,7 +317,7 @@ def make_session_router(
         require_officer(context)
         from banking_tools import BANKING_TOOL_NAMES
         from product_service import PUBLIC_SALES_TOOL_NAMES, VISITOR_APPLICATION_TOOL_NAMES
-        unknown = (set(req.disabled_channels) - {"VISITOR", "CUSTOMER", "MCP"}) | (
+        unknown = (set(req.disabled_channels) - {"VISITOR", "CUSTOMER", "MCP", "OFFICER"}) | (
             set(req.disabled_tools) - BANKING_TOOL_NAMES - PUBLIC_SALES_TOOL_NAMES - VISITOR_APPLICATION_TOOL_NAMES)
         if unknown:
             raise HTTPException(status_code=400, detail=f"Unknown channels or tools: {sorted(unknown)}")
