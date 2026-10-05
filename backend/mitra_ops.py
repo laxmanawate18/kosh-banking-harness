@@ -97,13 +97,22 @@ def update_registry(db, record_id: str, *, approval: Optional[Dict[str, Any]] = 
         return True
 
 
+def token_counts(usage: Any) -> List[int]:
+    """[input, output] tokens from the SDK's turn usage; output includes thinking tokens."""
+    if usage is None:
+        return [0, 0]
+    return [int(usage.prompt_token_count or 0), int((usage.candidates_token_count or 0) + (usage.thoughts_token_count or 0))]
+
+
 def record_turn(db, *, session_id: Optional[str], channel: str, language: str, outcome: str, reason: Optional[str] = None,
-                intents: Optional[List[str]] = None, latency_ms: int = 0, model: Optional[str] = None) -> None:
+                intents: Optional[List[str]] = None, latency_ms: int = 0, model: Optional[str] = None,
+                tokens: Optional[List[int]] = None) -> None:
     try:
         with db.runtime.sessions.begin() as s:
             s.add(MitraTurnRecord(id=f"TRN-{uuid.uuid4().hex[:16].upper()}", session_id=session_id, channel=channel, language=language,
                                   outcome=outcome, reason=(reason or "")[:160] or None, intents=intents or [], latency_ms=int(latency_ms),
-                                  model=model, prompt_version=_CURRENT.get("version")))
+                                  model=model, prompt_version=_CURRENT.get("version"),
+                                  input_tokens=tokens[0] if tokens else None, output_tokens=tokens[1] if tokens else None))
     except Exception:  # monitoring must never break a conversation
         pass
 
@@ -164,6 +173,7 @@ def quality(db, days: int = 7) -> Dict[str, Any]:
         "fallback_rate": rate(outcomes.get("FALLBACK", 0)), "guarded_rate": rate(outcomes.get("GUARDED", 0)),
         "error_rate": rate(outcomes.get("ERROR", 0)), "fallback_reasons": reasons, "care_intents": intents,
         "latency_ms": {"median": pct(0.5), "p90": pct(0.9)},
+        "tokens": {"input": sum(t.input_tokens or 0 for t in turns), "output": sum(t.output_tokens or 0 for t in turns)},
         "feedback": {"up": sum(1 for f in feedback if f.rating > 0), "down": sum(1 for f in feedback if f.rating < 0),
                      "recent_negative": [{"at": f.created_at.isoformat(), "channel": f.channel, "comment": f.comment,
                                           "reply": (f.reply_text or "")[:400]} for f in feedback if f.rating < 0][:10]},

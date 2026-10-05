@@ -14,7 +14,7 @@ from google.antigravity import Agent, CapabilitiesConfig, LocalAgentConfig, hook
 
 from backend.settings import DEFAULT_LOCATION, DEFAULT_MODEL, DEFAULT_PROJECT_ID, USE_VERTEXAI
 from banking_db import db
-from backend.mitra_ops import mask_pii
+from backend.mitra_ops import mask_pii, token_counts
 from banking_tools import BANKING_TOOL_NAMES, build_banking_tools
 from product_service import (
     leaks_internal_prompt,
@@ -36,6 +36,9 @@ logger = logging.getLogger(__name__)
 
 # Gemini 3.8 Flash "thinks" before answering; at the default depth a detailed question sometimes stalled a turn
 # for over a minute. Banking chat needs quick, tool-grounded answers, so thinking is kept LOW (override via env).
+# Transient model errors (429 quota, 503) are retried with backoff: 1s, 2s, 4s, with jitter.
+MODEL_RETRY = types.RetryConfig(api_retry=types.ModelAPIRetryConfig(
+    max_retries=3, initial_sleep_duration_ms=1000, exponential_multiplier=2.0, jitter_range=0.2))
 MODEL_OPTIONS = types.GeminiModelOptions(thinking_level=types.ThinkingLevel[os.getenv("GEMINI_THINKING_LEVEL", "LOW").upper()])
 
 # Standing multilingual rule shared by the visitor and customer agents.
@@ -368,6 +371,7 @@ def create_agent_config(
     project_id: Optional[str] = None,
     session_context: Optional[Dict[str, Any]] = None,
     visitor: bool = False,
+    model: Optional[str] = None,
 ) -> LocalAgentConfig:
     """Create a fixed-model Antigravity configuration for one isolated chat session."""
     resolved_api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -383,7 +387,7 @@ def create_agent_config(
     )
     if USE_VERTEXAI or bool(resolved_project and not resolved_api_key):
         endpoint = models.VertexEndpoint(project=resolved_project, location=resolved_location, options=MODEL_OPTIONS)
-        target = models.ModelTarget(name=DEFAULT_MODEL, endpoint=endpoint)
+        target = models.ModelTarget(name=model or DEFAULT_MODEL, endpoint=endpoint)
         provider_args: Dict[str, Any] = {
             "vertex": True,
             "project": resolved_project,
@@ -396,7 +400,7 @@ def create_agent_config(
             },
         }
     else:
-        target = models.ModelTarget(name=DEFAULT_MODEL, endpoint=models.GeminiAPIEndpoint(api_key=resolved_api_key, options=MODEL_OPTIONS))
+        target = models.ModelTarget(name=model or DEFAULT_MODEL, endpoint=models.GeminiAPIEndpoint(api_key=resolved_api_key, options=MODEL_OPTIONS))
         provider_args = {"api_key": resolved_api_key, "project": resolved_project}
 
     sales_context = context.get("sales_context")
@@ -471,6 +475,7 @@ def create_agent_config(
         hooks=configured_hooks,
         skills_paths=skills_paths,
         model=target,
+        retry_config=MODEL_RETRY,
         **provider_args,
     )
 
@@ -541,6 +546,7 @@ async def visitor_reply(agent: Agent, prompt: str, sales_context: SalesSessionCo
             async for chunk in response.chunks:
                 if isinstance(chunk, types.Text) and chunk.text:
                     await queue.put(chunk.text)
+            sales_context.last_tokens = token_counts(getattr(response, "usage_metadata", None))
             await queue.put(None)
         except BaseException as exc:  # handed to the consumer, which raises it
             await queue.put(exc)
@@ -579,6 +585,8 @@ async def visitor_reply(agent: Agent, prompt: str, sales_context: SalesSessionCo
                 response = await agent.chat(f"REWRITE (trusted, from Kosh): your last reply was not shown because {rewrite_hint}. "
                                             "Write the same answer again without that, following all of Mitra's rules. Reply with the answer only.")
                 await rewrite_queue.put("".join([c.text async for c in response.chunks if isinstance(c, types.Text) and c.text]))
+                extra = token_counts(getattr(response, "usage_metadata", None))
+                sales_context.last_tokens = [a + b for a, b in zip(sales_context.last_tokens, extra)]
             except BaseException as exc:
                 await rewrite_queue.put(exc)
         retry = asyncio.ensure_future(rewrite())

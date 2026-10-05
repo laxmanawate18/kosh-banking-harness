@@ -10,6 +10,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
 DEFAULT_MODEL = "gemini-3.8-flash"
+# Used for one retry when the main model still fails after the SDK's own retries (quota or outage). Unset = no switch.
+FALLBACK_MODEL = os.getenv("MITRA_FALLBACK_MODEL") or None
 DEFAULT_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID") or "project-3da8cb5f-328e-44d3-b7a"
 # gemini-3.8-flash is served from the Vertex "global" endpoint (not us-central1).
 DEFAULT_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION") or "global"

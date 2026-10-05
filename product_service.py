@@ -389,6 +389,7 @@ class SalesSessionContext:
     last_fallback: Optional[str] = None
     verified_facts: List[str] = field(default_factory=list)
     last_reason: Optional[str] = None  # why the last model reply was withheld (monitoring)
+    last_tokens: List[int] = field(default_factory=lambda: [0, 0])  # [input, output] for the last turn (monitoring)
     no_selling: bool = False  # set for complaints, fraud and distress: no offers or cross-sell for the rest of the chat
 
     def reset(self) -> None:

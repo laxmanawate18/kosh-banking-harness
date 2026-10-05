@@ -25,7 +25,7 @@ from google.antigravity import types
 
 from backend.agent_config import TOOL_RESULT_QUEUES, CheckedRelease, create_agent_config, visitor_reply
 from backend.conversations import create_session_data, load_session, save_session
-from backend.settings import DEFAULT_MODEL
+from backend.settings import DEFAULT_MODEL, FALLBACK_MODEL
 from auth_service import COOKIE_NAME, AuthContext
 from backend import care, mitra_ops, offers
 from banking_db import db  # the visitor handler logs turns; the customer handler receives its own db
@@ -191,11 +191,12 @@ class SessionManager:
         self.active_task: Optional[asyncio.Task] = None
         self.active_response: Optional[types.ChatResponse] = None
 
-    async def get_or_create_agent(self):
+    async def get_or_create_agent(self, model: Optional[str] = None):
         if self.agent is None:
             self.agent = self.agent_factory(create_agent_config(
                 session_id=self.session_id,
                 session_context=self.tool_context,
+                model=model,
             ))
             await self.agent.__aenter__()
         return self.agent
@@ -258,11 +259,12 @@ async def serve_visitor_websocket(
     active_task = None
     sign_in_url = f"/api/chat/auth/start?session_id={urllib.parse.quote(guest_id)}"
 
-    async def fresh_agent():
+    async def fresh_agent(model: Optional[str] = None):
         candidate = agent_factory(create_agent_config(
             guest_id,
             visitor=True,
             session_context={"sales_context": sales_context},
+            model=model,
         ))
         try:
             async with async_timeout(30):
@@ -352,12 +354,14 @@ async def serve_visitor_websocket(
                     final_reply = await stream_reply()
                     agent_is_new = False
                     logger.info("visitor turn timing: agent_start=%.1fs reply=%.1fs", reply_started - agent_started, time.time() - reply_started)
-                except TimeoutError:
+                except Exception as exc:
                     if shown:  # part of the answer is already on screen; a retry would repeat it
                         raise
-                    # The agent connection occasionally stalls; retry once on a fresh one (submissions are idempotent).
+                    # A stall, quota error or outage: retry once on a fresh agent, on the backup model if one is set
+                    # (submissions are idempotent).
+                    logger.warning("Visitor turn retry after %r", exc)
                     await agent.__aexit__(None, None, None)
-                    agent, agent_is_new = await fresh_agent(), True
+                    agent, agent_is_new = await fresh_agent(FALLBACK_MODEL), True
                     final_reply = await stream_reply()
                     agent_is_new = False
                 for product_id in set(sales_context.submitted_applications) - submitted_before:
@@ -398,8 +402,8 @@ async def serve_visitor_websocket(
                        else "FALLBACK" if sales_context.last_reason else "ANSWERED")
             mitra_ops.record_turn(db, session_id=guest_id, channel="VISITOR", language=language, outcome=outcome,
                                   reason=sales_context.last_reason, intents=intents, latency_ms=int((time.time() - started) * 1000),
-                                  model=DEFAULT_MODEL)
-            sales_context.last_reason = None
+                                  model=DEFAULT_MODEL, tokens=sales_context.last_tokens)
+            sales_context.last_reason, sales_context.last_tokens = None, [0, 0]
             await websocket.send_json({
                 "type": "turn_complete",
                 "turn_id": turn_id,
@@ -694,7 +698,7 @@ async def serve_chat_websocket(
                 session.session_data["traces"].append(skill_event)
                 await websocket.send_json(skill_event)
 
-            async def process_turn() -> None:
+            async def process_turn(model: Optional[str] = None) -> None:
                 accumulated_text = ""
                 tool_calls: List[Dict[str, Any]] = []
                 presentations: List[Dict[str, Any]] = []
@@ -759,7 +763,7 @@ async def serve_chat_websocket(
 
                 drain_task = asyncio.create_task(drain())
                 try:
-                    agent = await session.get_or_create_agent()
+                    agent = await session.get_or_create_agent(model)
                     if prior_history and (not hasattr(agent, "conversation") or not getattr(agent.conversation, "history", None)):
                         history_lines = []
                         for m in prior_history[-10:]:
@@ -880,7 +884,8 @@ async def serve_chat_websocket(
                         await websocket.send_json({"type": "sales_action", "turn_id": turn_id, "suggested_queries": suggestions})
 
                     mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome=turn_outcome,
-                                          reason=turn_reason, intents=intents, latency_ms=turn_dur, model=DEFAULT_MODEL)
+                                          reason=turn_reason, intents=intents, latency_ms=turn_dur, model=model or DEFAULT_MODEL,
+                                          tokens=mitra_ops.token_counts(getattr(response, "usage_metadata", None)))
                     event = {
                         "type": "turn_complete",
                         "turn_id": turn_id,
@@ -948,16 +953,23 @@ async def serve_chat_websocket(
                         "turn_id": turn_id,
                         "message": str(exc),
                     })
-                    message = str(exc)
-                    if isinstance(exc, TimeoutError):  # drop the stalled agent; the next turn starts fresh with the history
-                        logger.warning("Customer turn abandoned: %s", exc)
-                        stalled, session.agent = session.agent, None
-                        if stalled:
-                            asyncio.ensure_future(stalled.__aexit__(None, None, None))
-                        message = chat_text("advisor_error", language)
+                    # Drop the failed agent; the next attempt or turn starts fresh with the history. Never show raw errors.
+                    logger.warning("Customer turn failed on %s: %r", model or DEFAULT_MODEL, exc)
+                    failed, session.agent = session.agent, None
+                    if failed:
+                        asyncio.ensure_future(failed.__aexit__(None, None, None))
+                    if FALLBACK_MODEL and model is None and not tool_calls and not accumulated_text:
+                        # Nothing ran and nothing was shown, so one retry on the backup model is safe.
                         mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome="ERROR",
-                                              reason="TimeoutError", intents=intents, latency_ms=int((time.time() - started) * 1000),
-                                              model=DEFAULT_MODEL)
+                                              reason=f"{type(exc).__name__}: switched to {FALLBACK_MODEL}", intents=intents,
+                                              latency_ms=int((time.time() - started) * 1000), model=DEFAULT_MODEL)
+                        TOOL_RESULT_QUEUES.pop(session.session_id, None)
+                        await process_turn(FALLBACK_MODEL)
+                        return
+                    message = chat_text("advisor_error", language)
+                    mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome="ERROR",
+                                          reason=type(exc).__name__, intents=intents, latency_ms=int((time.time() - started) * 1000),
+                                          model=model or DEFAULT_MODEL)
                     try:
                         await websocket.send_json({"type": "error", "turn_id": turn_id, "message": message})
                     except (WebSocketDisconnect, RuntimeError):
