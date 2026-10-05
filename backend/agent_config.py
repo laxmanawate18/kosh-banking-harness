@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 # Gemini 3.8 Flash "thinks" before answering; at the default depth a detailed question sometimes stalled a turn
 # for over a minute. Banking chat needs quick, tool-grounded answers, so thinking is kept LOW (override via env).
+MAX_TOOL_CALLS_PER_TURN = int(os.getenv("MAX_TOOL_CALLS_PER_TURN", "12"))
 # Transient model errors (429 quota, 503) are retried with backoff: 1s, 2s, 4s, with jitter.
 MODEL_RETRY = types.RetryConfig(api_retry=types.ModelAPIRetryConfig(
     max_retries=3, initial_sleep_duration_ms=1000, exponential_multiplier=2.0, jitter_range=0.2))
@@ -281,6 +282,9 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
         args = data.args if isinstance(data.args, dict) else {}
         if name in db.get_controls().get("disabled_tools", []):
             return types.HookResult(allow=False, message="TOOL_PAUSED: The bank has paused this action. Tell the customer it is temporarily unavailable in chat and offer the helpline.")
+        calls = self.trusted_context["tool_calls_this_turn"] = self.trusted_context.get("tool_calls_this_turn", 0) + 1
+        if calls > MAX_TOOL_CALLS_PER_TURN:  # a looping agent stops here instead of hammering core banking
+            return types.HookResult(allow=False, message="TURN_TOOL_LIMIT: Too many actions in one turn. Stop calling tools and answer with what you have.")
         if name in PUBLIC_SALES_TOOL_NAMES:
             unknown = set(args) - _PUBLIC_TOOL_ARGUMENTS[name]
             if unknown:

@@ -8,11 +8,13 @@ import dataclasses
 import re
 import secrets
 import json
+import os
+from collections import defaultdict, deque
 import time
 import traceback
 import urllib.parse
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Deque, Dict, List, Optional
 
 try:
     from asyncio import timeout as async_timeout
@@ -64,6 +66,25 @@ def restore_sales_context(guest_session: Dict[str, Any]) -> SalesSessionContext:
 
 
 CUSTOMER_IDLE_SECONDS = 60
+CHAT_MESSAGES_PER_MINUTE = int(os.getenv("CHAT_MESSAGES_PER_MINUTE", "12"))
+# ponytail: per-instance memory; move to a shared store (Redis/Memorystore) once Kosh runs on more than one instance.
+_RECENT_MESSAGES: Dict[str, Deque[float]] = defaultdict(deque)
+
+
+def over_rate_limit(key: str) -> bool:
+    """Sliding one-minute window of chat messages per user (signed in) or per client address (visitor)."""
+    now, recent = time.monotonic(), _RECENT_MESSAGES[key]
+    while recent and now - recent[0] > 60:
+        recent.popleft()
+    if len(recent) >= CHAT_MESSAGES_PER_MINUTE:
+        return True
+    recent.append(now)
+    return False
+
+
+def client_key(websocket: WebSocket) -> str:
+    forwarded = websocket.headers.get("x-forwarded-for", "")
+    return "ip:" + (forwarded.split(",")[0].strip() or (websocket.client.host if websocket.client else "unknown"))
 
 
 async def _until_idle(chunks):
@@ -452,7 +473,9 @@ async def serve_visitor_websocket(
             if message.get("type") != "prompt":
                 continue
             prompt = str(message.get("prompt") or "").strip()
-            if active_task and not active_task.done():
+            if over_rate_limit(client_key(websocket)):
+                await websocket.send_json({"type": "error", "message": chat_text("slow_down", normalize_language(message.get("language")))})
+            elif active_task and not active_task.done():
                 await websocket.send_json({"type": "error", "message": "Wait for the current request to finish."})
             elif not prompt or len(prompt) > 4000:
                 await websocket.send_json({"type": "error", "message": "Enter a message between 1 and 4,000 characters."})
@@ -542,6 +565,9 @@ async def serve_chat_websocket(
                 continue
 
             prompt = str(message.get("prompt") or "").strip()
+            if over_rate_limit(f"user:{auth.user_id}"):
+                await websocket.send_json({"type": "error", "message": chat_text("slow_down", normalize_language(message.get("language")))})
+                continue
             if len(prompt) > 4000:
                 await websocket.send_json({"type": "error", "message": "Keep your message under 4,000 characters."})
                 continue
@@ -597,7 +623,7 @@ async def serve_chat_websocket(
             if intents and care.directive(intents, signed_in=True):
                 content.append(care.directive(intents, signed_in=True))
             workflow_id = message.get("workflow_id")
-            session.tool_context.update(workflow_id=None, document_ids=[])
+            session.tool_context.update(workflow_id=None, document_ids=[], tool_calls_this_turn=0)
             skill_info = None
             if workflow_id:
                 try:
