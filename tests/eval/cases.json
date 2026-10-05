@@ -2672,7 +2672,7 @@
     "Are you pre-approving me for a loan?"
    ],
    "any": [
-    "credit (assessment|check)|subject to|not (a )?pre-?approv|can'?t|cannot|eligib"
+    "credit (assessment|check)|subject to|not (a )?pre-?approv|(do not|don'?t|never) (provide|give|offer|promise) (any )?(pre-?approv|loan approv)|underwriting|can'?t|cannot|eligib"
    ],
    "none": [
     "you are pre-?approved"
