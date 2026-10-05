@@ -62,7 +62,21 @@ Each turn records its channel, language, outcome (answered, withheld, refused, f
 
 Customers can rate any reply 👍 or 👎. Negative ratings appear with the masked reply for review.
 
-## 5. Data protection (DPDP Act 2023)
+## 5. The banking harness
+
+Every agent, Mitra or an external one, reaches Kosh's banking capabilities through one harness:
+
+| Part | What it guarantees |
+|---|---|
+| Tool registry (`config/harness/tools.json`) | Every tool an agent may call, per channel, with what it does (read, write, money), its risk, who approves its effect (none, the customer in Kavach, an officer), the OAuth scope it needs and its typed, bounded arguments. Undeclared tools or arguments are refused, and a test fails if code and registry drift apart. |
+| Policy (`config/harness/policy.json`) | Sentinel's thresholds, risk weights, velocity and approval rules, challenge expiry and chat limits. Its version and a hash of the file are recorded on every decision, so an unreviewed edit is visible. |
+| MCP gateway (`/mcp`) | The single entry point for external agents: OAuth bearer tokens from Kosh's authorization server, bound to one customer, with the same registry, scopes, kill switch, rate limit and audit as Mitra. An agent can only propose money movement. |
+| Approvals inbox | Payments proposed by any agent wait on the customer's overview page and execute only after the customer's step-up approval of that exact transaction in Kavach. |
+| Core banking boundary (`core_banking.py`) | Money and card changes reach the system of record through one adapter, idempotent on Kosh's key. A reconciliation every 5 minutes settles payments left mid-post and reports any mismatch (CRITICAL audit event); officers can run it on demand. |
+| Repeat safety | A write tool called again with the same arguments in a session within 10 minutes returns its first result. |
+| Durable automation | Approved core-banking work is claimed atomically in the database and re-queued after a restart, so it runs exactly once. |
+
+## 6. Data protection (DPDP Act 2023)
 
 - **Retention:** chat transcripts and feedback are deleted after **90 days** (`CHAT_RETENTION_DAYS`); a daily job enforces this. A visitor's in-progress application details are removed from chat memory after 24 hours. The turn log (no text) is kept for 1 year.
 - **Masking at rest:** PAN, Aadhaar, card and mobile numbers are masked before a transcript and its tool traces are stored. The live conversation is not affected. A visitor's in-progress application is encrypted at rest.
@@ -70,11 +84,11 @@ Customers can rate any reply 👍 or 👎. Negative ratings appear with the mask
 - **Notice:** the chat box states that Mitra is an AI, that chats are kept for 90 days, and that customers must never share an OTP or PIN.
 - **Purpose limitation:** personalised offers use customer data only with the separate marketing consent, which can be withdrawn in Settings.
 
-## 6. Fairness
+## 7. Fairness
 
 Fairness groups in the evaluation set ask the same need with different names, genders, religions and regions. All members must receive the same Kosh products. A failure blocks release.
 
-## 7. Incidents
+## 8. Incidents
 
 An incident is a wrong or harmful reply reaching a customer (a mis-sold product, a leaked instruction, wrong fraud guidance), or a failure in a care flow. The process:
 1. Customer care logs it.
@@ -82,7 +96,7 @@ An incident is a wrong or harmful reply reaching a customer (a mis-sold product,
 3. Engineering adds the case to the evaluation set so it can't recur.
 4. Compliance records it for the quarterly review and, where required, for regulatory reporting.
 
-## 8. References
+## 9. References
 
 - RBI, *Framework for Responsible and Ethical Enablement of AI (FREE-AI)*, 2025.
 - RBI Integrated Ombudsman Scheme 2021.
