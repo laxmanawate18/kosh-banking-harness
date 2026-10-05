@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from backend import voice
+from backend.settings import PRODUCTION
 from backend.api_models import ApplicationStatusRequest, ProductApplyRequest, SpeakRequest
 from backend.applications import application_status, bind as bind_applications, submit_application
 from auth_service import AuthService
@@ -46,7 +47,7 @@ def make_public_router(db, auth_service: AuthService, limiter):
             "is_local": False,
         }
         # The Firebase console test number/code is a local-development convenience only.
-        production = os.getenv("ENVIRONMENT", "development").lower() in {"production", "prod"}
+        production = PRODUCTION
         if not production and request.url.hostname in {"127.0.0.1", "localhost", "::1"}:
             config.update(is_local=True,
                           firebase_test_phone=os.getenv("AUTH_FIREBASE_TEST_PHONE", "+919876543210"),

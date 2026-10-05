@@ -6,12 +6,12 @@ import base64
 import hashlib
 import hmac
 import json
-import os
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
+from backend.settings import required_secret
 from banking_db import BankingDatabase, db, new_id, utc_now
 
 
@@ -175,7 +175,7 @@ class SentinelService:
 
     def __init__(self, repository: BankingDatabase = db, secret: Optional[str] = None) -> None:
         self.db = repository
-        self.secret = (secret or os.getenv("SENTINEL_DEMO_SECRET") or "sentinel-local-demo-only").encode("utf-8")
+        self.secret = (secret or required_secret("SENTINEL_DEMO_SECRET", "sentinel-local-demo-only")).encode("utf-8")
 
     def request_digest(self, context: Dict[str, Any]) -> str:
         """Return the transaction binding used by decisions and idempotency records."""

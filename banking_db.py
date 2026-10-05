@@ -6,7 +6,6 @@ import copy
 import hashlib
 import hmac
 import json
-import os
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -16,6 +15,7 @@ from typing import Any, Callable, Dict, List, Optional, TypeVar
 from sqlalchemy import delete, select
 
 import banking_store
+from backend.settings import required_secret
 from banking_store import TYPED_MARKER
 from persistence import (
     ApprovalActionRecord,
@@ -139,7 +139,7 @@ class BankingDatabase:
     def _audit_hmac(previous_hash: str, fields: Dict[str, Any]) -> str:
         canonical = json.dumps({"previous_hash": previous_hash, "record": fields}, sort_keys=True,
                                separators=(",", ":"), ensure_ascii=False, default=str).encode("utf-8")
-        return hmac.new(os.getenv("SENTINEL_AUDIT_HMAC_KEY", "sentinel-demo-audit-key").encode("utf-8"),
+        return hmac.new(required_secret("SENTINEL_AUDIT_HMAC_KEY", "sentinel-demo-audit-key").encode("utf-8"),
                         canonical, hashlib.sha256).hexdigest()
 
     def _persist_audit(self, session: Any, event: Dict[str, Any]) -> None:

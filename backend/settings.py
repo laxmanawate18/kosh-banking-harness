@@ -27,3 +27,16 @@ ALLOWED_ORIGINS = [
     ).split(",")
     if item.strip()
 ]
+
+# Cloud Run sets K_SERVICE; a deployed service is production even if ENVIRONMENT was never set.
+PRODUCTION = os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"} or bool(os.getenv("K_SERVICE"))
+
+
+def required_secret(name: str, development_default: str) -> str:
+    """A signing key from the environment. In production a missing key stops startup instead of using a known default."""
+    value = os.getenv(name)
+    if value:
+        return value
+    if PRODUCTION:
+        raise RuntimeError(f"{name} must be set in production")
+    return development_default

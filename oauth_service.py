@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import jwt
+from backend.settings import PRODUCTION
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy import select
 
@@ -74,7 +75,7 @@ class OAuthService:
         self.token_endpoint = os.getenv("OAUTH_TOKEN_ENDPOINT", f"{self.issuer}/oauth2/token")
         self.revocation_endpoint = os.getenv("OAUTH_REVOCATION_ENDPOINT", f"{self.issuer}/oauth2/revoke")
         self.jwks_uri = os.getenv("OAUTH_JWKS_URI", f"{self.issuer}/jwks")
-        production = os.getenv("ENVIRONMENT", "development").lower() in {"production", "prod"}
+        production = PRODUCTION
         if production and (not os.getenv("OAUTH_WEB_CLIENT_SECRET") or not os.getenv("OAUTH_CHAT_CLIENT_SECRET")):
             raise RuntimeError("OAuth client secrets are required in production")
         encryption_secret = os.getenv("OAUTH_TOKEN_ENCRYPTION_KEY") or os.getenv("SENTINEL_AUDIT_HMAC_KEY")
