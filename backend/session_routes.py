@@ -321,8 +321,14 @@ def make_session_router(
         require_officer(context)
         from backend import mitra_ops
         note = str(req.get("note", "")).strip()[:500]
-        if not mitra_ops.update_registry(db, record_id, approval={"by": context.user_id, "at": utc_now_iso(), "note": note}):
+        version = next((v for v in mitra_ops.registry(db) if v["id"] == record_id), None)
+        if not version:
             raise HTTPException(status_code=404, detail="Version not found")
+        latest = (version.get("evaluations") or [None])[-1]
+        if not latest or mitra_ops.release_gate(latest):
+            raise HTTPException(status_code=400, detail="This version cannot be approved: its latest evaluation run is missing or "
+                                f"fails the release gate ({'; '.join(mitra_ops.release_gate(latest)) if latest else 'no run recorded'}).")
+        mitra_ops.update_registry(db, record_id, approval={"by": context.user_id, "at": utc_now_iso(), "note": note})
         return {"approved": record_id}
 
     @router.get("/api/officer/care-cases")

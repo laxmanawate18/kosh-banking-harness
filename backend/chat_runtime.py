@@ -339,7 +339,7 @@ async def serve_visitor_websocket(
             elif guarded:
                 combined_reply = guarded
                 await websocket.send_json({"type": "text_delta", "text": guarded, "turn_id": turn_id})
-            elif paused := "VISITOR" in db.get_controls().get("disabled_channels", []):
+            elif paused := mitra_ops.mitra_paused(db, "VISITOR"):
                 combined_reply = (care.text("self_harm", language) + "\n\n" if "SELF_HARM" in intents else "") + chat_text("mitra_paused", language)
                 await websocket.send_json({"type": "text_delta", "text": combined_reply, "turn_id": turn_id})
             elif auth_challenge_triggered:
@@ -611,7 +611,7 @@ async def serve_chat_websocket(
                 mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome="CARE_FRAUD",
                                       intents=intents, model=DEFAULT_MODEL)
                 continue
-            if "CUSTOMER" in db.get_controls().get("disabled_channels", []):  # the fixed fraud script above still runs
+            if mitra_ops.mitra_paused(db, "CUSTOMER"):  # the fixed fraud script above still runs
                 paused_turn = str(uuid.uuid4())
                 await websocket.send_json({"type": "turn_start", "turn_id": paused_turn, "model": DEFAULT_MODEL, "timestamp": time.time()})
                 await websocket.send_json({"type": "text_delta", "text": (care.text("self_harm", language) + "\n\n" if "SELF_HARM" in intents else "")

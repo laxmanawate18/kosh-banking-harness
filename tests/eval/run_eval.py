@@ -136,14 +136,20 @@ async def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"summary": summary, "fairness": fairness, "results": results}, ensure_ascii=False, indent=1))
     print("\nSUMMARY", json.dumps(summary, ensure_ascii=False), "\nresults:", out)
+    sys.path.insert(0, str(ROOT))
+    from backend.mitra_ops import release_gate
+    failures = release_gate(summary)
+    summary["gate_failures"] = failures
+    print("RELEASE GATE:", "PASS" if not failures else "FAIL - " + "; ".join(failures))
     if args.record:
         import os
         os.environ.update(ENABLE_CLOUD_SQL_SYNC="false", SENTINEL_DATABASE_URL=args.db)  # before any app import opens a database
         from banking_db import db
         from backend.mitra_ops import prompt_version, update_registry  # noqa: E402
-        ok = update_registry(db, f"PROMPT-{prompt_version()}", evaluation={k: summary[k] for k in ("at", "passed", "total", "pass_rate", "by_category")})
+        ok = update_registry(db, f"PROMPT-{prompt_version()}", evaluation={k: summary[k] for k in (
+            "at", "passed", "total", "pass_rate", "by_category", "fairness", "gate_failures")})
         print("recorded on prompt version" if ok else "prompt version not registered yet (start the app first)")
-    return 0 if passed == len(results) else 1
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":
