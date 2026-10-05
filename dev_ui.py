@@ -51,7 +51,14 @@ async def lifespan(application: FastAPI):
         print(f"Bank knowledge ingestion warning: {exc}")
     port = int(os.getenv("PORT", "8000"))
     cbs_base_url = os.getenv("CBS_BASE_URL", f"http://127.0.0.1:{port}")
-    get_job_queue().start_worker(cbs_base_url=cbs_base_url, result_handler=request_service.apply_rpa_result)
+    get_job_queue().start_worker(cbs_base_url=cbs_base_url, result_handler=request_service.apply_rpa_result,
+                                 claim_handler=request_service.claim_for_rpa)
+    try:
+        requeued = request_service.requeue_rpa()
+        if requeued:
+            print(f"RPA: re-queued {len(requeued)} approved request(s) after restart")
+    except Exception as exc:
+        print(f"RPA requeue notice: {exc}")
     from backend import mitra_ops
     try:
         mitra_ops.set_current_version(mitra_ops.register_prompt_version(db, DEFAULT_MODEL)["version"])

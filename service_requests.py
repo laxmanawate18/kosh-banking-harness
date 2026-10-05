@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import uuid
 import copy
+from datetime import timedelta, timezone
 from typing import Any
 
 from sqlalchemy import select
 
 from banking_db import BankingDatabase
 from persistence import ApprovalActionRecord, BankingWorkflowRecord, ServiceRequestRecord, UserRecord, utc_dt
+
+
+def _aware(value):
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)  # SQLite returns naive datetimes
 
 
 def _service(service_id: str, name: str, level: str, mode: str, phase: str = "P1") -> dict[str, str]:
@@ -190,6 +195,33 @@ class ServiceRequestService:
         elif request.get("status") in self._STATUS_WORDS:
             notify(self.db, "service_request_update", phone, customer_id=request.get("customer_id"), reference=request["id"],
                    service=request.get("service_name") or request.get("service_id"), status=self._STATUS_WORDS[request["status"]])
+
+    def claim_for_rpa(self, request_id: str) -> bool:
+        """Atomically take an approved request for core-banking automation, so only one instance ever runs it."""
+        with self.db._lock, self.runtime.sessions.begin() as session:
+            row = session.execute(select(ServiceRequestRecord).where(
+                ServiceRequestRecord.id == request_id).with_for_update()).scalar_one_or_none()
+            if not row or row.status != "QUEUED_FOR_CBS":
+                return False
+            row.status, row.updated_at = "RPA_EXECUTING", utc_dt()
+            return True
+
+    def requeue_rpa(self, stale_after: timedelta = timedelta(minutes=15)) -> list[str]:
+        """After a restart or redeploy: queue again every approved request whose automation never ran, or whose
+        instance stopped mid-run. The database, not process memory, is the record of what still has to reach the core."""
+        stale_before = utc_dt() - stale_after
+        pending = []
+        with self.db._lock, self.runtime.sessions.begin() as session:
+            for row in session.scalars(select(ServiceRequestRecord).where(
+                    ServiceRequestRecord.status.in_(["QUEUED_FOR_CBS", "RPA_EXECUTING"])).with_for_update()):
+                if row.status == "RPA_EXECUTING" and _aware(row.updated_at) > stale_before:
+                    continue  # another instance is running it now
+                row.status = "QUEUED_FOR_CBS"
+                pending.append((row.id, copy.deepcopy(row.collected_data)))
+        from rpa.job_dispatcher import get_job_queue
+        for request_id, payload in pending:
+            get_job_queue().enqueue(request_id, payload)
+        return [request_id for request_id, _ in pending]
 
     def apply_rpa_result(self, request_id: str, result: dict[str, Any]) -> None:
         """Persist the result returned by CBS automation and create the linked account once."""

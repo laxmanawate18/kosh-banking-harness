@@ -26,6 +26,7 @@ class RPAJobQueue:
         self._stop = threading.Event()
         self._cbs_base_url = "http://127.0.0.1:8995"
         self._result_handler: Callable[[str, Dict[str, Any]], None] | None = None
+        self._claim_handler: Callable[[str], bool] | None = None
 
     def enqueue(self, request_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         with self._jobs_lock:
@@ -89,10 +90,12 @@ class RPAJobQueue:
         self._jobs[request_id]["events"].append({**event, "timestamp": _now()})
 
     def start_worker(self, *, cbs_base_url: str,
-                     result_handler: Callable[[str, Dict[str, Any]], None]) -> None:
+                     result_handler: Callable[[str, Dict[str, Any]], None],
+                     claim_handler: Callable[[str], bool] | None = None) -> None:
         with self._jobs_lock:
             self._cbs_base_url = cbs_base_url.rstrip("/")
             self._result_handler = result_handler
+            self._claim_handler = claim_handler
             if self._worker and self._worker.is_alive():
                 return
             self._stop.clear()
@@ -126,6 +129,9 @@ class RPAJobQueue:
 
         job = self.get_job(request_id)
         if not job:
+            return
+        if self._claim_handler and not self._claim_handler(request_id):
+            self.add_event(request_id, {"phase": "SKIPPED", "label": "Already taken by another instance or no longer approved"})
             return
         payload = job["payload"]
         self.update_job(request_id, status=JobStatus.EXECUTING.value,
