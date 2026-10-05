@@ -5,6 +5,10 @@ import csv
 import hashlib
 import io
 import json
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
 import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Literal
@@ -66,6 +70,22 @@ class OfferActionBody(StrictBody):
 class ServiceBody(StrictBody):
     service_id: str
     data: dict[str, str | int] = Field(default_factory=dict)
+
+
+def _auth_internal(method: str, path: str, payload: dict | None = None) -> dict:
+    """Kosh's authorization server, internal API (shared service token; never reachable from browsers)."""
+    base = os.environ.get("BETTER_AUTH_URL", "http://127.0.0.1:8020").rstrip("/")
+    request = urllib.request.Request(f"{base}/api/internal/{path}", method=method,
+                                     data=json.dumps(payload).encode() if payload is not None else None,
+                                     headers={"Content-Type": "application/json",
+                                              "X-Kosh-Internal-Token": os.getenv("AUTH_INTERNAL_TOKEN", "kosh-internal-development-token")})
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return json.loads(response.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        raise HTTPException(exc.code if exc.code < 500 else 502, "The sign-in service refused the request") from exc
+    except OSError as exc:
+        raise HTTPException(503, "The sign-in service is unavailable; try again shortly") from exc
 
 
 def make_portal_router(db, banking, auth, requests, customer, customer_csrf, officer, consent, limiter):
@@ -365,6 +385,18 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
             row.revoked_at = utc_dt()
         db.append_audit("SESSION_REVOKED", actor=context.user_id, summary="Customer revoked a banking session")
         return {"revoked": True, "current": session_id == context.session_id}
+
+    @router.get("/security/apps")
+    def connected_apps(context=Depends(customer)):
+        """Assistant apps (outside agents) this customer has allowed to use Kosh through the agent gateway."""
+        return _auth_internal("GET", f"agent-access?{urllib.parse.urlencode({'sentinelUserId': context.user_id})}")
+
+    @router.delete("/security/apps/{client_id}")
+    def revoke_app(client_id: str, context=Depends(customer_csrf)):
+        result = _auth_internal("POST", "agent-access/revoke", {"sentinelUserId": context.user_id, "clientId": client_id})
+        db.append_audit("AGENT_ACCESS_REVOKED", actor="customer", customer_id=context.customer_id,
+                        summary="Customer withdrew an assistant app's access", details={"client_id": client_id, **result})
+        return result
 
     @router.post("/requests/{request_id}/reply")
     def reply(request_id: str, body: ReplyBody, context=Depends(customer_csrf)):

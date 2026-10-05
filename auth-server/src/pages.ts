@@ -12,6 +12,10 @@ const brand = () => `<div class="brand" aria-label="Kosh — Bharosa, har kadam"
 </div>
 <p class="demo-notice">Demo bank — not a real financial institution. Never enter real OTPs, PINs, passwords or card details here.</p>`;
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
+}
+
 function shell(title: string, body: string, script = ""): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -108,10 +112,12 @@ export function consentPage(url: URL): string {
   const scopes = (url.searchParams.get("scope") ?? "banking.read banking.propose")
     .split(" ")
     .filter((scope) => scope.startsWith("banking."));
+  const agent = config.agentClients.find((client) => client.id === url.searchParams.get("client_id"));
+  const who = agent ? escapeHtml(agent.name) : "Mitra";
   return shell(
     "Authorize | Kosh (Demo)",
-    `${brand()}<h1>Allow Mitra access?</h1>
-<p>The banking assistant is requesting delegated access. It cannot execute payments.</p>
+    `${brand()}<h1>Allow ${who} access?</h1>
+<p>${agent ? "An assistant app outside Kosh" : "The banking assistant"} is asking to act for you. It cannot move money on its own: every payment it proposes waits for your approval in Kavach on the Kosh app, and it never sees your OTP, PIN or password.</p>
 ${scopes.map((scope) => `<div class="scope">${scope === "banking.read" ? "View balances, accounts and transactions" : "Prepare banking and service requests"}</div>`).join("")}
 <div class="row"><button id="deny" class="danger">Deny</button><button id="allow" class="primary">Allow access</button></div><div id="error" class="error hidden"></div>`,
     `<script>const oauthQuery=${JSON.stringify(query)};const finish=async(accept)=>{try{const response=await fetch('/api/auth/oauth2/consent',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({accept,oauth_query:oauthQuery})});const data=await response.json();if(!response.ok)throw new Error(data?.message||data?.error_description||'Consent failed');const destination=data?.redirect_uri||data?.url;if(!destination)throw new Error('The authorization server did not return a continuation URL');location.assign(destination)}catch(error){const box=document.querySelector('#error');box.textContent=error.message;box.classList.remove('hidden')}};document.querySelector('#allow').onclick=()=>finish(true);document.querySelector('#deny').onclick=()=>finish(false);</script>`,

@@ -71,10 +71,17 @@ Every agent, Mitra or an external one, reaches Kosh's banking capabilities throu
 | Tool registry (`config/harness/tools.json`) | Every tool an agent may call, per channel, with what it does (read, write, money), its risk, who approves its effect (none, the customer in Kavach, an officer), the OAuth scope it needs and its typed, bounded arguments. Undeclared tools or arguments are refused, and a test fails if code and registry drift apart. |
 | Policy (`config/harness/policy.json`) | Sentinel's thresholds, risk weights, velocity and approval rules, challenge expiry and chat limits. Its version and a hash of the file are recorded on every decision, so an unreviewed edit is visible. |
 | MCP gateway (`/mcp`) | The single entry point for external agents: OAuth bearer tokens from Kosh's authorization server, bound to one customer, with the same registry, scopes, kill switch, rate limit and audit as Mitra. An agent can only propose money movement. |
+| Outside-agent login | The bank registers each assistant app it allows as its own OAuth client; there is no open self-registration. The customer sees the app's name and what it can do on the consent page, and can withdraw its access at any time under Security → Connected assistant apps. Agent tokens are issued for the gateway (`/mcp`) only and are refused by Kosh's own API and chat; Kosh's own tokens are refused by the gateway. |
 | Approvals inbox | Payments proposed by any agent wait on the customer's overview page and execute only after the customer's step-up approval of that exact transaction in Kavach. |
 | Core banking boundary (`core_banking.py`) | Money and card changes reach the system of record through one adapter, idempotent on Kosh's key. A reconciliation every 5 minutes settles payments left mid-post and reports any mismatch (CRITICAL audit event); officers can run it on demand. |
 | Repeat safety | A write tool called again with the same arguments in a session within 10 minutes returns its first result. |
 | Durable automation | Approved core-banking work is claimed atomically in the database and re-queued after a restart, so it runs exactly once. |
+
+**Registering an assistant app.** On the authorization server set `AUTH_AGENT_CLIENTS`, a JSON list such as
+`[{"id": "kosh-agent-claude", "name": "Claude", "redirects": ["https://claude.ai/api/mcp/auth_callback"], "scopes": ["banking.read", "banking.propose"]}]`
+(add `"secret"` for a confidential client; without one the client is public and must use PKCE), and on Kosh set
+`OAUTH_AGENT_CLIENT_IDS=kosh-agent-claude`. Restart both; the client is created at start-up. The app connects to
+`https://<kosh host>/mcp` and finds the authorization server through `/.well-known/oauth-protected-resource/mcp`.
 
 ## 6. Data protection (DPDP Act 2023)
 

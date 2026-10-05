@@ -4,10 +4,11 @@ import { auth, authPool } from "./auth.js";
 
 type ClientSeed = {
   id: string;
-  secret: string;
+  secret?: string;
   name: string;
   redirects: string[];
   skipConsent: boolean;
+  scopes?: string[];
 };
 
 const seeds: ClientSeed[] = [
@@ -25,6 +26,8 @@ const seeds: ClientSeed[] = [
     redirects: [`${config.sentinelWebURL}/api/chat/oauth/callback`],
     skipConsent: false,
   },
+  // Outside agents always see the consent page: the customer decides what each assistant app may do.
+  ...config.agentClients.map((client) => ({ ...client, skipConsent: false })),
 ];
 
 export async function bootstrap() {
@@ -93,21 +96,22 @@ export async function bootstrap() {
     );
     if (existing.rowCount) continue;
     process.env.AUTH_BOOTSTRAP_CLIENT_ID = seed.id;
-    process.env.AUTH_BOOTSTRAP_CLIENT_SECRET = seed.secret;
+    if (seed.secret) process.env.AUTH_BOOTSTRAP_CLIENT_SECRET = seed.secret;
+    else delete process.env.AUTH_BOOTSTRAP_CLIENT_SECRET;
     await auth.api.adminCreateOAuthClient({
       headers: adminHeaders,
       body: {
         client_name: seed.name,
         redirect_uris: seed.redirects,
         post_logout_redirect_uris: [config.sentinelWebURL],
-        token_endpoint_auth_method: "client_secret_basic",
+        token_endpoint_auth_method: seed.secret ? "client_secret_basic" : "none",
         grant_types: ["authorization_code", "refresh_token"],
         response_types: ["code"],
         // Better Auth 1.7 requires HTTPS for `web` clients. The loopback-only
         // development registration remains confidential but uses the native
         // redirect profile; deployed HTTPS clients are registered as `web`.
-        application_type: new URL(config.sentinelWebURL).protocol === "https:" ? "web" : "native",
-        scope: "openid profile offline_access banking.read banking.propose",
+        application_type: new URL(seed.redirects[0] ?? config.sentinelWebURL).protocol === "https:" ? "web" : "native",
+        scope: `openid profile offline_access ${(seed.scopes ?? ["banking.read", "banking.propose"]).join(" ")}`,
         require_pkce: true,
         skip_consent: seed.skipConsent,
         enable_end_session: true,

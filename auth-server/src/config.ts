@@ -21,6 +21,24 @@ function parseIdentityMap(value: string | undefined): Record<string, FirebaseIde
   return parsed as Record<string, FirebaseIdentity>;
 }
 
+// Outside agents the bank has approved (AUTH_AGENT_CLIENTS, a JSON list). Each gets its own OAuth client; there is no
+// open self-registration. A client with no secret is public and must use PKCE (most MCP clients).
+export type AgentClient = { id: string; name: string; redirects: string[]; secret?: string; scopes?: string[] };
+
+export function parseAgentClients(value: string | undefined): AgentClient[] {
+  if (!value) return [];
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed)) throw new Error("AUTH_AGENT_CLIENTS must be a JSON list");
+  for (const client of parsed as AgentClient[]) {
+    if (!client.id || !client.name || !Array.isArray(client.redirects) || !client.redirects.length) {
+      throw new Error("Each agent client needs id, name and redirects");
+    }
+    const unknown = (client.scopes ?? []).filter((scope) => !["banking.read", "banking.propose"].includes(scope));
+    if (unknown.length) throw new Error(`Agent client ${client.id} asks for unknown scopes ${unknown.join(", ")}`);
+  }
+  return parsed as AgentClient[];
+}
+
 const production = process.env.NODE_ENV === "production";
 const authSecret = process.env.BETTER_AUTH_SECRET ?? "sentinel-auth-development-secret-change-me";
 if (production && !process.env.BETTER_AUTH_SECRET) {
@@ -45,6 +63,9 @@ export const config = {
     "postgresql://sentinel_auth:sentinel_auth_dev@127.0.0.1:5434/sentinel_auth",
   sentinelWebURL: process.env.SENTINEL_WEB_URL ?? "http://127.0.0.1:8017",
   audience: process.env.SENTINEL_API_AUDIENCE ?? "http://127.0.0.1:8017/api",
+  // Agent tokens are issued for the MCP gateway only, so they cannot be replayed against Kosh's own API.
+  mcpAudience: process.env.SENTINEL_MCP_AUDIENCE ?? `${process.env.SENTINEL_WEB_URL ?? "http://127.0.0.1:8017"}/mcp`,
+  agentClients: parseAgentClients(process.env.AUTH_AGENT_CLIENTS),
   trustedOrigins: Array.from(
     new Set([
       process.env.SENTINEL_WEB_URL ?? "http://127.0.0.1:8017",

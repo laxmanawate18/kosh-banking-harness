@@ -252,8 +252,48 @@ export const SecurityPage: React.FC<SecurityPageProps> = ({
               )}
             </div>
           </section>
+
+          <ConnectedApps />
         </div>
       </div>
     </>
+  );
+};
+
+type ConnectedApp = { client_id: string; name: string; scopes: string[]; connected_at: string };
+
+/** Outside assistant apps this customer allowed through Kosh's agent gateway; withdrawing access takes effect within 5 minutes. */
+const ConnectedApps: React.FC = () => {
+  const { t } = useI18n();
+  const [apps, setApps] = useState<ConnectedApp[] | null>(null);
+  const [error, setError] = useState('');
+  const load = () => apiGet<{ apps: ConnectedApp[] }>('/api/portal/security/apps')
+    .then((res) => setApps(res.apps)).catch(() => setError(t('Connected apps could not be loaded right now.')));
+  useEffect(() => { load(); }, []);
+  const revoke = async (clientId: string) => {
+    setError('');
+    try {
+      await apiDelete(`/api/portal/security/apps/${encodeURIComponent(clientId)}`);
+      load();
+    } catch {
+      setError(t('Access could not be withdrawn. Please try again.'));
+    }
+  };
+  return (
+    <section className="panel panel-pad">
+      <h2>{t('Connected assistant apps')}</h2>
+      <p className="form-hint">{t('Apps you allowed to use your account. They can only propose payments; you approve each one in Kavach.')}</p>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {apps === null && !error ? <p className="form-hint">{t('Loading…')}</p> : apps?.length ? apps.map((app) => (
+        <div key={app.client_id} className="info-row">
+          <span>
+            <strong>{app.name}</strong>
+            <br />
+            <small>{app.scopes.includes('banking.propose') ? t('Can view and propose') : t('Can view only')} · {t('Connected {date}', { date: formatDate(app.connected_at) })}</small>
+          </span>
+          <button type="button" className="button" onClick={() => revoke(app.client_id)}>{t('Withdraw access')}</button>
+        </div>
+      )) : apps && <p className="form-hint">{t('No assistant apps are connected.')}</p>}
+    </section>
   );
 };

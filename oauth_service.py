@@ -70,6 +70,9 @@ class OAuthService:
         self.chat_client_id = os.getenv("OAUTH_CHAT_CLIENT_ID", "sentinel-chat")
         self.chat_client_secret = os.getenv("OAUTH_CHAT_CLIENT_SECRET", "sentinel-chat-development-secret")
         self.allowed_clients = {self.web_client_id, self.chat_client_id}
+        # Outside agents the bank has registered (OAUTH_AGENT_CLIENT_IDS). Their tokens are accepted only by the MCP gateway.
+        self.mcp_audience = os.getenv("OAUTH_MCP_AUDIENCE", f"{self.sentinel_url}/mcp")
+        self.agent_clients = {item.strip() for item in os.getenv("OAUTH_AGENT_CLIENT_IDS", "").split(",") if item.strip()}
         self._secrets = {self.web_client_id: self.web_client_secret, self.chat_client_id: self.chat_client_secret}
         self.authorization_endpoint = os.getenv("OAUTH_AUTHORIZATION_ENDPOINT", f"{self.issuer}/oauth2/authorize")
         self.token_endpoint = os.getenv("OAUTH_TOKEN_ENDPOINT", f"{self.issuer}/oauth2/token")
@@ -242,11 +245,13 @@ class OAuthService:
             return "L2"
         return "L3" if expiry > utc_dt() else "L2"
 
-    def context_from_access_token(self, token: str, required_scopes: tuple[str, ...] = ()) -> AuthContext:
-        claims = self.decode_token(token, audience=self.audience)
+    def context_from_access_token(self, token: str, required_scopes: tuple[str, ...] = (), *, agent: bool = False) -> AuthContext:
+        """agent=False: Kosh's own web and chat clients (REST and chat). agent=True: registered outside agents (MCP only)."""
+        # Agent tokens are issued for the MCP gateway's own audience, so they are useless against Kosh's API, and vice versa.
+        claims = self.decode_token(token, audience=self.mcp_audience if agent else self.audience)
         client_id = str(claims.get("client_id") or claims.get("azp") or "")
-        if client_id not in self.allowed_clients:
-            raise PermissionError("OAuth client is not authorized for Kosh")
+        if client_id not in (self.agent_clients if agent else self.allowed_clients):
+            raise PermissionError("OAuth client is not authorized for this Kosh interface")
         scopes = self.scopes_from_claims(claims)
         if not set(required_scopes).issubset(scopes):
             raise PermissionError("OAuth token is missing a required scope")

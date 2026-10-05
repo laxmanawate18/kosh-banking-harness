@@ -16,7 +16,9 @@ TOKENS = {
 }
 
 
-def _context(token, required_scopes=()):
+def _context(token, required_scopes=(), *, agent=False):
+    if not agent:
+        raise PermissionError("only the MCP gateway accepts agent tokens")
     if token not in TOKENS:
         raise PermissionError("OAuth token validation failed")
     customer_id, scopes = TOKENS[token]

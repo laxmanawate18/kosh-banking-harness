@@ -50,13 +50,13 @@ class KoshTokenVerifier:
 
     async def verify_token(self, token: str) -> AccessToken | None:
         try:
-            context = await asyncio.to_thread(self.oauth.context_from_access_token, token)
+            context = await asyncio.to_thread(self.oauth.context_from_access_token, token, agent=True)
         except PermissionError:
             return None
         if not context or not context.customer_id:
             return None
         return AccessToken(token=token, client_id=context.client_id or "unknown", scopes=list(context.scopes),
-                           subject=context.user_id, resource=self.oauth.audience,
+                           subject=context.user_id, resource=self.oauth.mcp_audience,
                            claims={"customer_id": context.customer_id, "assurance_level": context.assurance_level})
 
 
@@ -107,13 +107,13 @@ def _expose(server: MCPServer, name: str, fn: Callable[..., Any], spec: Dict[str
         readOnlyHint=spec["effect"] == "read", destructiveHint=spec["effect"] == "money", openWorldHint=False))
 
 
-def build_gateway(oauth_service, *, public_url: str) -> MCPServer:
+def build_gateway(oauth_service) -> MCPServer:
     server = MCPServer(
         name="kosh-banking",
         instructions="Kosh banking tools for one signed-in customer. Money can only be proposed; the customer approves "
                      "every payment in Kavach on the Kosh app. Never ask the customer for an OTP, PIN or password.",
         token_verifier=KoshTokenVerifier(oauth_service),
-        auth=AuthSettings(issuer_url=oauth_service.issuer, resource_server_url=f"{public_url.rstrip('/')}/mcp",
+        auth=AuthSettings(issuer_url=oauth_service.issuer, resource_server_url=oauth_service.mcp_audience,
                           required_scopes=["banking.read"], validate_token_resource=False),  # the verifier checks the Kosh API audience
     )
     functions = {t.__name__: t for t in build_public_sales_tools(lambda: SalesSessionContext())}
@@ -127,7 +127,7 @@ def mount(app, oauth_service, *, public_url: str) -> MCPServer:
     """Serve the gateway at /mcp on the main app (stateless, so any instance can answer). Run `session_manager` in the lifespan."""
     from urllib.parse import urlparse
     from mcp.server.transport_security import TransportSecuritySettings
-    server = build_gateway(oauth_service, public_url=public_url)
+    server = build_gateway(oauth_service)
     public = urlparse(public_url)
     hosts = [public.netloc, "127.0.0.1:*", "localhost:*", "testserver"]  # DNS-rebinding protection: Kosh's own hosts only
     gateway = server.streamable_http_app(streamable_http_path="/mcp", stateless_http=True, transport_security=TransportSecuritySettings(

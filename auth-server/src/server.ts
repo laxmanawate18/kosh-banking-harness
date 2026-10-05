@@ -13,6 +13,17 @@ function internalCaller(request: import("node:http").IncomingMessage): boolean {
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
+function sendJSON(response: import("node:http").ServerResponse, status: number, body: unknown) {
+  response.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
+  response.end(JSON.stringify(body));
+}
+
+async function readJSON(request: import("node:http").IncomingMessage): Promise<Record<string, any>> {
+  let body = "";
+  for await (const chunk of request) body += chunk;
+  return JSON.parse(body || "{}");
+}
+
 function sendHTML(response: import("node:http").ServerResponse, html: string) {
   response.writeHead(200, {
     "content-type": "text/html; charset=utf-8",
@@ -49,6 +60,36 @@ const server = createServer(async (request, response) => {
   if (url.pathname === "/healthz") {
     response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
     response.end(JSON.stringify({ status: "ok", issuer: `${config.baseURL}/api/auth` }));
+    return;
+  }
+  // Connected assistant apps for one customer (called by Kosh with the internal token, never by browsers).
+  if (url.pathname === "/api/internal/agent-access" && request.method === "GET") {
+    const agents = new Map(config.agentClients.map((client) => [client.id, client.name]));
+    const rows = await authPool.query(
+      'SELECT c."clientId", c."scopes", c."createdAt" FROM "oauthConsent" c JOIN "user" u ON u."id" = c."userId" '
+        + 'WHERE u."sentinelUserId" = $1 AND c."clientId" = ANY($2::text[]) ORDER BY c."createdAt" DESC',
+      [url.searchParams.get("sentinelUserId") ?? "", [...agents.keys()]],
+    );
+    sendJSON(response, 200, { apps: rows.rows.map((row) => ({
+      client_id: row.clientId, name: agents.get(row.clientId), scopes: row.scopes, connected_at: row.createdAt,
+    })) });
+    return;
+  }
+  if (url.pathname === "/api/internal/agent-access/revoke" && request.method === "POST") {
+    const { sentinelUserId, clientId } = await readJSON(request);
+    if (!config.agentClients.some((client) => client.id === clientId)) {
+      sendJSON(response, 400, { error: "Not a registered assistant app" });
+      return;
+    }
+    // Consent removed and refresh tokens revoked; issued access tokens expire within 5 minutes.
+    const user = await authPool.query('SELECT "id" FROM "user" WHERE "sentinelUserId" = $1 LIMIT 1', [sentinelUserId ?? ""]);
+    const userId = user.rows[0]?.id ?? "";
+    const consent = await authPool.query('DELETE FROM "oauthConsent" WHERE "userId" = $1 AND "clientId" = $2', [userId, clientId]);
+    await authPool.query(
+      'UPDATE "oauthRefreshToken" SET "revoked" = NOW() WHERE "userId" = $1 AND "clientId" = $2 AND "revoked" IS NULL',
+      [userId, clientId],
+    );
+    sendJSON(response, 200, { revoked: (consent.rowCount ?? 0) > 0 });
     return;
   }
   if (url.pathname === "/api/internal/provision-user" && request.method === "POST") {

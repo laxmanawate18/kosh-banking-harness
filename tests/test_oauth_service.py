@@ -139,3 +139,17 @@ def test_bff_grant_is_bound_to_provider_session(oauth, monkeypatch):
         assert grant is not None
         assert grant.provider_session_id == "provider-session-1"
         assert oauth.cipher.decrypt(grant.encrypted_refresh_token) == "refresh-token"
+
+
+def test_agent_tokens_only_work_at_the_agent_gateway(oauth, monkeypatch):
+    with oauth.runtime.sessions.begin() as session:
+        session.get(UserRecord, "USR-CUSTOMER-001").auth_subject = "subject-1"
+    monkeypatch.setattr(oauth, "agent_clients", {"kosh-agent-claude"})
+    claims = {"sub": "subject-1", "aud": oauth.audience, "scope": "openid banking.read", "https://sentinel/auth/assurance": "L2"}
+    monkeypatch.setattr(oauth, "decode_token", lambda *_a, **_k: {**claims, "client_id": "kosh-agent-claude"})
+    assert oauth.context_from_access_token("signed", agent=True).client_id == "kosh-agent-claude"
+    with pytest.raises(PermissionError):
+        oauth.context_from_access_token("signed")  # not on Kosh's own REST or chat
+    monkeypatch.setattr(oauth, "decode_token", lambda *_a, **_k: {**claims, "client_id": oauth.chat_client_id})
+    with pytest.raises(PermissionError):
+        oauth.context_from_access_token("signed", agent=True)  # Kosh's own clients are not agents

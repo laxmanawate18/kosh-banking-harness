@@ -78,6 +78,13 @@ export const auth = betterAuth({
           refreshTokenTtl: 30 * 24 * 60 * 60,
           allowedScopes: ["openid", "profile", "banking.read", "banking.propose"],
         },
+        {
+          identifier: config.mcpAudience,
+          name: "Kosh agent gateway (MCP)",
+          accessTokenTtl: 300,
+          refreshTokenTtl: 7 * 24 * 60 * 60,
+          allowedScopes: ["openid", "profile", "banking.read", "banking.propose"],
+        },
       ],
       resourceSeedMode: "merge",
       enforcePerClientResources: false,
