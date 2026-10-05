@@ -28,7 +28,7 @@ from product_service import (
     safe_grounded_fallback,
     validate_sales_response,
 )
-from sentinel import CUSTOMER_ID, KNOWN_DEVICE_ID
+from sentinel import KNOWN_DEVICE_ID
 from workflow_catalogue import workflow_contract, skill_instructions
 
 
@@ -221,7 +221,7 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
     """Restrict agents to the registered banking and sales tool contract with auth gating."""
 
     def __init__(self, trusted_context: Optional[Dict[str, Any]] = None):
-        self.trusted_context = trusted_context if trusted_context is not None else {"customer_id": CUSTOMER_ID}
+        self.trusted_context = trusted_context if trusted_context is not None else {"customer_id": None}  # fail closed
 
     async def run(self, context: hooks.HookContext, data: types.ToolCall) -> types.HookResult:
         del context
@@ -323,7 +323,7 @@ def create_agent_config(
     resolved_project = project_id or os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID") or DEFAULT_PROJECT_ID
     resolved_location = os.getenv("GOOGLE_CLOUD_LOCATION") or DEFAULT_LOCATION
     context = session_context if session_context is not None else (
-        {} if visitor else {"session_id": session_id, "customer_id": CUSTOMER_ID, "device_id": KNOWN_DEVICE_ID}
+        {} if visitor else {"session_id": session_id, "customer_id": None, "device_id": KNOWN_DEVICE_ID}
     )
     capabilities = CapabilitiesConfig(
         enable_subagents=False,
@@ -361,9 +361,9 @@ def create_agent_config(
         instructions = MITRA_BOUNDARIES + "\n\n" + VISITOR_SYSTEM_INSTRUCTION + "\n\n" + published_catalogue()
 
     else:
-        customer_id = context.get("customer_id") or CUSTOMER_ID
-        context["customer_id"] = customer_id
-        customer = db.get_customer(customer_id)
+        # Never fall back to a default customer: without a signed-in customer the gate refuses every banking tool.
+        customer_id = context.get("customer_id")
+        customer = db.get_customer(customer_id) if customer_id else None
         customer_name = customer.get("full_name") or customer.get("display_name", "Customer") if customer else "Customer"
         kyc = db.get_kyc_profile(customer_id)
         kyc_status = kyc.get("status", "VERIFIED")

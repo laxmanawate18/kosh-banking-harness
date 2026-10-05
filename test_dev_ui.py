@@ -89,7 +89,7 @@ class SentinelAppTests(unittest.TestCase):
         asyncio.run(_check_agent_startup())
 
     def test_pre_tool_gate_denies_unregistered_and_otp_arguments(self):
-        gate = SecureToolGateHook()
+        gate = SecureToolGateHook({"session_id": "S", "customer_id": "CUST-1001", "scopes": ["banking.read", "banking.propose"]})
         denied = asyncio.run(gate.run(None, types.ToolCall(name="run_command", args={"command": "id"})))
         otp = asyncio.run(gate.run(None, types.ToolCall(name="freeze_card", args={"card_id": "CARD-DEBIT-5521", "reason": "x", "otp": "123"})))
         allowed = asyncio.run(gate.run(None, types.ToolCall(name="propose_transfer", args={"beneficiary_id": "BEN-VIKRAM", "amount_minor": 100, "source_account_id": "ACC-SAL-001"})))

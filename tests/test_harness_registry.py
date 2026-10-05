@@ -72,3 +72,16 @@ class RegistryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoDefaultCustomerTests(unittest.TestCase):
+    def test_agent_for_a_user_without_a_customer_record_gets_no_banking_tools(self):
+        from backend.agent_config import create_agent_config
+        context = {"session_id": "S-OFFICER", "user_id": "USR-OFFICER-001", "customer_id": None,
+                   "scopes": ["banking.read", "banking.propose"]}
+        config = create_agent_config("S-OFFICER", session_context=context)
+        self.assertIsNone(context["customer_id"])  # no silent fallback to the demo customer
+        gate = next(h for h in config.hooks if isinstance(h, SecureToolGateHook))
+        denied = asyncio.run(gate.run(None, types.ToolCall(name="get_customer_summary", args={})))
+        self.assertFalse(denied.allow)
+        self.assertIn("AUTH_REQUIRED", denied.message)
