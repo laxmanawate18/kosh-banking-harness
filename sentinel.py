@@ -411,7 +411,9 @@ class SentinelService:
                 signal("AMOUNT_ABOVE_BASELINE")
             if amount_minor > policy["high_value_minor"]:
                 signal("HIGH_VALUE_TRANSFER")
-            signal("NEW_DEVICE" if device.get("status") == "NEW" else "KNOWN_BOUND_DEVICE")
+            # Only a device the bank has bound to this customer is known; a missing or unrecognised one counts as new.
+            known = device.get("status") == "TRUSTED" and device.get("customer_id") == context.get("customer_id")
+            signal("KNOWN_BOUND_DEVICE" if known else "NEW_DEVICE")
             if context.get("untrusted_content_detected"):
                 signal("SUSPECTED_INDIRECT_PROMPT_INJECTION")
             if action_type == "PAY_BILL" and bill and bill.get("autopay_eligible"):
