@@ -17,8 +17,9 @@ Mitra is Kosh's AI assistant for visitors and signed-in customers. This page des
 
 1. Everything that shapes Mitra's replies (instructions, language rules and skills) is hashed into a **prompt version**. The running version registers itself at startup, and every conversation turn records it.
 2. Before release, run the evaluation set: `venv/bin/python tests/eval/run_eval.py --record`. It holds 258 cases across 19 categories, covering product facts, unknown information, rival banks, jailbreaks, prompt probing, fraud, complaints, handoff, distress, lending, investments, AI disclosure, off-topic requests, Hindi, Marathi and Hinglish, answer style, fairness groups, multi-turn conversations, and 28 signed-in customer cases (including security cases). The result is stored on that version.
-3. **Release gate:** at least 95% overall, **100% on care_fraud, jailbreak, prompt_probe and customer_security**, and every fairness group passing. The AI owner then approves the version in [Mitra quality → Prompt versions], with a note on what was reviewed.
-4. **Rollback:** redeploy the previous image. Its prompt version is still in the registry with its evaluation and approval.
+3. **Release gate:** at least 95% overall, **100% on care_fraud, jailbreak, prompt_probe and customer_security**, and every fairness group passing. This is enforced in code: `run_eval.py` exits with a failure and records the gate result on the version, and approval is refused unless the version's latest run passed. The AI owner then approves the version in [Mitra quality → Prompt versions], with a note on what was reviewed.
+4. **Production runs only approved versions.** Until the running prompt version is approved, Mitra answers every chat with a fixed "paused" message and the helpline; the officer console, where approval happens, keeps working. `MITRA_ALLOW_UNAPPROVED=true` is the emergency override and must be recorded as an incident.
+5. **Rollback:** redeploy the previous image. Its prompt version is still in the registry with its evaluation and approval.
 
 ## 3. Response rules (enforced in code, then in instructions)
 
@@ -37,11 +38,20 @@ Mitra is Kosh's AI assistant for visitors and signed-in customers. This page des
 | Responsible lending | EMI is checked against income (50% ceiling) before any loan pitch; the Key Fact Statement and APR are mentioned; approval is never promised |
 | Investments and insurance | General information only; a market-risk note is appended; insurance is always optional |
 | AI disclosure | Mitra introduces itself as an AI assistant; a notice sits under every chat box |
+| Money movement | Every bill payment and transfer needs the customer's own approval in Kavach (fresh verification), however low the risk. The delegated daily limit counts everything already moved that day. Card freezes run instantly because they protect the customer; unfreezing is confirmed by the bank |
+| Officer decisions | Four-eyes rule: an officer cannot decide a request on their own customer account, and a request they escalated must be approved by a different officer |
+| Abuse limits | Chat messages are limited per minute per user (or per address for visitors); a signed-in turn may call at most 12 tools |
 | Personalised offers | Only with separate marketing consent, KYC verified, frequency caps and suppression (see the offer engine) |
 
 ## 4. Monitoring ([Operations → Mitra quality])
 
-Each turn records its channel, language, outcome (answered, withheld, refused, fraud script, error), the reason a reply was withheld, any care intents, latency and prompt version. **No message text is stored in this log.**
+Each turn records its channel, language, outcome (answered, withheld, refused, fraud script, paused, error), the reason a reply was withheld, any care intents, latency, model, prompt version, and input and output tokens. **No message text is stored in this log.**
+
+**Audit trail.** Every tool the agent asks for is recorded in the tamper-evident audit chain: the tool, its arguments (identifiers masked, secrets removed), whether it was allowed or denied and why, and its result or error. Every record's hash covers only stored fields, so the chain can be re-checked at any time ([GET /api/officer/audit/verify]); an altered or removed record is reported.
+
+**Kill switches.** An officer can pause Mitra for visitors, for signed-in customers, or block single tools, instantly and across all instances ([PUT /api/officer/controls], a reason is required and audited). A paused channel answers with a fixed message and the helpline; the fraud script and the self-harm helpline still run.
+
+**Model resilience.** Transient model errors are retried three times with backoff. If a signed-in turn still fails before any tool ran or any text was produced, it is retried once on the backup model (`MITRA_FALLBACK_MODEL`). Customers never see raw error text.
 
 **Alert thresholds**, reviewed weekly:
 - Withheld replies above 10%.
@@ -55,7 +65,8 @@ Customers can rate any reply 👍 or 👎. Negative ratings appear with the mask
 ## 5. Data protection (DPDP Act 2023)
 
 - **Retention:** chat transcripts and feedback are deleted after **90 days** (`CHAT_RETENTION_DAYS`); a daily job enforces this. A visitor's in-progress application details are removed from chat memory after 24 hours. The turn log (no text) is kept for 1 year.
-- **Masking at rest:** PAN, Aadhaar, card and mobile numbers are masked before a transcript is stored. The live conversation is not affected.
+- **Masking at rest:** PAN, Aadhaar, card and mobile numbers are masked before a transcript and its tool traces are stored. The live conversation is not affected. A visitor's in-progress application is encrypted at rest.
+- **Keys:** in production the app refuses to start without its payment-token, audit and document encryption keys (`SENTINEL_DEMO_SECRET`, `SENTINEL_AUDIT_HMAC_KEY`, `SENTINEL_DOCUMENT_KEY`).
 - **Notice:** the chat box states that Mitra is an AI, that chats are kept for 90 days, and that customers must never share an OTP or PIN.
 - **Purpose limitation:** personalised offers use customer data only with the separate marketing consent, which can be withdrawn in Settings.
 
