@@ -71,18 +71,23 @@ async def run_case(url: str, case: dict, timeout: float, cookie: str | None = No
             while json.loads(await asyncio.wait_for(ws.recv(), 20)).get("type") != "connection_ready":
                 pass
             for prompt in case["turns"]:
-                await ws.send(json.dumps({"type": "prompt", "prompt": prompt, "language": "en"}))
-                text, deadline = "", time.time() + timeout
-                while time.time() < deadline:
-                    event = json.loads(await asyncio.wait_for(ws.recv(), timeout))
-                    if event.get("type") == "text_delta":
-                        text += event.get("text", "")
-                    elif event.get("type") == "text_replace":
-                        text = event.get("text", "")
-                    elif event.get("type") in ("turn_complete", "error"):
-                        if event.get("type") == "error":
-                            text += f"[ERROR {event.get('message')}]"
+                for attempt in range(4):
+                    await ws.send(json.dumps({"type": "prompt", "prompt": prompt, "language": "en"}))
+                    text, deadline, limited = "", time.time() + timeout, False
+                    while time.time() < deadline:
+                        event = json.loads(await asyncio.wait_for(ws.recv(), timeout))
+                        if event.get("type") == "text_delta":
+                            text += event.get("text", "")
+                        elif event.get("type") == "text_replace":
+                            text = event.get("text", "")
+                        elif event.get("type") in ("turn_complete", "error"):
+                            if event.get("type") == "error":
+                                limited = "quickly" in str(event.get("message"))
+                                text += f"[ERROR {event.get('message')}]"
+                            break
+                    if not limited or attempt == 3:
                         break
+                    await asyncio.sleep(30)  # the per-user rate limit is working; wait for the next minute
                 replies.append(text)
     except Exception as exc:  # a broken case is a failed case, never a crashed run
         replies.append(f"[RUNNER ERROR {type(exc).__name__}: {exc}]")

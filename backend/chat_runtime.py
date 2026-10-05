@@ -76,11 +76,6 @@ def over_rate_limit(key: str) -> bool:
     return rate_limit.hit(shared_db, key, CHAT_MESSAGES_PER_MINUTE)
 
 
-def client_key(websocket: WebSocket) -> str:
-    forwarded = websocket.headers.get("x-forwarded-for", "")
-    return "ip:" + (forwarded.split(",")[0].strip() or (websocket.client.host if websocket.client else "unknown"))
-
-
 async def _until_idle(chunks):
     """The model's chunks, raising TimeoutError if it is silent for CUSTOMER_IDLE_SECONDS while no tool is running.
 
@@ -469,7 +464,9 @@ async def serve_visitor_websocket(
             if message.get("type") != "prompt":
                 continue
             prompt = str(message.get("prompt") or "").strip()
-            if over_rate_limit(client_key(websocket)):
+            # Per visitor chat. Per-IP limits belong at the edge (Cloud Armor sees the real address); the first
+            # X-Forwarded-For entry is whatever the caller sent, so it must not key a limit.
+            if over_rate_limit(f"guest:{guest_id}"):
                 await websocket.send_json({"type": "error", "message": chat_text("slow_down", normalize_language(message.get("language")))})
             elif active_task and not active_task.done():
                 await websocket.send_json({"type": "error", "message": "Wait for the current request to finish."})
