@@ -1,0 +1,861 @@
+{
+  "_about": "Kosh banking harness tool registry. Every tool an agent may call, per channel: what it does, whether it reads, writes or moves money, its risk, who must approve its effect (none, the customer in Kavach, or an officer), the OAuth scope it needs, and the arguments it accepts. The gate refuses any tool or argument not declared here.",
+  "version": "2026-10-05.1",
+  "channels": {
+    "customer": {
+      "get_customer_summary": {
+        "description": "Accounts, balances and payees of the signed-in customer",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {}
+      },
+      "get_transaction_history": {
+        "description": "Recent transactions",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "account_id": {
+            "type": "string",
+            "pattern": "^(?i:ACC-[A-Z0-9-]{1,40})$",
+            "required": false
+          },
+          "limit": {
+            "type": "integer",
+            "min": 1,
+            "max": 50
+          }
+        }
+      },
+      "get_outstanding_bills": {
+        "description": "Bills due",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {}
+      },
+      "get_security_alerts": {
+        "description": "Security alerts on the account",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {}
+      },
+      "propose_bill_payment": {
+        "description": "Propose paying a registered bill; the customer approves in Kavach",
+        "effect": "money",
+        "risk": "high",
+        "approval": "customer",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {
+          "bill_id": {
+            "type": "string",
+            "pattern": "^(?i:BILL-[A-Z0-9-]{1,40})$",
+            "required": true
+          },
+          "source_account_id": {
+            "type": "string",
+            "pattern": "^(?i:ACC-[A-Z0-9-]{1,40})$",
+            "required": true
+          }
+        }
+      },
+      "propose_transfer": {
+        "description": "Propose a transfer to a saved payee; the customer approves in Kavach",
+        "effect": "money",
+        "risk": "high",
+        "approval": "customer",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {
+          "beneficiary_id": {
+            "type": "string",
+            "pattern": "^(?i:BEN-[A-Z0-9-]{1,40})$",
+            "required": true
+          },
+          "amount_minor": {
+            "type": "integer",
+            "min": 1,
+            "max": 100000000000,
+            "required": true
+          },
+          "source_account_id": {
+            "type": "string",
+            "pattern": "^(?i:ACC-[A-Z0-9-]{1,40})$",
+            "required": true
+          },
+          "note": {
+            "type": "string",
+            "max_length": 120,
+            "required": false
+          }
+        }
+      },
+      "freeze_card": {
+        "description": "Freeze a card at once (protective); unfreezing is confirmed by the bank",
+        "effect": "write",
+        "risk": "medium",
+        "approval": "none",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {
+          "card_id": {
+            "type": "string",
+            "pattern": "^(?i:CARD-[A-Z0-9-]{1,40})$",
+            "required": true
+          },
+          "reason": {
+            "type": "string",
+            "max_length": 200,
+            "required": true
+          }
+        }
+      },
+      "get_kyc_status": {
+        "description": "KYC status and pending requirements",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {}
+      },
+      "validate_kyc_document": {
+        "description": "Check the format of a PAN, Aadhaar or passport number",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "doc_type": {
+            "type": "string",
+            "enum": [
+              "PAN",
+              "AADHAAR",
+              "PASSPORT",
+              "pan",
+              "aadhaar",
+              "passport"
+            ],
+            "required": true
+          },
+          "doc_number": {
+            "type": "string",
+            "max_length": 32,
+            "required": true
+          }
+        }
+      },
+      "start_banking_workflow": {
+        "description": "Open a guided service workflow",
+        "effect": "write",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {
+          "skill_id": {
+            "type": "string",
+            "pattern": "^[a-z_]{2,60}$",
+            "required": true
+          }
+        }
+      },
+      "record_document_extraction": {
+        "description": "Record facts read from an uploaded document for officer review",
+        "effect": "write",
+        "risk": "medium",
+        "approval": "officer",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {
+          "workflow_id": {
+            "type": "string",
+            "max_length": 80,
+            "required": true
+          },
+          "document_id": {
+            "type": "string",
+            "max_length": 80,
+            "required": true
+          },
+          "fields": {
+            "type": "object",
+            "values": {
+              "type": "string",
+              "max_length": 300,
+              "required": false
+            },
+            "max_items": 40,
+            "required": true
+          }
+        }
+      },
+      "start_account_opening": {
+        "description": "Start an account-opening workflow",
+        "effect": "write",
+        "risk": "low",
+        "approval": "officer",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {}
+      },
+      "check_account_opening_status": {
+        "description": "Status of an account opening",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "application_reference": {
+            "type": "string",
+            "max_length": 40,
+            "required": false
+          }
+        }
+      },
+      "record_customer_lead": {
+        "description": "Record a product interest for follow-up (consent-gated)",
+        "effect": "write",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {
+          "category": {
+            "type": "string",
+            "max_length": 40,
+            "required": true
+          },
+          "sub_type": {
+            "type": "string",
+            "max_length": 60,
+            "required": false
+          },
+          "amount_minor": {
+            "type": "integer",
+            "min": 0,
+            "max": 100000000000
+          },
+          "tenure_months": {
+            "type": "integer",
+            "min": 0,
+            "max": 480
+          },
+          "employment_type": {
+            "type": "string",
+            "max_length": 40,
+            "required": false
+          },
+          "monthly_income_minor": {
+            "type": "integer",
+            "min": 0,
+            "max": 100000000000
+          },
+          "preferences_summary": {
+            "type": "string",
+            "max_length": 500,
+            "required": false
+          },
+          "notes": {
+            "type": "string",
+            "max_length": 500,
+            "required": false
+          }
+        }
+      },
+      "get_lead_reengagement_offer": {
+        "description": "Follow-up facts for an earlier product interest",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {}
+      },
+      "get_next_best_offer": {
+        "description": "A personalised offer, only with marketing consent",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {}
+      },
+      "decline_offer": {
+        "description": "Record that the customer declined an offer",
+        "effect": "write",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {
+          "product_id": {
+            "type": "string",
+            "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
+            "required": true
+          }
+        }
+      },
+      "start_video_kyc": {
+        "description": "Book a video KYC session",
+        "effect": "write",
+        "risk": "low",
+        "approval": "officer",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {}
+      },
+      "register_complaint": {
+        "description": "Register a complaint with a reference and RBI timelines",
+        "effect": "write",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {
+          "summary": {
+            "type": "string",
+            "max_length": 1000,
+            "required": true
+          },
+          "category": {
+            "type": "string",
+            "max_length": 60,
+            "required": false
+          }
+        }
+      },
+      "request_callback": {
+        "description": "Request a callback from a person",
+        "effect": "write",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {
+          "reason": {
+            "type": "string",
+            "max_length": 500,
+            "required": true
+          },
+          "preferred_time": {
+            "type": "string",
+            "max_length": 80,
+            "required": false
+          }
+        }
+      },
+      "check_loan_affordability": {
+        "description": "EMI and affordability check",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "product_id": {
+            "type": "string",
+            "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
+            "required": true
+          },
+          "loan_amount": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000000000,
+            "required": true
+          },
+          "tenure_months": {
+            "type": "integer",
+            "min": 1,
+            "max": 480,
+            "required": true
+          },
+          "monthly_income": {
+            "type": "integer",
+            "min": 0,
+            "max": 1000000000,
+            "required": true
+          },
+          "existing_emi": {
+            "type": "integer",
+            "min": 0,
+            "max": 1000000000
+          }
+        }
+      },
+      "query_bank_knowledge": {
+        "description": "Search Kosh's policy and help documents",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "query": {
+            "type": "string",
+            "max_length": 300,
+            "required": true
+          },
+          "category": {
+            "type": "string",
+            "max_length": 40,
+            "required": false
+          }
+        }
+      },
+      "search_public_products": {
+        "description": "Search the published product catalogue",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "category": {
+            "type": "string",
+            "max_length": 40,
+            "required": false
+          },
+          "priority": {
+            "type": "string",
+            "max_length": 80,
+            "required": false
+          }
+        }
+      },
+      "get_public_product_details": {
+        "description": "Published facts for named products",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "product_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
+              "required": true
+            },
+            "max_items": 6,
+            "required": true
+          }
+        }
+      },
+      "compare_public_products": {
+        "description": "Compare published products",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "product_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
+              "required": true
+            },
+            "max_items": 4,
+            "required": true
+          },
+          "dimensions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "max_length": 40,
+              "required": false
+            },
+            "max_items": 8,
+            "required": true
+          }
+        }
+      },
+      "get_product_disclosures": {
+        "description": "Key Fact Statement and disclosures",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "product_id": {
+            "type": "string",
+            "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
+            "required": true
+          }
+        }
+      },
+      "check_application_status": {
+        "description": "Status of an application by reference and mobile",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "reference": {
+            "type": "string",
+            "max_length": 40,
+            "required": true
+          },
+          "mobile": {
+            "type": "string",
+            "pattern": "^[+0-9 -]{10,16}$",
+            "required": true
+          }
+        }
+      }
+    },
+    "visitor": {
+      "search_public_products": {
+        "description": "Search the published product catalogue",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "category": {
+            "type": "string",
+            "max_length": 40,
+            "required": false
+          },
+          "priority": {
+            "type": "string",
+            "max_length": 80,
+            "required": false
+          }
+        }
+      },
+      "get_public_product_details": {
+        "description": "Published facts for named products",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "product_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
+              "required": true
+            },
+            "max_items": 6,
+            "required": true
+          }
+        }
+      },
+      "compare_public_products": {
+        "description": "Compare published products",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "product_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
+              "required": true
+            },
+            "max_items": 4,
+            "required": true
+          },
+          "dimensions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "max_length": 40,
+              "required": false
+            },
+            "max_items": 8,
+            "required": true
+          }
+        }
+      },
+      "get_product_disclosures": {
+        "description": "Key Fact Statement and disclosures",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "product_id": {
+            "type": "string",
+            "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
+            "required": true
+          }
+        }
+      },
+      "check_application_status": {
+        "description": "Status of an application by reference and mobile",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "reference": {
+            "type": "string",
+            "max_length": 40,
+            "required": true
+          },
+          "mobile": {
+            "type": "string",
+            "pattern": "^[+0-9 -]{10,16}$",
+            "required": true
+          }
+        }
+      },
+      "check_loan_affordability": {
+        "description": "EMI and affordability check",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "product_id": {
+            "type": "string",
+            "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
+            "required": true
+          },
+          "loan_amount": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000000000,
+            "required": true
+          },
+          "tenure_months": {
+            "type": "integer",
+            "min": 1,
+            "max": 480,
+            "required": true
+          },
+          "monthly_income": {
+            "type": "integer",
+            "min": 0,
+            "max": 1000000000,
+            "required": true
+          },
+          "existing_emi": {
+            "type": "integer",
+            "min": 0,
+            "max": 1000000000
+          }
+        }
+      },
+      "query_bank_knowledge": {
+        "description": "Search Kosh's policy and help documents",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "query": {
+            "type": "string",
+            "max_length": 300,
+            "required": true
+          },
+          "category": {
+            "type": "string",
+            "max_length": 40,
+            "required": false
+          }
+        }
+      },
+      "prepare_product_application": {
+        "description": "Collect a new applicant's details for review before submission",
+        "effect": "write",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {
+          "product_id": {
+            "type": "string",
+            "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
+            "required": true
+          },
+          "full_name": {
+            "type": "string",
+            "max_length": 120,
+            "required": true
+          },
+          "mobile": {
+            "type": "string",
+            "pattern": "^[+0-9 -]{10,16}$",
+            "required": true
+          },
+          "email": {
+            "type": "string",
+            "pattern": "^[^@\\s]{1,64}@[^@\\s]{1,190}$",
+            "required": true
+          },
+          "employment_type": {
+            "type": "string",
+            "max_length": 40,
+            "required": false
+          },
+          "pan_number": {
+            "type": "string",
+            "pattern": "^(?i:[A-Z]{5}[0-9]{4}[A-Z])?$"
+          },
+          "pincode": {
+            "type": "string",
+            "pattern": "^([1-9][0-9]{5})?$"
+          },
+          "monthly_income": {
+            "type": "number",
+            "min": 0,
+            "max": 1000000000
+          },
+          "loan_amount": {
+            "type": "number",
+            "min": 0,
+            "max": 1000000000
+          },
+          "loan_tenure_months": {
+            "type": "integer",
+            "min": 0,
+            "max": 480
+          },
+          "loan_purpose": {
+            "type": "string",
+            "max_length": 200,
+            "required": false
+          }
+        }
+      },
+      "submit_product_application": {
+        "description": "Submit the confirmed application to the bank for review",
+        "effect": "write",
+        "risk": "medium",
+        "approval": "officer",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {}
+      },
+      "register_complaint": {
+        "description": "Register a complaint with a reference and RBI timelines",
+        "effect": "write",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {
+          "full_name": {
+            "type": "string",
+            "max_length": 120,
+            "required": true
+          },
+          "mobile": {
+            "type": "string",
+            "pattern": "^[+0-9 -]{10,16}$",
+            "required": true
+          },
+          "summary": {
+            "type": "string",
+            "max_length": 1000,
+            "required": true
+          },
+          "category": {
+            "type": "string",
+            "max_length": 60,
+            "required": false
+          }
+        }
+      },
+      "request_callback": {
+        "description": "Request a callback from a person",
+        "effect": "write",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.propose"
+        ],
+        "args": {
+          "full_name": {
+            "type": "string",
+            "max_length": 120,
+            "required": true
+          },
+          "mobile": {
+            "type": "string",
+            "pattern": "^[+0-9 -]{10,16}$",
+            "required": true
+          },
+          "reason": {
+            "type": "string",
+            "max_length": 500,
+            "required": true
+          },
+          "preferred_time": {
+            "type": "string",
+            "max_length": 80,
+            "required": false
+          }
+        }
+      }
+    }
+  }
+}

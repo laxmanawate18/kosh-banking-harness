@@ -208,8 +208,9 @@ class SessionManager:
         self.tool_context: Dict[str, Any] = {
             "session_id": self.session_id,
             "user_id": auth.user_id,
-            "customer_id": auth.customer_id or CUSTOMER_ID,
+            "customer_id": auth.customer_id,  # no fallback: a user without a customer record gets no banking tools
             "device_id": KNOWN_DEVICE_ID,
+            "scopes": sorted(auth.scopes or []),
         }
         self.agent = None
         self.active_task: Optional[asyncio.Task] = None

@@ -13,13 +13,13 @@ from typing import Any, Dict, Optional
 from google.antigravity import Agent, CapabilitiesConfig, LocalAgentConfig, hooks, models, types
 
 from backend.settings import DEFAULT_LOCATION, DEFAULT_MODEL, DEFAULT_PROJECT_ID, USE_VERTEXAI
+from backend import harness
 from banking_db import db
 from backend.mitra_ops import mask_pii, token_counts
 from banking_tools import BANKING_TOOL_NAMES, build_banking_tools
 from product_service import (
     leaks_internal_prompt,
     redact_attributed_competitors,
-    PUBLIC_SALES_TOOL_NAMES,
     VISITOR_APPLICATION_TOOL_NAMES,
     SalesSessionContext,
     build_public_sales_tools,
@@ -194,55 +194,6 @@ def published_catalogue() -> str:
 
 TOOL_RESULT_QUEUES: Dict[str, asyncio.Queue] = {}
 
-_BANKING_TOOL_ARGUMENTS = {
-    "get_customer_summary": set(),
-    "get_transaction_history": {"account_id", "limit"},
-    "get_outstanding_bills": set(),
-    "get_security_alerts": set(),
-    "propose_bill_payment": {"bill_id", "source_account_id"},
-    "propose_transfer": {"beneficiary_id", "amount_minor", "source_account_id", "note"},
-    "freeze_card": {"card_id", "reason"},
-    "get_kyc_status": set(),
-    "validate_kyc_document": {"doc_type", "doc_number"},
-    "start_banking_workflow": {"skill_id"},
-    "record_document_extraction": {"workflow_id", "document_id", "fields"},
-    "start_account_opening": set(),
-    "check_account_opening_status": {"application_reference"},
-    "record_customer_lead": {
-        "category", "sub_type", "amount_minor", "tenure_months",
-        "employment_type", "monthly_income_minor", "preferences_summary", "notes"
-    },
-    "get_lead_reengagement_offer": set(),
-    "get_next_best_offer": set(),
-    "decline_offer": {"product_id"},
-    "start_video_kyc": set(),
-    "register_complaint": {"summary", "category"},
-    "request_callback": {"reason", "preferred_time"},
-    "check_loan_affordability": {"product_id", "loan_amount", "tenure_months", "monthly_income", "existing_emi"},
-    "query_bank_knowledge": {"query", "category"},
-}
-
-_PUBLIC_TOOL_ARGUMENTS = {
-    "search_public_products": {"category", "priority"},
-    "get_public_product_details": {"product_ids"},
-    "compare_public_products": {"product_ids", "dimensions"},
-    "get_product_disclosures": {"product_id"},
-    "query_bank_knowledge": {"query", "category"},
-    "record_customer_lead": {
-        "category", "sub_type", "amount_minor", "tenure_months",
-        "employment_type", "monthly_income_minor", "preferences_summary", "notes"
-    },
-    "prepare_product_application": {
-        "product_id", "full_name", "mobile", "email", "employment_type", "pan_number", "pincode",
-        "monthly_income", "loan_amount", "loan_tenure_months", "loan_purpose",
-    },
-    "submit_product_application": set(),
-    "check_application_status": {"reference", "mobile"},
-    "check_loan_affordability": {"product_id", "loan_amount", "tenure_months", "monthly_income", "existing_emi"},
-    "register_complaint": {"full_name", "mobile", "summary", "category"},
-    "request_callback": {"full_name", "mobile", "reason", "preferred_time"},
-}
-
 
 
 _SECRET_FIELDS = re.compile(r'("[^"]*(?:token|secret|password|otp)[^"]*"\s*:\s*)"[^"]*"', re.I)
@@ -285,17 +236,17 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
         calls = self.trusted_context["tool_calls_this_turn"] = self.trusted_context.get("tool_calls_this_turn", 0) + 1
         if calls > MAX_TOOL_CALLS_PER_TURN:  # a looping agent stops here instead of hammering core banking
             return types.HookResult(allow=False, message="TURN_TOOL_LIMIT: Too many actions in one turn. Stop calling tools and answer with what you have.")
-        if name in PUBLIC_SALES_TOOL_NAMES:
-            unknown = set(args) - _PUBLIC_TOOL_ARGUMENTS[name]
-            if unknown:
-                return types.HookResult(allow=False, message=f"Unexpected public product fields: {sorted(unknown)}")
+        spec = harness.tool_spec("customer", name)
+        if spec is None:
+            return types.HookResult(allow=False, message="Sentinel denied an unregistered capability.")
+        problem = harness.check_call("customer", name, args, self.trusted_context.get("scopes"))
+        if problem:
+            return types.HookResult(allow=False, message=f"Sentinel denied the call: {problem}.")
+        if name not in BANKING_TOOL_NAMES:  # a public catalogue tool
             serialized = json.dumps(args, ensure_ascii=False).lower()
             if any(secret in serialized for secret in ("password", "otp", "aadhaar", "pan number", "card number")):
                 return types.HookResult(allow=False, message="Sensitive identity and authentication data are not accepted in sales chat.")
             return types.HookResult(allow=True)
-
-        if name not in BANKING_TOOL_NAMES:
-            return types.HookResult(allow=False, message="Sentinel denied an unregistered capability.")
 
         if not self.trusted_context.get("customer_id"):
             return types.HookResult(allow=False, message="AUTH_REQUIRED: Customer must authenticate via secure sign-in before accessing personal accounts or transactions.")
@@ -305,15 +256,6 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
             "get_kyc_status", "check_account_opening_status",
         }:
             return types.HookResult(allow=False, message="Document processing turns cannot perform unrelated actions.")
-        unknown = set(args) - _BANKING_TOOL_ARGUMENTS[name]
-        if unknown:
-            return types.HookResult(allow=False, message=f"Sentinel denied unexpected fields: {sorted(unknown)}")
-        if any("otp" in key.lower() or key.lower() == "code" for key in args):
-            return types.HookResult(allow=False, message="Authentication secrets are never agent-visible.")
-        if name == "propose_transfer":
-            amount = args.get("amount_minor")
-            if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
-                return types.HookResult(allow=False, message="amount_minor must be a positive integer number of paise.")
         return types.HookResult(allow=True)
 
 
@@ -332,14 +274,13 @@ class PublicSalesToolGateHook(hooks.PreToolCallDecideHook):
         args = data.args if isinstance(data.args, dict) else {}
         if name in db.get_controls().get("disabled_tools", []):
             return types.HookResult(allow=False, message="TOOL_PAUSED: The bank has paused this action. Tell the visitor it is temporarily unavailable and offer the helpline.")
-        allowed = PUBLIC_SALES_TOOL_NAMES | VISITOR_APPLICATION_TOOL_NAMES
-        if name not in allowed and name in BANKING_TOOL_NAMES:
-            return types.HookResult(allow=False, message="AUTH_REQUIRED: Only public product lookup is available before sign-in. Sign in to access personal banking.")
-        if name not in allowed:
+        if harness.tool_spec("visitor", name) is None:
+            if name in BANKING_TOOL_NAMES:
+                return types.HookResult(allow=False, message="AUTH_REQUIRED: Only public product lookup is available before sign-in. Sign in to access personal banking.")
             return types.HookResult(allow=False, message="Only public product lookup and applications are available before sign-in.")
-        unknown = set(args) - _PUBLIC_TOOL_ARGUMENTS[name]
-        if unknown:
-            return types.HookResult(allow=False, message=f"Unexpected public product fields: {sorted(unknown)}")
+        problem = harness.check_call("visitor", name, args)
+        if problem:
+            return types.HookResult(allow=False, message=f"Not accepted: {problem}.")
         serialized = json.dumps(args, ensure_ascii=False).lower()
         if any(secret in serialized for secret in ("password", "otp", "aadhaar", "pan number", "card number")):
             return types.HookResult(allow=False, message="Sensitive identity and authentication data are not accepted in sales chat.")
