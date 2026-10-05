@@ -68,6 +68,8 @@ async def lifespan(application: FastAPI):
     async def retention_loop():
         while True:
             try:
+                from backend import rate_limit
+                rate_limit.purge(db)
                 purged = mitra_ops.purge_expired(db)
                 if any(purged.values()):
                     print(f"Retention purge: {purged}")

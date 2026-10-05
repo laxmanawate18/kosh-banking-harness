@@ -332,6 +332,15 @@ class CareCaseRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
 
 
+class RateLimitRecord(Base):
+    """Requests per caller per one-minute window, shared by every instance (no in-process counters)."""
+
+    __tablename__ = "rate_limit_windows"
+    key: Mapped[str] = mapped_column(String(200), primary_key=True)
+    window: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)  # unix minute
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class MitraTurnRecord(Base):
     """One Mitra turn's outcome for quality monitoring. No message text is stored here."""
 

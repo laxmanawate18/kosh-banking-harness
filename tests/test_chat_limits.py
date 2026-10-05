@@ -1,6 +1,7 @@
 """Abuse limits: chat messages per minute per user or client, and tool calls per turn."""
 import asyncio
-import time
+import tempfile
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -18,11 +19,26 @@ class ChatLimitTests(unittest.TestCase):
                 TestClient(dev_ui.app).websocket_connect("/ws/chat", headers={"x-forwarded-for": "203.0.113.9"}) as ws:
             ws.receive_json()
             for _ in range(2):
-                chat_runtime._RECENT_MESSAGES["ip:203.0.113.9"].append(time.monotonic())
+                self.assertFalse(chat_runtime.over_rate_limit("ip:203.0.113.9"))
             ws.send_json({"type": "prompt", "prompt": "Tell me about savings accounts"})
             event = ws.receive_json()
         self.assertEqual(event["type"], "error")
         self.assertIn("quickly", event["message"])
+
+    def test_the_limit_is_shared_by_every_instance(self):
+        from backend.rate_limit import hit
+        from banking_db import BankingDatabase
+        with tempfile.TemporaryDirectory() as tmp:
+            url = f"sqlite+pysqlite:///{Path(tmp) / 'shared.sqlite3'}"
+            first, second = BankingDatabase(url), BankingDatabase(url)  # two instances, one database
+            try:
+                self.assertFalse(hit(first, "user:U1", 2))
+                self.assertFalse(hit(second, "user:U1", 2))
+                self.assertTrue(hit(first, "user:U1", 2))
+                self.assertFalse(hit(second, "user:U2", 2))  # another caller has its own count
+            finally:
+                first.runtime.engine.dispose()
+                second.runtime.engine.dispose()
 
     def test_tool_calls_stop_after_the_per_turn_cap(self):
         context = {"session_id": "S-CAP", "customer_id": "CUST-1001", "tool_calls_this_turn": 0}

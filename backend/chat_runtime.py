@@ -8,12 +8,11 @@ import dataclasses
 import re
 import secrets
 import json
-from collections import defaultdict, deque
 import time
 import traceback
 import urllib.parse
 import uuid
-from typing import Any, Callable, Deque, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 try:
     from asyncio import timeout as async_timeout
@@ -28,7 +27,8 @@ from backend.agent_config import TOOL_RESULT_QUEUES, CheckedRelease, create_agen
 from backend.conversations import create_session_data, load_session, save_session
 from backend.settings import DEFAULT_MODEL, FALLBACK_MODEL
 from auth_service import COOKIE_NAME, AuthContext
-from backend import care, harness, mitra_ops, offers
+from backend import care, harness, mitra_ops, offers, rate_limit
+from banking_db import db as shared_db
 from document_processing import cipher
 from banking_db import db  # the visitor handler logs turns; the customer handler receives its own db
 from product_service import (
@@ -69,19 +69,11 @@ def restore_sales_context(guest_session: Dict[str, Any]) -> SalesSessionContext:
 
 CUSTOMER_IDLE_SECONDS = harness.policy()["chat"]["customer_idle_seconds"]
 CHAT_MESSAGES_PER_MINUTE = harness.policy()["chat"]["messages_per_minute"]
-# ponytail: per-instance memory; move to a shared store (Redis/Memorystore) once Kosh runs on more than one instance.
-_RECENT_MESSAGES: Dict[str, Deque[float]] = defaultdict(deque)
 
 
 def over_rate_limit(key: str) -> bool:
-    """Sliding one-minute window of chat messages per user (signed in) or per client address (visitor)."""
-    now, recent = time.monotonic(), _RECENT_MESSAGES[key]
-    while recent and now - recent[0] > 60:
-        recent.popleft()
-    if len(recent) >= CHAT_MESSAGES_PER_MINUTE:
-        return True
-    recent.append(now)
-    return False
+    """Chat messages per minute per user (signed in) or per client address (visitor), counted across all instances."""
+    return rate_limit.hit(shared_db, key, CHAT_MESSAGES_PER_MINUTE)
 
 
 def client_key(websocket: WebSocket) -> str:
