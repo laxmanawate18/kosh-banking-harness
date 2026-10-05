@@ -222,9 +222,17 @@ def main() -> int:
 
     step(6, "Checks and next steps")
     if args.apply:
+        import time
         for path in ("/api/products", "/.well-known/oauth-protected-resource/mcp"):
-            with urllib.request.urlopen(PUBLIC_URL + path, timeout=30, context=TLS) as response:
-                print(f"    {path}: HTTP {response.status}")
+            for attempt in range(6):  # right after the switch a request can still reach an old instance
+                try:
+                    with urllib.request.urlopen(PUBLIC_URL + path, timeout=30, context=TLS) as response:
+                        print(f"    {path}: HTTP {response.status}")
+                        break
+                except urllib.error.HTTPError as exc:
+                    if attempt == 5:
+                        print(f"    {path}: HTTP {exc.code} after retries; check the service logs")
+                    time.sleep(10)
     print(f"""    Mitra and the copilot answer "paused" until prompt version {version} is approved in production:
       venv/bin/python scripts/promote_evaluation.py --version {version} --apply
       then approve it in Operations -> Mitra quality -> Prompt versions
