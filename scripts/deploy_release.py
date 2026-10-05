@@ -23,6 +23,7 @@ import base64
 import json
 import os
 import secrets
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -31,6 +32,18 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _tls_context() -> ssl.SSLContext:
+    # The python.org macOS installer ships without CA certificates; certifi's bundle works on any Python.
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
+TLS = _tls_context()
 PROJECT = "project-3da8cb5f-328e-44d3-b7a"
 REGION = "us-central1"
 SQL_INSTANCE = "sentinel-db"
@@ -111,7 +124,7 @@ def model_answers(model: str) -> bool:
     body = json.dumps({"contents": [{"role": "user", "parts": [{"text": "Reply with OK."}]}]}).encode()
     request = urllib.request.Request(url, data=body, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=60, context=TLS) as response:
             return response.status == 200
     except urllib.error.HTTPError as exc:
         print(f"    Vertex said {exc.code}: {exc.read()[:200]!r}")
@@ -210,7 +223,7 @@ def main() -> int:
     step(6, "Checks and next steps")
     if args.apply:
         for path in ("/api/products", "/.well-known/oauth-protected-resource/mcp"):
-            with urllib.request.urlopen(PUBLIC_URL + path, timeout=30) as response:
+            with urllib.request.urlopen(PUBLIC_URL + path, timeout=30, context=TLS) as response:
                 print(f"    {path}: HTTP {response.status}")
     print(f"""    Mitra and the copilot answer "paused" until prompt version {version} is approved in production:
       venv/bin/python scripts/promote_evaluation.py --version {version} --apply
