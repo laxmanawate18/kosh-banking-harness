@@ -8,6 +8,7 @@ import warnings
 from pathlib import Path
 
 from cryptography.fernet import Fernet
+from backend.settings import PRODUCTION
 from PIL import Image, ImageOps
 from pypdf import PdfReader
 
@@ -17,6 +18,8 @@ DOCUMENT_TYPES = {"PAN", "FORM_60", "AADHAAR", "PASSPORT", "VOTER_ID", "DRIVING_
 
 def cipher():
     key = os.getenv("SENTINEL_DOCUMENT_KEY")
+    if not key and PRODUCTION:  # a per-container key is lost on every redeploy, making stored documents unreadable
+        raise RuntimeError("SENTINEL_DOCUMENT_KEY must be set in production")
     if not key:
         path = Path(os.getenv("SENTINEL_DOCUMENT_KEY_FILE", str(Path(__file__).parent / "data" / "documents.key")))
         try:

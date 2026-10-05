@@ -30,6 +30,7 @@ from backend.conversations import create_session_data, load_session, save_sessio
 from backend.settings import DEFAULT_MODEL, FALLBACK_MODEL
 from auth_service import COOKIE_NAME, AuthContext
 from backend import care, mitra_ops, offers
+from document_processing import cipher
 from banking_db import db  # the visitor handler logs turns; the customer handler receives its own db
 from product_service import (
     COMPETITOR_REASON,
@@ -58,7 +59,9 @@ VISITOR_CHAT_TTL_SECONDS = 24 * 60 * 60
 
 def restore_sales_context(guest_session: Dict[str, Any]) -> SalesSessionContext:
     """Mitra's memory of a visitor chat (draft application, submissions, offers shown/declined), if saved."""
-    saved = next((t.get("state") for t in guest_session.get("traces", []) if t.get("type") == "visitor_memory"), None)
+    memory = next((t for t in guest_session.get("traces", []) if t.get("type") == "visitor_memory"), {})
+    # Sealed because it holds the visitor's draft application (name, mobile, email) needed to resume it.
+    saved = json.loads(cipher().decrypt(memory["sealed"].encode())) if memory.get("sealed") else memory.get("state")
     if not saved:
         return SalesSessionContext()
     known = {f.name for f in dataclasses.fields(SalesSessionContext)}
@@ -415,7 +418,8 @@ async def serve_visitor_websocket(
                     "role": "assistant", "text": combined_reply, "timestamp": time.time(),
                     **({"presentations": turn_presentations, "presentation": turn_presentations[-1]} if turn_presentations else {}),
                 })
-            guest_session["traces"] = [{"type": "visitor_memory", "state": dataclasses.asdict(sales_context)}]
+            guest_session["traces"] = [{"type": "visitor_memory", "sealed": cipher().encrypt(
+                json.dumps(dataclasses.asdict(sales_context), ensure_ascii=False).encode()).decode()}]
             save_session(guest_session)
             if combined_reply or turn_presentations:
                 await websocket.send_json({"type": "message_saved", "turn_id": turn_id, "message_index": len(guest_session["messages"]) - 1})

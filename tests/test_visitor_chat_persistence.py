@@ -12,6 +12,7 @@ os.environ.setdefault("SENTINEL_DATABASE_URL", f"sqlite+pysqlite:///{Path(_DATAB
 from fastapi.testclient import TestClient  # noqa: E402
 import dev_ui  # noqa: E402
 from backend.conversations import load_session  # noqa: E402
+from backend.chat_runtime import restore_sales_context  # noqa: E402
 from tests.test_visitor_chat import FakeVisitorAgent  # noqa: E402
 
 
@@ -43,8 +44,10 @@ class VisitorChatPersistenceTests(unittest.TestCase):
         self.assertEqual([m["role"] for m in ready["history"]][:2], ["user", "assistant"])
         memory = load_session(sid)["traces"][0]
         self.assertEqual(memory["type"], "visitor_memory")
-        self.assertEqual(memory["state"]["goal"], "savings")
-        self.assertIn("PROD-SAV-PREMIER", memory["state"]["shown_companions"])  # the one companion offer is remembered
+        self.assertNotIn("state", memory)  # encrypted at rest
+        restored = restore_sales_context(load_session(sid))
+        self.assertEqual(restored.goal, "savings")
+        self.assertIn("PROD-SAV-PREMIER", restored.shown_companions)  # the one companion offer is remembered
 
     def test_weak_or_unknown_ids_start_a_new_chat(self):
         for weak in ("GUEST-1234abcd", "visitor-ws-test", "GUEST-" + "A" * 32):

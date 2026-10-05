@@ -42,6 +42,21 @@ def mask_pii(text: str) -> str:
     return _MOBILE.sub(lambda m: "••••••" + m.group(1), text)
 
 
+def _mask_deep(value: Any) -> Any:
+    if isinstance(value, str):
+        return mask_pii(value)
+    if isinstance(value, dict):
+        return {k: _mask_deep(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_mask_deep(v) for v in value]
+    return value
+
+
+def mask_traces(traces: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Tool arguments and results in stored traces, masked like messages. Sealed visitor memory is left intact."""
+    return [t if t.get("type") == "visitor_memory" else _mask_deep(t) for t in traces]
+
+
 def mask_messages(messages: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [{**m, "text": mask_pii(m["text"])} if isinstance(m.get("text"), str) else m for m in messages]
 
