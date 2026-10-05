@@ -303,6 +303,7 @@ async def serve_visitor_websocket(
                 sales_context.no_selling = True
                 sales_action.pop("companion_cross_sell", None)
             auth_challenge_triggered = not intents and is_personal_banking_inquiry(prompt)
+            paused = False
             if "FRAUD" in intents:
                 combined_reply = care.text("fraud", language).format(freeze=care.text("freeze_visitor", language), case="").strip()
                 await websocket.send_json({"type": "text_delta", "text": combined_reply, "turn_id": turn_id})
@@ -312,6 +313,9 @@ async def serve_visitor_websocket(
             elif guarded:
                 combined_reply = guarded
                 await websocket.send_json({"type": "text_delta", "text": guarded, "turn_id": turn_id})
+            elif paused := "VISITOR" in db.get_controls().get("disabled_channels", []):
+                combined_reply = (care.text("self_harm", language) + "\n\n" if "SELF_HARM" in intents else "") + chat_text("mitra_paused", language)
+                await websocket.send_json({"type": "text_delta", "text": combined_reply, "turn_id": turn_id})
             elif auth_challenge_triggered:
                 combined_reply = chat_text("auth_prompt", language)
                 await websocket.send_json({"type": "text_delta", "text": combined_reply, "turn_id": turn_id})
@@ -390,7 +394,7 @@ async def serve_visitor_websocket(
             save_session(guest_session)
             if combined_reply or turn_presentations:
                 await websocket.send_json({"type": "message_saved", "turn_id": turn_id, "message_index": len(guest_session["messages"]) - 1})
-            outcome = ("CARE_FRAUD" if "FRAUD" in intents else "GUARDED" if guarded else "AUTH_PROMPT" if auth_challenge_triggered and not sales_context.last_reason
+            outcome = ("CARE_FRAUD" if "FRAUD" in intents else "PAUSED" if paused else "GUARDED" if guarded else "AUTH_PROMPT" if auth_challenge_triggered and not sales_context.last_reason
                        else "FALLBACK" if sales_context.last_reason else "ANSWERED")
             mitra_ops.record_turn(db, session_id=guest_id, channel="VISITOR", language=language, outcome=outcome,
                                   reason=sales_context.last_reason, intents=intents, latency_ms=int((time.time() - started) * 1000),
@@ -571,6 +575,15 @@ async def serve_chat_websocket(
                         {"label": "Talk to a person", "prompt": "Please arrange a call back from the fraud team"}]}})
                 await websocket.send_json({"type": "turn_complete", "turn_id": fraud_turn, "duration_ms": 0, "stop_reason": "CARE_FRAUD"})
                 mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome="CARE_FRAUD",
+                                      intents=intents, model=DEFAULT_MODEL)
+                continue
+            if "CUSTOMER" in db.get_controls().get("disabled_channels", []):  # the fixed fraud script above still runs
+                paused_turn = str(uuid.uuid4())
+                await websocket.send_json({"type": "turn_start", "turn_id": paused_turn, "model": DEFAULT_MODEL, "timestamp": time.time()})
+                await websocket.send_json({"type": "text_delta", "text": (care.text("self_harm", language) + "\n\n" if "SELF_HARM" in intents else "")
+                                           + chat_text("mitra_paused", language), "turn_id": paused_turn})
+                await websocket.send_json({"type": "turn_complete", "turn_id": paused_turn, "duration_ms": 0, "stop_reason": "PAUSED"})
+                mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome="PAUSED",
                                       intents=intents, model=DEFAULT_MODEL)
                 continue
             preface = care.text("self_harm", language) + "\n\n" if "SELF_HARM" in intents else ""

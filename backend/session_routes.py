@@ -10,7 +10,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
-from backend.api_models import ApprovalDecisionRequest, SessionCreateRequest, SessionUpdateRequest
+from backend.api_models import ApprovalDecisionRequest, HarnessControlsRequest, SessionCreateRequest, SessionUpdateRequest
 from backend.conversations import create_session_data, list_sessions_metadata, load_session, sanitized_session, save_session
 from backend.email_service import send_credentials_email
 from backend import care
@@ -287,6 +287,23 @@ def make_session_router(
     async def officer_notifications(context=Depends(require_officer)):
         del context
         return {"notifications": recent_notifications(db)}
+
+    @router.get("/api/officer/controls")
+    async def officer_get_controls(context=Depends(require_officer)):
+        del context
+        return db.get_controls()
+
+    @router.put("/api/officer/controls")
+    async def officer_set_controls(req: HarnessControlsRequest, context=Depends(require_csrf)):
+        require_officer(context)
+        from banking_tools import BANKING_TOOL_NAMES
+        from product_service import PUBLIC_SALES_TOOL_NAMES, VISITOR_APPLICATION_TOOL_NAMES
+        unknown = (set(req.disabled_channels) - {"VISITOR", "CUSTOMER"}) | (
+            set(req.disabled_tools) - BANKING_TOOL_NAMES - PUBLIC_SALES_TOOL_NAMES - VISITOR_APPLICATION_TOOL_NAMES)
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"Unknown channels or tools: {sorted(unknown)}")
+        return db.set_controls(disabled_channels=req.disabled_channels, disabled_tools=req.disabled_tools,
+                               reason=req.reason.strip(), officer_user_id=context.user_id)
 
     @router.get("/api/officer/audit/verify")
     async def officer_verify_audit(context=Depends(require_officer)):

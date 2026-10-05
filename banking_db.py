@@ -21,6 +21,7 @@ from persistence import (
     ApprovalActionRecord,
     AuditEventRecord,
     AuthSessionRecord,
+    BankDocumentRecord,
     BankingStateRecord,
     BankingWorkflowRecord,
     ConsentRecord,
@@ -186,6 +187,24 @@ class BankingDatabase:
                     linked_only += 1
                 previous_hash = row.integrity_hash
         return {"valid": True, "verified": verified, "linked_only": linked_only, "head": previous_hash}
+
+    def get_controls(self) -> Dict[str, Any]:
+        """Officer kill switches: channels where Mitra is paused and tools that are blocked. One primary-key read."""
+        with self.runtime.sessions() as session:
+            row = session.get(BankDocumentRecord, ("harness_controls", "current"))
+            return dict(row.data) if row else {}
+
+    def set_controls(self, *, disabled_channels: List[str], disabled_tools: List[str], reason: str, officer_user_id: str) -> Dict[str, Any]:
+        controls = {"disabled_channels": sorted(set(disabled_channels)), "disabled_tools": sorted(set(disabled_tools)),
+                    "reason": reason, "updated_by": officer_user_id, "updated_at": utc_now()}
+
+        def mutate(data: Dict[str, Any]) -> None:
+            data.setdefault("harness_controls", {})["current"] = controls
+            data.setdefault("audit_events", []).append({
+                "id": new_id("AUD"), "event_type": "HARNESS_CONTROL_CHANGED", "actor": "officer", "approver_id": officer_user_id,
+                "severity": "WARNING", "summary": "Mitra kill switches changed", "details": controls, "created_at": utc_now()})
+        self.transaction(mutate)
+        return controls
 
     def reset_to_seed(self) -> Dict[str, Any]:
         seed = copy.deepcopy(self._seed())

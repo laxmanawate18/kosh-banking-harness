@@ -276,6 +276,8 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
     def decide(self, data: types.ToolCall) -> types.HookResult:
         name = str(data.name)
         args = data.args if isinstance(data.args, dict) else {}
+        if name in db.get_controls().get("disabled_tools", []):
+            return types.HookResult(allow=False, message="TOOL_PAUSED: The bank has paused this action. Tell the customer it is temporarily unavailable in chat and offer the helpline.")
         if name in PUBLIC_SALES_TOOL_NAMES:
             unknown = set(args) - _PUBLIC_TOOL_ARGUMENTS[name]
             if unknown:
@@ -321,6 +323,8 @@ class PublicSalesToolGateHook(hooks.PreToolCallDecideHook):
     def decide(self, data: types.ToolCall) -> types.HookResult:
         name = str(data.name)
         args = data.args if isinstance(data.args, dict) else {}
+        if name in db.get_controls().get("disabled_tools", []):
+            return types.HookResult(allow=False, message="TOOL_PAUSED: The bank has paused this action. Tell the visitor it is temporarily unavailable and offer the helpline.")
         allowed = PUBLIC_SALES_TOOL_NAMES | VISITOR_APPLICATION_TOOL_NAMES
         if name not in allowed and name in BANKING_TOOL_NAMES:
             return types.HookResult(allow=False, message="AUTH_REQUIRED: Only public product lookup is available before sign-in. Sign in to access personal banking.")

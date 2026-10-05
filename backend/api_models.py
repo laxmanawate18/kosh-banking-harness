@@ -67,3 +67,9 @@ class SpeakRequest(BaseModel):
 class ApplicationStatusRequest(BaseModel):
     reference: str = Field(min_length=6, max_length=20)
     mobile: str = Field(min_length=10, max_length=20)
+
+
+class HarnessControlsRequest(BaseModel):
+    disabled_channels: list[str] = Field(default_factory=list)
+    disabled_tools: list[str] = Field(default_factory=list)
+    reason: str = Field(min_length=5, max_length=500)
