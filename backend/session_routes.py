@@ -305,6 +305,13 @@ def make_session_router(
         return db.set_controls(disabled_channels=req.disabled_channels, disabled_tools=req.disabled_tools,
                                reason=req.reason.strip(), officer_user_id=context.user_id)
 
+    @router.post("/api/officer/reconciliation/run")
+    async def officer_run_reconciliation(context=Depends(require_csrf)):
+        require_officer(context)
+        from core_banking import reconcile
+        from banking_tools import banking_service
+        return await asyncio.to_thread(reconcile, db, banking_service.core)
+
     @router.get("/api/officer/audit/verify")
     async def officer_verify_audit(context=Depends(require_officer)):
         del context

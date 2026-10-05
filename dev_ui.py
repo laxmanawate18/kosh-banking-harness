@@ -69,6 +69,19 @@ async def lifespan(application: FastAPI):
             await asyncio.sleep(24 * 3600)
     retention_task = asyncio.create_task(retention_loop())
 
+    async def reconciliation_loop():
+        # Settles payments left mid-post within minutes, and reports any mismatch with the core's journal.
+        from core_banking import reconcile
+        while True:
+            await asyncio.sleep(300)
+            try:
+                report = await asyncio.to_thread(reconcile, db, banking_service.core)
+                if not report["balanced"] or report["settled"]:
+                    print(f"Reconciliation: {len(report['issues'])} issue(s), {len(report['settled'])} settled")
+            except Exception as exc:
+                print(f"Reconciliation notice: {exc}")
+    reconciliation_task = asyncio.create_task(reconciliation_loop())
+
     async def loop_watchdog():
         # Logs when something blocks the event loop (every chat on this instance waits while it is blocked).
         loop = asyncio.get_running_loop()
@@ -93,6 +106,7 @@ async def lifespan(application: FastAPI):
     async with mcp_gateway.session_manager.run():
         yield
     retention_task.cancel()
+    reconciliation_task.cancel()
     watchdog_task.cancel()
     if sync_worker:
         sync_worker.stop()

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from backend import harness
+from core_banking import CoreBanking, core_for
 from banking_db import BankingDatabase, db, new_id, utc_now
 from product_service import get_product_by_id, inr
 from sentinel import AGENT_ID, CUSTOMER_ID, KNOWN_DEVICE_ID, SentinelService, sentinel
@@ -74,9 +75,10 @@ def _audit_event(event_type: str, session_id: Optional[str], intent_id: Optional
 class SecureBankingService:
     """Application boundary for proposals, challenges, and exactly-once execution."""
 
-    def __init__(self, repository: BankingDatabase = db, sentinel_service: SentinelService = sentinel) -> None:
+    def __init__(self, repository: BankingDatabase = db, sentinel_service: SentinelService = sentinel, core: Optional[CoreBanking] = None) -> None:
         self.db = repository
         self.sentinel = sentinel_service
+        self.core = core or core_for(repository)
         self._workflow_lock = threading.RLock()
 
     def _context(self, session_context: Dict[str, Any], payment_intent: Dict[str, Any]) -> Dict[str, Any]:
@@ -276,89 +278,57 @@ class SecureBankingService:
             if existing:
                 return existing
 
-            def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+            # 1. Consume the single-use authorisation and mark the payment as being posted.
+            def claim(data: Dict[str, Any]) -> Dict[str, Any]:
                 stored_payment = next(item for item in data["payment_intents"] if item["id"] == payment["id"])
                 stored_decision = next(item for item in data["sentinel_decisions"] if item["id"] == decision["id"])
                 if stored_decision.get("consumed_at"):
                     raise PermissionError("AUTHORIZATION_REUSED_OR_UNKNOWN")
-                action = stored_payment["action"]
-                source = data["accounts"].get(action["source_account_id"])
-                amount = int(action.get("amount_minor", 0))
-                if not source or source.get("status") != "ACTIVE":
-                    raise ValueError("Source account unavailable")
-                if source.get("available_balance_minor", 0) < amount:
-                    raise ValueError("Insufficient funds")
+                stored_decision["consumed_at"] = utc_now()
+                stored_payment.update(status="POSTING", updated_at=utc_now())
+                return copy.deepcopy(stored_payment)
 
-                source["balance_minor"] -= amount
-                source["available_balance_minor"] -= amount
-                reference = new_id("TXNREF")
-                customer_id = stored_payment.get("customer_id") or CUSTOMER_ID
-                transaction = {
-                    "id": new_id("TXN"),
-                    "customer_id": customer_id,
-                    "account_id": source["id"],
-                    "created_at": utc_now(),
-                    "description": "",
-                    "category": "",
-                    "amount_minor": -amount,
-                    "currency": "INR",
-                    "beneficiary_id": action.get("beneficiary_id"),
-                    "status": "COMPLETED",
-                    "reference": reference,
-                }
-                if action["action_type"] == "PAY_BILL":
-                    bill = data["bills"].get(action["bill_id"])
-                    if not bill or bill.get("status") != "DUE":
-                        raise ValueError("Bill is no longer payable")
-                    if bill["amount_minor"] != amount or bill["biller_id"] != action["beneficiary_id"]:
-                        raise PermissionError("BILL_BINDING_MISMATCH")
-                    bill["status"] = "PAID"
-                    bill["paid_at"] = utc_now()
-                    bill["payment_reference"] = reference
-                    transaction["description"] = f"BBPS • {bill['biller_name']}"
-                    transaction["category"] = "UTILITIES"
-                    payee_name = bill["biller_name"]
-                else:
-                    beneficiary = data["beneficiaries"].get(action["beneficiary_id"])
-                    if not beneficiary or beneficiary.get("risk_status") == "BLOCKED_MULE":
-                        raise PermissionError("KNOWN_MULE_DESTINATION")
-                    beneficiary["relationship"] = "TRUSTED"
-                    transaction["description"] = f"UPI • {beneficiary['display_name']}"
-                    transaction["category"] = "P2P_TRANSFER"
-                    payee_name = beneficiary["display_name"]
+            stored = self.db.transaction(claim)
+            action = stored["action"]
+            # 2. The core posts it (idempotent on Kosh's key). If Kosh stops here, reconciliation settles it.
+            try:
+                posted = self.core.post_payment({
+                    "idempotency_key": stored["idempotency_key"], "payment_id": stored["id"],
+                    "customer_id": stored.get("customer_id") or CUSTOMER_ID, "action_type": action["action_type"],
+                    "source_account_id": action["source_account_id"], "amount_minor": int(action.get("amount_minor", 0)),
+                    "beneficiary_id": action.get("beneficiary_id"), "bill_id": action.get("bill_id")})
+            except (ValueError, PermissionError):
+                self._update_payment(stored["id"], status="FAILED")
+                raise
 
-                data.setdefault("transactions", []).insert(0, transaction)
+            # 3. Record what the core did.
+            def record(data: Dict[str, Any]) -> Dict[str, Any]:
+                stored_payment = next(item for item in data["payment_intents"] if item["id"] == payment["id"])
                 receipt = {
-                    "reference": reference,
+                    "reference": posted["core_reference"],
                     "payment_intent_id": stored_payment["id"],
                     "action_type": action["action_type"],
-                    "amount_minor": amount,
+                    "amount_minor": posted["amount_minor"],
                     "currency": "INR",
-                    "payee_name": payee_name,
-                    "source_account_name": source["name"],
-                    "source_account_masked": source["account_number_masked"],
-                    "remaining_balance_minor": source["available_balance_minor"],
-                    "executed_at": utc_now(),
+                    "payee_name": posted["payee_name"],
+                    "source_account_name": posted["source_account_name"],
+                    "source_account_masked": posted["source_account_masked"],
+                    "remaining_balance_minor": posted["remaining_balance_minor"],
+                    "executed_at": posted["posted_at"],
                     "status": "COMPLETED",
+                    "core_adapter": self.core.name,
                 }
-                stored_payment["status"] = "EXECUTED"
-                stored_payment["receipt"] = receipt
-                stored_payment["updated_at"] = utc_now()
-                stored_decision["consumed_at"] = utc_now()
+                stored_payment.update(status="EXECUTED", receipt=receipt, updated_at=utc_now())
                 data.setdefault("idempotency_records", []).append(
-                    {
-                        "key": stored_payment["idempotency_key"],
-                        "request_digest": decision["request_digest"],
-                        "result": receipt,
-                        "created_at": utc_now(),
-                    }
-                )
+                    {"key": stored_payment["idempotency_key"], "request_digest": decision["request_digest"],
+                     "result": receipt, "created_at": utc_now()})
                 data.setdefault("audit_events", []).append(_audit_event(
-                    "PAYMENT_EXECUTED", stored_payment["session_id"], stored_payment["intent_id"], stored_decision["id"], f"{action['action_type']} executed exactly once",
-                    {"reference": reference, "amount_minor": amount, "payee_name": payee_name}, severity="INFO"))
+                    "PAYMENT_EXECUTED", stored_payment["session_id"], stored_payment["intent_id"], decision["id"], f"{action['action_type']} executed exactly once",
+                    {"reference": receipt["reference"], "amount_minor": receipt["amount_minor"], "payee_name": receipt["payee_name"],
+                     "core_adapter": self.core.name}, severity="INFO"))
                 return receipt
 
-            receipt = self.db.transaction(mutate)
+            receipt = self.db.transaction(record)
             self._alert(payment.get("customer_id"), "money_debited", receipt["reference"],
                         amount=inr(receipt["amount_minor"] / 100, 2).lstrip("₹"), account=receipt["source_account_masked"],
                         payee=receipt["payee_name"])
@@ -673,11 +643,10 @@ class SecureBankingService:
         if not valid:
             return {"success": False, "error": error}
 
+        frozen_card = self.core.set_card_status(card["id"], "FROZEN", idempotency_key=payment["idempotency_key"], reason=reason)
+
         def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
-            stored = data["cards"][card["id"]]
-            stored["status"] = "FROZEN"
-            stored["frozen_reason"] = reason[:160]
-            stored["frozen_at"] = utc_now()
+            stored = frozen_card
             stored_payment = next(item for item in data["payment_intents"] if item["id"] == payment["id"])
             stored_payment["status"] = "EXECUTED"
             stored_payment["updated_at"] = utc_now()
