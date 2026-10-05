@@ -55,7 +55,7 @@
         "args": {}
       },
       "propose_bill_payment": {
-        "description": "Propose paying a registered bill; the customer approves in Kavach",
+        "description": "Propose paying a registered bill",
         "effect": "money",
         "risk": "high",
         "approval": "customer",
@@ -76,7 +76,7 @@
         }
       },
       "propose_transfer": {
-        "description": "Propose a transfer to a saved payee; the customer approves in Kavach",
+        "description": "Propose a transfer to a saved payee",
         "effect": "money",
         "risk": "high",
         "approval": "customer",

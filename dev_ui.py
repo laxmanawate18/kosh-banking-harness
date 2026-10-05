@@ -38,6 +38,7 @@ from service_requests import ServiceRequestService
 from banking_workflows import WorkflowService, make_workflow_router
 from rpa.cbs_mock_server import cbs_router
 from rpa.job_dispatcher import get_job_queue
+from backend.mcp_gateway import mount as mount_mcp_gateway
 
 
 @asynccontextmanager
@@ -89,7 +90,8 @@ async def lifespan(application: FastAPI):
         except Exception as exc:
             print(f"Cloud SQL replicator notice: {exc}")
 
-    yield
+    async with mcp_gateway.session_manager.run():
+        yield
     retention_task.cancel()
     watchdog_task.cancel()
     if sync_worker:
@@ -115,6 +117,7 @@ for _item in sorted(FRONTEND_DIST.iterdir()) if FRONTEND_DIST.exists() else []:
         app.add_api_route(f"/{_item.name}", lambda _path=_item: FileResponse(_path), methods=["GET"], include_in_schema=False)
 auth_service = AuthService(db.runtime)
 oauth_service = OAuthService(auth_service)
+mcp_gateway = mount_mcp_gateway(app, oauth_service, public_url=os.getenv("SENTINEL_PUBLIC_URL", "http://127.0.0.1:8017"))
 
 request_service = ServiceRequestService(db)
 workflow_service = WorkflowService(db)

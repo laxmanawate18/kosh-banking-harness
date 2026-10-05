@@ -298,7 +298,7 @@ def make_session_router(
         require_officer(context)
         from banking_tools import BANKING_TOOL_NAMES
         from product_service import PUBLIC_SALES_TOOL_NAMES, VISITOR_APPLICATION_TOOL_NAMES
-        unknown = (set(req.disabled_channels) - {"VISITOR", "CUSTOMER"}) | (
+        unknown = (set(req.disabled_channels) - {"VISITOR", "CUSTOMER", "MCP"}) | (
             set(req.disabled_tools) - BANKING_TOOL_NAMES - PUBLIC_SALES_TOOL_NAMES - VISITOR_APPLICATION_TOOL_NAMES)
         if unknown:
             raise HTTPException(status_code=400, detail=f"Unknown channels or tools: {sorted(unknown)}")
