@@ -11,6 +11,7 @@ from google.antigravity import types
 import dev_ui
 from backend import agent_config, chat_runtime
 from backend.agent_config import SecureToolGateHook
+from tests.consent_helpers import grant_consent
 
 
 class ChatLimitTests(unittest.TestCase):
@@ -41,6 +42,7 @@ class ChatLimitTests(unittest.TestCase):
                 second.runtime.engine.dispose()
 
     def test_tool_calls_stop_after_the_per_turn_cap(self):
+        grant_consent(dev_ui.db)
         context = {"session_id": "S-CAP", "customer_id": "CUST-1001", "tool_calls_this_turn": 0}
         gate = SecureToolGateHook(context)
         call = types.ToolCall(name="get_customer_summary", args={})

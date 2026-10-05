@@ -6,6 +6,7 @@ import unittest
 from google.antigravity import types
 
 from backend import harness
+from tests.consent_helpers import grant_consent
 from backend.agent_config import PublicSalesToolGateHook, SecureToolGateHook
 from banking_tools import build_banking_tools
 from product_service import VISITOR_APPLICATION_TOOL_NAMES, SalesSessionContext, build_public_sales_tools
@@ -40,6 +41,10 @@ class RegistryTests(unittest.TestCase):
         for name, spec in harness.tools("customer").items():
             if spec["effect"] == "money":
                 self.assertEqual((spec["approval"], spec["scopes"]), ("customer", ["banking.propose"]), name)
+
+    def setUp(self):
+        import dev_ui
+        grant_consent(dev_ui.db)
 
     def gate(self, name, args, **ctx):
         context = {"session_id": "S-REG", "customer_id": "CUST-1001", "scopes": ["banking.read", "banking.propose"], **ctx}

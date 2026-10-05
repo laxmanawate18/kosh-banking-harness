@@ -10,6 +10,7 @@ import backend.agent_config as agent_config
 from backend.agent_config import SecureToolGateHook, SessionPostToolCallHook
 from banking_db import DEFAULT_SEED_PATH, BankingDatabase
 from persistence import AuditEventRecord
+from tests.consent_helpers import grant_consent
 
 
 class ToolAuditTests(unittest.TestCase):
@@ -17,6 +18,7 @@ class ToolAuditTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = BankingDatabase(f"sqlite+pysqlite:///{Path(self.tmp.name) / 'audit.sqlite3'}", DEFAULT_SEED_PATH)
         self.real_db, agent_config.db = agent_config.db, self.db
+        grant_consent(self.db)
 
     def tearDown(self):
         agent_config.db = self.real_db

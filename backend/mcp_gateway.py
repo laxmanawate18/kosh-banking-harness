@@ -82,8 +82,8 @@ def _expose(server: MCPServer, name: str, fn: Callable[..., Any], spec: Dict[str
         if over_rate_limit(f"mcp:{caller['user_id']}"):
             return _refused("RATE_LIMITED: Too many requests. Wait a minute and try again.")
         request = types.ToolCall(name=name, args=kwargs, id=f"mcp-{uuid.uuid4().hex[:12]}")
-        decision = audit_tool_decision(caller["session_id"], caller["customer_id"], request,
-                                       SecureToolGateHook(caller).decide(request))
+        result = SecureToolGateHook(caller).decide(request)
+        decision = audit_tool_decision(caller["session_id"], caller["customer_id"], request, result, caller.pop("last_consent_id", None))
         if not decision.allow:
             return _refused(decision.message or "Denied")
         if name in SENTINEL_ACTIONS:  # no customer text exists in Kosh, so the intent is the agent's exact request

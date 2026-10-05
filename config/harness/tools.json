@@ -11,7 +11,8 @@
         "scopes": [
           "banking.read"
         ],
-        "args": {}
+        "args": {},
+        "consent": "accounts:read"
       },
       "get_transaction_history": {
         "description": "Recent transactions",
@@ -32,7 +33,8 @@
             "min": 1,
             "max": 50
           }
-        }
+        },
+        "consent": "transactions:read"
       },
       "get_outstanding_bills": {
         "description": "Bills due",
@@ -42,7 +44,8 @@
         "scopes": [
           "banking.read"
         ],
-        "args": {}
+        "args": {},
+        "consent": "accounts:read"
       },
       "get_security_alerts": {
         "description": "Security alerts on the account",
@@ -52,7 +55,8 @@
         "scopes": [
           "banking.read"
         ],
-        "args": {}
+        "args": {},
+        "consent": "accounts:read"
       },
       "propose_bill_payment": {
         "description": "Propose paying a registered bill",
@@ -73,7 +77,8 @@
             "pattern": "^(?i:ACC-[A-Z0-9-]{1,40})$",
             "required": true
           }
-        }
+        },
+        "consent": "payments:propose"
       },
       "propose_transfer": {
         "description": "Propose a transfer to a saved payee",
@@ -105,7 +110,8 @@
             "max_length": 120,
             "required": false
           }
-        }
+        },
+        "consent": "payments:propose"
       },
       "freeze_card": {
         "description": "Freeze a card at once (protective); unfreezing is confirmed by the bank",
@@ -126,7 +132,8 @@
             "max_length": 200,
             "required": true
           }
-        }
+        },
+        "consent": "cards:protect"
       },
       "get_kyc_status": {
         "description": "KYC status and pending requirements",
@@ -136,7 +143,8 @@
         "scopes": [
           "banking.read"
         ],
-        "args": {}
+        "args": {},
+        "consent": "accounts:read"
       },
       "validate_kyc_document": {
         "description": "Check the format of a PAN, Aadhaar or passport number",
@@ -164,7 +172,8 @@
             "max_length": 32,
             "required": true
           }
-        }
+        },
+        "consent": "service_requests:create"
       },
       "start_banking_workflow": {
         "description": "Open a guided service workflow",
@@ -180,7 +189,8 @@
             "pattern": "^[a-z_]{2,60}$",
             "required": true
           }
-        }
+        },
+        "consent": "service_requests:create"
       },
       "record_document_extraction": {
         "description": "Record facts read from an uploaded document for officer review",
@@ -211,7 +221,8 @@
             "max_items": 40,
             "required": true
           }
-        }
+        },
+        "consent": "service_requests:create"
       },
       "start_account_opening": {
         "description": "Start an account-opening workflow",
@@ -221,7 +232,8 @@
         "scopes": [
           "banking.propose"
         ],
-        "args": {}
+        "args": {},
+        "consent": "service_requests:create"
       },
       "check_account_opening_status": {
         "description": "Status of an account opening",
@@ -237,7 +249,8 @@
             "max_length": 40,
             "required": false
           }
-        }
+        },
+        "consent": "accounts:read"
       },
       "record_customer_lead": {
         "description": "Record a product interest for follow-up (consent-gated)",
@@ -288,7 +301,8 @@
             "max_length": 500,
             "required": false
           }
-        }
+        },
+        "consent": "marketing"
       },
       "get_lead_reengagement_offer": {
         "description": "Follow-up facts for an earlier product interest",
@@ -298,7 +312,8 @@
         "scopes": [
           "banking.read"
         ],
-        "args": {}
+        "args": {},
+        "consent": "marketing"
       },
       "get_next_best_offer": {
         "description": "A personalised offer, only with marketing consent",
@@ -308,7 +323,8 @@
         "scopes": [
           "banking.read"
         ],
-        "args": {}
+        "args": {},
+        "consent": "marketing"
       },
       "decline_offer": {
         "description": "Record that the customer declined an offer",
@@ -324,7 +340,8 @@
             "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
             "required": true
           }
-        }
+        },
+        "consent": "none"
       },
       "start_video_kyc": {
         "description": "Book a video KYC session",
@@ -334,7 +351,8 @@
         "scopes": [
           "banking.propose"
         ],
-        "args": {}
+        "args": {},
+        "consent": "service_requests:create"
       },
       "register_complaint": {
         "description": "Register a complaint with a reference and RBI timelines",
@@ -355,7 +373,8 @@
             "max_length": 60,
             "required": false
           }
-        }
+        },
+        "consent": "none"
       },
       "request_callback": {
         "description": "Request a callback from a person",
@@ -376,7 +395,8 @@
             "max_length": 80,
             "required": false
           }
-        }
+        },
+        "consent": "none"
       },
       "check_loan_affordability": {
         "description": "EMI and affordability check",
@@ -415,7 +435,8 @@
             "min": 0,
             "max": 1000000000
           }
-        }
+        },
+        "consent": "none"
       },
       "query_bank_knowledge": {
         "description": "Search Kosh's policy and help documents",
@@ -436,7 +457,8 @@
             "max_length": 40,
             "required": false
           }
-        }
+        },
+        "consent": "none"
       },
       "search_public_products": {
         "description": "Search the published product catalogue",
@@ -457,7 +479,8 @@
             "max_length": 80,
             "required": false
           }
-        }
+        },
+        "consent": "none"
       },
       "get_public_product_details": {
         "description": "Published facts for named products",
@@ -478,7 +501,8 @@
             "max_items": 6,
             "required": true
           }
-        }
+        },
+        "consent": "none"
       },
       "compare_public_products": {
         "description": "Compare published products",
@@ -509,7 +533,8 @@
             "max_items": 8,
             "required": true
           }
-        }
+        },
+        "consent": "none"
       },
       "get_product_disclosures": {
         "description": "Key Fact Statement and disclosures",
@@ -525,7 +550,8 @@
             "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
             "required": true
           }
-        }
+        },
+        "consent": "none"
       },
       "check_application_status": {
         "description": "Status of an application by reference and mobile",
@@ -546,7 +572,8 @@
             "pattern": "^[+0-9 -]{10,16}$",
             "required": true
           }
-        }
+        },
+        "consent": "none"
       }
     },
     "visitor": {
@@ -569,7 +596,8 @@
             "max_length": 80,
             "required": false
           }
-        }
+        },
+        "consent": "none"
       },
       "get_public_product_details": {
         "description": "Published facts for named products",
@@ -590,7 +618,8 @@
             "max_items": 6,
             "required": true
           }
-        }
+        },
+        "consent": "none"
       },
       "compare_public_products": {
         "description": "Compare published products",
@@ -621,7 +650,8 @@
             "max_items": 8,
             "required": true
           }
-        }
+        },
+        "consent": "none"
       },
       "get_product_disclosures": {
         "description": "Key Fact Statement and disclosures",
@@ -637,7 +667,8 @@
             "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
             "required": true
           }
-        }
+        },
+        "consent": "none"
       },
       "check_application_status": {
         "description": "Status of an application by reference and mobile",
@@ -658,7 +689,8 @@
             "pattern": "^[+0-9 -]{10,16}$",
             "required": true
           }
-        }
+        },
+        "consent": "none"
       },
       "check_loan_affordability": {
         "description": "EMI and affordability check",
@@ -697,7 +729,8 @@
             "min": 0,
             "max": 1000000000
           }
-        }
+        },
+        "consent": "none"
       },
       "query_bank_knowledge": {
         "description": "Search Kosh's policy and help documents",
@@ -718,7 +751,8 @@
             "max_length": 40,
             "required": false
           }
-        }
+        },
+        "consent": "none"
       },
       "prepare_product_application": {
         "description": "Collect a new applicant's details for review before submission",
@@ -782,7 +816,8 @@
             "max_length": 200,
             "required": false
           }
-        }
+        },
+        "consent": "none"
       },
       "submit_product_application": {
         "description": "Submit the confirmed application to the bank for review",
@@ -792,7 +827,8 @@
         "scopes": [
           "banking.propose"
         ],
-        "args": {}
+        "args": {},
+        "consent": "none"
       },
       "register_complaint": {
         "description": "Register a complaint with a reference and RBI timelines",
@@ -823,7 +859,8 @@
             "max_length": 60,
             "required": false
           }
-        }
+        },
+        "consent": "none"
       },
       "request_callback": {
         "description": "Request a callback from a person",
@@ -854,7 +891,8 @@
             "max_length": 80,
             "required": false
           }
-        }
+        },
+        "consent": "none"
       }
     },
     "officer": {
@@ -881,7 +919,8 @@
             "min": 1,
             "max": 50
           }
-        }
+        },
+        "consent": "none"
       },
       "get_request_details": {
         "description": "One request: collected data (masked), findings, discrepancies, confidence and history",
@@ -897,7 +936,8 @@
             "pattern": "^(?i:REQ-[A-Z0-9]{1,40})$",
             "required": true
           }
-        }
+        },
+        "consent": "none"
       },
       "get_customer_profile": {
         "description": "A customer's KYC standing, risk category and accounts (masked)",
@@ -913,7 +953,8 @@
             "pattern": "^(?i:CUST-[A-Z0-9-]{1,40})$",
             "required": true
           }
-        }
+        },
+        "consent": "none"
       },
       "list_care_cases": {
         "description": "Open customer-care cases: complaints, fraud reports, callbacks and hardship",
@@ -933,7 +974,8 @@
               "ESCALATED"
             ]
           }
-        }
+        },
+        "consent": "none"
       },
       "get_last_reconciliation": {
         "description": "The latest reconciliation between Kosh and the core banking journal",
@@ -943,7 +985,8 @@
         "scopes": [
           "officer.read"
         ],
-        "args": {}
+        "args": {},
+        "consent": "none"
       },
       "verify_audit_trail": {
         "description": "Re-check the tamper-evident audit chain",
@@ -953,7 +996,8 @@
         "scopes": [
           "officer.read"
         ],
-        "args": {}
+        "args": {},
+        "consent": "none"
       },
       "query_bank_knowledge": {
         "description": "Search Kosh's policy and help documents",
@@ -973,7 +1017,8 @@
             "type": "string",
             "max_length": 40
           }
-        }
+        },
+        "consent": "none"
       },
       "draft_decision_note": {
         "description": "Record a draft recommendation on a request for the officer to review; it is not a decision",
@@ -1004,8 +1049,10 @@
             "max_length": 1000,
             "required": true
           }
-        }
+        },
+        "consent": "none"
       }
     }
-  }
+  },
+  "_consent": "Each tool names the customer consent it relies on: a digital-banking consent scope, 'marketing' (the separate personalised-offers consent) or 'none' (public information, or a right that is never gated: complaints, callbacks, declining an offer). The gate refuses the tool without that active consent and records the consent id on the audit record."
 }

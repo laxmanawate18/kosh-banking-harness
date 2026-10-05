@@ -91,6 +91,7 @@ Every agent, Mitra or an external one, reaches Kosh's banking capabilities throu
 - **Keys:** in production the app refuses to start without its payment-token, audit and document encryption keys (`SENTINEL_DEMO_SECRET`, `SENTINEL_AUDIT_HMAC_KEY`, `SENTINEL_DOCUMENT_KEY`).
 - **Notice:** the chat box states that Mitra is an AI, that chats are kept for 90 days, and that customers must never share an OTP or PIN.
 - **Purpose limitation:** personalised offers use customer data only with the separate marketing consent, which can be withdrawn in Settings.
+- **Consent per action:** every agent tool names, in the tool registry, the consent it relies on (a digital-banking scope such as `accounts:read` or `payments:propose`, the separate marketing consent, or none for public information). The gate refuses the action without that active consent, for Mitra and for outside agents alike, and records the consent id on the audit record. Complaints, callbacks and declining an offer are never gated.
 
 ## 7. Fairness
 

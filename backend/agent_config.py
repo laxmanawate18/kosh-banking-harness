@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 from google.antigravity import Agent, CapabilitiesConfig, LocalAgentConfig, hooks, models, types
 
 from backend.settings import DEFAULT_LOCATION, DEFAULT_MODEL, DEFAULT_PROJECT_ID, USE_VERTEXAI
-from backend import harness
+from backend import consent, harness
 from banking_db import db
 from backend.mitra_ops import mask_pii, token_counts
 from banking_tools import BANKING_TOOL_NAMES, build_banking_tools
@@ -206,10 +206,11 @@ def _audit_payload(value: Any, limit: int = 2000) -> str:
 
 
 def audit_tool_decision(session_id: Optional[str], customer_id: Optional[str], data: types.ToolCall,
-                        result: types.HookResult) -> types.HookResult:
+                        result: types.HookResult, consent_id: Optional[str] = None) -> types.HookResult:
     db.append_audit(
         "AGENT_TOOL_ALLOWED" if result.allow else "AGENT_TOOL_DENIED",
         session_id=session_id, customer_id=customer_id, actor="agent", severity="INFO" if result.allow else "WARNING",
+        consent_id=consent_id,
         summary=f"{'Allowed' if result.allow else 'Denied'} {data.name}",
         details={"tool": str(data.name), "tool_call_id": getattr(data, "id", None), "arguments": _audit_payload(getattr(data, "args", None) or {}),
                  "gate_message": result.message or None},
@@ -225,8 +226,9 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
 
     async def run(self, context: hooks.HookContext, data: types.ToolCall) -> types.HookResult:
         del context
+        result = self.decide(data)
         return audit_tool_decision(self.trusted_context.get("session_id"), self.trusted_context.get("customer_id"),
-                                   data, self.decide(data))
+                                   data, result, self.trusted_context.pop("last_consent_id", None))
 
     def decide(self, data: types.ToolCall) -> types.HookResult:
         name = str(data.name)
@@ -256,6 +258,11 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
             "get_kyc_status", "check_account_opening_status",
         }:
             return types.HookResult(allow=False, message="Document processing turns cannot perform unrelated actions.")
+        consent_id, refusal = consent.for_action(db, self.trusted_context.get("customer_id"), spec.get("consent"))
+        if refusal:
+            return types.HookResult(allow=False, message=f"{refusal}: this needs the customer's consent. Tell them they can "
+                                    "review it under Settings in the Kosh app; do not ask again in this chat.")
+        self.trusted_context["last_consent_id"] = consent_id
         return types.HookResult(allow=True)
 
 

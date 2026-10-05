@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 import dev_ui
 from auth_service import AuthContext
+from tests.consent_helpers import grant_consent
 
 HEADERS = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json", "MCP-Protocol-Version": "2025-06-18"}
 TOKENS = {
@@ -41,6 +42,7 @@ class McpGatewayTests(unittest.TestCase):
     def setUp(self):
         dev_ui.db.reset_to_seed()
         dev_ui.db.update_kyc_status("CUST-1001", "VERIFIED")
+        grant_consent(dev_ui.db)
 
     def call(self, name, arguments=None, token="full"):
         response = self.client.post("/mcp", headers={**HEADERS, "Authorization": f"Bearer {token}"}, json={
