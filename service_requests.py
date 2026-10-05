@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import select
 
 from banking_db import BankingDatabase
-from persistence import ApprovalActionRecord, BankingWorkflowRecord, ServiceRequestRecord, utc_dt
+from persistence import ApprovalActionRecord, BankingWorkflowRecord, ServiceRequestRecord, UserRecord, utc_dt
 
 
 def _service(service_id: str, name: str, level: str, mode: str, phase: str = "P1") -> dict[str, str]:
@@ -115,6 +115,13 @@ class ServiceRequestService:
                 raise KeyError("Request not found")
             if row.status not in {"PENDING_APPROVAL", "ESCALATED", "MORE_INFO_REQUIRED", "RPA_FAILED"}:
                 raise ValueError("Request is not awaiting an officer decision")
+            officer = session.get(UserRecord, officer_user_id)
+            if officer and officer.customer_id and officer.customer_id == row.customer_id:
+                raise ValueError("Four-eyes rule: an officer cannot decide a request on their own customer account")
+            if action == "APPROVE" and session.scalar(select(ApprovalActionRecord.id).where(
+                    ApprovalActionRecord.request_id == row.id, ApprovalActionRecord.officer_user_id == officer_user_id,
+                    ApprovalActionRecord.action == "ESCALATE")):
+                raise ValueError("Four-eyes rule: a request you escalated must be approved by a different officer")
             if row.service_id == "P1-17" and action == "APPROVE":
                 required = {"document_authenticity", "pan_or_form60", "identity_match", "screening", "declarations"}
                 if not required.issubset(set(verification_checks or [])) or len(verification_reference.strip()) < 8:
