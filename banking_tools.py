@@ -515,7 +515,7 @@ class SecureBankingService:
             "presentation": {
                 "type": "PAYMENT_CHALLENGE",
                 "title": "Approval required to send money",
-                "message": f"Review this transfer of {inr(action.get('amount_minor', 0) / 100, 2)} to {payee_name} in the Kavach approval dialog. Enter the verification code only in that trusted modal.",
+                "message": f"Review this payment of {inr(action.get('amount_minor', 0) / 100, 2)} to {payee_name} in the Kavach approval dialog. Enter the verification code only in that trusted modal.",
             },
         }
 
@@ -534,7 +534,7 @@ class SecureBankingService:
         if challenge["status"] != "OPEN":
             payment = self.db.get_payment_intent(challenge["payment_intent_id"])
             if challenge["status"] in ("APPROVED", "VERIFIED") and payment and payment.get("receipt"):
-                return {"success": True, "status": "EXECUTED", "receipt": payment["receipt"], "presentation": {"type": "PAYMENT_RECEIPT", "title": "Transfer complete"}}
+                return {"success": True, "status": "EXECUTED", "receipt": payment["receipt"], "presentation": {"type": "PAYMENT_RECEIPT", "title": "Payment complete"}}
             return {"success": False, "error": "Challenge is no longer active.", "status": challenge.get("status")}
         if challenge.get("expires_at") and datetime.now(timezone.utc) >= datetime.fromisoformat(challenge["expires_at"].replace("Z", "+00:00")):
             self._set_challenge_status(challenge_id, "EXPIRED")
@@ -581,7 +581,7 @@ class SecureBankingService:
                         m["presentation"]["completed"] = True
                         m["presentation"]["status"] = "EXECUTED"
                         if m.get("text") and ("requires your approval" in m["text"] or "verification code" in m["text"]):
-                            m["text"] = "A transfer from your account was proposed and has been approved."
+                            m["text"] = "A payment from your account was proposed and has been approved."
                     if "presentations" in m:
                         for p in m["presentations"]:
                             if p.get("type") in ("PAYMENT_CHALLENGE", "PAYMENT_APPROVAL_REQUIRED"):
@@ -600,12 +600,12 @@ class SecureBankingService:
                     "text": receipt_text,
                     "presentation": {
                         "type": "PAYMENT_RECEIPT",
-                        "title": "Transfer complete",
+                        "title": "Payment complete",
                         "receipt": receipt,
                     },
                     "presentations": [{
                         "type": "PAYMENT_RECEIPT",
-                        "title": "Transfer complete",
+                        "title": "Payment complete",
                         "receipt": receipt,
                     }],
                     "timestamp": time.time(),
@@ -623,7 +623,7 @@ class SecureBankingService:
             "status": "EXECUTED",
             "receipt": receipt,
             "sentinel": _without_token(decision),
-            "presentation": {"type": "PAYMENT_RECEIPT", "title": "Transfer complete"},
+            "presentation": {"type": "PAYMENT_RECEIPT", "title": "Payment complete"},
         }
 
     def _set_challenge_status(self, challenge_id: str, status: str) -> None:

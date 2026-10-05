@@ -43,6 +43,10 @@ class NotificationTests(unittest.TestCase):
         before = len(self.outbox("money_debited"))
         r = self.client.post("/api/portal/payments", headers=self.h, json={
             "request_key": "notify-bill-000001", "action": "PAY_BILL", "source_account_id": "ACC-SAL-001", "bill_id": "BILL-TATA-001"})
+        challenge = r.json()["challenge"]
+        dev_ui.auth_service.elevate_session(self.cookie, "L3")
+        r = self.client.post(f"/api/challenges/{challenge['id']}/verify", headers=self.h,
+                             json={"transaction_digest": challenge["transaction_digest"]})
         self.assertEqual(r.json()["status"], "EXECUTED", r.text)
         alerts = self.outbox("money_debited")
         self.assertEqual(len(alerts), before + 1)

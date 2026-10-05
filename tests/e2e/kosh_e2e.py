@@ -886,9 +886,10 @@ def stage_p(b, R):
     fr = chat_turn(pg, w, "Pay my Tata Power electricity bill from my Salary Account.")
     after = bal()
     delta = before.get("ACC-SAL-001", 0) - after.get("ACC-SAL-001", 0)
-    R.check("P02", area, "Known Tata Power bill (₹2,430) is paid autonomously — Sentinel ALLOW",
-            delta == 243000, f"salary debited by ₹{delta/100:,.2f}; tools={frames_tools(fr)} reply={frames_text(fr)[:200]!r}",
-            shot(R, pg, "P02_bill_paid"))
+    asked = any(p.get("type") == "PAYMENT_CHALLENGE" for p in frames_presentations(fr))
+    R.check("P02", area, "Known Tata Power bill (₹2,430) waits for the customer's Kavach approval; nothing is debited first",
+            asked and delta == 0, f"challenge={asked}; salary debited by ₹{delta/100:,.2f}; tools={frames_tools(fr)} reply={frames_text(fr)[:200]!r}",
+            shot(R, pg, "P02_bill_approval"))
     fr = chat_turn(pg, w, "Pay the Tata Power bill again please.")
     delta2 = after.get("ACC-SAL-001", 0) - bal().get("ACC-SAL-001", 0)
     R.check("P03", area, "Repeating the bill payment does not charge twice", delta2 == 0,

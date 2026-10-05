@@ -98,14 +98,33 @@ class SentinelBankingTests(unittest.TestCase):
         mule = next(item for item in summary["beneficiaries"] if item["id"] == "BEN-FASTCASH")
         self.assertEqual(mule["availability"], "BLOCKED")
 
+    def pay_bill_with_approval(self, context, bill_id="BILL-TATA-001", account="ACC-SAL-001"):
+        result = self.service.propose_bill_payment(context, bill_id, account)
+        if result["status"] != "CHALLENGE_REQUIRED":
+            return result
+        return self.service.approve_challenge(result["challenge"]["id"], result["challenge"]["transaction_digest"])
+
+    def test_bill_payment_always_needs_customer_approval(self):
+        result = self.service.propose_bill_payment(self.context("Pay my Tata Power electricity bill"), "BILL-TATA-001", "ACC-SAL-001")
+        self.assertEqual(result["status"], "CHALLENGE_REQUIRED")
+        self.assertEqual(result["sentinel"]["risk_score"], 0)  # low risk still needs the customer's own approval
+        self.assertEqual(self.repo.get_bill("BILL-TATA-001")["status"], "DUE")
+
+    def test_daily_limit_counts_money_already_moved_today(self):
+        self.repo.transaction(lambda data: data["delegations"]["DLG-BANKING-001"].update({"max_daily_minor": 300000}))
+        self.assertEqual(self.pay_bill_with_approval(self.context("Pay my Tata Power electricity bill"))["status"], "EXECUTED")
+        self.assertEqual(self.sentinel.spent_today_minor(CUSTOMER_ID), 243000)
+        second = self.service.propose_transfer(self.context("Transfer ₹1,000 to Vikram"), "BEN-VIKRAM", 100000, "ACC-SAL-001")
+        self.assertEqual(second["status"], "DENIED")  # 2,430 + 1,000 exceeds the 3,000 daily limit
+        self.assertIn("DELEGATION_SCOPE_EXCEEDED", second["sentinel"]["reason_codes"])
+
     def test_known_bill_allows_executes_once_and_replays_receipt(self):
         context = self.context("Pay my Tata Power electricity bill")
         before = self.repo.get_account("ACC-SAL-001")["available_balance_minor"]
-        results = [self.service.propose_bill_payment(context, "BILL-TATA-001", "ACC-SAL-001") for _ in range(5)]
+        results = [self.pay_bill_with_approval(context) for _ in range(5)]
         references = {result["receipt"]["reference"] for result in results}
         self.assertEqual(references.__len__(), 1)
-        self.assertEqual(results[0]["sentinel"]["decision"], "ALLOW")
-        self.assertIn("KNOWN_RECURRING_BILL", results[0]["sentinel"]["reason_codes"])
+        self.assertIn("KNOWN_RECURRING_BILL", self.repo.snapshot()["sentinel_decisions"][0]["reason_codes"])
         self.assertEqual(self.repo.get_account("ACC-SAL-001")["available_balance_minor"], before - 243000)
         self.assertEqual(len([t for t in self.repo.snapshot()["transactions"] if t.get("reference") in references]), 1)
         self.assertEqual(self.repo.get_bill("BILL-TATA-001")["status"], "PAID")
@@ -113,7 +132,7 @@ class SentinelBankingTests(unittest.TestCase):
     def test_concurrent_identical_bill_has_one_ledger_effect(self):
         context = self.context("Pay my Tata Power electricity bill")
         with ThreadPoolExecutor(max_workers=4) as pool:
-            results = list(pool.map(lambda _: self.service.propose_bill_payment(context, "BILL-TATA-001", "ACC-SAL-001"), range(4)))
+            results = list(pool.map(lambda _: self.pay_bill_with_approval(context), range(4)))
         refs = {result.get("receipt", {}).get("reference") for result in results}
         self.assertEqual(len(refs), 1)
         self.assertEqual(len([t for t in self.repo.snapshot()["transactions"] if t.get("reference") in refs]), 1)
@@ -242,7 +261,7 @@ class SentinelBankingTests(unittest.TestCase):
     def test_insufficient_funds_has_no_partial_state(self):
         self.repo.transaction(lambda data: data["accounts"]["ACC-SAL-001"].update({"balance_minor": 100, "available_balance_minor": 100}))
         initial_transactions = len(self.repo.snapshot()["transactions"])
-        result = self.service.propose_bill_payment(self.context("Pay my Tata Power electricity bill"), "BILL-TATA-001", "ACC-SAL-001")
+        result = self.pay_bill_with_approval(self.context("Pay my Tata Power electricity bill"))
         self.assertEqual(result["status"], "FAILED")
         self.assertEqual(self.repo.get_account("ACC-SAL-001")["available_balance_minor"], 100)
         self.assertEqual(self.repo.get_bill("BILL-TATA-001")["status"], "DUE")
@@ -270,7 +289,7 @@ class SentinelBankingTests(unittest.TestCase):
         action = {"action_type": "PAY_BILL", "source_account_id": "ACC-SAL-001", "beneficiary_id": bill["biller_id"],
                   "bill_id": bill["id"], "amount_minor": bill["amount_minor"], "currency": "INR"}
         payment = self.service._create_payment_intent(context, action)
-        decision = self.sentinel.evaluate(self.service._context(context, payment))
+        decision = self.sentinel.evaluate({**self.service._context(context, payment), "step_up_verified": True})
         self.assertFalse(self.sentinel.verify_token(decision["authorization_token"], "wrong")[0])
         self.service._execute_payment(payment, decision, decision["authorization_token"])
         self.assertFalse(self.sentinel.verify_token(decision["authorization_token"], decision["request_digest"])[0])

@@ -123,7 +123,7 @@ def notify_session_payment_verified(session_id: str, receipt: Dict[str, Any]) ->
             m["presentation"]["completed"] = True
             m["presentation"]["status"] = "EXECUTED"
             if m.get("text") and ("requires your approval" in m["text"] or "verification code" in m["text"]):
-                m["text"] = "A transfer from your account was proposed and has been approved."
+                m["text"] = "A payment from your account was proposed and has been approved."
         if "presentations" in m:
             for p in m["presentations"]:
                 if p.get("type") in ("PAYMENT_CHALLENGE", "PAYMENT_APPROVAL_REQUIRED"):
@@ -138,12 +138,12 @@ def notify_session_payment_verified(session_id: str, receipt: Dict[str, Any]) ->
         "timestamp": time.time(),
         "presentation": {
             "type": "PAYMENT_RECEIPT",
-            "title": "Transfer complete",
+            "title": "Payment complete",
             "receipt": receipt,
         },
         "presentations": [{
             "type": "PAYMENT_RECEIPT",
-            "title": "Transfer complete",
+            "title": "Payment complete",
             "receipt": receipt,
         }],
     }

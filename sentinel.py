@@ -10,6 +10,7 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 from banking_db import BankingDatabase, db, new_id, utc_now
 
@@ -17,6 +18,7 @@ from banking_db import BankingDatabase, db, new_id, utc_now
 AGENT_ID = "banking-agent-v1"
 CUSTOMER_ID = "CUST-1001"
 KNOWN_DEVICE_ID = "DEVICE-KNOWN-01"
+IST = ZoneInfo("Asia/Kolkata")
 
 
 def _canonical_digest(payload: Dict[str, Any]) -> str:
@@ -229,6 +231,18 @@ class SentinelService:
         except Exception:
             return False, "AUTHORIZATION_MALFORMED"
 
+    def spent_today_minor(self, customer_id: Optional[str]) -> int:
+        """Money already moved by this customer through the agent today (India calendar day)."""
+        today = datetime.now(IST).date()
+        total = 0
+        for payment in self.db.snapshot().get("payment_intents", []):
+            receipt = payment.get("receipt") or {}
+            if payment.get("customer_id") != customer_id or payment.get("status") != "EXECUTED" or not receipt.get("executed_at"):
+                continue
+            if datetime.fromisoformat(receipt["executed_at"].replace("Z", "+00:00")).astimezone(IST).date() == today:
+                total += int(receipt.get("amount_minor") or 0)
+        return total
+
     def evaluate(self, context: Dict[str, Any], *, persist: bool = True) -> Dict[str, Any]:
         action = context.get("action", {})
         intent = context.get("intent") or {}
@@ -313,10 +327,11 @@ class SentinelService:
         if action_type in {"PAY_BILL", "TRANSFER"}:
             valid_amount = valid_amount and amount_minor > 0
         check("Money precision", valid_amount, "Integer paise required", "INVALID_AMOUNT")
-        within_daily_scope = action_type == "FREEZE_CARD" or (
-            valid_amount and amount_minor <= int(delegation.get("max_daily_minor", 0))
-        )
-        check("Delegated daily amount", within_daily_scope, str(delegation.get("max_daily_minor", 0)), "DELEGATION_SCOPE_EXCEEDED")
+        max_daily = int(delegation.get("max_daily_minor", 0))
+        spent_today = self.spent_today_minor(customer_id) if action_type in {"PAY_BILL", "TRANSFER"} else 0
+        within_daily_scope = action_type == "FREEZE_CARD" or (valid_amount and spent_today + amount_minor <= max_daily)
+        check("Delegated daily amount", within_daily_scope,
+              f"Spent today {spent_today}; this payment {amount_minor}; daily limit {max_daily}", "DELEGATION_SCOPE_EXCEEDED")
 
         beneficiary = None
         bill = None
@@ -440,7 +455,7 @@ class SentinelService:
             elif context.get("step_up_verified"):
                 decision = "ALLOW"
                 reasons.append("STEP_UP_AUTH_VERIFIED")
-            elif action_type == "TRANSFER" or score >= 30:
+            elif action_type in {"TRANSFER", "PAY_BILL"} or score >= 30:  # every money movement needs the customer's own approval
                 decision = "CHALLENGE"
             else:
                 decision = "ALLOW"

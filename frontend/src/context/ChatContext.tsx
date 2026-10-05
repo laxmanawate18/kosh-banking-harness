@@ -701,12 +701,12 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         text: translate(lang, 'Payment of {amount} to {payee} was verified by Kavach and completed.', { amount: amountStr, payee: payeeStr }) + refStr,
         presentation: {
           type: 'PAYMENT_RECEIPT',
-          title: 'Transfer complete',
+          title: 'Payment complete',
           receipt,
         },
         toolResult: {
           type: 'PAYMENT_RECEIPT',
-          title: 'Transfer complete',
+          title: 'Payment complete',
           receipt,
         },
         timestamp: Date.now(),

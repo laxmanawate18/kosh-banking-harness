@@ -9,7 +9,7 @@ Backend code is organized under `backend/`: route modules own public, authentica
 ## What the demo proves
 
 1. The Antigravity agent safely retrieves accounts, recent spending, bills, and alerts.
-2. A known ₹2,430 Tata Power bill executes autonomously with `ALLOW`.
+2. A known ₹2,430 Tata Power bill is low risk, but like every money movement it waits for the customer's approval in Kavach before it executes.
 3. A new-beneficiary ₹75,000 transfer returns `CHALLENGE` and requires fresh Firebase phone verification in the trusted Kavach approval dialog.
 4. A poisoned biller proposal to `fastcash@upi` returns `DENY` before ledger execution.
 5. Repeated identical requests produce one ledger effect and return the existing receipt.

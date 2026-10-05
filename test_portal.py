@@ -80,7 +80,12 @@ class PortalTests(unittest.TestCase):
         before = dev_ui.db.get_account('ACC-SAL-001')['balance_minor']
         with ThreadPoolExecutor(max_workers=4) as pool:
             results = list(pool.map(lambda _: self.post('/api/portal/payments', payload).json(), range(4)))
-        self.assertEqual(len({r['receipt']['reference'] for r in results}), 1)
+        self.assertTrue(all(r['status'] == 'CHALLENGE_REQUIRED' for r in results))  # bills need the customer's approval
+        self.step_up()
+        for c in {r['challenge']['id']: r['challenge'] for r in results}.values():
+            self.post(f"/api/challenges/{c['id']}/verify", {'transaction_digest': c['transaction_digest']})
+        retry = self.post('/api/portal/payments', payload).json()
+        self.assertEqual(retry['status'], 'EXECUTED')
         self.assertEqual(dev_ui.db.get_account('ACC-SAL-001')['balance_minor'], before - 243000)
 
     def test_public_demo_code_cannot_raise_assurance(self):
