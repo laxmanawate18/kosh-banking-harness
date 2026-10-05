@@ -261,6 +261,11 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
             return body.model_dump()
         return db.transaction(mutate)
 
+    @router.get("/approvals")
+    def approvals(context=Depends(customer)):
+        """Payments waiting for this customer's Kavach approval, including those proposed by an assistant app."""
+        return {"approvals": banking.pending_approvals(context.customer_id)}
+
     @router.get("/offers")
     def offers(lang: str = "en", context=Depends(customer)):
         return next_best_offers(db, context.customer_id, "DASHBOARD", language=lang if lang in {"en", "hi", "mr"} else "en")

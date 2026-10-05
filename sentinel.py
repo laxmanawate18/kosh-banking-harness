@@ -59,6 +59,25 @@ class IntentResolver:
     def __init__(self, repository: BankingDatabase = db) -> None:
         self.db = repository
 
+    def bind_external(self, action_family: str, fields: Dict[str, Any], session_id: str, customer_id: str, agent: str) -> Dict[str, Any]:
+        """An intent proposed by an external agent through the MCP gateway. It is bound to exactly what the agent asked for,
+        and only the customer's own Kavach approval of that exact transaction can authorise money movement."""
+        intent = {
+            "id": new_id("INT"), "customer_id": customer_id, "session_id": session_id, "turn_id": new_id("EXT"),
+            "action_family": action_family, "fields": fields, "source": "EXTERNAL_AGENT", "agent": agent,
+            "raw_user_message_digest": None, "status": "AWAITING_CUSTOMER_APPROVAL", "version": 1, "created_at": utc_now(),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=harness.policy()["sentinel"]["challenge_ttl_seconds"])).isoformat().replace("+00:00", "Z"),
+        }
+
+        def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+            data.setdefault("intents", []).append(intent)
+            data.setdefault("audit_events", []).append({
+                "id": new_id("AUD"), "event_type": "INTENT_PROPOSED_BY_AGENT", "session_id": session_id, "customer_id": customer_id,
+                "intent_id": intent["id"], "actor": "agent", "summary": f"{agent} proposed {action_family}",
+                "details": {"fields": fields}, "severity": "INFO", "created_at": utc_now()})
+            return intent
+        return self.db.transaction(mutate)
+
     def resolve(self, user_text: str, session_id: str, turn_id: str, customer_id: str = CUSTOMER_ID) -> Dict[str, Any]:
         lowered = user_text.casefold()
         fields: Dict[str, Any] = {}
@@ -384,6 +403,8 @@ class SentinelService:
         idempotency_ok = not existing or existing.get("request_digest") == request_digest
         check("Replay and idempotency", idempotency_ok, "No conflicting replay", "IDEMPOTENCY_CONFLICT")
 
+        if intent.get("source") == "EXTERNAL_AGENT":
+            reasons.append("PROPOSED_BY_EXTERNAL_AGENT")
         if context.get("untrusted_content_detected"):
             reasons.append("SUSPECTED_INDIRECT_PROMPT_INJECTION")
             checks.append({"name": "Untrusted-content provenance", "status": "SIGNAL", "detail": "Instruction-like external content was involved"})

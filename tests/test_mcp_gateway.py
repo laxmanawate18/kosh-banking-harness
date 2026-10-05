@@ -74,6 +74,23 @@ class McpGatewayTests(unittest.TestCase):
         self.assertIn(result["status"], {"CHALLENGE_REQUIRED", "DENIED"})
         self.assertEqual(dev_ui.db.get_account("ACC-SAL-001")["available_balance_minor"], before)
 
+    def test_customer_approves_an_agent_proposed_payment_in_kavach(self):
+        _, proposed = self.call("propose_bill_payment", {"bill_id": "BILL-TATA-001", "source_account_id": "ACC-SAL-001"})
+        self.assertEqual(proposed["status"], "CHALLENGE_REQUIRED")
+        web = TestClient(dev_ui.app)
+        _, cookie, csrf = dev_ui.auth_service.create_direct_session("aarav")
+        web.cookies.set(dev_ui.COOKIE_NAME, cookie)
+        inbox = web.get("/api/portal/approvals").json()["approvals"]
+        item = next(a for a in inbox if a["id"] == proposed["challenge_id"])
+        self.assertEqual((item["requested_via"], item["amount_minor"], item["payee_name"]), ("ASSISTANT_APP", 243000, "Tata Power Mumbai"))
+        before = dev_ui.db.get_account("ACC-SAL-001")["available_balance_minor"]
+        dev_ui.auth_service.elevate_session(cookie, "L3")
+        done = web.post(f"/api/challenges/{item['id']}/verify", headers={"X-CSRF-Token": csrf},
+                        json={"transaction_digest": item["transaction_digest"]}).json()
+        self.assertEqual(done["status"], "EXECUTED", done)
+        self.assertEqual(dev_ui.db.get_account("ACC-SAL-001")["available_balance_minor"], before - 243000)
+        self.assertFalse(any(a["id"] == item["id"] for a in web.get("/api/portal/approvals").json()["approvals"]))
+
     def test_bank_can_pause_agent_access(self):
         dev_ui.db.set_controls(disabled_channels=["MCP"], disabled_tools=[], reason="drill", officer_user_id="USR-OFFICER-001")
         try:

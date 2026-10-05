@@ -15,7 +15,35 @@ import { Badge } from '../common/Badge';
 import { Card3D } from '../common/Card3D';
 import { LotusMark, Rangoli } from '../common/KoshLogo';
 import { prefersReducedMotion } from '../common/motion';
-import type { Transaction } from '../../types/banking';
+import type { Challenge, Transaction } from '../../types/banking';
+
+type PendingApproval = Challenge & { requested_via: 'MITRA' | 'ASSISTANT_APP' };
+
+/** Payments waiting for the customer's Kavach approval, including ones an assistant app proposed through the agent gateway. */
+const PendingApprovals: React.FC = () => {
+  const { t } = useI18n();
+  const { activeChallenge, setActiveChallenge } = useBanking();
+  const [items, setItems] = useState<PendingApproval[]>([]);
+  useEffect(() => {
+    if (activeChallenge) return;  // refresh once the Kavach dialog closes
+    get<{ approvals: PendingApproval[] }>('/api/portal/approvals').then(r => setItems(r.approvals)).catch(() => setItems([]));
+  }, [activeChallenge]);
+  if (!items.length) return null;
+  return (
+    <section className="k-alert warn" aria-label={t('Waiting for your approval')}>
+      <Icon name="shield" />
+      <div>
+        <strong>{t('Waiting for your approval')}</strong>
+        {items.map(item => (
+          <p key={item.id}>
+            {formatMoney(item.amount_minor || 0)} {t('to')} {item.payee_name} · {item.requested_via === 'ASSISTANT_APP' ? t('proposed by an assistant app') : t('proposed by Mitra')}{' '}
+            <button type="button" className="k-btn primary sm" onClick={() => setActiveChallenge(item)}>{t('Review in Kavach')}</button>
+          </p>
+        ))}
+      </div>
+    </section>
+  );
+};
 
 interface OverviewPageProps {
   onNavigate: (route: string) => void;
@@ -182,6 +210,8 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
           <small>{t('Tap the card to flip it')}</small>
         </div>
       </section>
+
+      <PendingApprovals />
 
       {kycState && (
         <section className={`k-alert ${kycState === 'NOT_DONE' ? 'danger' : kycState === 'SUBMITTED_FOR_REVIEW' ? 'calm' : 'warn'}`}>

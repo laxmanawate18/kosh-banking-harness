@@ -29,8 +29,16 @@ from backend.chat_runtime import over_rate_limit
 from banking_db import db
 from banking_tools import build_banking_tools
 from product_service import SalesSessionContext, build_public_sales_tools
+from sentinel import IntentResolver
 
 CHANNEL = "MCP"
+# Tools Sentinel authorises, and the intent fields Sentinel compares with the proposed action.
+SENTINEL_ACTIONS: Dict[str, Callable[[Dict[str, Any]], tuple]] = {
+    "propose_transfer": lambda a: ("TRANSFER", {"amount_minor": a.get("amount_minor"), "beneficiary_id": a.get("beneficiary_id"),
+                                                "source_account_id": str(a.get("source_account_id", "")).upper()}),
+    "propose_bill_payment": lambda a: ("PAY_BILL", {"bill_id": a.get("bill_id"), "source_account_id": str(a.get("source_account_id", "")).upper()}),
+    "freeze_card": lambda a: ("FREEZE_CARD", {"card_id": a.get("card_id")}),
+}
 _CALLER: contextvars.ContextVar[Dict[str, Any]] = contextvars.ContextVar("kosh_mcp_caller")
 
 
@@ -78,6 +86,10 @@ def _expose(server: MCPServer, name: str, fn: Callable[..., Any], spec: Dict[str
                                        SecureToolGateHook(caller).decide(request))
         if not decision.allow:
             return _refused(decision.message or "Denied")
+        if name in SENTINEL_ACTIONS:  # no customer text exists in Kosh, so the intent is the agent's exact request
+            family, fields = SENTINEL_ACTIONS[name](kwargs)
+            caller["intent"] = await asyncio.to_thread(IntentResolver().bind_external, family, fields, caller["session_id"],
+                                                       caller["customer_id"], f"assistant app {caller['session_id']}")
         token = _CALLER.set(caller)
         try:
             result = await asyncio.to_thread(fn, **kwargs)  # to_thread copies the context, so the tool sees the caller

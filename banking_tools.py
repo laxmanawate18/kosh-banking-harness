@@ -468,6 +468,38 @@ class SecureBankingService:
             "presentation": {"type": "PAYMENT_RECEIPT", "title": "Transfer complete"},
         }
 
+    def _challenge_view(self, challenge_id: str, action: Dict[str, Any], expires_at: str, digest: str) -> Dict[str, Any]:
+        """What the Kavach dialog shows: the exact amount, payee and account the approval is bound to."""
+        beneficiary = self.db.get_beneficiary(action.get("beneficiary_id")) or self.db.get_bill(action.get("bill_id")) or {}
+        source = self.db.get_account(action["source_account_id"]) or {}
+        return {
+            "id": challenge_id,
+            "amount_minor": action.get("amount_minor"),
+            "payee_name": beneficiary.get("display_name") or beneficiary.get("biller_name") or "Recipient",
+            "destination_masked": beneficiary.get("destination_masked") or beneficiary.get("reference_masked") or beneficiary.get("upi_id") or "Trusted destination",
+            "source_account_name": source.get("name", "Account"),
+            "source_account_masked": source.get("account_number_masked", ""),
+            "expires_at": expires_at,
+            "transaction_digest": digest,
+        }
+
+    def pending_approvals(self, customer_id: str) -> List[Dict[str, Any]]:
+        """Open, unexpired Kavach approvals for this customer, whichever agent or channel proposed them."""
+        now = datetime.now(timezone.utc)
+        state = self.db.snapshot()
+        payments = {p["id"]: p for p in state.get("payment_intents", [])}
+        pending = []
+        for challenge in state.get("challenges", []):
+            payment = payments.get(challenge.get("payment_intent_id"))
+            if challenge.get("status") != "OPEN" or not payment or payment.get("customer_id") != customer_id:
+                continue
+            if datetime.fromisoformat(challenge["expires_at"].replace("Z", "+00:00")) <= now:
+                continue
+            pending.append({**self._challenge_view(challenge["id"], payment["action"], challenge["expires_at"], challenge["request_digest"]),
+                            "requested_via": "ASSISTANT_APP" if str(challenge.get("session_id", "")).startswith("MCP-") else "MITRA",
+                            "created_at": challenge.get("created_at")})
+        return sorted(pending, key=lambda item: item.get("created_at") or "", reverse=True)
+
     def _create_challenge(self, payment: Dict[str, Any], decision: Dict[str, Any]) -> Dict[str, Any]:
         challenge_id = new_id("CHAL")
         challenge = {
@@ -494,25 +526,15 @@ class SecureBankingService:
 
         self.db.transaction(mutate)
         action = payment["action"]
-        beneficiary = self.db.get_beneficiary(action.get("beneficiary_id")) or self.db.get_bill(action.get("bill_id")) or {}
-        payee_name = beneficiary.get("display_name") or beneficiary.get("biller_name") or "Recipient"
-        source = self.db.get_account(action["source_account_id"]) or {}
+        view = self._challenge_view(challenge_id, action, challenge["expires_at"], challenge["request_digest"])
+        payee_name = view["payee_name"]
         return {
             "success": False,
             "status": "CHALLENGE_REQUIRED",
             "challenge_id": challenge_id,
             "payment_intent_id": payment["id"],
             "sentinel": _without_token(decision),
-            "challenge": {
-                "id": challenge_id,
-                "amount_minor": action.get("amount_minor"),
-                "payee_name": payee_name,
-                "destination_masked": beneficiary.get("destination_masked") or beneficiary.get("reference_masked") or beneficiary.get("upi_id") or "Trusted destination",
-                "source_account_name": source.get("name", "Account"),
-                "source_account_masked": source.get("account_number_masked", ""),
-                "expires_at": challenge["expires_at"],
-                "transaction_digest": challenge["request_digest"],
-            },
+            "challenge": view,
             "presentation": {
                 "type": "PAYMENT_CHALLENGE",
                 "title": "Approval required to send money",
