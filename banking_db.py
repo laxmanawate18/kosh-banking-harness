@@ -22,6 +22,7 @@ from persistence import (
     AuditEventRecord,
     AuthSessionRecord,
     BankDocumentRecord,
+    BankIdempotencyRecord,
     BankingStateRecord,
     BankingWorkflowRecord,
     ConsentRecord,
@@ -348,7 +349,9 @@ class BankingDatabase:
         return next((c for c in self.snapshot().get("challenges", []) if c.get("id") == challenge_id), None)
 
     def get_idempotency(self, key: str) -> Optional[Dict[str, Any]]:
-        return next((i for i in self.snapshot().get("idempotency_records", []) if i.get("key") == key), None)
+        with self.runtime.sessions() as session:  # one primary-key read, not a full state snapshot
+            row = session.get(BankIdempotencyRecord, key)
+            return copy.deepcopy(row.data) if row else None
 
     def append_audit(self, event_type: str, *, session_id: Optional[str] = None, intent_id: Optional[str] = None,
                      decision_id: Optional[str] = None, summary: str = "", details: Optional[Dict[str, Any]] = None,

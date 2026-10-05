@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import copy
+import functools
+import hashlib
 import hmac
+import json
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -14,6 +17,8 @@ from core_banking import CoreBanking, core_for
 from banking_db import BankingDatabase, db, new_id, utc_now
 from product_service import get_product_by_id, inr
 from sentinel import AGENT_ID, CUSTOMER_ID, KNOWN_DEVICE_ID, SentinelService, sentinel
+
+REPEAT_WINDOW = timedelta(minutes=10)  # a write tool repeated with the same arguments in this window returns its first result
 
 
 def _without_token(decision: Dict[str, Any]) -> Dict[str, Any]:
@@ -785,6 +790,28 @@ banking_service = SecureBankingService(db, sentinel)
 def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[Callable[..., Dict[str, Any]]]:
     """Create the narrow tool registry with trusted context supplied by the host."""
 
+    def repeat_safe(fn: Callable[..., Dict[str, Any]]) -> Callable[..., Dict[str, Any]]:
+        """A write tool called again with the same arguments in the same session returns its first result, so a model
+        retry or a double call never registers two complaints or opens two workflows."""
+        spec = harness.tool_spec("customer", fn.__name__)
+        if not spec or spec["effect"] != "write":
+            return fn
+
+        @functools.wraps(fn)
+        def call(**kwargs: Any) -> Dict[str, Any]:
+            ctx = signed_in()
+            digest = hashlib.sha256(json.dumps([fn.__name__, kwargs], sort_keys=True, default=str).encode()).hexdigest()[:24]
+            key = f"tool:{ctx.get('session_id')}:{digest}"
+            earlier = db.get_idempotency(key)
+            if earlier and datetime.fromisoformat(earlier["created_at"].replace("Z", "+00:00")) > datetime.now(timezone.utc) - REPEAT_WINDOW:
+                return {**earlier["result"], "repeated_request": True}
+            result = fn(**kwargs)
+            if isinstance(result, dict) and result.get("success", True) is not False:
+                db.transaction(lambda data: data.setdefault("idempotency_records", []).append(
+                    {"key": key, "request_digest": digest, "result": result, "created_at": utc_now()}))
+            return result
+        return call
+
     def signed_in() -> Dict[str, Any]:
         # Fail closed: no tool runs on a default or demo customer when the session has no signed-in customer.
         ctx = context_provider()
@@ -1128,7 +1155,7 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
 
     from knowledge_service import query_bank_knowledge
 
-    return [
+    return [repeat_safe(tool) for tool in (
         get_customer_summary,
         get_transaction_history,
         get_outstanding_bills,
@@ -1151,7 +1178,7 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
         request_callback,
         check_loan_affordability,
         query_bank_knowledge,
-    ]
+    )]
 
 
 # Names are used by the Antigravity gate and tests; tools themselves are session-bound.
