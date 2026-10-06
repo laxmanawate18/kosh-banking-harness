@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import mimetypes
 import os
+import urllib.parse
 from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
 
@@ -145,6 +146,21 @@ mcp_gateway = mount_mcp_gateway(app, oauth_service, public_url=os.getenv("SENTIN
 request_service = ServiceRequestService(db)
 workflow_service = WorkflowService(db)
 app.include_router(make_public_router(db, auth_service, limiter))
+
+_CANONICAL = urllib.parse.urlsplit(os.getenv("SENTINEL_PUBLIC_URL", ""))
+
+
+@app.middleware("http")
+async def canonical_host(request: Request, call_next):
+    # Browsers that open the service's run.app address go to the public domain (SENTINEL_PUBLIC_URL). Google Safe
+    # Browsing has flagged the run.app address; APIs, the agent gateway and service-to-service calls are left alone.
+    host = request.headers.get("host", "")
+    if (_CANONICAL.netloc and host.endswith(".run.app") and host != _CANONICAL.netloc and request.method in ("GET", "HEAD")
+            and not request.url.path.startswith(("/api/", "/mcp", "/.well-known/"))):
+        query = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(f"{_CANONICAL.scheme}://{_CANONICAL.netloc}{request.url.path}{query}", status_code=301)
+    return await call_next(request)
+
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):

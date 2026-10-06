@@ -94,7 +94,15 @@ export async function bootstrap() {
       'SELECT "clientId" FROM "oauthClient" WHERE "clientId" = $1 LIMIT 1',
       [seed.id],
     );
-    if (existing.rowCount) continue;
+    if (existing.rowCount) {
+      // Keep return addresses in step with the configured web address (e.g. after moving to the custom domain).
+      // Direct update: Better Auth refuses API updates to trusted clients, and Kosh's web client is one.
+      await authPool.query(
+        'UPDATE "oauthClient" SET "redirectUris" = $2::jsonb, "postLogoutRedirectUris" = $3::jsonb, "updatedAt" = NOW() WHERE "clientId" = $1',
+        [seed.id, JSON.stringify(seed.redirects), JSON.stringify([config.sentinelWebURL])],
+      );
+      continue;
+    }
     process.env.AUTH_BOOTSTRAP_CLIENT_ID = seed.id;
     if (seed.secret) process.env.AUTH_BOOTSTRAP_CLIENT_SECRET = seed.secret;
     else delete process.env.AUTH_BOOTSTRAP_CLIENT_SECRET;
