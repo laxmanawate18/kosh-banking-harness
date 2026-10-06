@@ -49,6 +49,7 @@ export function signInPage(): string {
     testPhone: config.localFirebaseTestPhone,
     // Only the demo's registered numbers may receive a code; no SMS is ever requested for anyone else.
     demoPhones: Object.keys(config.firebaseIdentities),
+    demoOtp: Boolean(config.demoOtp),
     testCode: config.localFirebaseTestCode,
   }).replaceAll("<", "\\u003c");
   return shell(
@@ -59,7 +60,7 @@ export function signInPage(): string {
 <section id="phonePane"><label>Registered mobile number<input id="phone" type="tel" autocomplete="tel" value="${config.localFirebaseTestPhone}"></label>
 <div id="captcha"></div><button id="send" class="primary">Send verification code</button>
 <div id="verifyPane" class="hidden"><label>Verification code<input id="code" class="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label><button id="verify" class="primary">Verify and continue</button></div>
-<p class="hint">Local development uses the configured Firebase test number. Real SMS requires the authorized HTTPS auth domain.</p></section>
+<p class="hint">${config.demoOtp ? `Demo sign-in: no SMS is sent. Use a registered demo number and the code ${config.demoOtp}.` : "Local development uses the configured Firebase test number. Real SMS requires the authorized HTTPS auth domain."}</p></section>
 <section id="staffPane" class="hidden"><label>Registered Username / Net Banking ID<input id="username" autocomplete="username" placeholder="e.g. sudhir56a7 or officer.mumbai"></label><label>Password<input id="password" type="password" autocomplete="current-password" placeholder="Enter Net Banking or Staff password"></label><button id="staffSignIn" class="primary">Sign in and continue</button>
 <p class="hint">Approved retail banking customers & staff operations can sign in with their temporary or assigned credentials.</p></section>
 <div id="error" class="error hidden" role="alert"></div>`,
@@ -68,7 +69,7 @@ import {initializeApp} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-
 import {getAuth,RecaptchaVerifier,signInWithPhoneNumber} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
 const firebaseConfig=${firebaseConfig}; const runtime=${publicRuntime};
 const qs=new URLSearchParams(location.search); const oauthQuery=location.search.slice(1);
-const errorBox=document.querySelector('#error'); let confirmation=null; let verifier=null;
+const errorBox=document.querySelector('#error'); let confirmation=null; let verifier=null; let demoPhone=null;
 const showError=(error)=>{errorBox.textContent=error?.message||String(error);errorBox.classList.remove('hidden')};
 const clearError=()=>errorBox.classList.add('hidden');
 function finishLogin(data){
@@ -86,6 +87,7 @@ document.querySelector('#send').onclick=async()=>{clearError();try{
     else phone='+'+phone;
   }
   if(!runtime.demoPhones.includes(phone)) throw new Error('This is a demo: only the registered demo mobile numbers can sign in.');
+  if(runtime.demoOtp){ demoPhone=phone; document.querySelector('#verifyPane').classList.remove('hidden'); return; }  // no Firebase, no SMS
   const local=['localhost','127.0.0.1','::1'].includes(location.hostname);
   const auth=getAuth(initializeApp(firebaseConfig));
   auth.settings.appVerificationDisabledForTesting=(local || phone===runtime.testPhone) && phone===runtime.testPhone;
@@ -96,8 +98,10 @@ document.querySelector('#send').onclick=async()=>{clearError();try{
   if(phone===runtime.testPhone) document.querySelector('#code').value=runtime.testCode;
 }catch(error){showError(error)}};
 document.querySelector('#verify').onclick=async()=>{clearError();try{
-  if(!confirmation)throw new Error('Request a verification code first'); const result=await confirmation.confirm(document.querySelector('#code').value.trim());
-  const idToken=await result.user.getIdToken(); const response=await fetch('/api/auth/firebase/exchange',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({idToken,oauth_query:oauthQuery})});
+  let proof;
+  if(runtime.demoOtp){ if(!demoPhone)throw new Error('Enter your demo mobile number first'); proof={phoneNumber:demoPhone,code:document.querySelector('#code').value.trim()}; }
+  else { if(!confirmation)throw new Error('Request a verification code first'); const result=await confirmation.confirm(document.querySelector('#code').value.trim()); proof={idToken:await result.user.getIdToken()}; }
+  const response=await fetch('/api/auth/firebase/exchange',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({...proof,oauth_query:oauthQuery})});
   const data=await response.json().catch(()=>({message:'Server returned invalid response'}));
   if(!response.ok)throw new Error(data?.message||data?.error_description||data?.error||data?.code||'Unable to create auth session');
   finishLogin(data);

@@ -8,6 +8,7 @@ import { useBanking } from '../../context/BankingContext';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
 import { completeStepUp, sendStepUpCode } from '../../services/firebaseAuth';
+import { demoStepUp } from '../../services/auth';
 
 interface PaymentChallengeModalProps {
   challenge: Challenge | null;
@@ -21,7 +22,8 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
   const { verifyChallenge } = useBanking();
   const { recordPaymentSuccess } = useChat();
   const { auth, publicConfig } = useAuth();
-  const [code, setCode] = useState('');
+  const demo = Boolean(publicConfig?.demo_otp);  // demo OTP mode: no Firebase, no SMS
+  const [code, setCode] = useState(publicConfig?.demo_otp_code || '');
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -51,8 +53,11 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
     setError('');
     setIsLoading(true);
     try {
-      if (!confirmation) throw new Error('Send a fresh Firebase verification code first.');
-      await completeStepUp(confirmation, code);
+      if (demo) await demoStepUp(code);
+      else {
+        if (!confirmation) throw new Error('Send a fresh Firebase verification code first.');
+        await completeStepUp(confirmation, code);
+      }
       const res = await verifyChallenge();
       if (res.success || res.status === 'SUCCESS' || res.status === 'APPROVED') {
         const receipt = res.receipt || {
@@ -106,13 +111,13 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
 
         <div id="payment-step-up-recaptcha" />
 
-        {!confirmation && (
+        {!demo && !confirmation && (
           <button type="button" onClick={handleSendCode} disabled={isLoading} className="mf-go pcm-send">
             {isLoading ? 'Sending…' : 'Send fresh verification code'}
           </button>
         )}
 
-        {confirmation && <div>
+        {(demo || confirmation) && <div>
           <label className="mf-label">
             One-time verification code
           </label>
@@ -127,12 +132,14 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
         </div>}
 
         <p className="pcm-note">
-          Firebase verifies the code, and the auth server grants this Kosh session five minutes of L3 assurance.
+          {demo
+            ? 'Demo approval: no SMS is sent. Enter the demo code to approve this exact payment.'
+            : 'Firebase verifies the code, and the auth server grants this Kosh session five minutes of L3 assurance.'}
         </p>
 
         <button
           type="submit"
-          disabled={isLoading || !confirmation || code.length !== 6}
+          disabled={isLoading || (!demo && !confirmation) || code.length !== 6}
           className="mf-go mf-transition pcm-submit"
         >
           {isLoading ? 'Verifying…' : 'Verify & send payment'} <ArrowRight size={16} />

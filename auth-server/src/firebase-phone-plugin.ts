@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { BetterAuthPlugin } from "better-auth";
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
@@ -6,14 +6,32 @@ import { z } from "zod";
 import { config } from "./config.js";
 import { verifyFirebasePhoneToken } from "./firebase.js";
 
-const bodySchema = z.object({
-  idToken: z.string().min(20),
-  oauth_query: z.string().max(8192).optional().nullable(),
-});
-const stepUpBodySchema = z.object({
-  idToken: z.string().min(20),
-  sessionId: z.string().min(1).max(255),
-});
+// A Firebase ID token, or in demo OTP mode (AUTH_DEMO_OTP) a registered demo number and the demo code.
+const proofSchema = {
+  idToken: z.string().min(20).optional(),
+  phoneNumber: z.string().max(20).optional(),
+  code: z.string().max(12).optional(),
+};
+const bodySchema = z.object({ ...proofSchema, oauth_query: z.string().max(8192).optional().nullable() });
+const stepUpBodySchema = z.object({ ...proofSchema, sessionId: z.string().min(1).max(255) });
+
+function sameCode(given: string, expected: string): boolean {
+  const a = Buffer.from(given), b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Demo OTP mode never sends an SMS: only the registered demo numbers, with the configured demo code, can sign in. */
+export async function verifyPhoneProof(body: { idToken?: string; phoneNumber?: string; code?: string }) {
+  if (config.demoOtp) {
+    const phoneNumber = body.phoneNumber ?? "";
+    if (!config.firebaseIdentities[phoneNumber] || !sameCode(body.code ?? "", config.demoOtp)) {
+      throw new Error("The demo number or code is incorrect");
+    }
+    return { uid: `demo-${phoneNumber}`, phoneNumber };
+  }
+  if (!body.idToken) throw new Error("A verified phone token is required");
+  return verifyFirebasePhoneToken(body.idToken);
+}
 const providerId = "firebase-phone";
 
 function placeholderEmail(phoneNumber: string): string {
@@ -22,10 +40,10 @@ function placeholderEmail(phoneNumber: string): string {
 }
 
 export function firebasePhoneBridge(): BetterAuthPlugin {
-  async function resolveUser(ctx: any, idToken: string) {
+  async function resolveUser(ctx: any, proof: { idToken?: string; phoneNumber?: string; code?: string }) {
     let identity;
     try {
-      identity = await verifyFirebasePhoneToken(idToken);
+      identity = await verifyPhoneProof(proof);
     } catch (error) {
       console.error("[firebase-plugin] verifyFirebasePhoneToken failed:", error);
       throw APIError.fromStatus("UNAUTHORIZED", {
@@ -100,7 +118,7 @@ export function firebasePhoneBridge(): BetterAuthPlugin {
         { method: "POST", body: bodySchema },
         async (ctx) => {
           try {
-            const { user } = await resolveUser(ctx, ctx.body.idToken);
+            const { user } = await resolveUser(ctx, ctx.body);
             const session = await ctx.context.internalAdapter.createSession(user.id, false, {
               assuranceLevel: "L2",
             });
@@ -123,7 +141,7 @@ export function firebasePhoneBridge(): BetterAuthPlugin {
         "/firebase/step-up",
         { method: "POST", body: stepUpBodySchema },
         async (ctx) => {
-          const { user } = await resolveUser(ctx, ctx.body.idToken);
+          const { user } = await resolveUser(ctx, ctx.body);
           const targetSession = await ctx.context.adapter.findOne({
             model: "session",
             where: [

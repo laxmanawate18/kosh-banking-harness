@@ -25,6 +25,10 @@ export async function logout(): Promise<LogoutResponse> {
   return res;
 }
 
+export async function demoStepUp(code: string): Promise<any> {
+  return post('/api/auth/firebase-step-up', { code });
+}
+
 export async function firebaseStepUp(idToken: string): Promise<any> {
   return post('/api/auth/firebase-step-up', { id_token: idToken });
 }

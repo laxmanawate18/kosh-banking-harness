@@ -44,6 +44,9 @@ def make_public_router(db, auth_service: AuthService, limiter):
             "firebase_auth_domain": os.getenv("FIREBASE_AUTH_DOMAIN") or f"{os.getenv('FIREBASE_PROJECT_ID') or os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('PROJECT_ID') or ''}.firebaseapp.com",
             "recaptcha_site_key": os.getenv("RECAPTCHA_ENTERPRISE_SITE_KEY") or "",
             "oauth_start_url": "/api/auth/start",
+            # Demo OTP mode: phone sign-in and payment approval use a fixed demo code; no SMS is ever sent.
+            "demo_otp": bool(os.getenv("AUTH_DEMO_OTP")),
+            "demo_otp_code": os.getenv("AUTH_DEMO_OTP", ""),
             "is_local": False,
         }
         # The Firebase console test number/code is a local-development convenience only.

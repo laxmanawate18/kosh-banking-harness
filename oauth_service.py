@@ -490,7 +490,8 @@ class OAuthService:
                 # Local revocation is authoritative for Sentinel; upstream retry belongs in an outbox in production.
                 continue
 
-    def step_up_with_firebase(self, auth_session_id: str, id_token: str) -> int:
+    def step_up_with_firebase(self, auth_session_id: str, id_token: str | None, *, code: str | None = None,
+                              phone: str | None = None) -> int:
         """Reauthenticate at Firebase, then rotate the grant so new JWTs carry L3."""
         with self.runtime.sessions() as session:
             grant = session.scalar(select(OAuthGrantRecord).where(
@@ -504,7 +505,9 @@ class OAuthService:
 
         request = urllib.request.Request(
             f"{self.issuer}/firebase/step-up",
-            data=json.dumps({"idToken": id_token, "sessionId": provider_session_id}).encode("utf-8"),
+            # Demo OTP mode sends the customer's own number and the demo code; the auth server checks both, no SMS.
+            data=json.dumps({**({"idToken": id_token} if id_token else {"phoneNumber": phone or "", "code": code or ""}),
+                             "sessionId": provider_session_id}).encode("utf-8"),
             method="POST",
             headers={"Content-Type": "application/json", "Accept": "application/json"},
         )

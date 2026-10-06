@@ -21,7 +21,8 @@ class ChallengeVerifyRequest(BaseModel):
 
 
 class GCPPhoneLoginRequest(BaseModel):
-    id_token: str
+    id_token: str | None = None  # a Firebase ID token, or in demo OTP mode the demo code below
+    code: str | None = Field(default=None, max_length=12)
 
 
 class StepUpRequest(BaseModel):

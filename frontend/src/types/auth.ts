@@ -36,5 +36,7 @@ export interface PublicAuthConfig {
   firebase_test_phone?: string;
   firebase_test_code?: string;
   is_local?: boolean;
+  demo_otp?: boolean;
+  demo_otp_code?: string;
   oauth_start_url: string;
 }

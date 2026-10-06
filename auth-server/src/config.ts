@@ -84,6 +84,8 @@ export const config = {
     `${process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.PROJECT_ID || ""}.firebaseapp.com`,
   firebaseIdentities: parseIdentityMap(process.env.AUTH_FIREBASE_IDENTITIES),
   localFirebaseTestPhone: process.env.AUTH_FIREBASE_TEST_PHONE ?? "+919876543210",
+  // Demo OTP mode: sign-in and payment step-up check this fixed code for the registered demo numbers; no SMS is sent.
+  demoOtp: process.env.AUTH_DEMO_OTP ?? "",
   localFirebaseTestCode: process.env.AUTH_FIREBASE_TEST_CODE ?? "246810",
   webClientId: process.env.SENTINEL_WEB_CLIENT_ID ?? "sentinel-web",
   webClientSecret:

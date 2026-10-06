@@ -77,7 +77,8 @@ def make_auth_router(
             raise HTTPException(status_code=403, detail="Step-up is restricted to the first-party Kosh client")
         try:
             expires_in = await asyncio.to_thread(
-                oauth_service.step_up_with_firebase, context.session_id, req.id_token
+                oauth_service.step_up_with_firebase, context.session_id, req.id_token,
+                code=req.code, phone=context.phone_number,
             )
         except ConnectionError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
