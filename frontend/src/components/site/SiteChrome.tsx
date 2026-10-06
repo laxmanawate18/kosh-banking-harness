@@ -49,7 +49,7 @@ export const UtilityBar: React.FC = () => {
         >
           {t('Skip to main content')}
         </button>
-        <strong style={{ flexShrink: 0, color: '#fff', fontSize: 13 }}>{t('DEMO BANK — no real money')}</strong>
+        <strong style={{ flexShrink: 0, color: '#fff', fontSize: 13 }}>{t('SEARCE DEMO — not a real bank')}</strong>
         <div className={`k-ticker ${paused ? 'paused' : ''}`} role="region" aria-label={t('Safety notices')}>
           <button
             type="button"
@@ -201,7 +201,7 @@ export const SiteFooter: React.FC<{ onAsk: (q: string) => void }> = ({ onAsk }) 
         </div>
       </div>
       <div className="k-footer-base">
-        <span>© {new Date().getFullYear()} Kosh Bank · {t('Demo environment')}</span>
+        <span>© {new Date().getFullYear()} Kosh · {t('A product demo built by Searce, not a bank')}</span>
         <span lang="hi">भरोसा, हर कदम।</span>
       </div>
     </footer>

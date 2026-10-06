@@ -634,6 +634,9 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
                         </select>
                       </label>
 
+                      <p className="form-hint" role="note">
+                        Demo only: upload sample documents. Never upload a real PAN, Aadhaar, passport or any real person's ID.
+                      </p>
                       <label>
                         Choose file
                         <input

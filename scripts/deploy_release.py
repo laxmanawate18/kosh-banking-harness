@@ -44,7 +44,7 @@ def _tls_context() -> ssl.SSLContext:
 
 
 TLS = _tls_context()
-PROJECT = "project-3da8cb5f-328e-44d3-b7a"
+PROJECT = "project-5fc303c2-29cb-4e5d-9f9"
 REGION = "us-central1"
 SQL_INSTANCE = "sentinel-db"
 REGISTRY = f"{REGION}-docker.pkg.dev/{PROJECT}/cloud-run-source-deploy"

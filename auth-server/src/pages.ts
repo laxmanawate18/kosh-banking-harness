@@ -10,7 +10,7 @@ const brand = () => `<div class="brand" aria-label="Kosh — Bharosa, har kadam"
   </svg>
   <span class="brand-copy"><span><strong>kosh</strong><b lang="hi">कोष</b></span><small>Bharosa, har kadam.</small></span>
 </div>
-<p class="demo-notice">Demo bank — not a real financial institution. Never enter real OTPs, PINs, passwords or card details here.</p>`;
+<p class="demo-notice">Kosh is a product demo built by Searce. It is not a bank and not a real financial institution. Never enter real OTPs, PINs, passwords, card or ID details here.</p>`;
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
@@ -47,10 +47,12 @@ export function signInPage(): string {
   const publicRuntime = JSON.stringify({
     sentinelURL: config.sentinelWebURL,
     testPhone: config.localFirebaseTestPhone,
+    // Only the demo's registered numbers may receive a code; no SMS is ever requested for anyone else.
+    demoPhones: Object.keys(config.firebaseIdentities),
     testCode: config.localFirebaseTestCode,
   }).replaceAll("<", "\\u003c");
   return shell(
-    "Sign in | Kosh (Demo)",
+    "Sign in | Kosh, a Searce demo",
     `${brand()}
 <h1>Secure sign in</h1><p>One trusted sign-in for Kosh banking, Mitra guidance and Kavach approvals.</p>
 <div class="tabs"><button id="phoneTab" class="active">Mobile OTP</button><button id="staffTab">Net Banking / Password</button></div>
@@ -83,6 +85,7 @@ document.querySelector('#send').onclick=async()=>{clearError();try{
     if(phone.length===10) phone='+91'+phone;
     else phone='+'+phone;
   }
+  if(!runtime.demoPhones.includes(phone)) throw new Error('This is a demo: only the registered demo mobile numbers can sign in.');
   const local=['localhost','127.0.0.1','::1'].includes(location.hostname);
   const auth=getAuth(initializeApp(firebaseConfig));
   auth.settings.appVerificationDisabledForTesting=(local || phone===runtime.testPhone) && phone===runtime.testPhone;
@@ -115,7 +118,7 @@ export function consentPage(url: URL): string {
   const agent = config.agentClients.find((client) => client.id === url.searchParams.get("client_id"));
   const who = agent ? escapeHtml(agent.name) : "Mitra";
   return shell(
-    "Authorize | Kosh (Demo)",
+    "Authorize | Kosh, a Searce demo",
     `${brand()}<h1>Allow ${who} access?</h1>
 <p>${agent ? "An assistant app outside Kosh" : "The banking assistant"} is asking to act for you. It cannot move money on its own: every payment it proposes waits for your approval in Kavach on the Kosh app, and it never sees your OTP, PIN or password.</p>
 ${scopes.map((scope) => `<div class="scope">${scope === "banking.read" ? "View balances, accounts and transactions" : "Prepare banking and service requests"}</div>`).join("")}
