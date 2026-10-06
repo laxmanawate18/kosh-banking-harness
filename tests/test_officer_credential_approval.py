@@ -51,8 +51,8 @@ class TestOfficerCredentialApproval(unittest.TestCase):
         self.assertNotIn("account", data)
         self.assertEqual(data.get("email"), applicant_email)
 
-    def test_officer_approves_and_credentials_emailed(self):
-        """Officer reviews pending application, approves it, and system generates credentials and emails them."""
+    def test_officer_approves_and_gets_the_login_to_hand_over(self):
+        """Officer approves a pending application; the login is shown to the officer once and no e-mail is sent."""
         # 1. Visitor applies
         unique_phone = f"+91988{int(time.time() * 1000) % 10000000:07d}"
         applicant_email = f"deepak_{int(time.time())}@sentinel-test.com"
@@ -94,8 +94,8 @@ class TestOfficerCredentialApproval(unittest.TestCase):
         self.assertTrue(approve_data.get("success"))
         self.assertIn("customer_id", approve_data)
         self.assertIn("username", approve_data)
-        self.assertEqual(approve_data.get("email_sent_to"), applicant_email)
-        self.assertIn(approve_data.get("delivery_status"), ("SENT", "SIMULATED_LOGGED"))
+        self.assertEqual(approve_data.get("delivery_status"), "NOT_SENT")  # Kosh sends no e-mail
+        self.assertTrue(approve_data.get("temp_password"))
 
         customer_id = approve_data["customer_id"]
         username = approve_data["username"]
@@ -104,7 +104,7 @@ class TestOfficerCredentialApproval(unittest.TestCase):
         updated_lead = db.get_lead(lead_id)
         self.assertEqual(updated_lead["status"], "CONVERTED")
         self.assertEqual(updated_lead["customer_id"], customer_id)
-        self.assertIn(updated_lead["preferences"].get("delivery_status"), ("SENT", "SIMULATED_LOGGED"))
+        self.assertEqual(updated_lead["preferences"].get("delivery_status"), "NOT_SENT")
 
         # 5. Verify customer profile was created in DB
         cust = db.get_customer(customer_id)

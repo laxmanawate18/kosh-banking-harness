@@ -363,7 +363,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
     setLeadActionMsg(null);
     try {
       const res = await resendOfficerCustomerCredentials(cust.customer_id);
-      setLeadActionMsg(`✓ Fresh Net Banking credentials generated for @${res.username}! Password: ${res.temp_password} (Emailed to ${res.email})`);
+      setLeadActionMsg(`✓ New login for @${res.username}, temporary password ${res.temp_password}. Give it to the customer in person; Kosh sends no e-mail.`);
       await loadCustomers();
     } catch (err: any) {
       alert(`Failed to resend credentials: ${err.message || err}`);
@@ -377,7 +377,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
       setIsApprovingLead(true);
       setDecisionError(null);
       const res = await approveOfficerLead(leadId);
-      setLeadActionMsg(`Application approved! Credentials emailed to ${res.email_sent_to || 'applicant'}.`);
+      setLeadActionMsg(`Application approved. Login @${res.username}, temporary password ${res.temp_password}. Give it to the customer in person; Kosh sends no e-mail.`);
       await loadLeads();
       await loadCustomers();
       if (selectedLead && selectedLead.id === leadId) {
@@ -1212,7 +1212,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
               <div>
                 <strong>Credentials Dispatched via Email</strong>
                 <p>
-                  Profile provisioned for Customer <strong>{selectedLead.customer_id}</strong>. Credentials dispatched to <strong>{selectedLead.preferences?.email || 'email'}</strong> ({selectedLead.preferences?.delivery_status || 'SENT'}).
+                  Profile provisioned for Customer <strong>{selectedLead.customer_id}</strong>. Login <strong>@{selectedLead.preferences?.provisioned_username || 'customer'}</strong> handed over by the officer; Kosh sends no e-mail.
                 </p>
               </div>
             </div>

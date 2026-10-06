@@ -60,14 +60,15 @@ MIGRATED = {
     "kosh-oauth-chat-client-secret": {APP: "OAUTH_CHAT_CLIENT_SECRET", AUTH: "SENTINEL_CHAT_CLIENT_SECRET"},
     "kosh-oauth-token-encryption-key": {APP: "OAUTH_TOKEN_ENCRYPTION_KEY"},
     "kosh-auth-internal-token": {APP: "AUTH_INTERNAL_TOKEN", AUTH: "AUTH_INTERNAL_TOKEN"},
-    "kosh-smtp-password": {APP: "SMTP_PASSWORD"},
 }
 NEW_KEYS = {  # required in production since this release; generated once
     "kosh-sentinel-token-secret": ("SENTINEL_DEMO_SECRET", lambda: secrets.token_urlsafe(48)),
     "kosh-audit-hmac-key": ("SENTINEL_AUDIT_HMAC_KEY", lambda: secrets.token_urlsafe(48)),
     "kosh-document-key": ("SENTINEL_DOCUMENT_KEY", lambda: base64.urlsafe_b64encode(os.urandom(32)).decode()),  # a Fernet key
 }
-REMOVED = {APP: {"DEMO_OTP"}, AUTH: set()}
+# Kosh sends no e-mail: every SMTP setting goes (revoke the Gmail app password separately).
+REMOVED = {APP: {"DEMO_OTP", "SMTP_HOST", "SMTP_PORT", "SMTP_USE_TLS", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM_EMAIL",
+                 "SMTP_FROM_NAME"}, AUTH: set()}
 
 
 def run(*args: str, capture: bool = True, stdin: str | None = None) -> str:
@@ -209,6 +210,9 @@ def main() -> int:
     images = {APP: f"{REGISTRY}/{APP}:{tag}", AUTH: f"{REGISTRY}/{AUTH}:{tag}"}
     plans = {svc: split_env(envs[svc], svc) for svc in (APP, AUTH)}
     plans[APP][0]["MITRA_FALLBACK_MODEL"] = args.fallback_model
+    # The public domain is Kosh's address in the sign-in flow, e-mails and links; the run.app address is flagged by Safe Browsing.
+    plans[APP][0]["SENTINEL_PUBLIC_URL"] = PUBLIC_URL
+    plans[AUTH][0]["SENTINEL_WEB_URL"] = PUBLIC_URL
     for svc, (plain, refs) in plans.items():
         print(f"    {svc}: {len(plain)} plain variables, secrets {sorted(refs)}; removed {sorted(REMOVED[svc]) or 'none'}")
     if args.apply:

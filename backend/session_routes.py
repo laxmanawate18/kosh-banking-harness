@@ -12,7 +12,6 @@ from sqlalchemy import select
 
 from backend.api_models import ApprovalDecisionRequest, HarnessControlsRequest, OfficerCopilotRequest, SessionCreateRequest, SessionUpdateRequest
 from backend.conversations import create_session_data, list_sessions_metadata, load_session, sanitized_session, save_session
-from backend.email_service import send_credentials_email
 from backend import care, mitra_ops
 from backend.offers import funnel as offer_funnel
 from backend.notifications import notify, recent as recent_notifications
@@ -236,21 +235,13 @@ def make_session_router(
 
         notify(db, "application_approved", phone, customer_id=customer_id, reference=pref.get("app_ref"),
                product=product.get("title", "Kosh"), email=email[:2] + "•••@" + email.partition("@")[2])
-        email_status = send_credentials_email(
-            to_email=email,
-            applicant_name=full_name,
-            username=username,
-            temp_password=temp_password,
-            customer_id=customer_id,
-            product_title=product.get("title", "Kosh Banking Product"),
-            account_number=onboarded.get("account_number"),
-        )
+        email_status = "NOT_SENT"  # Kosh sends no e-mail; the officer hands the login to the customer
 
         db.update_lead_status(
             lead_id=lead_id,
             status="CONVERTED",
             customer_id=customer_id,
-            notes=f"Approved by officer {context.username}. Credentials dispatched to {email} (status: {email_status}).",
+            notes=f"Approved by officer {context.username}. Login handed over by the officer; no e-mail is sent.",
             preferences={
                 "delivery_status": email_status,
                 "approved_by": context.username,
@@ -275,10 +266,11 @@ def make_session_router(
 
         return {
             "success": True,
-            "message": f"Application approved. Credentials successfully dispatched to {email}.",
+            "message": "Application approved. Give the customer this login in person; Kosh sends no e-mail.",
             "lead_id": lead_id,
             "customer_id": customer_id,
             "username": username,
+            "temp_password": temp_password,  # shown once to the officer (officer-only endpoint)
             "delivery_status": email_status,
             "email_sent_to": email,
             "account_number": onboarded.get("account_number"),
@@ -437,20 +429,12 @@ def make_session_router(
                                                "password": temp_password, "sentinelUserId": customer_id, "phoneNumber": phone}):
             raise HTTPException(status_code=502, detail="Sign-in credentials could not be re-issued. No email was sent; please retry.")
 
-        email_status = send_credentials_email(
-            to_email=email,
-            applicant_name=full_name,
-            username=username,
-            temp_password=temp_password,
-            customer_id=customer_id,
-            product_title="Kosh Digital Banking Account",
-            account_number=cust.get("account_number", ""),
-        )
+        email_status = "NOT_SENT"  # Kosh sends no e-mail; the officer hands the login to the customer
 
         db.append_audit(
             "OFFICER_RESENT_CREDENTIALS",
             actor=context.username,
-            summary=f"Officer {context.username} regenerated Net Banking credentials for customer {customer_id} ({username}); sent to {email}",
+            summary=f"Officer {context.username} regenerated Net Banking credentials for customer {customer_id} ({username}); handed over in person",
             details={
                 "customer_id": customer_id,
                 "username": username,
@@ -461,9 +445,10 @@ def make_session_router(
 
         return {
             "success": True,
-            "message": f"Fresh credentials generated and emailed to {email}.",
+            "message": "Fresh credentials generated. Give the customer this login in person; Kosh sends no e-mail.",
             "customer_id": customer_id,
             "username": username,
+            "temp_password": temp_password,  # shown once to the officer (officer-only endpoint)
             "email": email,
             "delivery_status": email_status,
         }

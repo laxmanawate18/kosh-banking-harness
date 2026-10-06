@@ -11,11 +11,11 @@ AUTH_ENV = [{"name": "AUTH_TRUSTED_ORIGINS", "value": "https://a,https://b"}, {"
 
 
 class DeployReleaseTests(unittest.TestCase):
-    def test_app_secrets_become_references_and_demo_otp_goes(self):
+    def test_app_secrets_become_references_and_demo_otp_and_smtp_go(self):
         plain, refs = split_env(APP_ENV, APP)
-        self.assertEqual(plain, {"SMTP_USER": "ops@example.com", "AUTH_MODE": "oidc"})
+        self.assertEqual(plain, {"AUTH_MODE": "oidc"})  # SMTP settings removed: Kosh sends no e-mail
         self.assertEqual(refs["SENTINEL_DATABASE_URL"], "kosh-banking-database-url")
-        self.assertEqual(refs["SMTP_PASSWORD"], "kosh-smtp-password")
+        self.assertNotIn("SMTP_PASSWORD", refs)
         for key in ("SENTINEL_DEMO_SECRET", "SENTINEL_AUDIT_HMAC_KEY", "SENTINEL_DOCUMENT_KEY"):
             self.assertIn(key, refs)
         self.assertNotIn("password", " ".join(plain.values()))
