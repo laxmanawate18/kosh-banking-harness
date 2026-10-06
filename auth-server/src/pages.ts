@@ -10,7 +10,7 @@ const brand = () => `<div class="brand" aria-label="Kosh — Bharosa, har kadam"
   </svg>
   <span class="brand-copy"><span><strong>kosh</strong><b lang="hi">कोष</b></span><small>Bharosa, har kadam.</small></span>
 </div>
-<p class="demo-notice">Kosh is a product demo built by Searce. It is not a bank and not a real financial institution. Never enter real OTPs, PINs, passwords, card or ID details here.</p>`;
+<p class="demo-notice">Kosh is a product demo. It is not a bank and not a real financial institution. Never enter real OTPs, PINs, passwords, card or ID details here.</p>`;
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
@@ -52,7 +52,7 @@ export function signInPage(): string {
     testCode: config.localFirebaseTestCode,
   }).replaceAll("<", "\\u003c");
   return shell(
-    "Sign in | Kosh, a Searce demo",
+    "Sign in | Kosh, a product demo",
     `${brand()}
 <h1>Secure sign in</h1><p>One trusted sign-in for Kosh banking, Mitra guidance and Kavach approvals.</p>
 <div class="tabs"><button id="phoneTab" class="active">Mobile OTP</button><button id="staffTab">Net Banking / Password</button></div>
@@ -118,7 +118,7 @@ export function consentPage(url: URL): string {
   const agent = config.agentClients.find((client) => client.id === url.searchParams.get("client_id"));
   const who = agent ? escapeHtml(agent.name) : "Mitra";
   return shell(
-    "Authorize | Kosh, a Searce demo",
+    "Authorize | Kosh, a product demo",
     `${brand()}<h1>Allow ${who} access?</h1>
 <p>${agent ? "An assistant app outside Kosh" : "The banking assistant"} is asking to act for you. It cannot move money on its own: every payment it proposes waits for your approval in Kavach on the Kosh app, and it never sees your OTP, PIN or password.</p>
 ${scopes.map((scope) => `<div class="scope">${scope === "banking.read" ? "View balances, accounts and transactions" : "Prepare banking and service requests"}</div>`).join("")}

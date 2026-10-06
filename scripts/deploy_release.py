@@ -49,7 +49,7 @@ REGION = "us-central1"
 SQL_INSTANCE = "sentinel-db"
 REGISTRY = f"{REGION}-docker.pkg.dev/{PROJECT}/cloud-run-source-deploy"
 APP, AUTH = "sentinel-banking", "sentinel-auth"
-PUBLIC_URL = "https://kosh.searceinc.net"
+PUBLIC_URL = os.environ.get("KOSH_PUBLIC_URL", "").rstrip("/")  # e.g. https://kosh.example.com; required for --apply
 
 # Secret Manager name -> the environment variable(s) it backs, per service. A value shared by both services is one secret.
 MIGRATED = {
@@ -151,6 +151,8 @@ def main() -> int:
     args = ap.parse_args()
     step = lambda n, text: print(f"\n[{n}] {text}")
 
+    if not PUBLIC_URL.startswith("https://"):
+        raise SystemExit("Set KOSH_PUBLIC_URL to the public https address, e.g. KOSH_PUBLIC_URL=https://kosh.example.com")
     step(1, "Pre-flight")
     project = run("gcloud", "config", "get-value", "project")
     if project != PROJECT:

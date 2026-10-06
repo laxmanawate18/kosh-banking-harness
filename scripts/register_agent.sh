@@ -14,7 +14,7 @@ set -euo pipefail
 REGION=us-central1
 AUTH_SERVICE=sentinel-auth
 APP_SERVICE=sentinel-banking
-MCP_URL=https://kosh.searceinc.net/mcp
+MCP_URL="${KOSH_PUBLIC_URL:?set KOSH_PUBLIC_URL, e.g. https://kosh.example.com}/mcp"
 SCOPES="banking.read banking.propose"
 APPLY=false
 ID="" NAME="" REDIRECT=""

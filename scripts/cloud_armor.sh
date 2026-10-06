@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cloud Armor rate limits on the Kosh load balancer (kosh.searceinc.net). Run once the project's
+# Cloud Armor rate limits on the Kosh load balancer (the public domain). Run once the project's
 # SECURITY_POLICIES quota is above 0 (Console: IAM & Admin > Quotas, metric "Security policies").
 # Safe to re-run: it skips what already exists. Over-limit callers get HTTP 429 at Google's edge.
 set -euo pipefail
