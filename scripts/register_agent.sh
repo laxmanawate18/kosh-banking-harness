@@ -5,15 +5,16 @@
 #       --redirect https://claude.ai/api/mcp/auth_callback [--scopes "banking.read banking.propose"] [--apply]
 #
 # What it changes (both are Cloud Run settings; each update rolls out a new revision with no downtime):
-#   sentinel-auth     AUTH_AGENT_CLIENTS  += the app (name, callback address, scopes); SENTINEL_MCP_AUDIENCE
+#   kosh-auth         AUTH_AGENT_CLIENTS  += the app (name, callback address, scopes); SENTINEL_MCP_AUDIENCE
 #                     On start-up the auth server creates the OAuth client (AUTH_AUTO_BOOTSTRAP=true).
-#   sentinel-banking  OAUTH_AGENT_CLIENT_IDS += the app's id; OAUTH_MCP_AUDIENCE (the address agents connect to)
+#   kosh-app          OAUTH_AGENT_CLIENT_IDS += the app's id; OAUTH_MCP_AUDIENCE (the address agents connect to)
 # The app is public and uses PKCE, so there is no client secret to store. Requires the release with the MCP gateway.
 set -euo pipefail
 
 REGION=us-central1
-AUTH_SERVICE=sentinel-auth
-APP_SERVICE=sentinel-banking
+PROJECT=project-5fc303c2-29cb-4e5d-9f9
+AUTH_SERVICE=kosh-auth
+APP_SERVICE=kosh-app
 MCP_URL="${KOSH_PUBLIC_URL:?set KOSH_PUBLIC_URL, e.g. https://kosh.example.com}/mcp"
 SCOPES="banking.read banking.propose"
 APPLY=false
@@ -35,7 +36,7 @@ done
 [[ "$REDIRECT" == https://* ]] || { echo "--redirect must be the app's https callback address" >&2; exit 2; }
 
 env_value() {  # current value of one plain environment variable on a Cloud Run service
-  gcloud run services describe "$1" --region="$REGION" --format=json | python3 -c "
+  gcloud run services describe "$1" --region="$REGION" --project="$PROJECT" --format=json | python3 -c "
 import json, sys
 env = json.load(sys.stdin)['spec']['template']['spec']['containers'][0].get('env', [])
 print(next((e.get('value', '') for e in env if e['name'] == sys.argv[1]), ''))" "$2"
@@ -64,9 +65,9 @@ if [[ "$APPLY" != true ]]; then
 fi
 
 # '^|^' makes '|' the list separator, so the commas inside the JSON and the id list stay intact.
-gcloud run services update "$AUTH_SERVICE" --region="$REGION" \
+gcloud run services update "$AUTH_SERVICE" --region="$REGION" --project="$PROJECT" \
   --update-env-vars="^|^AUTH_AGENT_CLIENTS=$NEW_CLIENTS|SENTINEL_MCP_AUDIENCE=$MCP_URL"
-gcloud run services update "$APP_SERVICE" --region="$REGION" \
+gcloud run services update "$APP_SERVICE" --region="$REGION" --project="$PROJECT" \
   --update-env-vars="^|^OAUTH_AGENT_CLIENT_IDS=$NEW_IDS|OAUTH_MCP_AUDIENCE=$MCP_URL"
 
 echo "Check"
