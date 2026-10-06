@@ -46,9 +46,10 @@ def _tls_context() -> ssl.SSLContext:
 TLS = _tls_context()
 PROJECT = "project-5fc303c2-29cb-4e5d-9f9"
 REGION = "us-central1"
-SQL_INSTANCE = "sentinel-db"
-REGISTRY = f"{REGION}-docker.pkg.dev/{PROJECT}/cloud-run-source-deploy"
-APP, AUTH = "sentinel-banking", "sentinel-auth"
+SQL_INSTANCE = "kosh-db"
+REGISTRY = f"{REGION}-docker.pkg.dev/{PROJECT}/kosh"
+BUILD_ACCOUNT = f"projects/{PROJECT}/serviceAccounts/kosh-build@{PROJECT}.iam.gserviceaccount.com"
+APP, AUTH = "kosh-app", "kosh-auth"
 PUBLIC_URL = os.environ.get("KOSH_PUBLIC_URL", "").rstrip("/")  # e.g. https://kosh.example.com; required for --apply
 
 # Secret Manager name -> the environment variable(s) it backs, per service. A value shared by both services is one secret.
@@ -56,6 +57,7 @@ MIGRATED = {
     "kosh-banking-database-url": {APP: "SENTINEL_DATABASE_URL"},
     "kosh-auth-database-url": {AUTH: "AUTH_DATABASE_URL"},
     "kosh-better-auth-secret": {AUTH: "BETTER_AUTH_SECRET"},
+    "kosh-staff-password": {AUTH: "AUTH_STAFF_PASSWORD"},
     "kosh-oauth-web-client-secret": {APP: "OAUTH_WEB_CLIENT_SECRET", AUTH: "SENTINEL_WEB_CLIENT_SECRET"},
     "kosh-oauth-chat-client-secret": {APP: "OAUTH_CHAT_CLIENT_SECRET", AUTH: "SENTINEL_CHAT_CLIENT_SECRET"},
     "kosh-oauth-token-encryption-key": {APP: "OAUTH_TOKEN_ENCRYPTION_KEY"},
@@ -79,12 +81,12 @@ def run(*args: str, capture: bool = True, stdin: str | None = None) -> str:
 
 
 def service_env(service: str) -> list[dict]:
-    spec = json.loads(run("gcloud", "run", "services", "describe", service, f"--region={REGION}", "--format=json"))
+    spec = json.loads(run("gcloud", "run", "services", "describe", service, f"--region={REGION}", f"--project={PROJECT}", "--format=json"))
     return spec["spec"]["template"]["spec"]["containers"][0].get("env", [])
 
 
 def service_account(service: str) -> str:
-    spec = json.loads(run("gcloud", "run", "services", "describe", service, f"--region={REGION}", "--format=json"))
+    spec = json.loads(run("gcloud", "run", "services", "describe", service, f"--region={REGION}", f"--project={PROJECT}", "--format=json"))
     account = spec["spec"]["template"]["spec"].get("serviceAccountName")
     if account:
         return account
@@ -137,7 +139,7 @@ def deploy(service: str, image: str, plain: dict[str, str], refs: dict[str, str]
         json.dump(plain, handle)  # JSON is valid YAML and keeps commas, '@' and quotes intact
         env_file = handle.name
     try:
-        run("gcloud", "run", "deploy", service, f"--region={REGION}", f"--image={image}", f"--env-vars-file={env_file}",
+        run("gcloud", "run", "deploy", service, f"--region={REGION}", f"--project={PROJECT}", f"--image={image}", f"--env-vars-file={env_file}",
             "--set-secrets=" + ",".join(f"{var}={name}:latest" for var, name in sorted(refs.items())), capture=False)
     finally:
         os.unlink(env_file)
@@ -218,8 +220,10 @@ def main() -> int:
     for svc, (plain, refs) in plans.items():
         print(f"    {svc}: {len(plain)} plain variables, secrets {sorted(refs)}; removed {sorted(REMOVED[svc]) or 'none'}")
     if args.apply:
-        run("gcloud", "builds", "submit", "--tag", images[APP], "--timeout=1800s", str(ROOT), capture=False)
-        run("gcloud", "builds", "submit", "--tag", images[AUTH], "--timeout=900s", str(ROOT / "auth-server"), capture=False)
+        for svc, source in ((APP, ROOT), (AUTH, ROOT / "auth-server")):
+            run("gcloud", "builds", "submit", str(source), f"--project={PROJECT}", f"--region={REGION}",
+                f"--config={ROOT / 'scripts' / 'cloudbuild.yaml'}", f"--substitutions=_IMAGE={images[svc]}",
+                f"--service-account={BUILD_ACCOUNT}", "--default-buckets-behavior=regional-user-owned-bucket", capture=False)
         deploy(AUTH, images[AUTH], *plans[AUTH])
         deploy(APP, images[APP], *plans[APP])
         (ROOT / ".local" / "deploy-tag").write_text(tag + "\n")
@@ -229,7 +233,8 @@ def main() -> int:
     step(6, "Checks and next steps")
     if args.apply:
         import time
-        for path in ("/api/products", "/.well-known/oauth-protected-resource/mcp"):
+        # Pages sit behind Google sign-in (IAP), so only the public machine endpoint is checked here.
+        for path in ("/.well-known/oauth-protected-resource/mcp",):
             for attempt in range(6):  # right after the switch a request can still reach an old instance
                 try:
                     with urllib.request.urlopen(PUBLIC_URL + path, timeout=30, context=TLS) as response:
