@@ -24,9 +24,7 @@ class _OfflineModel:
 
 
 @pytest.fixture(autouse=True)
-def _ontology_off_and_offline(monkeypatch):
-    # Tests do not depend on the shell's ONTOLOGY_MODE; tests/test_ontology.py switches it on where it matters.
+def _offline_process_classifier(monkeypatch):
     from backend import ontology
-    monkeypatch.setattr(ontology, "MODE", "off")
     monkeypatch.setattr(ontology, "_CLIENT", _OfflineModel())
     yield

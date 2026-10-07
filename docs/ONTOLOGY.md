@@ -27,25 +27,17 @@ In order, first match wins:
 
 A customer or visitor can never be routed to an officer-only process (AML, regulatory reporting, model lifecycle, data publication, churn, day close, agent-action approval), even by naming it. Processes Kosh does not run (`kosh_status: not_implemented`) tell Mitra to say so in one sentence and offer a callback, while still answering from published facts.
 
-## Switching it on
+## Always on
 
-`ONTOLOGY_MODE` (environment):
+The ontology runs on every Mitra turn; there is no switch to turn it off. Every turn is routed and recorded, and the process guide goes to the model. Every guide, exactly as the model reads it, is part of the prompt version, so any change to the ontology or to the code that renders it needs a passing evaluation (including `process_routing` at 100%) and the admin's approval.
 
-| Value | Effect |
-|---|---|
-| `off` (default) | Nothing changes. The approved prompt version stays valid. |
-| `shadow` | Routes and records the process on every turn. Replies and tools are unchanged; the prompt version is unchanged. |
-| `on` | Records, adds the process guide to the turn and flags out-of-process actions. The ontology's hash becomes part of the prompt version, so it needs a passing evaluation and approval in the Admin Panel. |
-
-**Production uses only approved processes.** With `on` in production, a process guides Mitra only after the admin approved it in the Admin Panel (Business ontology), for its exact content: the process file, the activities it uses and the guardrails. Editing any of them needs a new approval. The file's own `status` field is the authoring stage (draft, reviewed); the approval that counts is the recorded one.
-
-Suggested rollout: `shadow` in production; review routing in the Admin Panel (Cost and latency, by process); approve the processes; then `on` with a fresh evaluation run and prompt-version approval.
+**In production a process guides Mitra only once the admin has approved it** in the Admin Panel (Business ontology), for its exact content: the process file, the activities it uses and the guardrails. Editing any of them needs a new approval. Until a process is approved, turns routed to it are still recorded, but Mitra answers without its guide. The file's own `status` field is the authoring stage (draft, reviewed); the approval that counts is the recorded one.
 
 ## Changing the ontology
 
 1. Edit the Markdown under `config/ontology/` (see `conventions.md`).
 2. Run `venv/bin/python -m pytest tests/test_ontology.py`. It runs the ontology's own validator and checks that every binding points at real code: tools in `tools.json`, skills and workflows, care intents, service ids and tables. It also checks that every Kosh write tool and workflow has exactly one process, that money tools need the customer's approval, that recommend-only agents never act alone, and that the model's view leaks nothing internal.
-3. With `on`, the edit changes the prompt version: run the evaluation and approve it.
+3. The edit changes the prompt version: run the evaluation and approve the version, then approve the changed processes.
 
 ## Conformance: what the ontology requires and what Kosh enforces
 

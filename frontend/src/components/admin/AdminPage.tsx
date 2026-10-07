@@ -89,7 +89,7 @@ const ApprovalsTab: React.FC<{ go: (route: string) => void }> = ({ go }) => {
 };
 
 /* ---------------- Ontology ---------------- */
-type OntologyList = { mode: string; production: boolean; version: string; unrouted_turns_7d: number;
+type OntologyList = { production: boolean; version: string; unrouted_turns_7d: number;
   processes: { id: string; name: string; domain: string; kosh_status: string; file_status: string; channels: string[]; tools: string[];
     turns_7d: number; content_hash: string; approval: { by: string; at: string; note: string } | null; earlier_version_approved: boolean }[] };
 type ProcessDetail = { id: string; name: string; model_view: string; note: string; tables: string[]; services: string[]; care: string[]; activities: string[] };
@@ -105,7 +105,7 @@ const OntologyTab: React.FC = () => {
     <>
       <section className="panel">
         <h2 style={{ marginTop: 0 }}>Business ontology</h2>
-        <p>Mode <b>{data.mode}</b> (ONTOLOGY_MODE) · ontology version <code>{data.version}</code>{data.production ? ' · production: only approved processes guide Mitra' : ' · not production: every process may guide Mitra'} · {data.unrouted_turns_7d} turns in 7 days matched no process.</p>
+        <p>Always on · ontology version <code>{data.version}</code>{data.production ? ' · production: only approved processes guide Mitra' : ' · not production: every process may guide Mitra'} · {data.unrouted_turns_7d} turns in 7 days matched no process.</p>
         <div className="table-scroll"><table className="table">
           <thead><tr><th>Domain</th><th>Process</th><th>In Kosh</th><th>Channels</th><th>Tools</th><th>Turns (7d)</th><th>Approval</th><th /></tr></thead>
           <tbody>{data.processes.map(p => (

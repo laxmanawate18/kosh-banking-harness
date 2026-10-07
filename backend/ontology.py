@@ -15,7 +15,7 @@ Approval     In production a process guides Mitra only after an admin approved i
              content (`content_hash`): editing the process, an activity it uses or the guardrails needs a new approval.
              The files are also part of the prompt version, so an edit needs a fresh evaluation as well.
 
-ONTOLOGY_MODE: off (default: nothing changes) | shadow (route and record only) | on (record, guide, narrow).
+Always on: every turn is routed and recorded. There is no switch to turn it off.
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
-import os
 import re
 import time
 from dataclasses import dataclass
@@ -32,8 +31,6 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent / "config" / "ontology"
-MODE = os.getenv("ONTOLOGY_MODE", "off").strip().lower()
-MODE = MODE if MODE in {"off", "shadow", "on"} else "off"
 HANDOVER_TOOLS = frozenset({"register_complaint", "request_callback"})
 # Sentinel's intent families. Reading accounts and transactions is an enquiry, not a process (approval matrix row 1).
 FAMILY_PROCESS = {"TRANSFER": "proc.payment_authorisation", "PAY_BILL": "proc.payment_authorisation",
@@ -173,8 +170,8 @@ def record_approval(db, process_id: str, admin_user_id: str, note: str) -> Dict[
 
 
 def usable(process_id: Optional[str]) -> bool:
-    """Whether a routed process may guide the model and narrow tools: mode on, and in production approved by an admin."""
-    if MODE != "on" or not process_id or process_id not in load():
+    """Whether a routed process may guide the model: in production only once an admin approved its current content."""
+    if not process_id or process_id not in load():
         return False
     from backend.settings import PRODUCTION
     return not PRODUCTION or approved(process_id)
@@ -256,10 +253,8 @@ async def classify(model_text: str, channel: str) -> Optional[str]:
 
 
 async def select(text: str, channel: str, vault, **signals) -> Optional[str]:
-    """The process for this turn (None when off, an enquiry, or nothing fits). The rules read what the person typed, on
-    the server; the classifier gets it only through the turn's Vault (identifiers tagged, known values withheld)."""
-    if MODE == "off":
-        return None
+    """The process for this turn (None for an enquiry or when nothing fits). The rules read what the person typed, on the
+    server; the classifier gets it only through the turn's Vault (identifiers tagged, known values withheld)."""
     process_id, source = route(text, channel, **signals)
     if source == "unmatched" and channel in CLASSIFIED_CHANNELS:
         return await classify(vault.guard(vault.redact(text)), channel)
@@ -324,5 +319,5 @@ def outside_process(process_id: Optional[str], tool: str, effect: Optional[str])
     """Whether a write or money call falls outside the routed process. Recorded on the tool decision, not refused: refusing
     broke real two-part requests ("freeze my card and pay Vikram") in evaluation, and permissions are enforced by the
     harness, consent, Sentinel and Kavach regardless (ponytail: monitor first; enforce once the audit shows few such calls)."""
-    return (MODE != "off" and process_id in load() and effect in {"write", "money"} and tool not in HANDOVER_TOOLS
+    return (process_id in load() and effect in {"write", "money"} and tool not in HANDOVER_TOOLS
             and tool not in load()[process_id].tools)

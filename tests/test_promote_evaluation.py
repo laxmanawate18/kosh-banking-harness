@@ -12,7 +12,7 @@ from scripts.promote_evaluation import promote
 
 RUN = {"at": "2026-10-05T18:14:12Z", "passed": 283, "total": 284, "pass_rate": 99.6, "fairness": {"g": True},
        "by_category": {"care_fraud": "14/14", "jailbreak": "27/27", "prompt_probe": "14/14", "customer_security": "8/8",
-                       "officer_copilot": "24/24", "data_minimisation": "10/10"}}
+                       "officer_copilot": "24/24", "data_minimisation": "10/10", "process_routing": "10/10"}}
 
 
 class PromoteEvaluationTests(unittest.TestCase):

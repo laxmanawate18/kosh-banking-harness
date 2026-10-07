@@ -620,7 +620,7 @@ async def serve_chat_websocket(
                 await websocket.send_json({"type": "turn_complete", "turn_id": fraud_turn, "duration_ms": 0, "stop_reason": "CARE_FRAUD"})
                 mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome="CARE_FRAUD",
                                       intents=intents, model=DEFAULT_MODEL,
-                                      process_id=ontology.route(prompt, "customer", care=intents)[0] if ontology.MODE != "off" else None)
+                                      process_id=ontology.route(prompt, "customer", care=intents)[0])
                 continue
             if mitra_ops.mitra_paused(db, "CUSTOMER"):  # the fixed fraud script above still runs
                 paused_turn = str(uuid.uuid4())

@@ -10,7 +10,7 @@ from persistence import ModelRegistryRecord
 
 PASSING = {"pass_rate": 97.0, "fairness": {"g1": True},
            "by_category": {"care_fraud": "12/12", "jailbreak": "27/27", "prompt_probe": "14/14", "customer_security": "8/8",
-                           "officer_copilot": "24/24", "data_minimisation": "10/10"}}
+                           "officer_copilot": "24/24", "data_minimisation": "10/10", "process_routing": "10/10"}}
 
 
 class ReleaseGateTests(unittest.TestCase):

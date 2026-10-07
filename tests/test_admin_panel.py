@@ -54,7 +54,7 @@ class AdminPanelTests(unittest.TestCase):
         approved = self.admin.post(f"/api/admin/ontology/{pid}/approve", headers=self.ah, json={"note": "Read the steps and the model view"})
         self.assertEqual(approved.status_code, 200, approved.text)
         self.assertTrue(ontology.approved(pid))
-        with patch.object(ontology, "MODE", "on"), patch("backend.settings.PRODUCTION", True):
+        with patch("backend.settings.PRODUCTION", True):
             self.assertTrue(ontology.usable(pid))
             self.assertFalse(ontology.usable("proc.payment_authorisation"))  # never approved
             with patch.object(ontology, "content_hash", return_value="edited-content"):
@@ -67,14 +67,13 @@ class AdminPanelTests(unittest.TestCase):
     def test_cost_needs_reviewed_rates_and_latency_comes_from_turns(self):
         mitra_ops.record_turn(dev_ui.db, session_id="S-COST", channel="CUSTOMER", language="en", outcome="ANSWERED", latency_ms=2500,
                               model="gemini-3.8-flash", tokens=[1_000_000, 500_000], process_id="proc.payment_authorisation")
-        unpriced = self.admin.get("/api/admin/usage").json()
-        self.assertIsNone(unpriced["total"]["cost"])  # no rates set: no money figure
-        self.assertGreater(unpriced["total"]["latency_ms"]["p95"], 0)
-        rates = {"currency": "USD", "per_million_tokens": {"gemini-3.8-flash": {"input": 0.5, "output": 2.0}}}
-        with patch("pathlib.Path.read_text", return_value=json.dumps(rates)):
-            priced = mitra_ops.usage(dev_ui.db, 7)
+        priced = self.admin.get("/api/admin/usage").json()  # config/pricing.json: $0.75 in, $3.75 out per million
+        self.assertGreater(priced["total"]["latency_ms"]["p95"], 0)
         row = next(r for r in priced["by_process"] if r["key"] == "proc.payment_authorisation")
-        self.assertGreaterEqual(row["cost"], 1.5)  # 1M input at 0.5 + 0.5M output at 2.0
+        self.assertGreaterEqual(row["cost"], 2.625)  # 1M input at 0.75 + 0.5M output at 3.75
+        unpriced = {"currency": "USD", "per_million_tokens": {"gemini-3.8-flash": {"input": None, "output": None}}}
+        with patch("pathlib.Path.read_text", return_value=json.dumps(unpriced)):
+            self.assertIsNone(mitra_ops.usage(dev_ui.db, 7)["total"]["cost"])  # no rates: no money figure, never a guess
 
 
 class CardFreezeIsReviewed(unittest.TestCase):

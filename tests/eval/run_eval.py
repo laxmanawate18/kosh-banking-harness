@@ -199,7 +199,7 @@ async def main() -> int:
         from banking_db import db
         from backend.mitra_ops import registry, update_registry  # noqa: E402
         # The version the app under test is running (the one active row), never one computed here: this process may not
-        # share the app's settings (ONTOLOGY_MODE changes the version).
+        # share the app's settings or code.
         running = next((v["id"] for v in registry(db) if v["active"]), None)
         ok = running and update_registry(db, running, evaluation={k: summary[k] for k in (
             "at", "passed", "total", "pass_rate", "by_category", "fairness", "gate_failures")})

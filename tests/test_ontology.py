@@ -138,44 +138,26 @@ class Routing(unittest.TestCase):
         self.assertIsNone(run(client("general")))
         self.assertIsNone(run(client(error=TimeoutError())))
 
-    def test_off_selects_nothing_and_shadow_never_guides(self):
-        from backend.llm_boundary import Vault
-        vault = Vault()
-        with patch.object(ontology, "MODE", "off"):
-            self.assertIsNone(asyncio.run(ontology.select("please close my account, PAN ABCDE1234F", "customer", vault)))
-        self.assertEqual(vault.inputs, {})  # off touches nothing, not even the turn's Vault
-        with patch.object(ontology, "MODE", "shadow"):
-            self.assertEqual(asyncio.run(ontology.select("please close my account", "customer", vault)), "proc.dormancy_and_closure")
-            self.assertFalse(ontology.usable("proc.dormancy_and_closure"))
-
-    def test_production_uses_only_approved_files(self):
-        with patch.object(ontology, "MODE", "on"), patch("backend.settings.PRODUCTION", True):
-            self.assertFalse(ontology.usable("proc.payment_authorisation"))  # every file is still a draft
-        with patch.object(ontology, "MODE", "on"), patch("backend.settings.PRODUCTION", False):
+    def test_production_uses_only_approved_processes(self):
+        with patch("backend.settings.PRODUCTION", True):
+            self.assertFalse(ontology.usable("proc.payment_authorisation"))  # never approved in the test database
+        with patch("backend.settings.PRODUCTION", False):
             self.assertTrue(ontology.usable("proc.payment_authorisation"))
 
-    def test_the_prompt_version_covers_the_ontology_only_when_it_guides_replies(self):
-        with patch.object(ontology, "MODE", "off"):
-            off = mitra_ops.prompt_version()
-        with patch.object(ontology, "MODE", "shadow"):
-            self.assertEqual(mitra_ops.prompt_version(), off)
-        with patch.object(ontology, "MODE", "on"):
-            on = mitra_ops.prompt_version()
-            self.assertNotEqual(on, off)
-            ontology.view.cache_clear()
-            with patch.object(ontology, "_guardrails", return_value=["G1 Reworded by a code change."]):
-                self.assertNotEqual(mitra_ops.prompt_version(), on)  # what the model reads changed: a new version
-            ontology.view.cache_clear()
+    def test_the_prompt_version_covers_every_guide_as_the_model_reads_it(self):
+        before = mitra_ops.prompt_version()
+        ontology.view.cache_clear()
+        with patch.object(ontology, "_guardrails", return_value=["G1 Reworded by a code change."]):
+            self.assertNotEqual(mitra_ops.prompt_version(), before)  # what the model reads changed: a new version
+        ontology.view.cache_clear()
+        self.assertEqual(mitra_ops.prompt_version(), before)
 
-    def test_the_release_gate_needs_safe_routing_only_when_the_ontology_guides_replies(self):
+    def test_the_release_gate_needs_safe_routing(self):
         run = {"pass_rate": 100, "fairness": {}, "by_category": {c: "1/1" for c in mitra_ops.GATE_CATEGORIES}}
-        with patch.object(ontology, "MODE", "off"):
-            self.assertEqual(mitra_ops.release_gate(run), [])
-        with patch.object(ontology, "MODE", "on"):
-            self.assertEqual(mitra_ops.release_gate(run), ["process_routing was not run"])
-        with patch.object(ontology, "MODE", "off"):  # a run that has the cases is held to them, whatever the mode
-            self.assertEqual(mitra_ops.release_gate({**run, "by_category": {**run["by_category"], "process_routing": "9/10"}}),
-                             ["process_routing is 9/10; it must be 100%"])
+        self.assertEqual(mitra_ops.release_gate(run), [])
+        self.assertIn("process_routing was not run", mitra_ops.release_gate({**run, "by_category": {"care_fraud": "1/1"}}))
+        self.assertEqual(mitra_ops.release_gate({**run, "by_category": {**run["by_category"], "process_routing": "9/10"}}),
+                         ["process_routing is 9/10; it must be 100%"])
 
 
 class OutsideProcessIsFlaggedNotRefused(unittest.TestCase):
@@ -195,17 +177,15 @@ class OutsideProcessIsFlaggedNotRefused(unittest.TestCase):
 
     def test_writes_outside_the_process_are_allowed_and_flagged(self):
         freeze = ("freeze_card", {"card_id": "CARD-DEBIT-001", "reason": "lost"})
-        with patch.object(ontology, "MODE", "on"):
-            result, details = self.gate(*freeze, "proc.payment_authorisation")
-            self.assertTrue(result.allow, result.message)
-            self.assertEqual((details["process"], details.get("outside_process")), ("proc.payment_authorisation", True))
-            for name, args in (("get_transaction_history", {}), ("register_complaint", {"summary": "fee"}),
-                               ("start_banking_workflow", {"skill_id": "standing_instruction"})):
-                result, details = self.gate(name, args, "proc.payment_authorisation")  # a read, a handover, its own tool
-                self.assertTrue(result.allow)
-                self.assertNotIn("outside_process", details, name)
-        with patch.object(ontology, "MODE", "off"):
-            self.assertNotIn("outside_process", self.gate(*freeze, "proc.payment_authorisation")[1])
+        result, details = self.gate(*freeze, "proc.payment_authorisation")
+        self.assertTrue(result.allow, result.message)
+        self.assertEqual((details["process"], details.get("outside_process")), ("proc.payment_authorisation", True))
+        for name, args in (("get_transaction_history", {}), ("register_complaint", {"summary": "fee"}),
+                           ("start_banking_workflow", {"skill_id": "standing_instruction"})):
+            result, details = self.gate(name, args, "proc.payment_authorisation")  # a read, a handover, its own tool
+            self.assertTrue(result.allow)
+            self.assertNotIn("outside_process", details, name)
+        self.assertNotIn("outside_process", self.gate(*freeze, None)[1])  # no process routed: nothing to compare with
 
 
 class ChatTurn(unittest.TestCase):
@@ -242,22 +222,18 @@ class ChatTurn(unittest.TestCase):
             recorded = s.scalars(select(MitraTurnRecord.process_id).where(MitraTurnRecord.session_id == session_id)).all()
         return str(self.model.prompts[-1]), recorded
 
-    def test_on_guides_the_model_with_the_one_process_and_records_it(self):
-        with patch.object(ontology, "MODE", "on"):
-            sent, recorded = self.turn("Please close my account")
+    def test_the_model_is_guided_by_the_one_process_and_the_turn_records_it(self):
+        sent, recorded = self.turn("Please close my account")
         self.assertIn("Dormancy and Closure", sent)
         self.assertIn("not available here", sent)
         self.assertNotIn("Payment Authorisation", sent)
         self.assertEqual(recorded, ["proc.dormancy_and_closure"])
 
-    def test_shadow_records_without_telling_the_model_and_off_does_neither(self):
-        with patch.object(ontology, "MODE", "shadow"):
+    def test_a_process_that_may_not_guide_is_still_recorded(self):  # e.g. not approved in production (unit test above)
+        with patch.object(ontology, "usable", return_value=False):
             sent, recorded = self.turn("Please close my account")
         self.assertNotIn("Dormancy and Closure", sent)
         self.assertEqual(recorded, ["proc.dormancy_and_closure"])
-        sent, recorded = self.turn("Please close my account")
-        self.assertNotIn("Dormancy and Closure", sent)
-        self.assertEqual(recorded, [None])
 
 
 if __name__ == "__main__":

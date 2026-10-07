@@ -119,7 +119,7 @@ def make_admin_router(db, require_admin, require_csrf):
                               "content_hash": ontology.content_hash(p.id), "turns_7d": used.get(p.id, 0),
                               "approval": current and {"by": current.approved_by, "at": current.approved_at.isoformat(), "note": current.note},
                               "earlier_version_approved": any(k[0] == p.id for k in latest) and not current})
-        return {"mode": ontology.MODE, "production": PRODUCTION, "version": ontology.version(),
+        return {"production": PRODUCTION, "version": ontology.version(),
                 "unrouted_turns_7d": used.get(None, 0), "processes": sorted(processes, key=lambda x: (x["domain"], x["name"]))}
 
     @router.get("/ontology/{process_id}")

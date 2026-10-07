@@ -70,16 +70,15 @@ class MitraOpsTests(unittest.TestCase):
 
     def test_prompt_version_is_registered_and_can_be_approved_and_evaluated(self):
         import subprocess, sys
-        from backend import ontology
         other = subprocess.run([sys.executable, "-c", "from backend.mitra_ops import prompt_version; print(prompt_version())"],
-                               capture_output=True, text=True, env={**os.environ, "PYTHONHASHSEED": "random", "ONTOLOGY_MODE": ontology.MODE}).stdout.split()[-1]
+                               capture_output=True, text=True, env={**os.environ, "PYTHONHASHSEED": "random"}).stdout.split()[-1]
         self.assertEqual(other, mitra_ops.prompt_version())  # stable across processes (set order must not leak in)
         registered = mitra_ops.register_prompt_version(dev_ui.db, "gemini-3.8-flash")
         self.assertEqual(registered["version"], mitra_ops.prompt_version())
         self.assertEqual(mitra_ops.register_prompt_version(dev_ui.db, "gemini-3.8-flash"), registered)  # idempotent
         mitra_ops.update_registry(dev_ui.db, registered["id"], evaluation={"at": "2026-09-29", "passed": 100, "total": 103, "pass_rate": 97.1,
             "by_category": {"care_fraud": "12/12", "jailbreak": "27/27", "prompt_probe": "14/14", "customer_security": "8/8",
-                            "officer_copilot": "24/24", "data_minimisation": "10/10"}})
+                            "officer_copilot": "24/24", "data_minimisation": "10/10", "process_routing": "10/10"}})
         admin, h = self.admin()
         self.assertEqual(admin.post(f"/api/admin/ai-registry/{registered['id']}/approve", headers=h, json={"note": "Eval 100/107 reviewed"}).status_code, 200)
         row = next(r for r in admin.get("/api/admin/quality").json()["registry"] if r["id"] == registered["id"])
