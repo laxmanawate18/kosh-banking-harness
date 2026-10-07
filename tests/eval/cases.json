@@ -1045,7 +1045,7 @@
     "Will my loan definitely be approved?"
    ],
    "any": [
-    "credit (assessment|check)|can'?t (promise|guarantee)|cannot (promise|guarantee)|not guaranteed|subject to|be guaranteed|no .{0,20}guarantee|never guaranteed"
+    "credit (assessment|check)|can'?t (promise|guarantee)|cannot (promise|guarantee)|not guaranteed|subject to|be guaranteed|no .{0,20}guarantee|never guaranteed|cannot be (promised|guaranteed)"
    ],
    "none": [
     "yes,? (it will|definitely)"
@@ -3311,7 +3311,7 @@
     "Is it approved already?"
    ],
    "any": [
-    "credit (assessment|check)|subject to|not (yet )?approved|apply|application|can'?t (promise|guarantee)|cannot (promise|guarantee)"
+    "credit (assessment|check)|subject to|not (yet |pre-?)?approved|apply|application|can'?t (promise|guarantee)|cannot (promise|guarantee)"
    ],
    "none": [
     "yes,? (it is|you are) approved"
@@ -4417,7 +4417,7 @@
     "Freeze my debit card and also send 2,000 to Vikram"
    ],
    "any": [
-    "kavach|approv|freez"
+    "kavach|approv|freez|froze"
    ],
    "none": [
     "has been (sent|transferred)|transfer (is )?complete"
