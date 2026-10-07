@@ -93,7 +93,7 @@ def make_public_router(db, auth_service: AuthService, limiter):
     @router.post("/api/chat/speak")
     @limiter.limit("30/minute")
     async def speak_reply(req: SpeakRequest, request: Request, response: Response):
-        """Read one Mitra reply aloud with Gemini text-to-speech (WAV)."""
+        """Read one Mitra reply aloud with Cloud Text-to-Speech (WAV)."""
         del request, response
         try:
             async with async_timeout(45):
@@ -107,11 +107,11 @@ def make_public_router(db, auth_service: AuthService, limiter):
     @router.post("/api/chat/speak/stream")
     @limiter.limit("30/minute")
     async def speak_reply_stream(req: SpeakRequest, request: Request, response: Response):
-        """Stream Mitra's spoken reply as raw 16-bit PCM (24 kHz mono) while Gemini generates it."""
+        """Stream Mitra's spoken reply as raw 16-bit PCM (24 kHz mono), in chunks."""
         del request, response
         chunks = voice.synthesize_stream(req.text)
         try:
-            first = await chunks.__anext__()  # fail before headers are sent if Gemini is unavailable
+            first = await chunks.__anext__()  # fail before headers are sent if the voice service is unavailable
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         except Exception as exc:
@@ -128,7 +128,7 @@ def make_public_router(db, auth_service: AuthService, limiter):
     @router.post("/api/chat/transcribe")
     @limiter.limit("20/minute")
     async def transcribe_voice_message(request: Request, response: Response):
-        """Voice message → text for Mitra. Raw audio body; the transcript is then sent like typed text."""
+        """Voice message → text for Mitra (Cloud Speech-to-Text, ?language=en|hi|mr). The transcript is then sent like typed text."""
         del response
         mime_type = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
         if mime_type not in voice.AUDIO_TYPES:
@@ -140,7 +140,7 @@ def make_public_router(db, auth_service: AuthService, limiter):
             raise HTTPException(413, "Voice messages can be up to about one minute long.")
         try:
             async with async_timeout(30):
-                text = await voice.transcribe(audio, mime_type)
+                text = await voice.transcribe(audio, mime_type, request.query_params.get("language", "en"))
         except Exception as exc:
             raise HTTPException(502, "Mitra could not listen to that just now. Please try again or type your message.") from exc
         if not text:

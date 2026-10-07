@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
-/* Mitra voice: live dictation into the message box, and replies read aloud.
-   Live text uses the browser's speech recognition (Chrome, Edge, Safari). Browsers without it
-   record the clip and transcribe it on the server when the customer stops. */
+/* Mitra voice: dictation into the message box, and replies read aloud.
+   The clip is recorded and transcribed by Kosh's server (Cloud Speech-to-Text in India) when the customer stops, so
+   their voice goes only to the bank's own cloud project. The browser's built-in recognition, which sends audio to the
+   browser vendor, is used only where recording is not available. */
 
 export type DictationLang = 'en-IN' | 'hi-IN' | 'mr-IN';
 export const DICTATION_LANGS: [DictationLang, string][] = [['en-IN', 'EN'], ['hi-IN', 'हिं'], ['mr-IN', 'मरा']];
@@ -52,7 +53,7 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
     setListening(true);
   };
 
-  const startRecorded = async (base: string) => {
+  const startRecorded = async (base: string, lang: DictationLang) => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
     const mimeType = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus'].find(t => MediaRecorder.isTypeSupported(t));
     const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
@@ -67,7 +68,7 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
       const blob = new Blob(chunks, { type: (recorder.mimeType || 'audio/webm').split(';')[0] });
       if (!blob.size) return;
       setTranscribing(true);
-      try { cb.current.onText(join(base, await transcribe(blob))); }
+      try { cb.current.onText(join(base, await transcribe(blob, lang))); }
       catch (err) { cb.current.onError(err instanceof Error ? err.message : 'Could not understand that. Please try again.'); }
       finally { setTranscribing(false); }
     };
@@ -80,8 +81,8 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
     stopRef.current?.();
     const SR = Recognition();
     try {
-      if (SR) startLive(SR, base, lang);
-      else await startRecorded(base);
+      if (canRecord()) await startRecorded(base, lang);
+      else if (SR) startLive(SR, base, lang);
     } catch {
       cb.current.onError('Microphone access is blocked. Allow it in your browser settings to use voice.');
     }
@@ -91,8 +92,9 @@ export function useDictation(onText: (text: string) => void, onError: (message: 
   return { listening, transcribing, start, stop };
 }
 
-async function transcribe(blob: Blob): Promise<string> {
-  const res = await fetch('/api/chat/transcribe', { method: 'POST', body: blob, headers: { 'Content-Type': blob.type || 'audio/webm' }, credentials: 'same-origin' });
+async function transcribe(blob: Blob, lang: DictationLang): Promise<string> {
+  const language = lang.split('-')[0];
+  const res = await fetch(`/api/chat/transcribe?language=${encodeURIComponent(language)}`, { method: 'POST', body: blob, headers: { 'Content-Type': blob.type || 'audio/webm' }, credentials: 'same-origin' });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Could not understand that. Please try again.');
   return body.text as string;
@@ -131,7 +133,7 @@ let player: HTMLAudioElement | null = null;
 const listeners = new Set<(id: string | null) => void>();
 const announce = (id: string | null) => { speakingId = id; listeners.forEach(l => l(id)); };
 
-/** Device voice, used only when Gemini text-to-speech is unreachable. */
+/** Device voice, used only when Kosh's text-to-speech is unreachable. */
 function speakWithBrowser(id: string, words: string) {
   if (!('speechSynthesis' in window)) { announce(null); return; }
   const u = new SpeechSynthesisUtterance(words);
@@ -175,7 +177,7 @@ const playUrl = (url: string) => new Promise<void>((resolve, reject) => {
   audio.play().catch(reject);
 });
 
-/** Stream Gemini TTS: 16-bit PCM arrives in chunks and plays through Web Audio as it comes (~2 s to first sound). */
+/** Kosh text-to-speech: 16-bit PCM arrives in chunks and plays through Web Audio as it comes. */
 let audioCtx: AudioContext | null = null;
 
 async function speakStreaming(id: string, words: string, signal: AbortSignal): Promise<boolean> {

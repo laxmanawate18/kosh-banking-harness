@@ -1,52 +1,67 @@
-"""Mitra voice: Gemini text-to-speech for replies, Gemini speech-to-text for voice messages.
+"""Mitra voice: Cloud Text-to-Speech reads replies, Cloud Speech-to-Text transcribes voice messages.
 
-A transcript is treated exactly like typed text: it goes through the normal chat guards,
-so a voice message can never do more than a typed one.
+Both are Google Cloud speech services under the project's own Cloud terms, not a generative model: a customer's voice
+and Mitra's spoken replies (which carry their real balances) never go to an LLM. A transcript is treated exactly like typed
+text: it goes through the normal chat guards and the LLM boundary, so a voice message can never do more than a typed one.
 """
 
 from __future__ import annotations
 
-import io
+import asyncio
+import base64
 import os
-import wave
+import re
 from functools import lru_cache
 
-from backend.settings import DEFAULT_LOCATION, DEFAULT_MODEL, DEFAULT_PROJECT_ID, USE_VERTEXAI
+from backend.settings import DEFAULT_PROJECT_ID
 
 MAX_AUDIO_BYTES = 2_000_000  # ~60 s of Opus/AAC speech
 MAX_SPEECH_CHARS = 2500      # one chat reply; longer text is trimmed at a sentence boundary
 AUDIO_TYPES = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav", "audio/x-m4a", "audio/aac", "audio/aiff"}
-# Gemini 3.8 Flash has no audio output; Gemini's dedicated TTS model reads Mitra's replies.
-TTS_MODEL = os.getenv("GEMINI_TTS_MODEL", "gemini-2.5-flash-tts")
-TTS_VOICE = os.getenv("GEMINI_TTS_VOICE", "Kore")
-
-TRANSCRIBE_PROMPT = (
-    "Transcribe this voice message word for word. The speaker may use English, Hindi, Marathi "
-    "or a mix of them. Write Hindi and Marathi words in Devanagari and English words in Latin "
-    "script, exactly as spoken. Do not translate, summarise, answer or add anything. "
-    "Return only the transcript. If there is no clear speech, return nothing."
-)
+LANGUAGES = {"en": "en-IN", "hi": "hi-IN", "mr": "mr-IN"}
+# Speech-to-Text v2 runs in a region; asia-south1 (Mumbai) keeps Indian customers' audio in India.
+SPEECH_LOCATION = os.getenv("KOSH_SPEECH_LOCATION", "asia-south1")
+SPEECH_MODEL = os.getenv("KOSH_SPEECH_MODEL", "short")
+STREAM_RATE = 24000  # LINEAR16 sample rate requested from Text-to-Speech (16-bit mono)
+_MARATHI = re.compile(r"(आहे|आहेत|नाही|तुमच|माझ|करा|झाले|मिळेल|साठी)")
 
 
 @lru_cache(maxsize=1)
-def _client():
-    from google import genai
+def _session():
+    """An authorised HTTP session with the service's own credentials (no API keys)."""
+    import google.auth
+    from google.auth.transport.requests import AuthorizedSession
+    credentials, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    return AuthorizedSession(credentials)
 
-    if USE_VERTEXAI:
-        return genai.Client(vertexai=True, project=os.getenv("GOOGLE_CLOUD_PROJECT") or DEFAULT_PROJECT_ID,
-                            location=os.getenv("GOOGLE_CLOUD_LOCATION") or DEFAULT_LOCATION)
-    return genai.Client(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
+
+def _project() -> str:
+    return os.getenv("GOOGLE_CLOUD_PROJECT") or DEFAULT_PROJECT_ID
 
 
-async def transcribe(audio: bytes, mime_type: str) -> str:
-    from google.genai import types
+def speech_language(text: str) -> str:
+    """Devanagari is read as Marathi or Hindi, anything else as Indian English (same rule as the website)."""
+    if re.search(r"[\u0900-\u097F]", text):
+        return "mr-IN" if _MARATHI.search(text) else "hi-IN"
+    return "en-IN"
 
-    response = await _client().aio.models.generate_content(
-        model=DEFAULT_MODEL,
-        contents=[types.Part.from_bytes(data=audio, mime_type=mime_type), TRANSCRIBE_PROMPT],
-        config=types.GenerateContentConfig(temperature=0, max_output_tokens=1024),
-    )
-    return (response.text or "").strip()
+
+def _recognize(audio: bytes, language: str) -> str:
+    url = (f"https://{SPEECH_LOCATION}-speech.googleapis.com/v2/projects/{_project()}/locations/{SPEECH_LOCATION}"
+           "/recognizers/_:recognize")
+    body = {"config": {"autoDecodingConfig": {}, "languageCodes": [language], "model": SPEECH_MODEL,
+                       "features": {"enableAutomaticPunctuation": True}},
+            "content": base64.b64encode(audio).decode()}
+    response = _session().post(url, json=body, timeout=30)
+    response.raise_for_status()
+    results = response.json().get("results") or []
+    return " ".join(r["alternatives"][0]["transcript"].strip() for r in results if r.get("alternatives")).strip()
+
+
+async def transcribe(audio: bytes, mime_type: str, language: str = "en") -> str:
+    """The words in a voice message, in the chat's language (en, hi or mr). The browser's container format is auto-detected."""
+    del mime_type  # Speech-to-Text v2 detects WebM/Opus, Ogg, MP4/AAC, MP3 and WAV itself
+    return await asyncio.to_thread(_recognize, audio, LANGUAGES.get(language, "en-IN"))
 
 
 def _trim(text: str) -> str:
@@ -58,67 +73,36 @@ def _trim(text: str) -> str:
     return cut[: end + 1] if end > MAX_SPEECH_CHARS // 2 else cut
 
 
-def _wav(pcm: bytes, rate: int) -> bytes:
-    out = io.BytesIO()
-    with wave.open(out, "wb") as wav:
-        wav.setnchannels(1)
-        wav.setsampwidth(2)  # Gemini TTS returns 16-bit little-endian PCM
-        wav.setframerate(rate)
-        wav.writeframes(pcm)
-    return out.getvalue()
+def _synthesize_linear16(words: str) -> bytes:
+    response = _session().post("https://texttospeech.googleapis.com/v1/text:synthesize", timeout=30, json={
+        "input": {"text": words},
+        "voice": {"languageCode": speech_language(words)},
+        "audioConfig": {"audioEncoding": "LINEAR16", "sampleRateHertz": STREAM_RATE},
+    })
+    response.raise_for_status()
+    return base64.b64decode(response.json()["audioContent"])  # a complete WAV file (LINEAR16 comes with its header)
 
 
 _speech_cache: dict[str, bytes] = {}
 
 
 async def synthesize(text: str) -> bytes:
-    """Speak one reply with Gemini TTS; returns a WAV file. Language (English, Hindi, Marathi) follows the text."""
-    from google.genai import types
-
+    """Speak one reply with Cloud Text-to-Speech; returns a WAV file. Language (English, Hindi, Marathi) follows the text."""
     words = _trim(text)
     if not words:
         raise ValueError("Nothing to read aloud")
     if words in _speech_cache:
         return _speech_cache[words]
-    response = await _client().aio.models.generate_content(
-        model=TTS_MODEL,
-        contents=words,
-        config=types.GenerateContentConfig(
-            response_modalities=["AUDIO"],
-            speech_config=types.SpeechConfig(voice_config=types.VoiceConfig(
-                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=TTS_VOICE))),
-        ),
-    )
-    part = response.candidates[0].content.parts[0].inline_data
-    rate = int(part.mime_type.split("rate=")[-1]) if "rate=" in (part.mime_type or "") else 24000
-    audio = _wav(part.data, rate)
+    audio = await asyncio.to_thread(_synthesize_linear16, words)
     if len(_speech_cache) > 200:  # ponytail: tiny in-process cache; move to a shared store if replies are replayed across instances
         _speech_cache.clear()
     _speech_cache[words] = audio
     return audio
 
 
-STREAM_RATE = 24000  # Gemini TTS PCM sample rate (16-bit mono)
-
-
 async def synthesize_stream(text: str):
-    """Yield raw 16-bit PCM chunks as Gemini produces them, so playback can start within ~2 seconds."""
-    from google.genai import types
-
-    words = _trim(text)
-    if not words:
-        raise ValueError("Nothing to read aloud")
-    stream = await _client().aio.models.generate_content_stream(
-        model=TTS_MODEL,
-        contents=words,
-        config=types.GenerateContentConfig(
-            response_modalities=["AUDIO"],
-            speech_config=types.SpeechConfig(voice_config=types.VoiceConfig(
-                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=TTS_VOICE))),
-        ),
-    )
-    async for chunk in stream:
-        content = chunk.candidates[0].content if chunk.candidates else None
-        for part in (content.parts if content and content.parts else []):
-            if part.inline_data and part.inline_data.data:
-                yield part.inline_data.data
+    """Yield raw 16-bit PCM in chunks. Synthesis is one call, then playback starts; replies are spoken in short pieces."""
+    wav = await synthesize(text)
+    pcm = wav[44:] if wav[:4] == b"RIFF" else wav  # drop the WAV header: the stream route sends raw PCM
+    for i in range(0, len(pcm), 32_000):
+        yield pcm[i:i + 32_000]
