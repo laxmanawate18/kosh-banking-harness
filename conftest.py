@@ -14,3 +14,19 @@ def _reset_chat_rate_limit():
         with banking_db.db.runtime.sessions.begin() as session:
             session.execute(delete(RateLimitRecord))
     yield
+
+
+class _OfflineModel:
+    """Stands in for the process classifier's model client: tests never call a live model."""
+
+    def __getattr__(self, name):
+        raise ConnectionError("tests never call a live model")
+
+
+@pytest.fixture(autouse=True)
+def _ontology_off_and_offline(monkeypatch):
+    # Tests do not depend on the shell's ONTOLOGY_MODE; tests/test_ontology.py switches it on where it matters.
+    from backend import ontology
+    monkeypatch.setattr(ontology, "MODE", "off")
+    monkeypatch.setattr(ontology, "_CLIENT", _OfflineModel())
+    yield

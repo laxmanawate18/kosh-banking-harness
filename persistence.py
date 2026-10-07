@@ -357,6 +357,7 @@ class MitraTurnRecord(Base):
     prompt_version: Mapped[str | None] = mapped_column(String(40), index=True)
     input_tokens: Mapped[int | None] = mapped_column(Integer)
     output_tokens: Mapped[int | None] = mapped_column(Integer)  # reply plus thinking tokens
+    process_id: Mapped[str | None] = mapped_column(String(60), index=True)  # the banking-ontology process of the turn
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt, index=True)
 
 
@@ -550,6 +551,10 @@ class DatabaseRuntime:
                 for column in ("input_tokens", "output_tokens"):
                     if turn_columns and column not in turn_columns:
                         conn.exec_driver_sql(f"ALTER TABLE mitra_turns ADD COLUMN {column} INTEGER")
+                if turn_columns and "process_id" not in turn_columns:
+                    conn.exec_driver_sql("ALTER TABLE mitra_turns ADD COLUMN process_id VARCHAR(60)")
+                if turn_columns:
+                    conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_mitra_turns_process_id ON mitra_turns(process_id)")
                 grant_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(oauth_grants)")}
                 if grant_columns and "provider_session_id" not in grant_columns:
                     conn.exec_driver_sql("ALTER TABLE oauth_grants ADD COLUMN provider_session_id VARCHAR(255)")
@@ -572,6 +577,8 @@ class DatabaseRuntime:
                     conn.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_app_users_auth_subject ON app_users(auth_subject);")
                     conn.exec_driver_sql("ALTER TABLE mitra_turns ADD COLUMN IF NOT EXISTS input_tokens INTEGER;")
                     conn.exec_driver_sql("ALTER TABLE mitra_turns ADD COLUMN IF NOT EXISTS output_tokens INTEGER;")
+                    conn.exec_driver_sql("ALTER TABLE mitra_turns ADD COLUMN IF NOT EXISTS process_id VARCHAR(60);")
+                    conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_mitra_turns_process_id ON mitra_turns(process_id);")
                     conn.exec_driver_sql("ALTER TABLE oauth_grants ADD COLUMN IF NOT EXISTS provider_session_id VARCHAR(255);")
                     conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_oauth_grants_provider_session_id ON oauth_grants(provider_session_id);")
                 except Exception:

@@ -15,7 +15,7 @@ from typing import Any, Callable, Dict, List
 
 from sqlalchemy import select
 
-from backend import care
+from backend import care, ontology
 from backend.agent_config import create_harness_agent_config
 from backend.llm_boundary import Vault, audit_hits, guarded_tools
 from backend.harness import REGISTRY_PATH
@@ -114,8 +114,12 @@ async def ask(agent_factory, db, request_service, *, officer_user_id: str, messa
     tools = guarded_tools(build_officer_tools(db, request_service, officer_user_id), CHANNEL, vault)
     config = create_harness_agent_config(CHANNEL, session_id, instructions(), tools, context)
     lines = [f"{m.get('role')}: {str(m.get('text', ''))[:800]}" for m in history[-10:] if m.get("text")]
-    prompt = vault.redact((("Earlier in this conversation (context only):\n" + "\n".join(lines) + "\n\n") if lines else "")
-                          + (f"The officer is looking at request {request_id}.\n\n" if request_id else "") + f"Officer: {message}")
+    # The banking-ontology process: the request's own service when the officer has one open, else what they asked.
+    service = (request_service.get(request_id.upper()) or {}).get("service_id") if request_id else None
+    process_id = await ontology.select(message, CHANNEL, vault, service=service)
+    guide = ontology.view(process_id) + "\n\n" if ontology.usable(process_id) else ""  # trusted, from Kosh
+    prompt = guide + vault.redact((("Earlier in this conversation (context only):\n" + "\n".join(lines) + "\n\n") if lines else "")
+                                  + (f"The officer is looking at request {request_id}.\n\n" if request_id else "") + f"Officer: {message}")
     from google.antigravity import types
     text, tools_used = "", []
 
@@ -139,5 +143,6 @@ async def ask(agent_factory, db, request_service, *, officer_user_id: str, messa
         await asyncio.wait_for(run_once(), TURN_SECONDS)
     audit_hits(vault, db, session_id=session_id, customer_id=None)
     db.append_audit("COPILOT_TURN", actor="officer", approver_id=officer_user_id, session_id=session_id,
-                    summary="Officer copilot answered", details={"tools": tools_used, "instructions_version": instructions_version()})
+                    summary="Officer copilot answered", details={"tools": tools_used, "instructions_version": instructions_version(),
+                             **({"process": process_id} if process_id else {})})
     return {"reply": mask_deep(vault.fill(text.strip())), "tools": tools_used, "instructions_version": instructions_version()}

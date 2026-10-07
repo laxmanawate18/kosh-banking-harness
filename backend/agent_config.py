@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 from google.antigravity import Agent, CapabilitiesConfig, LocalAgentConfig, hooks, models, types
 
 from backend.settings import DEFAULT_LOCATION, DEFAULT_MODEL, DEFAULT_PROJECT_ID, USE_VERTEXAI
-from backend import consent, harness
+from backend import consent, harness, ontology
 from backend.llm_boundary import Vault, guarded_tools, known_identifiers
 from banking_db import db
 from backend.mitra_ops import mask_pii, token_counts
@@ -205,14 +205,14 @@ def _audit_payload(value: Any, limit: int = 2000) -> str:
 
 
 def audit_tool_decision(session_id: Optional[str], customer_id: Optional[str], data: types.ToolCall,
-                        result: types.HookResult, consent_id: Optional[str] = None) -> types.HookResult:
+                        result: types.HookResult, consent_id: Optional[str] = None, process_id: Optional[str] = None) -> types.HookResult:
     db.append_audit(
         "AGENT_TOOL_ALLOWED" if result.allow else "AGENT_TOOL_DENIED",
         session_id=session_id, customer_id=customer_id, actor="agent", severity="INFO" if result.allow else "WARNING",
         consent_id=consent_id,
         summary=f"{'Allowed' if result.allow else 'Denied'} {data.name}",
         details={"tool": str(data.name), "tool_call_id": getattr(data, "id", None), "arguments": _audit_payload(getattr(data, "args", None) or {}),
-                 "gate_message": result.message or None},
+                 "gate_message": result.message or None, **({"process": process_id} if process_id else {})},
     )
     return result
 
@@ -234,7 +234,7 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
         del context
         result = self.decide(data)
         return audit_tool_decision(self.trusted_context.get("session_id"), self.trusted_context.get("customer_id"),
-                                   data, result, self.trusted_context.pop("last_consent_id", None))
+                                   data, result, self.trusted_context.pop("last_consent_id", None), self.trusted_context.get("process_id"))
 
     def decide(self, data: types.ToolCall) -> types.HookResult:
         name = str(data.name)
@@ -250,6 +250,8 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
         problem = harness.check_call("customer", name, args, self.trusted_context.get("scopes"))
         if problem:
             return types.HookResult(allow=False, message=f"Sentinel denied the call: {problem}.")
+        if refusal := ontology.tool_refusal(self.trusted_context.get("process_id"), name, spec["effect"]):
+            return types.HookResult(allow=False, message=refusal)  # the selected process only ever narrows
         if name not in BANKING_TOOL_NAMES:  # a public catalogue tool
             serialized = json.dumps(args, ensure_ascii=False).lower()
             if any(secret in serialized for secret in ("password", "otp", "aadhaar", "pan number", "card number")):

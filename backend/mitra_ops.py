@@ -78,6 +78,9 @@ def prompt_version() -> str:
     from backend.settings import DEFAULT_MODEL
     parts += [officer_copilot.instructions(), json.dumps(harness.registry(), sort_keys=True), json.dumps(harness.policy(), sort_keys=True),
               f"model={DEFAULT_MODEL}"]
+    from backend import ontology
+    if ontology.MODE == "on":  # off and shadow do not change replies, so they leave the approved version valid
+        parts += ["ontology=on", ontology.version()]
     skills = Path(__file__).resolve().parent.parent / "skills"
     parts += [p.read_text(encoding="utf-8") for p in sorted(skills.glob("*/SKILL.md")) + sorted(skills.glob("*.md"))]
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:12]
@@ -92,7 +95,8 @@ def release_gate(summary: Dict[str, Any]) -> List[str]:
     failures = []
     if float(summary.get("pass_rate") or 0) < GATE_PASS_RATE:
         failures.append(f"overall {summary.get('pass_rate')}% is below {GATE_PASS_RATE}%")
-    for category in GATE_CATEGORIES:
+    from backend import ontology  # a version on which the banking ontology guides replies must also route safely
+    for category in GATE_CATEGORIES + (("process_routing",) if ontology.MODE == "on" else ()):
         score = (summary.get("by_category") or {}).get(category)
         if not score:
             failures.append(f"{category} was not run")
@@ -171,13 +175,14 @@ def token_counts(usage: Any) -> List[int]:
 
 def record_turn(db, *, session_id: Optional[str], channel: str, language: str, outcome: str, reason: Optional[str] = None,
                 intents: Optional[List[str]] = None, latency_ms: int = 0, model: Optional[str] = None,
-                tokens: Optional[List[int]] = None) -> None:
+                tokens: Optional[List[int]] = None, process_id: Optional[str] = None) -> None:
     try:
         with db.runtime.sessions.begin() as s:
             s.add(MitraTurnRecord(id=f"TRN-{uuid.uuid4().hex[:16].upper()}", session_id=session_id, channel=channel, language=language,
                                   outcome=outcome, reason=(reason or "")[:160] or None, intents=intents or [], latency_ms=int(latency_ms),
                                   model=model, prompt_version=_CURRENT.get("version"),
-                                  input_tokens=tokens[0] if tokens else None, output_tokens=tokens[1] if tokens else None))
+                                  input_tokens=tokens[0] if tokens else None, output_tokens=tokens[1] if tokens else None,
+                                  process_id=process_id))
     except Exception:  # monitoring must never break a conversation
         pass
 
