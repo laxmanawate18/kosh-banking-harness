@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useId, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
 import { LotusMark } from '../common/KoshLogo';
 import type { Product } from '../../types/products';
-import { ActiveIndicator, Reveal, Stagger, motion, pageMotion } from '../common/Animate';
+import { ActiveIndicator, AnimatePresence, DUR, EASE, Reveal, Stagger, motion, pageMotion } from '../common/Animate';
+import { useReducedMotion } from 'framer-motion';
 import { PageHero } from './SiteChrome';
 
 type Ask = (prompt: string) => void;
@@ -187,6 +188,28 @@ const FAQ_GROUPS: [string, [string, string][]][] = [
   ]],
 ];
 
+/** One question: a real button (aria-expanded/aria-controls) whose answer eases open, height and fade, and closes the same way. */
+const Faq: React.FC<{ q: string; a: string }> = ({ q, a }) => {
+  const [open, setOpen] = useState(false);
+  const reduce = useReducedMotion();
+  const id = useId();
+  return (
+    <div className={`k-faq-item ${open ? 'open' : ''}`}>
+      <h3><button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen(o => !o)}>{q}<Icon name="chevron-down" /></button></h3>
+      <div id={id}>
+        <AnimatePresence initial={false}>
+          {open && (
+            <motion.div className="k-faq-a" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+              transition={reduce ? { duration: 0 } : { duration: DUR.slow, ease: EASE }}>
+              <p>{a}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
 export const FaqsPage: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   const { t } = useI18n();
   return (
@@ -197,12 +220,7 @@ export const FaqsPage: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
           <Reveal key={group} className="k-faq-group">
             <h2>{t(group)}</h2>
             <div className="k-faq">
-              {items.map(([q, a]) => (
-                <details key={q}>
-                  <summary>{t(q)}<Icon name="chevron-down" /></summary>
-                  <div>{t(a)}</div>
-                </details>
-              ))}
+              {items.map(([q, a]) => <Faq key={q} q={t(q)} a={t(a)} />)}
             </div>
           </Reveal>
         ))}

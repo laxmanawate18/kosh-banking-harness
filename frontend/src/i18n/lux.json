@@ -15,5 +15,20 @@
   "Zero-balance savings and FDs up to 8.10% for the moments that matter.": { "hi": "ज़रूरी पलों के लिए ज़ीरो बैलेंस बचत और 8.10% तक की FD।", "mr": "महत्त्वाच्या क्षणांसाठी शून्य शिल्लक बचत आणि 8.10% पर्यंत FD." },
   "Kisan credit and crop loans at fair rates, explained in your language.": { "hi": "उचित दरों पर किसान क्रेडिट और फ़सल लोन, आपकी भाषा में समझाए गए।", "mr": "योग्य दरात किसान क्रेडिट आणि पीक कर्ज, तुमच्या भाषेत समजावून." },
   "UPI QR, a current account and quick working capital for your shop.": { "hi": "आपकी दुकान के लिए UPI QR, चालू खाता और जल्दी कार्यशील पूंजी।", "mr": "तुमच्या दुकानासाठी UPI QR, चालू खाते आणि जलद खेळते भांडवल." },
-  "Explore": { "hi": "देखें", "mr": "पाहा" }
+  "Explore": { "hi": "देखें", "mr": "पाहा" },
+  "Demo bank — no real deposits or money": { "hi": "डेमो बैंक — कोई असली जमा या पैसा नहीं", "mr": "डेमो बँक — खऱ्या ठेवी किंवा पैसे नाहीत" },
+  "How Sentinel checks a payment — example": { "hi": "सेंटिनल किसी पेमेंट की जाँच कैसे करता है — उदाहरण", "mr": "सेंटिनल पेमेंट कसे तपासते — उदाहरण" },
+  "Sample payment": { "hi": "नमूना पेमेंट", "mr": "नमुना पेमेंट" },
+  "Device recognised": { "hi": "डिवाइस पहचाना गया", "mr": "डिव्हाइस ओळखले" },
+  "This phone is registered to you": { "hi": "यह फ़ोन आपके नाम पर रजिस्टर्ड है", "mr": "हा फोन तुमच्या नावावर नोंदणीकृत आहे" },
+  "Usual time of day": { "hi": "दिन का सामान्य समय", "mr": "दिवसाची नेहमीची वेळ" },
+  "You often pay at this hour": { "hi": "आप अक्सर इसी समय पेमेंट करते हैं", "mr": "तुम्ही अनेकदा याच वेळी पेमेंट करता" },
+  "Amount within your usual range": { "hi": "रकम आपकी सामान्य सीमा में है", "mr": "रक्कम तुमच्या नेहमीच्या मर्यादेत आहे" },
+  "Close to your past payments": { "hi": "आपके पिछले पेमेंट के आसपास", "mr": "तुमच्या मागील पेमेंटच्या जवळपास" },
+  "Approval needed from you": { "hi": "आपकी मंज़ूरी ज़रूरी है", "mr": "तुमची मंजुरी आवश्यक आहे" },
+  "First payment to this payee: you confirm with an OTP on the secure Kosh screen": { "hi": "इस प्राप्तकर्ता को पहला पेमेंट: आप सुरक्षित कोष स्क्रीन पर OTP से पुष्टि करते हैं", "mr": "या प्राप्तकर्त्याला पहिले पेमेंट: तुम्ही सुरक्षित कोष स्क्रीनवर OTP ने पुष्टी करता" },
+  "Your approval": { "hi": "आपकी मंज़ूरी", "mr": "तुमची मंजुरी" },
+  "Passed": { "hi": "पास", "mr": "पास" },
+  "An illustration with sample data, not a live payment.": { "hi": "नमूना डेटा के साथ एक उदाहरण, असली पेमेंट नहीं।", "mr": "नमुना डेटासह एक उदाहरण, खरे पेमेंट नाही." },
+  "Replay": { "hi": "फिर से चलाएँ", "mr": "पुन्हा चालवा" }
 }

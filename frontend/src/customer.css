@@ -65,6 +65,24 @@
 .legend-row { font-size: 15px; color: var(--ink-2); gap: 10px; }
 .legend-row span:last-child { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+/* Legend rows point at their ring segment on hover or keyboard focus (the amounts stay as text). */
+.c-legend-list { list-style: none; margin: 0; gap: 2px; }
+.c-legend-list .legend-row { margin: 0 -8px; padding: 6px 8px; border-radius: 8px; transition: background-color 150ms ease; }
+.c-legend-list .legend-row.active { background: var(--surface-2); }
+.c-legend-list .legend-row:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
+
+/* Balances: one "Hide balances" switch (app/Balance.tsx). Hidden figures are blurred dots, never the real number. */
+.c-money, .c-money-hidden { display: inline-block; }
+.c-money-hidden > [aria-hidden] { filter: blur(.14em); user-select: none; }
+.k-dash-flow > span span { padding: 0; border-radius: 0; background: none; }  /* the In / Out pills style every span inside */
+.k-eye.c-hide-toggle[aria-pressed="true"] { background: rgb(255 255 255 / .2); border-color: rgb(255 255 255 / .55); }
+.k-btn.c-hide-toggle[aria-pressed="true"] { background: var(--surface-2); border-color: var(--ink-2); color: var(--ink); }
+@media (pointer: coarse) { :is(.k-btn, .k-eye).c-hide-toggle { min-height: 44px; } }
+
+/* New since the last visit: a soft highlight that fades once, and a "New" tag that stays for this view. */
+.c-new-tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font: 700 12.5px/1.5 var(--k-sans); letter-spacing: .03em; vertical-align: 1px; background: var(--ok-bg); color: var(--ok); }
+@media (prefers-reduced-motion: no-preference) { .c-tx-new { animation: c-arrive 2.6s var(--ease-out) .4s backwards; } }
+@keyframes c-arrive { from { background-color: color-mix(in srgb, var(--accent) 20%, transparent); } }
 .k-offer-actions .k-btn.sm:not(.primary) { border-color: var(--line-strong); background: var(--surface); color: var(--ink); }
 
 /* ---------- Transactions ---------- */
@@ -84,6 +102,20 @@
 .c-acc-showing .icon { width: 16px; height: 16px; }
 .c-statement-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .c-statement-tools select { width: auto; min-height: 40px; margin: 0; padding-block: 6px; }
+/* An account opened in place (shared-element morph from its tile). */
+.c-flip { scale: -1 1; }
+.c-acc-detail-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px 24px; padding: 20px 20px 18px; border-bottom: 1px solid var(--line); }
+.c-acc-detail-head > .k-btn { grid-column: 1 / -1; justify-self: start; }
+.c-acc-detail-id { display: grid; justify-items: start; gap: 4px; min-width: 0; }
+.c-acc-detail-id h2 { font-size: 24px; margin: 0; }
+.c-acc-detail-id h2:focus:not(:focus-visible) { outline: none; }
+.c-acc-detail-bal { display: grid; justify-items: end; gap: 6px; }
+.c-acc-detail-bal .k-acc-bal { margin: 0; font-size: 34px; }
+.c-acc-statement-head h3 { font-size: 17px; margin: 0; }
+@media (max-width: 640px) {
+  .c-acc-detail-head { grid-template-columns: minmax(0, 1fr); }
+  .c-acc-detail-bal { justify-items: start; }
+}
 /* Statement on phones: description and date on the left, amount always visible on the right. */
 @media (max-width: 640px) {
   .c-stmt-table thead { display: none; }
@@ -117,10 +149,23 @@
 .c-controls:disabled :is(.k-switch, select, label) { cursor: not-allowed; }
 .c-card-more { display: grid; gap: 8px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
 
-/* Frozen card: readable, not hidden. Light frost, no blur, an icy ring, and a "Frozen" tag that sits beside the chip,
-   clear of the card number. (Overrides .k-card-frozen / .k-card3d.frozen in kosh.css.) */
-.k-card3d.frozen .k-card-face.front { filter: saturate(.35); box-shadow: 0 30px 46px -24px rgb(0 0 0 / .8), inset 0 0 0 2px rgb(156 187 233 / .7); }
-.k-card3d.frozen .k-card-face.front::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(135deg, rgb(255 255 255 / .06) 0 10px, transparent 10px 20px); pointer-events: none; }
+/* Frozen card: readable, not hidden. Frost (Card3D's .k-card-frost) closes in from the edges with an icy rim, and a "Frozen" tag
+   sits beside the chip, clear of the card number. Ice colours are card art, the same in both themes.
+   (Overrides .k-card-frozen / .k-card3d.frozen in kosh.css.) */
+.k-card3d.frozen .k-card-face.front { filter: saturate(.35); }
+@media (prefers-reduced-motion: no-preference) { .k-card3d .k-card-face.front { transition: filter 700ms var(--ease-out); } }
+.k-card-frost {
+  position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none;
+  background:
+    radial-gradient(60% 70% at 0 0, rgb(236 245 255 / .62), rgb(236 245 255 / .18) 45%, transparent 72%),
+    radial-gradient(55% 65% at 100% 100%, rgb(236 245 255 / .55), rgb(236 245 255 / .14) 45%, transparent 72%),
+    radial-gradient(40% 50% at 100% 0, rgb(236 245 255 / .38), transparent 70%),
+    radial-gradient(35% 45% at 0 100%, rgb(236 245 255 / .3), transparent 70%),
+    radial-gradient(130% 100% at 50% 50%, rgb(220 235 255 / .05) 50%, rgb(206 226 255 / .32) 85%, rgb(236 245 255 / .55) 100%),
+    repeating-linear-gradient(62deg, rgb(255 255 255 / .08) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(-58deg, rgb(255 255 255 / .06) 0 1px, transparent 1px 9px);
+  box-shadow: inset 0 0 0 2px rgb(196 222 255 / .75), inset 0 0 32px rgb(214 234 255 / .45);
+}
 .k-card-frozen {
   inset: auto; top: 41%; right: 22px; translate: 0 -50%;
   display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
@@ -139,6 +184,23 @@
 .c-rate { display: inline-block; margin-top: 4px; font: 650 16px var(--k-display); color: var(--accent-ink); }
 .c-maturity { margin: 8px 0 16px; padding: 4px 16px; border-radius: var(--r-field); background: var(--surface-2); border: 1px solid var(--line); }
 .c-maturity-value { color: var(--ok) !important; font-size: 16px; }
+/* A booked deposit: principal to maturity as a small growth curve. */
+.c-deposit { display: grid; gap: 12px; padding: 20px 24px; }
+.c-deposit-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.c-deposit-head h3 { font-size: 18px; margin: 0 0 2px; }
+.c-deposit-head .c-rate { margin: 0; white-space: nowrap; }
+.c-deposit-term { margin: 0; font-size: 14.5px; color: var(--muted); }
+.c-growth-curve { display: block; width: 100%; height: auto; overflow: visible; }
+.c-growth-line { fill: none; stroke: var(--ok); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.c-growth-area { fill: color-mix(in srgb, var(--ok) 12%, transparent); }
+.c-growth-ends { display: flex; justify-content: space-between; gap: 16px; margin: 8px 0 0; }
+.c-growth-ends div { display: grid; gap: 2px; min-width: 0; }
+.c-growth-ends .end { justify-items: end; text-align: right; }
+.c-growth-ends dt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13.5px; color: var(--muted); }
+.c-growth-ends .end dt { justify-content: flex-end; }
+.c-growth-ends dt .c-tag { margin: 0; }
+.c-growth-ends dd { margin: 0; font: 700 18px var(--k-display); font-variant-numeric: tabular-nums; color: var(--ink); }
+.c-growth-ends .end dd { color: var(--ok); }
 
 /* ---------- Services ---------- */
 .c-services-tools { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; }
@@ -157,13 +219,38 @@ a.k-quick-tile { text-decoration: none; }
 .c-service strong { font-size: 17px; }
 
 /* ---------- Requests (also Deposits) ---------- */
+/* Tracker: a vertical line of steps; done steps draw a check, the current one pulses gently. */
+.request-card.c-request { flex-direction: column; align-items: stretch; gap: 14px; }
+.c-request-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.c-track { list-style: none; margin: 0; padding: 0; display: grid; }
+.c-track-step { position: relative; display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 12px; padding-bottom: 12px; }
+.c-track-step:last-child { padding-bottom: 0; }
+.c-track-step:not(:last-child)::before { content: ""; position: absolute; left: 9px; top: 24px; bottom: 3px; width: 2px; border-radius: 1px; background: var(--line); }
+.c-track-step.done:not(:last-child)::before { background: color-mix(in srgb, var(--ok) 50%, var(--line)); }
+.c-track-node { position: relative; width: 20px; height: 20px; margin-top: 2px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--line-strong); background: var(--surface); }
+.c-track-node svg { width: 14px; height: 14px; fill: none; stroke: var(--surface); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.c-track-step.done .c-track-node { background: var(--ok); border-color: var(--ok); }
+.c-track-step.done.danger .c-track-node { background: var(--danger); border-color: var(--danger); }
+.c-track-step.done.muted .c-track-node { background: var(--muted); border-color: var(--muted); }
+.c-track-step.current .c-track-node { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--surface)); }
+.c-track-step.current.warn .c-track-node { border-color: var(--warn); background: var(--warn-bg); }
+.c-track-node::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .c-track-step.current .c-track-node::after { animation: c-ping 2.4s var(--ease-out) infinite; }
+}
+@keyframes c-ping { 0% { transform: scale(.6); opacity: .7; } 70%, 100% { transform: scale(1.35); opacity: 0; } }
+.c-track-text { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
+.c-track-text strong { font-size: 15px; font-weight: 600; color: var(--ink); }
+.c-track-step.todo .c-track-text strong { font-weight: 500; color: var(--muted); }
+.c-track-step.warn .c-track-text strong { color: var(--warn); }
+.c-track-text time { font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .request-list { display: grid; gap: 12px; }
 .request-card { padding: 16px 20px; gap: 16px; }
 .request-card h3 { font-size: 17px; margin: 0 0 4px; }
 .request-card p { font-size: 14px; margin: 0; overflow-wrap: anywhere; }
 .request-card .request-actions { flex-wrap: nowrap; gap: 12px; }
 @media (max-width: 640px) {
-  .request-card { flex-direction: column; align-items: stretch; }
+  .request-card, .c-request-top { flex-direction: column; align-items: stretch; }
   .request-card .request-actions { flex-direction: row; justify-content: space-between; align-items: center; }
 }
 
@@ -198,6 +285,7 @@ a.k-quick-tile { text-decoration: none; }
 .c-session > .icon { color: var(--ink-2); margin-top: 2px; }
 .c-session strong { display: block; color: var(--ink); font-size: 15.5px; }
 .c-show-all { margin: 4px 20px 18px; min-height: 36px; }
+.c-sessions-all { padding: 4px 20px 20px; }
 .c-chevron { transition: rotate 200ms var(--ease-out); }
 .c-chevron.up { rotate: 180deg; }
 
@@ -306,3 +394,35 @@ a.k-quick-tile { text-decoration: none; }
 .kv-code-input:focus-visible ~ .kv-box.active, .kv-code:focus-within .kv-box.active { border-color: var(--focus); box-shadow: 0 0 0 4px color-mix(in srgb, var(--focus) 22%, transparent); }
 .kv-code.invalid .kv-box { border-color: var(--danger); }
 @media (max-width: 420px) { .kv-box { height: 50px; font-size: 22px; } .kv-code { gap: 6px; } }
+
+/* ---------- Mitra shows its work ---------- */
+/* Replies arrive a sentence at a time (chat/StreamText.tsx); each sentence fades in once. */
+@media (prefers-reduced-motion: no-preference) { .c-stream .c-sent { animation: c-sent-in 420ms var(--ease-out) both; } }
+@keyframes c-sent-in { from { opacity: 0; filter: blur(2px); } }
+/* A tool call: a chip while it runs, a result card when it returns (Framer animates the change in size). */
+.trace-step-content.c-tool-chip { flex: 0 1 auto; align-self: flex-start; margin-bottom: 8px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); }
+.trace-step-content.c-tool-card { margin-bottom: 8px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow-sm); }
+.c-tool-chip .trace-step-label, .c-tool-card .trace-step-label { font-size: 13px; }
+.c-tool-chip .trace-step-top { gap: 10px; }
+.trace-step-detail.c-tool-done { margin: 2px 0 0; font-size: 13px; color: var(--ok); }
+.trace-step-status.failed { font-size: 13px; color: var(--danger); }
+
+/* Document chosen: corner brackets and one scan line pass over it, then a check. Visual only; the upload is untouched. */
+.wf-scan { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--r-field); border: 1px solid var(--line); background: var(--surface); }
+.wf-scan-doc { position: relative; display: grid; place-items: center; width: 40px; height: 48px; overflow: hidden; color: var(--ink-2);
+  background:
+    linear-gradient(var(--accent) 0 0) 0 0 / 10px 2px, linear-gradient(var(--accent) 0 0) 0 0 / 2px 10px,
+    linear-gradient(var(--accent) 0 0) 100% 0 / 10px 2px, linear-gradient(var(--accent) 0 0) 100% 0 / 2px 10px,
+    linear-gradient(var(--accent) 0 0) 0 100% / 10px 2px, linear-gradient(var(--accent) 0 0) 0 100% / 2px 10px,
+    linear-gradient(var(--accent) 0 0) 100% 100% / 10px 2px, linear-gradient(var(--accent) 0 0) 100% 100% / 2px 10px;
+  background-repeat: no-repeat; }
+.wf-scan-doc .icon { width: 22px; height: 22px; }
+.wf-scan-line { position: absolute; left: 3px; right: 3px; top: 0; height: 2px; border-radius: 1px; background: var(--accent); box-shadow: 0 0 8px var(--accent); opacity: 0; }
+.wf-scan-name { font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.wf-scan-ok { display: inline-flex; align-items: center; gap: 4px; font-size: 13.5px; font-weight: 600; color: var(--ok); white-space: nowrap; }
+.wf-scan-ok .icon { width: 16px; height: 16px; }
+@media (prefers-reduced-motion: no-preference) {
+  .wf-scan-line { animation: wf-scan 1s var(--ease-in-out) both; }
+  .wf-scan-ok { animation: k-fade 200ms 1s both; }
+}
+@keyframes wf-scan { 0% { transform: translateY(0); opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(46px); opacity: 0; } }

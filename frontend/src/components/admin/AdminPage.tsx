@@ -1,14 +1,18 @@
-import React, { useEffect, useMemo, useState, type ReactNode } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import { get, post, put } from '../../services/api';
 import { Badge } from '../common/Badge';
 import { Icon } from '../common/Icon';
 import { Modal } from '../common/Modal';
 import { PageHeader } from '../common/PageHeader';
 import { FilterTabs } from '../common/FilterTabs';
+import { SkeletonRows } from '../common/Skeleton';
+import { ApprovalSeal } from '../common/ApprovalSeal';
+import { useToast } from '../common/Toast';
 import { AnimatePresence, motion, DUR, EASE } from '../common/Animate';
 import { formatDate, formatDateTime, humanizeCode } from '../common/Formatters';
 import { ADMIN_NAV } from '../layout/Sidebar';
-import { Attention, Bar, Empty, Kpi, Panel, Tag, rowMotion, channelName, domainName, processName, words, seconds, count, errorText } from '../officer/StaffKit';
+import { Attention, Bar, Empty, Kpi, Paged, Panel, Tag, rowMotion, channelName, domainName, processName, words, seconds, count, errorText } from '../officer/StaffKit';
 
 /** The Admin Panel: governs Mitra and the platform. Bank officers never see it; the admin never sees banking work. */
 
@@ -27,7 +31,7 @@ function useData<T>(url: string): [T | null, () => void, string | null] {
 
 const Loading: React.FC<{ error: string | null; retry: () => void }> = ({ error, retry }) => error
   ? <Attention tone="danger" title="This page could not load" actions={<button type="button" className="k-btn outline sm" onClick={retry}>Try again</button>}>{error}</Attention>
-  : <section className="panel st-loading" aria-busy="true" aria-label="Loading"><i /><i /><i /></section>;
+  : <section className="panel"><SkeletonRows rows={4} /></section>;
 
 const Head: React.FC<{ tab: string; sub: ReactNode; actions?: ReactNode }> = ({ tab, sub, actions }) => (
   <PageHeader eyebrow="AI administration" title={ADMIN_NAV.flatMap(([, items]) => items).find(i => i.id === tab)?.title || 'Admin'}
@@ -63,13 +67,19 @@ const NoteForm: React.FC<{ confirm: string; danger?: boolean; min?: number; plac
   );
 };
 
-type Ask = { title: string; subtitle?: string; body?: ReactNode; confirm: string; danger?: boolean; placeholder?: string; run: (note: string) => Promise<unknown> };
-const AskDialog: React.FC<{ ask: Ask | null; close: () => void; done: () => void }> = ({ ask, close, done }) => ask && (
-  <Modal isOpen onClose={close} title={ask.title} subtitle={ask.subtitle}>
-    {ask.body}
-    <NoteForm confirm={ask.confirm} danger={ask.danger} placeholder={ask.placeholder} onCancel={close} run={ask.run} done={() => { close(); done(); }} />
-  </Modal>
-);
+type Ask = { title: string; subtitle?: string; body?: ReactNode; confirm: string; danger?: boolean; placeholder?: string; run: (note: string) => Promise<unknown>;
+  saved: string };
+/** A recorded decision closes the dialog, the row folds away and a toast confirms it. No undo: decisions are audited. */
+const AskDialog: React.FC<{ ask: Ask | null; close: () => void; done: () => void }> = ({ ask, close, done }) => {
+  const toast = useToast();
+  return ask && (
+    <Modal isOpen onClose={close} title={ask.title} subtitle={ask.subtitle}>
+      {ask.body}
+      <NoteForm confirm={ask.confirm} danger={ask.danger} placeholder={ask.placeholder} onCancel={close} run={ask.run}
+        done={() => { close(); done(); toast({ message: ask.saved }); }} />
+    </Modal>
+  );
+};
 
 /* ---------------- Approvals ---------------- */
 type Evaluation = { passed: number; total: number; pass_rate: number; at: string };
@@ -97,18 +107,18 @@ const ApprovalsTab: React.FC<{ go: (route: string) => void }> = ({ go }) => {
     subtitle: `${v.model}${v.evaluation ? ` · ${v.evaluation.passed}/${v.evaluation.total} checks passed` : ''}`,
     body: <p className="st-dialog-text">Approving lets this version answer customers in production. The release gate has passed on its latest evaluation.</p>,
     confirm: 'Approve version', placeholder: 'e.g. Read the evaluation report: 304/304 passed, release gate clear.',
-    run: note => post(`/api/admin/ai-registry/${v.id}/approve`, { note }),
+    run: note => post(`/api/admin/ai-registry/${v.id}/approve`, { note }), saved: `Prompt version ${v.version} approved`,
   });
   const decide = (d: Approvals['deletions'][number], decision: 'APPROVE' | 'REJECT') => setAsk(decision === 'APPROVE' ? {
     title: `Approve deletion of ${d.customer_id}`, subtitle: `Asked by ${d.requested_by} · ${when(d.created_at)}`, danger: true,
     body: <div className="k-note warn st-dialog-text"><Icon name="alert" /><div><strong>The customer loses access at once.</strong> Removed: login, sessions, chats and contact details. Kept, as the bank must: accounts, transactions, KYC, service requests, consents and the audit trail.</div></div>,
     confirm: 'Approve deletion', placeholder: 'e.g. Checked the reason with the officer; the customer asked in writing.',
-    run: note => post(`/api/admin/deletions/${d.id}/decision`, { decision, note }),
+    run: note => post(`/api/admin/deletions/${d.id}/decision`, { decision, note }), saved: `Deletion of ${d.customer_id} approved`,
   } : {
     title: `Reject deletion of ${d.customer_id}`, subtitle: `Asked by ${d.requested_by}`,
     body: <p className="st-dialog-text">The customer keeps their access. The officer sees your note.</p>,
     confirm: 'Reject request', placeholder: 'e.g. The reason does not match a request from the customer.',
-    run: note => post(`/api/admin/deletions/${d.id}/decision`, { decision, note }),
+    run: note => post(`/api/admin/deletions/${d.id}/decision`, { decision, note }), saved: `Deletion of ${d.customer_id} rejected`,
   });
 
   return (
@@ -205,16 +215,55 @@ const ApprovalBadge: React.FC<{ p: Process }> = ({ p }) => {
 const Chips: React.FC<{ items: string[]; format?: (s: string) => string }> = ({ items, format = s => s }) =>
   items.length ? <ul className="st-chips">{items.map(i => <li key={i}>{format(i)}</li>)}</ul> : <span className="muted">None</span>;
 
+type Step = { n: string; name: string; text: string };
+/** "How the bank runs it", read from the model view itself ("1. Name: what happens. Approval: …"), so the flow shows what the model reads. */
+const flowSteps = (view: string): Step[] => {
+  const lines = view.split('\n');
+  const from = lines.indexOf('How the bank runs it:'), to = lines.indexOf('Exceptions:');
+  return from < 0 ? [] : lines.slice(from + 1, to > from ? to : undefined).flatMap(line => {
+    const m = /^(\d+)\. ([^:]+): (.+)$/.exec(line);
+    return m ? [{ n: m[1], name: m[2], text: m[3] }] : [];
+  });
+};
+
+/** The process as connected steps that draw in once. Each step is a button that opens its details (one at a time). */
+const Flow: React.FC<{ steps: Step[] }> = ({ steps }) => {
+  const [open, setOpen] = useState(0);
+  const id = useId();
+  return (
+    <motion.div className="st-flow-wrap" initial="hidden" whileInView="shown" viewport={{ once: true }}>
+      <motion.span className="st-flow-line" aria-hidden="true"
+        variants={{ hidden: { scaleY: 0 }, shown: { scaleY: 1, transition: { duration: 0.25 + steps.length * 0.06, ease: EASE } } }} />
+      <ol className="st-flow" aria-label="Process steps">{steps.map((s, i) => {
+        const [what, approval] = s.text.split(' Approval: ');
+        return (
+          <motion.li key={s.n} variants={{ hidden: { opacity: 0, x: -6 }, shown: { opacity: 1, x: 0, transition: { duration: DUR.base, ease: EASE, delay: i * 0.06 } } }}>
+            <button type="button" className="st-flow-node" aria-expanded={open === i} aria-controls={`${id}-${i}`} onClick={() => setOpen(open === i ? -1 : i)}>
+              <span className="st-flow-n" aria-hidden="true">{s.n}</span>
+              <span className="st-flow-name"><span className="sr-only">Step {s.n}: </span>{s.name}</span>
+              {approval && <Tag tone="warning">Needs approval</Tag>}
+            </button>
+            {open === i && <motion.div id={`${id}-${i}`} className="st-flow-detail" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <p>{what}</p>{approval && <p><strong>Approval: </strong>{approval}</p>}
+            </motion.div>}
+          </motion.li>);
+      })}</ol>
+    </motion.div>
+  );
+};
+
 const ProcessDialog: React.FC<{ p: Process; close: () => void; done: () => void }> = ({ p, close, done }) => {
+  const toast = useToast();
   const [detail, setDetail] = useState<ProcessDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { get<ProcessDetail>(`/api/admin/ontology/${encodeURIComponent(p.id)}`).then(setDetail).catch(e => setError(errorText(e, 'Could not load'))); }, [p.id]);
+  const steps = detail ? flowSteps(detail.model_view) : [];
   return (
     <Modal isOpen wide onClose={close} title={p.name} subtitle={`${domainName(p.domain)} · ${p.id}`}>
       <div className="st-dialog-status"><ApprovalBadge p={p} /><Tag tone={IN_KOSH[p.kosh_status]?.[0]}>{IN_KOSH[p.kosh_status]?.[1] || humanizeCode(p.kosh_status)}</Tag>
         {p.approval && <span className="muted">by {p.approval.by} · {when(p.approval.at)}{p.approval.note ? ` · “${p.approval.note}”` : ''}</span>}</div>
       {error && <p className="form-error" role="alert">{error}</p>}
-      {!detail ? !error && <div className="st-loading flat" aria-busy="true"><i /><i /></div> : <>
+      {!detail ? !error && <SkeletonRows rows={3} /> : <>
         <p className="st-dialog-text"><strong>Mitra's part in Kosh: </strong>{detail.note || 'Not available in Kosh chat.'}</p>
         <dl className="st-dl">
           <div><dt>Activities</dt><dd><Chips items={detail.activities} format={a => humanizeCode(a.replace(/^act\./, ''))} /></dd></div>
@@ -224,10 +273,12 @@ const ProcessDialog: React.FC<{ p: Process; close: () => void; done: () => void 
           <div className="wide"><dt>Tools ({p.tools.length})</dt><dd><Chips items={p.tools} format={humanizeCode} /></dd></div>
           <div className="wide"><dt>Tables (server only, never sent to the model)</dt><dd><Chips items={detail.tables} /></dd></div>
         </dl>
+        {steps.length > 0 && <><h3 className="st-h3">How the bank runs it</h3><Flow steps={steps} /></>}
         <h3 className="st-h3">Exactly what the model reads when this process is selected</h3>
         <pre className="st-pre" tabIndex={0}>{detail.model_view}</pre>
         <h3 className="st-h3">Approve this content for production</h3>
-        <NoteForm confirm="Approve this content" placeholder="e.g. Read the model view; steps and guardrails match bank policy." onCancel={close} done={() => { close(); done(); }}
+        <NoteForm confirm="Approve this content" placeholder="e.g. Read the model view; steps and guardrails match bank policy." onCancel={close}
+          done={() => { close(); done(); toast({ message: `${p.name} approved for production` }); }}
           run={note => post(`/api/admin/ontology/${encodeURIComponent(p.id)}/approve`, { note })} />
       </>}
     </Modal>
@@ -258,11 +309,11 @@ const OntologyTab: React.FC = () => {
         actions={<FilterTabs name="ontology" label="Filter processes by approval" value={filter} onChange={setFilter} tabs={[
           { id: 'all', label: 'All', count: data.processes.length }, { id: 'none', label: 'Not approved', count: by('none').length },
           { id: 'changed', label: 'Changed', count: by('changed').length }, { id: 'approved', label: 'Approved', count: by('approved').length }]} />}>
-        {rows.length ? (
+        {rows.length ? <Paged rows={rows} reset={filter}>{shown => (
           <div className="table-scroll"><table className="table st-cards st-sticky">
             <thead><tr><th>Process</th><th>In Kosh</th><th>Channels</th><th className="num">Tools</th><th className="num">Turns (7 days)</th><th>Approval</th><th><span className="sr-only">Action</span></th></tr></thead>
-            <tbody><AnimatePresence initial={false}>{rows.map((p, i) => (
-              <motion.tr key={p.id} {...rowMotion(i)}>
+            <tbody><AnimatePresence initial={false}>{shown.map((p, i) => (
+              <motion.tr key={p.id} {...rowMotion(i % 20)}>
                 <td className="st-main"><strong>{p.name}</strong><span className="st-sub">{domainName(p.domain)}</span></td>
                 <td data-label="In Kosh"><Tag tone={IN_KOSH[p.kosh_status]?.[0]}>{IN_KOSH[p.kosh_status]?.[1] || humanizeCode(p.kosh_status)}</Tag></td>
                 <td data-label="Channels">{p.channels.map(channelName).join(', ') || '—'}</td>
@@ -273,8 +324,8 @@ const OntologyTab: React.FC = () => {
                   <button type="button" className={`k-btn sm ${approvalState(p) === 'approved' ? 'outline' : 'primary'}`} onClick={() => setOpen(p)}>Review</button>
                 </div></td>
               </motion.tr>))}</AnimatePresence></tbody>
-          </table></div>
-        ) : <Empty title="No process in this view" />}
+          </table></div>)}</Paged>
+        : <Empty title="No process in this view" />}
       </Panel>
       {open && <ProcessDialog p={open} close={() => setOpen(null)} done={load} />}
     </>
@@ -324,11 +375,11 @@ const SkillsTab: React.FC = () => {
           <label className="st-search"><Icon name="search" /><span className="sr-only">Search tools</span>
             <input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search tools by name or purpose" /></label>
         </div>
-        {tools.length ? (
+        {tools.length ? <Paged rows={tools} reset={`${channel}|${q}`}>{shown => (
           <div className="table-scroll"><table className="table st-cards">
             <thead><tr><th>Tool</th><th>Effect</th><th>Risk</th><th>Who approves</th><th>Consent needed</th><th>Model reads</th><th>Switch</th></tr></thead>
-            <tbody><AnimatePresence initial={false}>{tools.map((t, i) => (
-              <motion.tr key={t.channel + t.name} {...rowMotion(i)}>
+            <tbody><AnimatePresence initial={false}>{shown.map((t, i) => (
+              <motion.tr key={t.channel + t.name} {...rowMotion(i % 20)}>
                 <td className="st-main"><strong>{humanizeCode(t.name)}</strong><span className="st-sub">{t.description}</span></td>
                 <td data-label="Effect"><EffectBadge effect={t.effect} /></td>
                 <td data-label="Risk"><RiskBadge risk={t.risk} /></td>
@@ -337,8 +388,8 @@ const SkillsTab: React.FC = () => {
                 <td data-label="Model reads" className="st-hide-sm">{t.model_view === 'public' ? 'Public facts only' : t.model_view}</td>
                 <td className="st-status">{data.disabled_tools.includes(t.name) ? <Tag tone="danger">Paused</Tag> : <Tag tone="success">On</Tag>}</td>
               </motion.tr>))}</AnimatePresence></tbody>
-          </table></div>
-        ) : <Empty icon="search" title="No tool matches">Try another word, or another channel.</Empty>}
+          </table></div>)}</Paged>
+        : <Empty icon="search" title="No tool matches">Try another word, or another channel.</Empty>}
       </Panel>
     </>
   );
@@ -544,6 +595,50 @@ const CHANNEL_HELP: Record<string, string> = {
 };
 const RISK_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 const toggle = (list: string[], name: string) => (list.includes(name) ? list.filter(n => n !== name) : [...list, name]);
+const HOLD_MS = 1500;
+
+/**
+ * One kill switch. Pausing needs a 1.5 s press-and-hold (mouse, touch, or Space/Enter held down) so a slip never takes Mitra
+ * down: a ring fills while held and letting go early cancels. Resuming is a plain click. Either way the change is a draft until Save.
+ */
+const SwitchRow: React.FC<{ on: boolean; label: string; name: string; flip: () => void; index?: number; children: ReactNode }> = (
+  { on, label, name, flip, index, children }) => {
+  const [holding, setHolding] = useState(false);
+  const timer = useRef(0);
+  const held = useRef(false);  // the click that ends a completed hold must not flip the switch back
+  const keyed = useRef(false);  // Space/Enter went down here, so the click that follows is the keyboard's, not a screen reader's
+  const hint = useId();
+  const stop = () => { window.clearTimeout(timer.current); timer.current = 0; setHolding(false); };
+  const start = () => {
+    held.current = false;
+    if (!on || timer.current) return;
+    setHolding(true);
+    timer.current = window.setTimeout(() => { timer.current = 0; held.current = true; setHolding(false); flip(); }, HOLD_MS);
+  };
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const isKey = (e: React.KeyboardEvent) => e.key === ' ' || e.key === 'Enter';
+  return (
+    <motion.label className={`st-switch-row ${on ? '' : 'off'}`} {...(index == null ? {} : rowMotion(index))}
+      onPointerDown={e => { if (e.button === 0) start(); }} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}
+      onContextMenu={e => { if (timer.current) e.preventDefault(); }}>
+      {children}
+      <span className="st-hold">
+        <input type="checkbox" role="switch" className="k-switch" checked={on} aria-label={label} aria-describedby={hint} onChange={() => undefined}
+          // Screen readers in browse mode send one click with no pointer and no key press; they can't hold, so that click
+          // pauses too. It is still only a draft: the reason, Save and (for channels) the confirmation dialog follow.
+          onClick={e => { if (!held.current && (!on || (e.detail === 0 && !keyed.current))) flip(); held.current = false; keyed.current = false; }}
+          onKeyDown={e => { if (!isKey(e)) return; keyed.current = true; if (e.key === 'Enter') e.preventDefault(); if (!e.repeat) start(); }}
+          onKeyUp={e => { if (!isKey(e)) return; stop(); if (e.key === 'Enter') keyed.current = false; }} onBlur={() => { stop(); keyed.current = false; }} />
+        <svg className="st-hold-ring" viewBox="0 0 64 44" preserveAspectRatio="none" aria-hidden="true">
+          <motion.rect x="2" y="2" width="60" height="40" rx="20" initial={false} animate={{ pathLength: holding ? 1 : 0, opacity: holding ? 1 : 0 }}
+            transition={holding ? { duration: HOLD_MS / 1000, ease: 'linear' } : { duration: DUR.fast }} />
+        </svg>
+      </span>
+      <span id={hint} className="sr-only">{on ? `Press and hold to pause ${name}: hold Space for 1.5 seconds; letting go early cancels. With a screen reader, activate it once. You confirm when you save.`
+        : `Paused. Press Space to turn ${name} back on.`}</span>
+    </motion.label>
+  );
+};
 
 const ControlsTab: React.FC = () => {
   const [data, load, error] = useData<Controls>('/api/admin/controls');
@@ -556,6 +651,8 @@ const ControlsTab: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [view, setView] = useState('all');
   const [query, setQuery] = useState('');
+  const [said, setSaid] = useState('');
+  const toast = useToast();
   useEffect(() => { if (data) setDraft({ channels: data.disabled_channels ?? [], tools: data.disabled_tools ?? [] }); }, [data]);
 
   const tools = useMemo(() => (data?.tools ?? []).map(name => {
@@ -582,6 +679,7 @@ const ControlsTab: React.FC = () => {
     try {
       await put('/api/admin/controls', { disabled_channels: draft.channels, disabled_tools: draft.tools, reason: reason.trim() });
       setReason(''); setTouched(false); setConfirming(false); load();
+      toast({ message: 'Kill switches saved. They apply at once.' });
     } catch (e) { setSaveError(errorText(e)); setConfirming(false); } finally { setBusy(false); }
   };
   const submit = (e: React.FormEvent) => {
@@ -594,6 +692,10 @@ const ControlsTab: React.FC = () => {
   const effects: [string, string][] = [['money', 'Moves money'], ['write', 'Changes records'], ['read', 'Reads']];
   const shown = tools.filter(t => (view === 'all' || (view === 'blocked' ? draft.tools.includes(t.name) : t.effect === view))
     && (!q || `${t.name} ${t.label} ${t.description}`.toLowerCase().includes(q)));
+  const flip = (kind: 'channels' | 'tools', name: string, label: string) => {
+    setDraft(d => d && { ...d, [kind]: toggle(d[kind], name) });
+    if (!draft[kind].includes(name)) setSaid(`${label} set to pause. Give a reason and save to apply.`);
+  };
   const lastChange = data.updated_at ? `Last change ${when(data.updated_at)} by ${data.updated_by || 'an admin'}${data.reason ? `: “${data.reason}”` : ''}` : 'No change recorded yet.';
 
   return (
@@ -607,20 +709,19 @@ const ControlsTab: React.FC = () => {
       ) : <Attention tone="ok" title="All channels live · no tools blocked">{lastChange}</Attention>}
 
       <form onSubmit={submit} className="k-page-stack">
-        <Panel title="Channels" sub="Switch off to pause Mitra on that channel.">
+        <p className="sr-only" aria-live="polite">{said}</p>
+        <Panel title="Channels" sub="Press and hold a switch for 1.5 seconds to pause Mitra on that channel; a tap does nothing. Tap a paused one to resume.">
           <div className="panel-body st-switches">{data.channels.map(c => {
             const live = !draft.channels.includes(c);
             return (
-              <label key={c} className={`st-switch-row ${live ? '' : 'off'}`}>
+              <SwitchRow key={c} on={live} label={`${channelName(c)} live`} name={channelName(c)} flip={() => flip('channels', c, channelName(c))}>
                 <span><strong>{channelName(c)}</strong><small>{CHANNEL_HELP[c] || ''}</small></span>
                 <Tag tone={live ? 'success' : 'danger'}>{live ? 'Live' : 'Paused'}</Tag>
-                <input type="checkbox" role="switch" className="k-switch" checked={live} aria-label={`${channelName(c)} live`}
-                  onChange={() => setDraft({ ...draft, channels: toggle(draft.channels, c) })} />
-              </label>);
+              </SwitchRow>);
           })}</div>
         </Panel>
 
-        <Panel title="Tools" count={shown.length} sub="Switch off to block a single tool on every channel. Riskiest first."
+        <Panel title="Tools" count={shown.length} sub="Press and hold a switch to block a single tool on every channel. Riskiest first."
           actions={<FilterTabs name="tool-effect" label="Tools by effect" value={view} onChange={setView} tabs={[
             { id: 'all', label: 'All', count: tools.length },
             ...effects.map(([id, label]) => ({ id, label, count: tools.filter(t => t.effect === id).length })),
@@ -633,12 +734,10 @@ const ControlsTab: React.FC = () => {
             <AnimatePresence initial={false}>{shown.map((t, i) => {
               const on = !draft.tools.includes(t.name);
               return (
-                <motion.label key={t.name} className={`st-switch-row ${on ? '' : 'off'}`} {...rowMotion(i)}>
+                <SwitchRow key={t.name} index={i} on={on} label={`${t.label} allowed`} name={t.label} flip={() => flip('tools', t.name, t.label)}>
                   <span><strong>{t.label}</strong><small>{t.description || t.name}{t.channels.length ? ` · ${t.channels.join(', ')}` : ''}</small></span>
                   <span className="st-badges"><EffectBadge effect={t.effect} /><RiskBadge risk={t.risk} />{!on && <Tag tone="danger">Blocked</Tag>}</span>
-                  <input type="checkbox" role="switch" className="k-switch" checked={on} aria-label={`${t.label} allowed`}
-                    onChange={() => setDraft({ ...draft, tools: toggle(draft.tools, t.name) })} />
-                </motion.label>);
+                </SwitchRow>);
             })}</AnimatePresence>
           </div> : <Empty icon="search" title="No tool matches" />}
         </Panel>
@@ -679,39 +778,51 @@ const ControlsTab: React.FC = () => {
 
 /* ---------------- Audit chain ---------------- */
 type Verify = { valid: boolean; verified?: number; linked_only?: number; head?: string; broken_at?: string; reason?: string };
+const LINKS = 12;
+const BREAK = LINKS - 4;  // where a broken chain is drawn: checked links, the bad one, then links never reached. The words give the facts.
 
 const AuditTab: React.FC = () => {
+  const reduce = useReducedMotion();
   const [result, setResult] = useState<(Verify & { at: string }) | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shown, setShown] = useState(false);  // the links finished lighting up (about 0.7 s after the real answer)
   const verify = () => {
-    setBusy(true); setError(null);
-    get<Verify>('/api/admin/audit/verify').then(r => setResult({ ...r, at: new Date().toISOString() }))
+    setBusy(true); setError(null); setResult(null); setShown(false);
+    get<Verify>('/api/admin/audit/verify')
+      .then(r => { setResult({ ...r, at: new Date().toISOString() }); window.setTimeout(() => setShown(true), reduce ? 0 : LINKS * 50 + 150); })
       .catch(e => setError(errorText(e, 'The check could not run'))).finally(() => setBusy(false));
   };
+  const state = busy ? 'checking' : !result ? 'idle' : result.valid ? 'ok' : 'broken';
+  const link = (i: number) => (state === 'ok' || (state === 'broken' && i < BREAK) ? 'good' : state === 'broken' && i === BREAK ? 'bad' : '');
   return (
     <>
       <Head tab="admin-audit" sub="Every action in Kosh is written to a hash-linked audit record. A broken link means a record was changed or removed."
         actions={<button type="button" className="k-btn primary sm" disabled={busy} onClick={verify}>
           <Icon name="shield" />{busy ? 'Checking…' : result ? 'Check again' : 'Verify now'}</button>} />
       {error && <Attention tone="danger" title="The check could not run">{error}</Attention>}
-      <AnimatePresence mode="wait">{result ? (
-        <motion.div key={result.at} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="k-page-stack">
-          <Attention tone={result.valid ? 'ok' : 'danger'} title={result.valid ? 'The audit chain is intact' : 'The audit chain is broken'}>
-            {result.valid ? `Every record links to the one before it. Checked ${when(result.at)}.`
-              : `First bad record: ${result.broken_at} (${humanizeCode(result.reason)}). Checked ${when(result.at)}.`}
-          </Attention>
+      <section className="panel st-chain-panel" aria-label="Audit chain" aria-busy={busy}>
+        <div className={`st-chain ${state}`} aria-hidden="true">
+          {Array.from({ length: LINKS }, (_, i) => <span key={i} className={link(i)} style={{ '--i': i } as React.CSSProperties} />)}
+        </div>
+        {result && shown && result.valid
+          ? <ApprovalSeal title="Intact" subtitle={`Every record links to the one before it. ${count(result.verified)} records verified, ${count(result.linked_only)} by link only. Checked ${when(result.at)}.`} />
+          : <p className="st-chain-caption">{busy ? 'Re-reading every record and its link…' : result && !result.valid && shown
+            ? `The chain breaks at ${result.broken_at}.` : result ? 'Checking the links…'
+            : 'Not checked yet. Verification re-reads every record; it takes a few seconds.'}</p>}
+      </section>
+      <AnimatePresence>{result && shown && (
+        <motion.div key={result.at} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: DUR.fast } }} className="k-page-stack">
+          {!result.valid && <Attention tone="danger" title="The audit chain is broken">
+            First bad record: <code>{result.broken_at}</code> ({humanizeCode(result.reason)}). {count(result.verified)} records before it were fully verified. Checked {when(result.at)}.
+          </Attention>}
           <div className="st-kpis">
-            <Kpi label="Records verified" value={result.verified ?? null} caption="Content and link both re-checked" />
-            <Kpi label="Checked by link only" value={result.linked_only ?? null} caption="Written before chain v2: the link is checked, the content cannot be" />
+            <Kpi label="Records verified" value={result.verified ?? null} caption={result.valid ? 'Content and link both re-checked' : 'Before the broken link'} />
+            {result.valid && <Kpi label="Checked by link only" value={result.linked_only ?? null} caption="Written before chain v2: the link is checked, the content cannot be" />}
           </div>
           {result.head && <Panel title="Latest record hash" sub="Compare it with a copy kept elsewhere to prove nothing was rewritten.">
             <div className="panel-body st-tight"><code className="st-hash">{result.head}</code></div></Panel>}
-        </motion.div>
-      ) : (
-        <motion.section key="idle" className="panel" exit={{ opacity: 0 }}>
-          <Empty icon="lock" title="Not checked yet">Verification re-reads every record. It takes a few seconds.</Empty>
-        </motion.section>)}
+        </motion.div>)}
       </AnimatePresence>
     </>
   );

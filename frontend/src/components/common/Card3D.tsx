@@ -1,5 +1,6 @@
 import React, { useEffect, useState, type PointerEvent } from 'react';
-import { motion, useReducedMotion, useSpring, useTransform } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion, useSpring, useTransform } from 'framer-motion';
+import { EASE } from './Animate';
 import { LotusMark, Rangoli } from './KoshLogo';
 import { Icon } from './Icon';
 import { useI18n } from '../../i18n';
@@ -77,7 +78,20 @@ export const Card3D: React.FC<Card3DProps> = ({
               <span><small>{t('Valid thru')}</small>{expiry}</span>
               <span className="k-card-network">RuPay</span>
             </span>
-            {frozen && <span className="k-card-frozen"><Icon name="freeze" />{t('Frozen by you')}</span>}
+            {/* Freezing: frost closes in from the edges and the label settles; unfreezing: it melts and runs off. Instant with reduced motion. */}
+            <AnimatePresence initial={false}>
+              {frozen && (
+                <motion.span key="frost" className="k-card-frost" aria-hidden="true"
+                  initial={{ opacity: 0, scale: 1.18 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: reduce ? 0 : 0.8, ease: EASE }}
+                  exit={{ opacity: 0, y: 14, filter: 'blur(4px)', transition: { duration: reduce ? 0 : 0.5, ease: 'easeIn' } }} />
+              )}
+              {frozen && (
+                <motion.span key="label" className="k-card-frozen" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  transition={{ duration: reduce ? 0 : 0.25, delay: reduce ? 0 : 0.45 }} exit={{ opacity: 0, transition: { duration: reduce ? 0 : 0.15 } }}>
+                  <Icon name="freeze" />{t('Frozen by you')}
+                </motion.span>
+              )}
+            </AnimatePresence>
             <span className="k-card-sheen" aria-hidden="true" />
           </span>
           <span className="k-card-face back">

@@ -5,6 +5,9 @@ import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../common/Badge';
 import { Icon } from '../common/Icon';
 import { PageHeader } from '../common/PageHeader';
+import { Modal } from '../common/Modal';
+import { SkeletonRows } from '../common/Skeleton';
+import { useToast } from '../common/Toast';
 import { AnimatePresence, motion } from '../common/Animate';
 import { apiGet, apiDelete } from '../../services/api';
 import { useI18n } from '../../i18n';
@@ -72,6 +75,10 @@ export const SecurityPage: React.FC<SecurityPageProps> = ({ onNavigate, onExport
   const { t } = useI18n();
   const [sessions, setSessions] = useState<SecuritySession[] | null>(null);
   const [sessionError, setSessionError] = useState('');
+  const [confirmAll, setConfirmAll] = useState(false);
+  const [allBusy, setAllBusy] = useState(false);
+  const [allError, setAllError] = useState('');
+  const toast = useToast();
 
   const alerts: SecurityAlert[] = (overview as any)?.security_alerts || [];
   const openAlerts = alerts.filter(a => a.status === 'OPEN');
@@ -94,10 +101,29 @@ export const SecurityPage: React.FC<SecurityPageProps> = ({ onNavigate, onExport
     try {
       await apiDelete(`/api/portal/security/sessions/${encodeURIComponent(id)}`);
       setSessions(prev => (prev || []).filter(s => s.id !== id));
+      toast({ message: t('That device is signed out.') });
     } catch {
       setSessionError(t('That device could not be signed out. Please try again.'));
     }
   };
+
+  // Protective, so no undo; this device stays signed in.
+  const signOutOthers = async () => {
+    setAllError('');
+    setAllBusy(true);
+    try {
+      const res = await apiDelete<{ revoked?: number }>('/api/portal/security/sessions');
+      setConfirmAll(false);
+      const n = res?.revoked;
+      toast({ message: n == null ? t('Other devices are signed out.') : n === 1 ? t('Signed out of 1 other device.') : t('Signed out of {n} other devices.', { n }) });
+      loadSessions();
+    } catch {
+      setAllError(t('We could not sign out your other devices. Please try again.'));
+    } finally {
+      setAllBusy(false);
+    }
+  };
+  const others = (sessions || []).filter(s => !s.current).length;
 
   return (
     <>
@@ -169,6 +195,7 @@ export const SecurityPage: React.FC<SecurityPageProps> = ({ onNavigate, onExport
             <header className="k-panel-head">
               <div><h2>{t('Signed-in devices')}</h2><p>{sessions ? t('{n} active sessions', { n: sessions.length }) : t('Loading sessions…')}</p></div>
             </header>
+            {!sessions && <SkeletonRows rows={2} label={t('Loading sessions…')} />}
             <ul className="k-list c-sessions">
               <AnimatePresence initial={false}>
                 {devices.rows.map(s => (
@@ -191,11 +218,30 @@ export const SecurityPage: React.FC<SecurityPageProps> = ({ onNavigate, onExport
             </ul>
             {sessionError && <p className="form-error c-pad-x" role="alert">{sessionError}</p>}
             <ShowAll {...devices} what={t('devices')} />
+            {others > 0 && (
+              <div className="c-sessions-all">
+                <button type="button" className="k-btn outline wide" onClick={() => { setAllError(''); setConfirmAll(true); }}>
+                  <Icon name="logout" />{t('Sign out of all other devices')}
+                </button>
+              </div>
+            )}
           </section>
 
           <ConnectedApps />
         </div>
       </div>
+
+      <Modal isOpen={confirmAll} onClose={() => setConfirmAll(false)} title={t('Sign out of all other devices?')}
+        subtitle={t('Every other phone or browser signed in to your account is signed out right away. This device stays signed in.')}>
+        <p className="c-body">{others === 1 ? t('1 other device will be signed out.') : t('{n} other devices will be signed out.', { n: others })}</p>
+        {allError && <div className="form-error" role="alert">{allError}</div>}
+        <div className="k-dialog-actions">
+          <button type="button" className="k-btn outline" onClick={() => setConfirmAll(false)} disabled={allBusy}>{t('Cancel')}</button>
+          <button type="button" className="k-btn danger" onClick={signOutOthers} disabled={allBusy}>
+            {allBusy ? t('Signing out…') : allError ? t('Try again') : t('Sign out other devices')}
+          </button>
+        </div>
+      </Modal>
     </>
   );
 };
@@ -207,6 +253,7 @@ const ConnectedApps: React.FC = () => {
   const { t } = useI18n();
   const [apps, setApps] = useState<ConnectedApp[] | null>(null);
   const [error, setError] = useState('');
+  const toast = useToast();
   const load = () => apiGet<{ apps: ConnectedApp[] }>('/api/portal/security/apps')
     .then(res => setApps(res.apps)).catch(() => setError(t('Connected apps could not be loaded right now.')));
   useEffect(() => { load(); }, []);
@@ -214,6 +261,7 @@ const ConnectedApps: React.FC = () => {
     setError('');
     try {
       await apiDelete(`/api/portal/security/apps/${encodeURIComponent(clientId)}`);
+      toast({ message: t('Access withdrawn. It takes effect within 5 minutes.') });
       load();
     } catch {
       setError(t('Access could not be withdrawn. Please try again.'));
@@ -226,7 +274,7 @@ const ConnectedApps: React.FC = () => {
       </header>
       <div className="k-panel-body">
         {error && <p className="form-error" role="alert">{error}</p>}
-        {apps === null && !error ? <p className="form-hint">{t('Loading…')}</p> : apps?.length ? (
+        {apps === null && !error ? <SkeletonRows rows={1} label={t('Loading…')} /> : apps?.length ? (
           <ul className="k-list">
             {apps.map(app => (
               <li key={app.client_id}>

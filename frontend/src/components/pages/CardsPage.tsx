@@ -8,6 +8,7 @@ import { PageHeader } from '../common/PageHeader';
 import { formatMoney } from '../common/Formatters';
 import { submitServiceRequest } from '../../services/banking';
 import { LotusLoader } from '../common/LotusLoader';
+import { useToast } from '../common/Toast';
 import { ServiceRequestDialog, type ServiceSpec } from '../app/ServiceRequestDialog';
 
 interface CardsPageProps {
@@ -34,6 +35,7 @@ export const CardsPage: React.FC<CardsPageProps> = () => {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [spec, setSpec] = useState<ServiceSpec | null>(null);
+  const toast = useToast();
 
   // Until the accounts arrive, say so instead of claiming there is nothing here.
   if (!overview) return <LotusLoader label={t('Loading your cards…')} />;
@@ -43,6 +45,7 @@ export const CardsPage: React.FC<CardsPageProps> = () => {
     setError('');
     try {
       await toggleCardFreeze(card.id, !frozen);
+      if (!frozen) toast({ message: t('Card frozen. It cannot be used until the bank unfreezes it.') });  // protective: no undo
     } catch (err: any) {
       setError(err.message || t('Could not update the card. Please try again.'));
     } finally {

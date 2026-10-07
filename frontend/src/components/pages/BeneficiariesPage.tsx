@@ -7,6 +7,7 @@ import { PageHeader } from '../common/PageHeader';
 import { Stagger } from '../common/Animate';
 import { formatDate, formatDateTime } from '../common/Formatters';
 import { useStepUp, StepUpField } from '../app/StepUp';
+import { useToast } from '../common/Toast';
 
 interface BeneficiariesPageProps {
   onNavigate?: (route: string) => void;
@@ -32,6 +33,7 @@ export const BeneficiariesPage: React.FC<BeneficiariesPageProps> = ({ onNavigate
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const step = useStepUp();
+  const toast = useToast();
   const people = (overview?.beneficiaries || []).filter((b: any) => b.kind === 'PERSON' || !b.kind);
 
   const add = async (e: React.FormEvent) => {
@@ -41,6 +43,7 @@ export const BeneficiariesPage: React.FC<BeneficiariesPageProps> = ({ onNavigate
     try {
       const row = await step.run(() => addBeneficiary({ name: name.trim(), account_number: upiId.trim(), nickname: upiId.trim() || undefined }));
       if (!row) return;
+      toast({ message: t('{name} added. They can receive up to ₹25,000 in the first 24 hours.', { name: name.trim() }) });
       setOpen(false);
       setName('');
       setUpiId('');

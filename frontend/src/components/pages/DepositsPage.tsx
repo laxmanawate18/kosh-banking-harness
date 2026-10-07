@@ -3,11 +3,61 @@ import { useBanking } from '../../context/BankingContext';
 import { Icon } from '../common/Icon';
 import { Modal } from '../common/Modal';
 import { PageHeader } from '../common/PageHeader';
-import { AnimatePresence, Stagger, motion } from '../common/Animate';
+import { AnimatePresence, EASE, Stagger, motion } from '../common/Animate';
+import { useReducedMotion } from 'framer-motion';
 import { RequestCard, RequestDetailModal } from './RequestsPage';
 import { submitServiceRequest } from '../../services/banking';
-import { fdMaturity, formatRupees, rdMaturity } from '../common/Formatters';
+import { fdMaturity, formatDate, formatRupees, rdMaturity } from '../common/Formatters';
+import { HideBalancesToggle, Money } from '../app/Balance';
 import { useI18n } from '../../i18n';
+import type { Account } from '../../types/banking';
+
+/** A booked deposit as the bank returns it (an account of type FIXED_DEPOSIT / RECURRING_DEPOSIT). */
+type Deposit = Account & {
+  balance_minor?: number; interest_rate?: number; tenure_months?: number; opened_at?: string;
+  maturity_date?: string; maturity_amount_minor?: number; monthly_instalment_minor?: number | null;
+};
+
+/**
+ * Principal to maturity as a small growth curve; the maturity figure counts up as the line draws.
+ * Uses the bank's maturity amount; without one, estimates from the deposit's own rate and term (labelled "Estimate").
+ */
+const DepositGrowth: React.FC<{ d: Deposit }> = ({ d }) => {
+  const { t } = useI18n();
+  const reduce = useReducedMotion();
+  const recurring = d.type === 'RECURRING_DEPOSIT';
+  const principal = d.balance_minor ?? d.available_balance_minor ?? 0;
+  const rate = d.interest_rate, months = d.tenure_months;
+  const instalment = d.monthly_instalment_minor ?? principal;
+  const value = (m: number) => (recurring ? rdMaturity(instalment, rate!, m) : fdMaturity(principal, rate!, m / 12));
+  const estimate = d.maturity_amount_minor == null;
+  const maturity = d.maturity_amount_minor ?? (rate != null && months ? Math.round(value(months)) : null);
+  if (maturity == null || !months || rate == null) return null;
+  // Shape from the deposit's own compounding, scaled to the box: honest, if gentle.
+  const pts = Array.from({ length: 13 }, (_, k) => {
+    const m = (months * k) / 12;
+    const v = k === 0 ? (recurring ? instalment : principal) : k === 12 ? maturity : value(m);
+    return [m, v] as const;
+  });
+  const lo = pts[0][1], hi = Math.max(maturity, lo + 1);
+  const path = pts.map(([m, v], k) => `${k ? 'L' : 'M'}${(4 + (m / months) * 392).toFixed(1)},${(56 - ((v - lo) / (hi - lo)) * 48).toFixed(1)}`).join(' ');
+  return (
+    <div className="c-growth">
+      <svg viewBox="0 0 400 64" className="c-growth-curve" aria-hidden="true">
+        <path d={`${path} L396,60 L4,60 Z`} className="c-growth-area" />
+        <motion.path d={path} className="c-growth-line" initial={reduce ? false : { pathLength: 0 }} whileInView={{ pathLength: 1 }}
+          viewport={{ once: true }} transition={{ duration: 0.9, ease: EASE }} />
+      </svg>
+      <dl className="c-growth-ends">
+        <div><dt>{recurring ? t('Deposited so far') : t('Principal')}</dt><dd><Money value={principal} /></dd></div>
+        <div className="end">
+          <dt>{d.maturity_date ? t('At maturity, {date}', { date: formatDate(d.maturity_date) }) : t('At maturity')}{estimate && <span className="c-tag">{t('Estimate')}</span>}</dt>
+          <dd><Money value={maturity} /></dd>
+        </div>
+      </dl>
+    </div>
+  );
+};
 
 interface DepositsPageProps {
   onNavigate?: (route: string) => void;
@@ -29,6 +79,7 @@ export const DepositsPage: React.FC<DepositsPageProps> = () => {
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
 
   const accounts = overview?.accounts || [];
+  const deposits = accounts.filter(a => a.type === 'FIXED_DEPOSIT' || a.type === 'RECURRING_DEPOSIT') as Deposit[];
   const reqs = (overview?.requests || []).filter((r: any) =>
     ['P1-19', 'P1-20', 'FD_BOOKING', 'RD_BOOKING'].includes(r.service_id || r.request_type || '')
   );
@@ -94,7 +145,8 @@ export const DepositsPage: React.FC<DepositsPageProps> = () => {
 
   return (
     <>
-      <PageHeader title={t('Deposits')} subtitle={t('Plan a deposit and send an application to your banking team.')} />
+      <PageHeader title={t('Deposits')} subtitle={t('Plan a deposit and send an application to your banking team.')}
+        actions={deposits.length ? <HideBalancesToggle /> : undefined} />
       <div className="k-page-stack">
         <AnimatePresence>
           {successMsg && (
@@ -103,6 +155,27 @@ export const DepositsPage: React.FC<DepositsPageProps> = () => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {deposits.length > 0 && (
+          <section aria-labelledby="dep-mine">
+            <div className="c-section-head"><h2 id="dep-mine">{t('Your deposits')}</h2></div>
+            <Stagger className="c-product-grid">
+              {deposits.map(d => (
+                <Stagger.Item as="article" key={d.id} className="k-panel c-deposit">
+                  <header className="c-deposit-head">
+                    <div>
+                      <h3>{d.name}</h3>
+                      <span className="k-acc-no">{d.account_number_masked}{d.opened_at ? ` · ${t('Opened {date}', { date: formatDate(d.opened_at) })}` : ''}</span>
+                    </div>
+                    {d.interest_rate != null && <span className="c-rate">{t('{rate}% p.a.', { rate: d.interest_rate })}</span>}
+                  </header>
+                  {d.tenure_months ? <p className="c-deposit-term">{t('{n} months', { n: d.tenure_months })}</p> : null}
+                  <DepositGrowth d={d} />
+                </Stagger.Item>
+              ))}
+            </Stagger>
+          </section>
+        )}
 
         <Stagger className="c-product-grid">
           {products.map((p, i) => (

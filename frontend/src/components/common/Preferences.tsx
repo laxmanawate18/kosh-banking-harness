@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { flushSync } from 'react-dom';
 import { LANGS, useI18n } from '../../i18n';
-import { applyPrefs, loadPrefs, ZOOM_STEPS, type DisplayPrefs } from '../../prefs';
+import { applyPrefs, crossfade, loadPrefs, ZOOM_STEPS, type DisplayPrefs } from '../../prefs';
 import { Icon } from './Icon';
 
 export const LanguageSwitch: React.FC<{ compact?: boolean }> = ({ compact }) => {
@@ -28,8 +29,7 @@ export const DisplayControls: React.FC = () => {
   const [prefs, setPrefs] = useState<DisplayPrefs>(loadPrefs);
   const update = (patch: Partial<DisplayPrefs>) => {
     const next = { ...prefs, ...patch };
-    setPrefs(next);
-    applyPrefs(next);
+    crossfade(() => { flushSync(() => setPrefs(next)); applyPrefs(next); });
   };
   const zi = ZOOM_STEPS.indexOf(prefs.zoom);
 

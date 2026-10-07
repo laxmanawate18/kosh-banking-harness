@@ -35,6 +35,8 @@ interface RecentTransactionsProps {
   /** Account names for the Account column of the full list. */
   accounts?: { id: string; name?: string }[];
   onSelectTransaction?: (transaction: Transaction) => void;
+  /** Rows newer than this (see useSeenSince) arrive highlighted once and carry a "New" tag. */
+  newSince?: string | null;
 }
 
 /** The one transaction table: five rows on dashboards (compact), every row with account and status on the Transactions page. */
@@ -43,6 +45,7 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   compact = true,
   accounts = [],
   onSelectTransaction,
+  newSince,
 }) => {
   const { t } = useI18n();
   const ts = compact ? transactions.slice(0, 5) : transactions;
@@ -75,14 +78,15 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
             const kind = String(tx.category || 'salary').toLowerCase();
             const amount = amountOf(tx);
             const isCredit = amount > 0;
+            const isNew = !!newSince && tx.created_at > newSince;
             return (
-              <Stagger.Item as="tr" key={tx.id} className={onSelectTransaction ? 'c-tx-row' : undefined}
+              <Stagger.Item as="tr" key={tx.id} className={`${onSelectTransaction ? 'c-tx-row' : ''} ${isNew ? 'c-tx-new' : ''}`}
                 onClick={onSelectTransaction ? () => onSelectTransaction(tx) : undefined}>
                 <td>
                   <div className="merchant-cell">
                     <span className={`merchant-icon ${kind}`}><Icon name={ICONS[kind] || 'transactions'} /></span>
                     <div>
-                      <strong>{cleanDescription(tx.description)}</strong>
+                      <strong>{cleanDescription(tx.description)}{isNew && <span className="c-new-tag">{t('New')}</span>}</strong>
                       <small>{categoryLabel(t, tx.category)}</small>
                     </div>
                   </div>

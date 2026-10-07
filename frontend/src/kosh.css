@@ -1370,3 +1370,50 @@ ol.mdr-list { list-style-type: decimal; }
 .k-seal-check { fill: none; stroke: var(--ok); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .k-seal h3 { margin: 4px 0 0; font: 650 22px var(--k-display); color: var(--ink); }
 .k-seal p { margin: 0; color: var(--muted); font-size: 15px; max-width: 40ch; }
+
+/* ⌘K search (layout/GlobalSearchModal.tsx) */
+.gsm-scrim { z-index: 70; background: rgb(0 0 0 / .55); backdrop-filter: blur(3px); }  /* above the sidebar (60), below toasts (80) */
+.k-search-panel { width: min(600px, 100%); max-height: min(560px, calc(100dvh - 7rem)); display: flex; flex-direction: column; overflow: hidden; border-radius: var(--r-lg); background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow-lg); }
+.k-search-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 18px; border-bottom: 1px solid var(--line); }
+.k-search-head > .icon { width: 20px; height: 20px; color: var(--muted); flex: none; }
+.k-search-head input { flex: 1; min-height: 44px; margin: 0; padding: 8px 4px; border: 0; background: transparent; font-size: 17px; box-shadow: none; }
+.k-search-head input:focus { box-shadow: none; }
+.k-search-results { overflow-y: auto; padding: 8px; overscroll-behavior: contain; }
+.k-search-result { position: relative; isolation: isolate; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 10px 12px; border: 0; border-radius: 12px; background: none; text-align: left; font-size: 15.5px; color: var(--ink); cursor: pointer; }
+.k-search-highlight { position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.k-search-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--tint); color: var(--brand); flex: none; }
+.k-search-icon .icon { width: 17px; height: 17px; }
+.k-search-title { flex: 1; font-weight: 600; min-width: 0; }
+.k-search-result small { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.k-search-empty { margin: 0; padding: 28px 16px; text-align: center; color: var(--muted); font-size: 15px; }
+.k-search-keys { display: block; padding: 10px 18px; border-top: 1px solid var(--line); background: var(--surface-2); color: var(--muted); font-size: 13px; }
+.k-search-keys kbd { display: inline-grid; place-items: center; min-width: 22px; padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); font: 600 12px var(--k-sans); color: var(--ink-2); }
+@media (max-width: 640px) { .k-search-keys { display: none; } .gsm-scrim { padding-top: 12px; } }
+
+/* Toasts (common/Toast.tsx): bottom centre, above the phone tab bar; a thin bar shows when each closes. */
+.k-toasts { position: fixed; left: 50%; bottom: 24px; z-index: 80; display: grid; gap: 10px; width: min(440px, calc(100vw - 24px)); translate: -50% 0; pointer-events: none; }
+.k-toast { position: relative; overflow: hidden; display: flex; align-items: center; gap: 10px; padding: 12px 10px 12px 16px; border-radius: var(--r); background: var(--ink); color: var(--bg); box-shadow: var(--shadow-lg); pointer-events: auto; font-size: 15px; }
+.k-toast > .icon { width: 18px; height: 18px; flex: none; }
+.k-toast.success > .icon { color: var(--ok); }
+.k-toast.warning > .icon { color: var(--warn); }
+.k-toast.danger > .icon { color: var(--danger); }
+/* The toast is inverted (light on dark pages), so it takes the light-theme status colours. */
+[data-theme="dark"] .k-toast { --ok: #0c7461; --warn: #8a5300; --danger: #b42318; --accent: #b08a45; }
+.k-toast-text { flex: 1; min-width: 0; }
+.k-toast-undo { min-height: 36px; padding: 6px 12px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--bg) 16%, transparent); color: inherit; font: 700 14px var(--k-sans); cursor: pointer; }
+.k-toast-close { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: none; color: inherit; opacity: .7; cursor: pointer; }
+.k-toast-close .icon { width: 16px; height: 16px; }
+.k-toast-timer { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--accent); transform-origin: left; animation: k-toast-timer linear forwards; }
+.k-toast:hover .k-toast-timer { animation-play-state: paused; }
+@keyframes k-toast-timer { to { transform: scaleX(0); } }
+@media (max-width: 760px) { .k-toasts { bottom: calc(96px + env(safe-area-inset-bottom)); } }
+@media (prefers-reduced-motion: reduce) { .k-toast-timer { display: none; } }
+
+/* Skeletons (common/Skeleton.tsx) */
+.k-skel { display: block; background: linear-gradient(90deg, var(--surface-2) 25%, color-mix(in srgb, var(--surface-2) 55%, var(--line-strong)) 50%, var(--surface-2) 75%) 0 0 / 200% 100%; }
+@media (prefers-reduced-motion: no-preference) { .k-skel { animation: k-shimmer 1.4s linear infinite; } }
+.k-skel-card { display: grid; gap: 12px; padding: 20px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); }
+.k-skel-rows { display: grid; }
+.k-skel-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.k-skel-lines { flex: 1; display: grid; gap: 8px; }
+.k-search-head input::-webkit-search-cancel-button { appearance: none; }  /* the panel has its own close button */

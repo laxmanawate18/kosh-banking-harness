@@ -38,10 +38,13 @@ export function formatRupees(rupees: number): string {
   return '₹' + Math.round(rupees).toLocaleString('en-IN');
 }
 
+/** Server times are UTC. SQLite (local runs) drops the zone, so a bare date-time is read as UTC rather than local time. */
+export const utc = (s: string) => (!s || !s.includes('T') || /[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : `${s}Z`);
+
 export function formatDate(isoString: string): string {
   if (!isoString) return '';
   try {
-    const d = new Date(isoString);
+    const d = new Date(utc(isoString));
     return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   } catch {
     return isoString;
@@ -51,7 +54,7 @@ export function formatDate(isoString: string): string {
 export function formatTime(isoString: string): string {
   if (!isoString) return '';
   try {
-    const d = new Date(isoString);
+    const d = new Date(utc(isoString));
     return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
   } catch {
     return isoString;
@@ -61,7 +64,7 @@ export function formatTime(isoString: string): string {
 export function formatDateTime(isoString: string): string {
   if (!isoString) return '';
   try {
-    const d = new Date(isoString);
+    const d = new Date(utc(isoString));
     return `${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
   } catch {
     return isoString;

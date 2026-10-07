@@ -71,12 +71,8 @@ button.st-kpi:focus-visible { outline: 3px solid var(--focus); outline-offset: 3
 /* Inline bars: a share of the largest row, behind the figure that carries the meaning. */
 .st-bar-cell { display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .st-bar { flex: none; width: 64px; height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
-.st-bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.st-bar i { display: block; width: 100%; height: 100%; background: var(--accent); transform-origin: left; }
 td:not(.num) > .st-bar-cell { flex-direction: row-reverse; justify-content: flex-start; }
-@media (prefers-reduced-motion: no-preference) {
-  .st-bar i { transition: width 700ms var(--ease-out); }
-  @starting-style { .st-bar i { width: 0 !important; } }
-}
 
 /* ---------- Phones: each table row becomes a card (title, status, key facts, action) ---------- */
 @media (max-width: 720px) {
@@ -167,15 +163,6 @@ td:not(.num) > .st-bar-cell { flex-direction: row-reverse; justify-content: flex
 .st-savebar-actions { display: flex; gap: 8px; }
 .st-savebar > .form-error { grid-column: 1 / -1; margin: 0; }
 @media (max-width: 900px) { .st-savebar { grid-template-columns: 1fr; } .st-savebar-actions > * { flex: 1; } }
-
-/* ---------- Loading ---------- */
-.st-loading { display: grid; gap: 12px; padding: 24px 20px; }
-.st-loading.flat { padding: 8px 0 16px; }
-.st-loading i { display: block; height: 14px; border-radius: 999px; background: var(--surface-2); }
-.st-loading i:nth-child(2) { width: 82%; }
-.st-loading i:nth-child(3) { width: 56%; }
-@media (prefers-reduced-motion: no-preference) { .st-loading i { animation: st-pulse 1.1s ease-in-out infinite alternate; } }
-@keyframes st-pulse { to { opacity: .45; } }
 
 /* ---------- Officer console ---------- */
 .st-tight { padding-top: 0; padding-bottom: 16px; display: grid; gap: 12px; }
@@ -285,3 +272,103 @@ td:not(.num) > .st-bar-cell { flex-direction: row-reverse; justify-content: flex
 .st-case .ops-pitch.quote > p { font-style: italic; color: var(--ink-2); }
 .st-case .k-dialog-actions { margin-top: 4px; }
 @media (max-width: 700px) { .st-case .case-summary-strip { grid-template-columns: 1fr; } }
+
+/* ---------- Long lists: "Show 20 more" ---------- */
+.st-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+
+/* ---------- Live queue: refresh, arrivals, SLA rings, the CBS robot ---------- */
+@media (prefers-reduced-motion: no-preference) { .st-spin { animation: st-spin 900ms linear infinite; } }
+@keyframes st-spin { to { transform: rotate(360deg); } }
+
+/* A row that arrived while the officer watched: one soft glow, then an accent edge and the "New" badge until handled. */
+.table tr.st-new > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+@media (prefers-reduced-motion: no-preference) { .table tr.st-new > td { animation: st-arrive 2.4s var(--ease-out); } }
+@keyframes st-arrive { from { background-color: color-mix(in srgb, var(--accent) 22%, transparent); } }
+@media (max-width: 720px) {
+  .table.st-cards tr.st-new { box-shadow: inset 3px 0 0 var(--accent); }
+  .table.st-cards tr.st-new > td:first-child { box-shadow: none; }
+}
+
+/* Time left to the due time: the ring empties toward due_at; amber in the last 20%, red once overdue. Words say the same. */
+.st-sla { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.st-sla svg { width: 20px; height: 20px; flex: none; fill: none; stroke-width: 3; }
+.st-sla circle:first-child { stroke: var(--line-strong); }
+.st-sla circle + circle { stroke: var(--ok); stroke-linecap: round; }
+.st-sla.warn { color: var(--warn); }
+.st-sla.warn circle + circle { stroke: var(--warn); }
+.st-sla.danger { color: var(--danger); }
+.st-sla.danger circle + circle { stroke: var(--danger); }
+.st-sla + .st-sub { margin-top: 4px; }
+@media (prefers-reduced-motion: no-preference) { .st-sla circle + circle { transition: stroke-dasharray 600ms var(--ease-out); } }
+
+/* The CBS robot in three steps: Queued, entering in CBS, Done or Failed */
+.st-robot { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 0; font-size: 13px; line-height: 1.35; color: var(--muted); }
+.st-robot li { display: inline-flex; align-items: center; gap: 6px; }
+.st-robot li + li::before { content: ""; width: 16px; height: 2px; margin: 0 4px; border-radius: 2px; background: var(--line-strong); }
+.st-robot li.done + li::before { background: var(--ok); }
+.st-robot small { font-size: 12.5px; color: var(--muted); font-weight: 400; }
+.st-robot-dot { position: relative; display: grid; place-items: center; width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid var(--line-strong); }
+.st-robot-dot .icon { width: 10px; height: 10px; stroke-width: 3; }
+.st-robot li.done { color: var(--ink-2); }
+.st-robot li.done .st-robot-dot { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+.st-robot li.now { color: var(--ink); font-weight: 600; }
+.st-robot li.now .st-robot-dot { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.st-robot li.failed { color: var(--danger); font-weight: 600; }
+.st-robot li.failed .st-robot-dot { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+.st-sub.st-robot-fail { color: var(--danger); }
+@media (prefers-reduced-motion: no-preference) {
+  .st-robot li.now .st-robot-dot::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid var(--accent); animation: st-ping 1.6s var(--ease-out) infinite; }
+}
+@keyframes st-ping { from { transform: scale(.6); opacity: .9; } to { transform: scale(1.25); opacity: 0; } }
+
+/* ---------- Case drawer: from the right on desktop, a sheet from the bottom on phones (framer moves it) ---------- */
+.k-dialog.st-drawer { margin: 0 0 0 auto; width: min(780px, 100vw); height: 100dvh; max-height: none; border-radius: var(--r-lg) 0 0 var(--r-lg); transition: none; overscroll-behavior: contain; }
+.st-drawer-inner { min-height: 100%; }
+.st-drawer .k-dialog-head { position: sticky; top: 0; z-index: 3; padding-bottom: 14px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.st-drawer .k-dialog-body { padding-top: 18px; }
+@media (max-width: 720px) {
+  .k-dialog.st-drawer { margin: auto 0 0; width: 100vw; height: auto; max-height: 92dvh; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  .st-drawer-inner { min-height: 0; }
+  .st-drawer .k-dialog-head { padding: 20px 64px 12px 18px; }
+  .st-drawer .k-dialog-body { padding: 16px 18px 26px; }
+}
+
+/* ---------- Admin: kill switch hold ring ---------- */
+.st-switch-row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.st-hold { position: relative; display: inline-grid; }
+.st-hold-ring { position: absolute; inset: -7px; width: calc(100% + 14px); height: calc(100% + 14px); overflow: visible; pointer-events: none; fill: none; stroke: var(--danger); stroke-width: 3; }
+.st-hold-ring rect { vector-effect: non-scaling-stroke; }
+.st-hold .k-switch:focus-visible { outline: 3px solid var(--focus); outline-offset: 9px; }
+
+/* ---------- Admin: the process as connected steps ---------- */
+.st-flow-wrap { position: relative; }
+.st-flow-line { position: absolute; left: 17px; top: 22px; bottom: 22px; width: 2px; border-radius: 2px; background: var(--line-strong); transform-origin: top; }
+.st-flow { position: relative; list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.st-flow-node { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; margin: 0; padding: 4px 12px 4px 0; border: 0; border-radius: var(--r-field);
+  background: none; color: var(--ink); font: 600 15px/1.35 var(--k-sans); text-align: left; cursor: pointer; transition: background-color 150ms ease; }
+.st-flow-node:hover { background: var(--surface-2); }
+.st-flow-node:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.st-flow-n { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 50%; border: 2px solid var(--line-strong); background: var(--surface);
+  font: 700 14px var(--k-sans); font-variant-numeric: tabular-nums; color: var(--ink-2); transition: border-color 150ms ease, background-color 150ms ease; }
+.st-flow-node[aria-expanded="true"] .st-flow-n { border-color: var(--accent); background: var(--tint); color: var(--ink); }
+.st-flow-name { flex: 1; min-width: 0; }
+.st-flow-node .badge { flex: none; }
+.st-flow-detail { margin: 2px 0 8px 48px; padding: 12px 14px; border-radius: var(--r-field); background: var(--surface-2); font-size: 14.5px; line-height: 1.55; color: var(--ink-2); }
+.st-flow-detail p { margin: 0; }
+.st-flow-detail p + p { margin-top: 6px; }
+
+/* ---------- Admin: audit chain check ---------- */
+.st-chain-panel { display: grid; justify-items: center; gap: 14px; padding: 26px 20px 22px; }
+.st-chain { display: flex; justify-content: center; max-width: 100%; }
+.st-chain span { width: min(34px, 7.4vw); height: 18px; flex: none; margin-left: -5px; border-radius: 999px; border: 3px solid var(--line-strong); background: var(--surface);
+  transition: border-color 200ms ease, background-color 200ms ease; transition-delay: calc(var(--i) * 50ms); }
+.st-chain span:first-child { margin-left: 0; }
+.st-chain span.good { border-color: var(--ok); background: var(--ok-bg); }
+.st-chain span.bad { border-color: var(--danger); background: var(--danger-bg); transform: translateY(5px) rotate(18deg); }
+.st-chain.broken span:not(.good):not(.bad) { opacity: .45; border-style: dashed; }
+.st-chain-caption { margin: 0; text-align: center; font-size: 15px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) {
+  .st-chain span { transition-property: border-color, background-color, transform; transition-timing-function: var(--ease-out); }
+  .st-chain.checking span { animation: st-scan 1.2s ease-in-out infinite; animation-delay: calc(var(--i) * 80ms); }
+}
+@keyframes st-scan { 50% { border-color: var(--accent); } }

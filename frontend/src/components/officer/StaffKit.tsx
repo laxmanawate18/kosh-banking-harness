@@ -1,7 +1,8 @@
-import React, { type ReactNode } from 'react';
+import React, { useRef, useState, type ReactNode } from 'react';
+import { useInView, useReducedMotion } from 'framer-motion';
 import { Icon } from '../common/Icon';
 import { Badge } from '../common/Badge';
-import { ActiveIndicator, AnimatedNumber, DUR, EASE } from '../common/Animate';
+import { ActiveIndicator, AnimatedNumber, DUR, EASE, motion } from '../common/Animate';
 import { humanizeCode } from '../common/Formatters';
 
 /** Building blocks shared by the officer console and the Admin Panel (styles in staff.css). */
@@ -44,7 +45,7 @@ export const Panel: React.FC<{ title: ReactNode; count?: number; sub?: ReactNode
   <section className={`panel st-panel ${className}`} aria-label={label}>
     <div className="panel-head">
       <div className="st-panel-title">
-        <h2>{title}{typeof count === 'number' && <span className="k-count">{count}</span>}</h2>
+        <h2>{title}{typeof count === 'number' && <span className="k-count"><AnimatedNumber value={count} /></span>}</h2>
         {sub && <p>{sub}</p>}
       </div>
       {actions && <div className="st-panel-actions">{actions}</div>}
@@ -65,13 +66,40 @@ export const rowMotion = (i: number) => ({
   exit: { opacity: 0, x: -12, transition: { duration: DUR.fast } },
 });
 
-/** A proportional bar behind a figure (share of the largest row). Decorative: the figure carries the meaning. */
-export const Bar: React.FC<{ value: number; max: number; children: ReactNode }> = ({ value, max, children }) => (
-  <span className="st-bar-cell">
-    <span className="st-bar" aria-hidden="true"><i style={{ width: `${max && value ? Math.max(2, (100 * value) / max) : 0}%` }} /></span>
-    <span>{children}</span>
-  </span>
-);
+/**
+ * A proportional bar behind a figure (share of the largest row). Decorative: the figure carries the meaning.
+ * Grows from zero the first time it scrolls into view and glides to a new value when the data changes (transform only).
+ */
+export const Bar: React.FC<{ value: number; max: number; children: ReactNode }> = ({ value, max, children }) => {
+  const track = useRef<HTMLSpanElement>(null);
+  const seen = useInView(track, { once: true });  // the track, not the bar: a bar at scale 0 has no area to be seen
+  const reduce = useReducedMotion();
+  const share = max && value ? Math.max(0.02, value / max) : 0;
+  return (
+    <span className="st-bar-cell">
+      <span className="st-bar" aria-hidden="true" ref={track}>
+        <motion.i initial={reduce ? false : { scaleX: 0 }} animate={{ scaleX: seen || reduce ? share : 0 }} transition={{ duration: 0.7, ease: EASE }} /></span>
+      <span>{children}</span>
+    </span>
+  );
+};
+
+/** Long lists show 20 rows, then "Show 20 more" (the new rows rise in). A new `reset` value (the filter) starts from the top. */
+export function Paged<T>({ rows, reset, children }: { rows: T[]; reset?: unknown; children: (shown: T[]) => ReactNode }) {
+  const [limit, setLimit] = useState(20);
+  const [was, setWas] = useState(reset);
+  if (was !== reset) { setWas(reset); setLimit(20); }
+  const rest = rows.length - limit;
+  return (
+    <>
+      {children(rows.slice(0, limit))}
+      {rest > 0 && <div className="st-more">
+        <span aria-live="polite">Showing {limit} of {rows.length}</span>
+        <button type="button" className="k-btn outline sm" onClick={() => setLimit(l => l + 20)}>Show {Math.min(20, rest)} more</button>
+      </div>}
+    </>
+  );
+}
 
 /** A badge with our own words: Badge re-cases plain strings ("In Kosh" -> "In kosh"), a fragment is shown as written. */
 export const Tag: React.FC<{ tone: 'success' | 'warning' | 'danger' | 'neutral' | 'info'; children: ReactNode }> = ({ tone, children }) =>

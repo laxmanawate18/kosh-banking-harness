@@ -23,6 +23,17 @@ const LABEL: Record<ApplicationStatus['status'], string> = {
   WITHDRAWN: 'Withdrawn',
 };
 
+type Step = { label: string; state: 'done' | 'current' | 'next'; date?: string; icon?: string };
+
+/** The timeline, built only from what the status response says: received, under review, then the decision. */
+const timeline = (r: ApplicationStatus): Step[] => {
+  const received: Step = { label: 'Application received', state: 'done', date: r.submitted_at, icon: 'check' };
+  if (r.status === 'WITHDRAWN') return [received, { label: LABEL.WITHDRAWN, state: 'done', date: r.updated_at, icon: 'undo' }];
+  if (r.status === 'UNDER_REVIEW') return [received, { label: LABEL.UNDER_REVIEW, state: 'current', date: r.updated_at, icon: 'clock' }, { label: 'Decision', state: 'next' }];
+  return [received, { label: LABEL.UNDER_REVIEW, state: 'done', icon: 'check' },
+    { label: LABEL[r.status], state: 'done', date: r.updated_at, icon: r.status === 'APPROVED' ? 'check' : 'close' }];
+};
+
 /** Public page: an applicant checks status with the reference and the mobile number used to apply. */
 export const TrackApplicationPage: React.FC<{ reference?: string; onAsk: (prompt: string) => void }> = ({ reference: initial = '', onAsk }) => {
   const { t, lang } = useI18n();
@@ -65,7 +76,20 @@ export const TrackApplicationPage: React.FC<{ reference?: string; onAsk: (prompt
               <span className={`k-pill ${TONE[result.status]}`}>{t(LABEL[result.status])}</span>
               <h2>{result.product}</h2>
               <p className="k-track-ref">{result.reference}</p>
-              <p>{t('Submitted')}: {date(result.submitted_at)} · {t('Last update')}: {date(result.updated_at)}</p>
+              <ol className="k-steps">
+                {timeline(result).map(s => (
+                  <li key={s.label} className={s.state} aria-current={s.state === 'current' ? 'step' : undefined}>
+                    <span className="k-step-dot">{s.icon && <Icon name={s.icon} />}</span>
+                    <span>
+                      <strong>{t(s.label)}</strong>
+                      <small>
+                        {s.state === 'done' ? t('Done') : s.state === 'current' ? t('In progress') : t('Next')}
+                        {s.date && ` · ${s.state === 'current' ? `${t('Last update')}: ` : ''}${date(s.date)}`}
+                      </small>
+                    </span>
+                  </li>
+                ))}
+              </ol>
               <p>{result.next_step}</p>
             </motion.article>
           )}

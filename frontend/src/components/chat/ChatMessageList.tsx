@@ -6,7 +6,8 @@ import type { ChatMessage } from '../../types/chat';
 import { SalesActionCard } from './SalesActionCard';
 import { ChatPresentationCard } from './ChatPresentationCard';
 import { ChatProcessTrace } from './ChatProcessTrace';
-import { MarkdownRenderer } from '../common/MarkdownRenderer';
+import { StreamText } from './StreamText';
+import { Stagger } from '../common/Animate';
 import { useBanking } from '../../context/BankingContext';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
@@ -66,7 +67,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages, onSu
       <LotusMark size={36} className="ai-avatar-lotus" />
       <h3>{visitor ? t('How can we help you get started?') : firstName ? t('Hello, {name}.', { name: firstName }) : t('Hello.')}</h3>
       <p>{visitor ? t('Explore accounts, cards and deposits with Mitra. Sign in for help with your own accounts.') : t('Check your balances, manage banking requests and get help with KYC.')}</p>
-      <div className="ai-quick-cards">{prompts.map(([label, prompt]) => <button type="button" className="ai-quick-card" key={label} disabled={!isConnected || isStreaming} onClick={() => sendMessage(prompt)}><strong>{label}</strong><small>{prompt}</small></button>)}</div>
+      <Stagger className="ai-quick-cards">{prompts.map(([label, prompt]) => <Stagger.Item as="button" type="button" className="ai-quick-card" key={label} disabled={!isConnected || isStreaming} onClick={() => sendMessage(prompt)}><strong>{label}</strong><small>{prompt}</small></Stagger.Item>)}</Stagger>
     </div> : (
             messages.map(msg => {
               const isUser = msg.role === 'user';
@@ -109,7 +110,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages, onSu
                         isUser ? (
                           <div>{msg.text}</div>
                         ) : (
-                          <MarkdownRenderer content={stripSuggestions(msg.text)} />
+                          <StreamText text={stripSuggestions(msg.text)} streaming={msg.isStreaming} />
                         )
                       )}
 

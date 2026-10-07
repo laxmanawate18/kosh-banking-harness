@@ -13,6 +13,11 @@ import { TrackApplicationPage } from '../site/TrackApplication';
 import { RatesPage, FeesPage, HelpPage, FaqsPage, SegmentsPage, LearnPage, NotFound } from '../site/InfoPages';
 import type { Product, ProductCategory } from '../../types/products';
 import { motion, pageMotion } from '../common/Animate';
+import { useMotionValueEvent, useScroll } from 'framer-motion';
+import { ScrollProgress } from '../site/Story';
+
+/** Long pages you read top to bottom get the reading-progress bar ('' is Home). */
+const READING = ['', 'rates', 'fees', 'help', 'faqs', 'for', 'learn'];
 
 export const AuthScreen: React.FC = () => {
   const { t } = useI18n();
@@ -20,6 +25,7 @@ export const AuthScreen: React.FC = () => {
   const { setIsOpen, sendMessage } = useChat();
   const route = useHashRoute();
   const loginRef = useRef<HTMLDialogElement>(null);
+  const siteRef = useRef<HTMLDivElement>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +54,16 @@ export const AuthScreen: React.FC = () => {
     return () => window.removeEventListener('open-login-modal', handler);
   }, [openLogin]);
 
+  // Ask Mitra (App.tsx renders it next to .k-site) folds to its lotus while the visitor reads down past 200px and
+  // unfolds on the way back up; site.css keys off data-fab. A motion value, so scrolling never re-renders the page.
+  const { scrollY } = useScroll();
+  useMotionValueEvent(scrollY, 'change', y => {
+    const el = siteRef.current, d = y - (scrollY.getPrevious() ?? 0);
+    if (!el || (y > 200 && Math.abs(d) < 6)) return;
+    const fab = y > 200 && d > 0 ? 'mini' : 'full';
+    if (el.dataset.fab !== fab) el.dataset.fab = fab;
+  });
+
   const continueSecurely = () => {
     const start = publicConfig?.oauth_start_url || '/api/auth/start';
     window.location.assign(`${start}?return_to=/`);
@@ -75,7 +91,8 @@ export const AuthScreen: React.FC = () => {
   })();
 
   return (
-    <div className={`k-site ${route[0] ? '' : 'is-lux'}`}>
+    <div ref={siteRef} className={`k-site ${route[0] ? '' : 'is-lux'}`}>
+      {READING.includes(route[0] ?? '') && <ScrollProgress />}
       <UtilityBar />
       <SiteHeader route={route} onLogin={openLogin} />
       <motion.main id="main" tabIndex={-1} key={route[0] || 'home'} style={{ outline: 'none' }} {...pageMotion}>{page}</motion.main>

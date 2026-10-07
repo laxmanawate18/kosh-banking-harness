@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { startVideoKyc } from '../../services/banking';
 import { Badge } from '../common/Badge';
 import { Icon } from '../common/Icon';
+import { Stagger } from '../common/Animate';
 
 interface ChatPresentationCardProps {
   presentation?: ChatPresentation;
@@ -64,18 +65,19 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
       <article className="chat-result">
         <h3>{title}</h3>
         {pres.description && <p className="muted cr-note">{pres.description}</p>}
-        <div className="action-chips">
+        <Stagger className="action-chips">
           {options.map((o: any, idx: number) => (
-            <button
+            <Stagger.Item
+              as="button"
               key={idx}
               type="button"
               className="action-chip"
               onClick={() => onPromptClick?.(o.prompt || o.value || o.label)}
             >
               {o.label || o.value}
-            </button>
+            </Stagger.Item>
           ))}
-        </div>
+        </Stagger>
       </article>
     );
   }

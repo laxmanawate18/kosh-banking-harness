@@ -1,4 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { crossfade } from '../prefs';
 
 export type Lang = 'en' | 'hi' | 'mr';
 type Entry = { hi?: string; mr?: string };
@@ -46,7 +48,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // `version` bumps when dictionaries arrive so every t() consumer re-renders with the translations.
   const t = useCallback((key: string, vars?: Record<string, string | number>) => translate(lang, key, vars), [lang, version]);
-  const value = useMemo(() => ({ lang, setLang: setLangState, t }), [lang, t]);
+  // Load the dictionary first, then crossfade once from the old language straight into the new one.
+  const setLang = useCallback((next: Lang) => {
+    void (next === 'en' ? Promise.resolve() : loadDict()).then(() => crossfade(() => flushSync(() => setLangState(next))));
+  }, []);
+  const value = useMemo(() => ({ lang, setLang, t }), [lang, setLang, t]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 };
 

@@ -59,8 +59,9 @@ Stagger.Item = function StaggerItem({ as = 'div', className, children, tilt, ...
 /** Content that rises in the first time it scrolls into view (long pages; marketing sections). */
 export function Reveal({ as = 'div', className, children, ...rest }: Props) {
   const Comp = motion[as] as React.ElementType;
+  const reduce = useReducedMotion();  // reduced motion: content is simply there, no fade on scroll
   return (
-    <Comp className={className} initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }}
+    <Comp className={className} initial={reduce ? false : { opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '0px 0px -12% 0px' }} transition={{ duration: 0.45, ease: EASE }} {...rest}>
       {children}
     </Comp>

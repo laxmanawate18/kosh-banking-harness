@@ -14,7 +14,9 @@ import { Badge } from '../common/Badge';
 import { Card3D } from '../common/Card3D';
 import { LotusLoader } from '../common/LotusLoader';
 import { LotusMark, Rangoli } from '../common/KoshLogo';
-import { AnimatedNumber, Stagger } from '../common/Animate';
+import { Stagger } from '../common/Animate';
+import { HideBalancesToggle, Money } from '../app/Balance';
+import { useSeenSince } from './seen';
 import type { Challenge, Transaction } from '../../types/banking';
 
 type PendingApproval = Challenge & { requested_via: 'MITRA' | 'ASSISTANT_APP' };
@@ -58,7 +60,6 @@ const ACTIONS: { id: string; label: string; icon: FeatureIconName; hl?: boolean 
   { id: 'accounts', label: 'Statements', icon: 'statement' },
 ];
 
-const money = (v: number) => formatMoney(Math.round(v));
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replace(/_/g, ' ');
 
 /** Previous session start if the user has one, else this session's start. */
@@ -131,8 +132,8 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
   const { user } = useAuth();
   const { sendMessage } = useChat();
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
-  const [showBalance, setShowBalance] = useState(true);
   const lastLogin = useLastLogin();
+  const seenSince = useSeenSince(overview?.transactions);
 
   const accounts = overview?.accounts || [];
   const totalBalance = overview?.total_available_minor ?? accounts.reduce((s, a) => s + (a.available_balance_minor || 0), 0);
@@ -168,14 +169,12 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
           {lastLogin && <div className="k-last-login"><Icon name="clock" />{t('Last login {when}', { when: formatDateTime(lastLogin) })}</div>}
           <div className="k-balance-label" id="dash-balance-label">
             {t('Total available balance')}
-            <button type="button" className="k-eye" onClick={() => setShowBalance(s => !s)} aria-pressed={!showBalance}>
-              <Icon name={showBalance ? 'eye-off' : 'eye'} />{showBalance ? t('Hide') : t('Show')}
-            </button>
+            <HideBalancesToggle className="k-eye" />
           </div>
-          <div className="k-balance">{showBalance ? <AnimatedNumber value={totalBalance} format={money} /> : '₹ ••,••,•••'}</div>
+          <div className="k-balance"><Money value={totalBalance} /></div>
           <div className="k-dash-flow">
-            <span className="in"><Icon name="arrow-down-left" />{t('In')} {formatMoney(credits)}</span>
-            <span className="out"><Icon name="arrow-up-right" />{t('Out')} {formatMoney(debits)}</span>
+            <span className="in"><Icon name="arrow-down-left" />{t('In')} <Money value={credits} /></span>
+            <span className="out"><Icon name="arrow-up-right" />{t('Out')} <Money value={debits} /></span>
             <span>{t('{n} accounts', { n: accounts.length })}</span>
           </div>
           <div className="k-dash-hero-actions">
@@ -244,7 +243,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
             </header>
             <h3>{a.name || t('Savings account')}</h3>
             <span className="k-acc-no">{a.account_number_masked || '•••• 0000'}{a.ifsc_code ? ` · ${a.ifsc_code}` : ''}</span>
-            <strong className="k-acc-bal">{showBalance ? <AnimatedNumber value={a.available_balance_minor ?? 0} format={money} /> : '₹ •••••'}</strong>
+            <strong className="k-acc-bal"><Money value={a.available_balance_minor ?? 0} /></strong>
             <button type="button" className="k-link" onClick={() => onNavigate('accounts')}>{t('Details and statements')} <Icon name="arrow-right" /></button>
           </Stagger.Item>
         ))}
@@ -256,7 +255,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
             <div><h2>{t('Recent transactions')}</h2><p>{t('Your latest account activity')}</p></div>
             <button type="button" className="k-link" onClick={() => onNavigate('transactions')}>{t('View all')} <Icon name="arrow-right" /></button>
           </header>
-          <RecentTransactions transactions={transactions} compact onSelectTransaction={setSelectedTx} />
+          <RecentTransactions transactions={transactions} compact newSince={seenSince} onSelectTransaction={setSelectedTx} />
         </section>
 
         <div className="k-dash-side">

@@ -25,3 +25,9 @@ export function applyPrefs(p: DisplayPrefs) {
   html.style.colorScheme = p.theme;
   localStorage.setItem(KEY, JSON.stringify(p));
 }
+
+/** Crossfade the whole page into a new look (theme, language). Instant when reduced motion is on or unsupported. */
+export function crossfade(update: () => void) {
+  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) update();
+  else document.startViewTransition(update);
+}

@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp } from 'lucide-react';
 import { Icon } from '../common/Icon';
 import { useI18n } from '../../i18n';
 import { useAuth } from '../../context/AuthContext';
+import { ActiveIndicator, AnimatePresence, SPRING, Stagger, motion } from '../common/Animate';
 import { ADMIN_NAV, OFFICER_NAV } from './Sidebar';
 
 interface SearchItem {
@@ -13,8 +14,6 @@ interface SearchItem {
   route: string;
   action?: () => void;
 }
-
-const kbd: React.CSSProperties = { padding: '1px 4px', border: '1px solid var(--line-strong)', borderRadius: '3px', background: 'var(--surface)' };
 
 /** Drops a key cap into a translated sentence at its {key} placeholder, so word order follows the language. */
 const withKey = (text: string, key: React.ReactNode) => {
@@ -121,112 +120,49 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      className="gsm-scrim"
-      onClick={onClose}
-    >
-      <div
-        className="flow-dialog search-dialog"
-        style={{
-          background: 'var(--surface)',
-          borderRadius: '12px',
-          boxShadow: '0 24px 60px rgba(23, 57, 41, 0.25)',
-          overflow: 'hidden',
-          width: 'min(560px, 100%)',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="search-head" style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--line)' }}>
-          <Icon name="search" />
-          <input
-            ref={inputRef}
-            type="search"
-            placeholder={staffNav ? t('Search pages') : t('Search pages, services, accounts and actions')}
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            style={{
-              border: 0,
-              outline: 'none',
-              padding: '8px 12px',
-              fontSize: '13px',
-              flex: 1,
-              background: 'transparent',
-              margin: 0,
-            }}
-          />
-          <button
-            type="button"
-            className="icon-button"
-            onClick={onClose}
-            style={{ width: '28px', height: '28px', fontSize: '14px' }}
-            aria-label={t('Close')}
-          >
-            <Icon name="close" />
-          </button>
-        </div>
-
-        <div
-          id="searchResults"
-          style={{
-            maxHeight: '340px',
-            overflowY: 'auto',
-            padding: '6px',
-          }}
-        >
-          {filtered.length === 0 ? (
-            <div className="empty" style={{ padding: '24px 16px' }}>
-              <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted)' }}>
-                {t('No results found for “{query}”', { query })}
-              </p>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div className="gsm-scrim" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.16 }}>
+          <motion.div className="k-search-panel" role="dialog" aria-modal="true" aria-label={t('Search')} onClick={e => e.stopPropagation()}
+            initial={{ opacity: 0, y: -10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={SPRING}>
+            <div className="k-search-head">
+              <Icon name="search" />
+              <input ref={inputRef} type="search" role="combobox" aria-expanded="true" aria-controls="searchResults"
+                aria-activedescendant={filtered[selectedIndex] ? `sr-${filtered[selectedIndex].id}` : undefined}
+                placeholder={staffNav ? t('Search pages') : t('Search pages, services, accounts and actions')}
+                value={query} onChange={e => setQuery(e.target.value)} onKeyDown={handleKeyDown} />
+              <button type="button" className="k-icon-btn" onClick={onClose} aria-label={t('Close')}><Icon name="close" /></button>
             </div>
-          ) : (
-            filtered.map((item, idx) => {
-              const isSelected = idx === selectedIndex;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="search-result"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    width: '100%',
-                    background: isSelected ? 'var(--surface-2)' : 'transparent',
-                    border: 0,
-                    borderRadius: '6px',
-                    textAlign: 'left',
-                    padding: '8px 12px',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    transition: 'all 0.12s ease',
-                  }}
-                  onMouseEnter={() => setSelectedIndex(idx)}
-                  onClick={() => handleSelect(item)}
-                >
-                  <span style={{ color: 'var(--brand)', display: 'grid', placeItems: 'center' }}>
-                    <Icon name={item.icon} />
-                  </span>
-                  <span style={{ fontWeight: 500, flex: 1, color: 'var(--ink)' }}>
-                    {item.title}
-                  </span>
-                  <small style={{ color: 'var(--muted)', fontSize: '13px' }}>
-                    {item.category}
-                  </small>
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        <small style={{ display: 'block', padding: '8px 14px', color: 'var(--muted)', fontSize: '13px', borderTop: '1px solid var(--line)', background: 'var(--surface-2)' }}>
-          {withKey(t('{key} to close'), <kbd style={kbd}>Esc</kbd>)} · {withKey(t('{key} to navigate'), <><kbd style={kbd}><ArrowUp size={12} aria-label={t('Up')} /></kbd> <kbd style={kbd}><ArrowDown size={12} aria-label={t('Down')} /></kbd></>)} · {withKey(t('{key} to select'), <kbd style={kbd}>Enter</kbd>)}
-        </small>
-      </div>
-    </div>
+            <div id="searchResults" className="k-search-results" role="listbox" aria-label={t('Results')}>
+              {filtered.length === 0 ? (
+                <p className="k-search-empty">{t('No results found for “{query}”', { query })}</p>
+              ) : (
+                <Stagger key={query ? 'q' : 'all'}>
+                  {filtered.map((item, idx) => {
+                    const isSelected = idx === selectedIndex;
+                    return (
+                      <Stagger.Item as="button" key={item.id} id={`sr-${item.id}`} type="button" role="option" aria-selected={isSelected}
+                        className={`k-search-result ${isSelected ? 'selected' : ''}`} onMouseEnter={() => setSelectedIndex(idx)}
+                        onClick={() => handleSelect(item)}>
+                        {isSelected && <ActiveIndicator id="search-selection" className="k-search-highlight" />}
+                        <span className="k-search-icon"><Icon name={item.icon} /></span>
+                        <span className="k-search-title">{item.title}</span>
+                        <small>{item.category}</small>
+                      </Stagger.Item>
+                    );
+                  })}
+                </Stagger>
+              )}
+            </div>
+            <small className="k-search-keys">
+              {withKey(t('{key} to close'), <kbd>Esc</kbd>)} · {withKey(t('{key} to navigate'), <><kbd><ArrowUp size={12} aria-label={t('Up')} /></kbd> <kbd><ArrowDown size={12} aria-label={t('Down')} /></kbd></>)} · {withKey(t('{key} to select'), <kbd>Enter</kbd>)}
+            </small>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

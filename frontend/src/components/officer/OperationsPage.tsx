@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { formatDate, formatDateTime, formatMoney, humanizeCode } from '../common/Formatters';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { formatDate, formatDateTime, formatMoney, formatTime, humanizeCode, utc } from '../common/Formatters';
 import { useBanking } from '../../context/BankingContext';
 import { fetchOfficerCustomers, fetchOfficerLeads, requestCustomerDeletion, resendOfficerCustomerCredentials } from '../../services/banking';
 import { get, post } from '../../services/api';
@@ -8,11 +8,13 @@ import { Icon } from '../common/Icon';
 import { Modal } from '../common/Modal';
 import { PageHeader } from '../common/PageHeader';
 import { FilterTabs } from '../common/FilterTabs';
+import { SkeletonRows } from '../common/Skeleton';
+import { useToast } from '../common/Toast';
 import { AnimatePresence, motion } from '../common/Animate';
 import { OfficerCopilot } from './OfficerCopilot';
 import { CaseDialog, DECIDE_STATUSES } from './CaseDialog';
 import { LeadsPage } from './LeadsPage';
-import { Attention, Empty, Kpi, Panel, Tag, rowMotion, errorText } from './StaffKit';
+import { Attention, Empty, Kpi, Paged, Panel, Tag, rowMotion, errorText } from './StaffKit';
 
 interface OperationsPageProps {
   isHistory?: boolean;
@@ -24,31 +26,76 @@ const ACTIVE = ['NEW', 'DUE', 'PENDING', 'PENDING_APPROVAL', 'MORE_INFO_REQUIRED
 const CBS = ['QUEUED_FOR_CBS', 'RPA_EXECUTING', 'RPA_FAILED'];
 const byOldest = (a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at));
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+/** "45 min", "3h 20m", "20h", "12 days". */
+const span = (ms: number) => {
+  const m = Math.max(1, Math.round(ms / 60000)), h = Math.floor(m / 60);
+  return m < 60 ? `${m} min` : h < 10 ? `${h}h${m % 60 ? ` ${m % 60}m` : ''}` : h < 48 ? `${h}h` : `${Math.round(h / 24)} days`;
+};
+/** The clock for "3h left" and "Waiting 2h", ticking once a minute. */
+const useNow = () => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(t); }, []);
+  return now;
+};
+const without = (set: Set<string>, id: string) => { const next = new Set(set); next.delete(id); return next; };
+/** Not "New": that word is already the care status OPEN. */
+const NewTag = () => <span className="st-flag"><Tag tone="info">Just arrived</Tag></span>;
+
+/** The CBS robot for one account in three steps. Times come from the robot's job while the server still holds it. */
+const RobotSteps: React.FC<{ r: any }> = ({ r }) => {
+  const job = r.rpa_job || {};
+  const failed = r.status === 'RPA_FAILED';
+  const at = r.status === 'QUEUED_FOR_CBS' ? 0 : r.status === 'RPA_EXECUTING' ? 1 : 2;
+  const steps: [string, string | null][] = [['Queued', job.enqueued_at], ['Robot entering in CBS', job.started_at], [failed ? 'Failed' : 'Done', job.completed_at]];
+  return (
+    <>
+      <ol className="st-robot" aria-label="Core banking entry">{steps.map(([label, time], i) => {
+        const state = i < at ? 'done' : i > at ? 'waiting' : failed ? 'failed' : 'now';
+        return (
+          <li key={i} className={state} aria-current={state === 'now' ? 'step' : undefined}>
+            <span className="st-robot-dot" aria-hidden="true">{state === 'done' ? <Icon name="check" /> : state === 'failed' ? <Icon name="close" /> : null}</span>
+            {label}{time && state !== 'waiting' && <small>{formatTime(utc(time))}</small>}
+            {state === 'now' && <span className="sr-only"> (in progress)</span>}
+          </li>);
+      })}</ol>
+      {failed && <span className="st-sub st-robot-fail">{job.attempts > 1 ? `Failed after ${job.attempts} attempts. ` : ''}Open the case to retry.</span>}
+    </>
+  );
+};
 
 /** The officer console: Review queue (service requests, customer care, customers), AI sales leads and Case history share this entry. */
 export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = false, initialFilter }) =>
   initialFilter === 'leads' ? <LeadsPage /> : isHistory ? <HistoryPage /> : <QueuePage />;
 
 /* ---------------- Service requests table (queue and history) ---------------- */
-const RequestsTable: React.FC<{ rows: any[]; onOpen: (r: any) => void; history?: boolean }> = ({ rows, onOpen, history }) => (
-  <div className="table-scroll"><table className="table st-cards st-sticky">
-    <thead><tr><th>Request</th><th>Customer</th><th>Submitted</th>{history && <th>Decided</th>}<th>Status</th><th><span className="sr-only">Action</span></th></tr></thead>
-    <tbody><AnimatePresence initial={false}>{rows.map((r, i) => {
-      const decide = DECIDE_STATUSES.includes(r.status);
-      return (
-        <motion.tr key={r.id} {...rowMotion(i)}>
-          <td className="st-main"><strong>{r.service_name || humanizeCode(r.request_type) || 'Service request'}</strong><span className="st-sub">{r.id}</span></td>
-          <td data-label="Customer">{r.customer_id || r.user_id || '—'}</td>
-          <td data-label="Submitted" className="st-nowrap">{formatDateTime(r.created_at)}</td>
-          {history && <td data-label="Decided" className="st-nowrap">{r.updated_at ? formatDateTime(r.updated_at) : '—'}{r.approver_id && <span className="st-sub">{r.approver_id}</span>}</td>}
-          <td className="st-status"><Badge status={r.status} /></td>
-          <td className="st-act"><div className="row-actions">
-            <button type="button" className={`k-btn sm ${decide ? 'primary' : 'outline'}`} onClick={() => onOpen(r)}>{decide ? 'Review' : 'View case'}</button>
-          </div></td>
-        </motion.tr>);
-    })}</AnimatePresence></tbody>
-  </table></div>
-);
+const RequestsTable: React.FC<{ rows: any[]; onOpen: (r: any) => void; history?: boolean; reset?: string; fresh?: Set<string> }> = (
+  { rows, onOpen, history, reset, fresh }) => {
+  const now = useNow();
+  return (
+    <Paged rows={rows} reset={reset}>{shown => (
+      <div className="table-scroll"><table className="table st-cards st-sticky">
+        <thead><tr><th>Request</th><th>Customer</th><th>Submitted</th>{history && <th>Decided</th>}<th>Status</th><th><span className="sr-only">Action</span></th></tr></thead>
+        <tbody><AnimatePresence initial={false}>{shown.map((r, i) => {
+          const decide = DECIDE_STATUSES.includes(r.status);
+          return (
+            <motion.tr key={r.id} className={fresh?.has(r.id) ? 'st-new' : undefined} {...rowMotion(i % 20)}>
+              <td className="st-main"><strong>{r.service_name || humanizeCode(r.request_type) || 'Service request'}</strong><span className="st-sub">{r.id}</span>
+                {fresh?.has(r.id) && <NewTag />}{CBS.includes(r.status) && <RobotSteps r={r} />}</td>
+              <td data-label="Customer">{r.customer_id || r.user_id || '—'}</td>
+              <td data-label="Submitted" className="st-nowrap">{formatDateTime(utc(r.created_at))}
+                {!history && r.created_at && <span className="st-sub">Waiting {span(now - Date.parse(utc(r.created_at)))}</span>}</td>
+              {history && <td data-label="Decided" className="st-nowrap">{r.updated_at ? formatDateTime(utc(r.updated_at)) : '—'}{r.approver_id && <span className="st-sub">{r.approver_id}</span>}</td>}
+              <td className="st-status"><Badge status={r.status} /></td>
+              <td className="st-act"><div className="row-actions">
+                <button type="button" className={`k-btn sm ${decide ? 'primary' : 'outline'}`} onClick={() => onOpen(r)}>
+                  {r.status === 'RPA_FAILED' ? 'Open to retry' : decide ? 'Review' : 'View case'}</button>
+              </div></td>
+            </motion.tr>);
+        })}</AnimatePresence></tbody>
+      </table></div>)}
+    </Paged>
+  );
+};
 
 /* ---------------- Customer care ---------------- */
 type CareCase = { id: string; kind: string; status: string; priority: string; customer_id: string | null; name: string | null;
@@ -62,8 +109,24 @@ const urgency = (a: CareCase, b: CareCase) => Number(b.overdue) - Number(a.overd
 const categoryText = (c: CareCase) => (!c.category || c.category.toUpperCase() === c.kind ? null
   : /^[A-Z_]+$/.test(c.category) ? humanizeCode(c.category) : c.category.charAt(0).toUpperCase() + c.category.slice(1));
 
-const CarePanel: React.FC<{ cases: CareCase[] | null; reload: () => Promise<void>; filter: string; setFilter: (f: string) => void }> = (
-  { cases, reload, filter, setFilter }) => {
+/** Time left to the RBI due time: a ring that empties toward due_at, amber in the last 20%, red once overdue. The words carry the meaning. */
+const SlaRing: React.FC<{ c: CareCase; now: number }> = ({ c, now }) => {
+  const due = Date.parse(utc(c.due_at)), left = due - now;
+  const overdue = c.overdue || left <= 0;
+  const share = overdue ? 1 : Math.min(1, left / Math.max(1, due - Date.parse(utc(c.created_at))));
+  return (
+    <span className={`st-sla ${overdue ? 'danger' : share <= 0.2 ? 'warn' : ''}`}>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8" />
+        <circle cx="10" cy="10" r="8" pathLength={100} strokeDasharray={`${share * 100} 100`} transform="rotate(-90 10 10)" /></svg>
+      {overdue ? (left < 0 ? `Overdue by ${span(-left)}` : 'Overdue') : `${span(left)} left`}
+    </span>
+  );
+};
+
+const CarePanel: React.FC<{ cases: CareCase[] | null; reload: () => Promise<void>; filter: string; setFilter: (f: string) => void;
+  fresh: Set<string>; seen: (id: string) => void }> = ({ cases, reload, filter, setFilter, fresh, seen }) => {
+  const toast = useToast();
+  const now = useNow();
   const [resolving, setResolving] = useState<CareCase | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -75,9 +138,12 @@ const CarePanel: React.FC<{ cases: CareCase[] | null; reload: () => Promise<void
     resolved: list.filter(c => c.status === 'RESOLVED'), all: list };
   const rows = groups[filter] || open;
   const update = async (c: CareCase, status: string, resolution?: string) => {
-    setBusy(c.id); setError(null);
-    try { await post(`/api/officer/care-cases/${c.id}`, { status, resolution }); await reload(); setResolving(null); setNote(''); }
-    catch (e) { setError(errorText(e)); } finally { setBusy(null); }
+    setBusy(c.id); setError(null); seen(c.id);
+    try {
+      await post(`/api/officer/care-cases/${c.id}`, { status, resolution }); await reload(); setResolving(null); setNote('');
+      toast(status === 'RESOLVED' ? { message: `Resolved ${CARE_KIND[c.kind]?.toLowerCase() || 'case'} ${c.id}` }
+        : { message: `You took ${c.id}. It now shows In progress.`, tone: 'info' });
+    } catch (e) { setError(errorText(e)); } finally { setBusy(null); }
   };
   return (
     <Panel title="Customer care" count={rows.length} label="Customer care queue"
@@ -87,18 +153,20 @@ const CarePanel: React.FC<{ cases: CareCase[] | null; reload: () => Promise<void
         { id: 'high', label: 'High priority', count: groups.high.length }, { id: 'resolved', label: 'Resolved', count: groups.resolved.length },
         { id: 'all', label: 'All' }]} />}>
       {error && !resolving && <div className="panel-body st-tight"><p className="form-error" role="alert">{error}</p></div>}
-      {!cases ? <div className="st-loading" aria-busy="true"><i /><i /><i /></div> : rows.length ? (
+      {!cases ? <SkeletonRows rows={4} label="Loading care cases" /> : rows.length ? <Paged rows={rows} reset={filter}>{shown => (
         <div className="table-scroll"><table className="table st-cards st-sticky">
           <thead><tr><th>Case</th><th>Customer</th><th>Issue</th><th>Due</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead>
-          <tbody><AnimatePresence initial={false}>{rows.map((c, i) => (
-            <motion.tr key={c.id} {...rowMotion(i)}>
+          <tbody><AnimatePresence initial={false}>{shown.map((c, i) => (
+            <motion.tr key={c.id} className={fresh.has(c.id) ? 'st-new' : undefined} {...rowMotion(i % 20)}>
               <td className="st-main"><strong>{CARE_KIND[c.kind] || humanizeCode(c.kind)}</strong>
                 <span className="st-sub">{[c.id, categoryText(c)].filter(Boolean).join(' · ')}</span>
+                {fresh.has(c.id) && <NewTag />}
                 {c.priority === 'HIGH' && careOpen(c) && <span className="st-flag"><Tag tone="danger">High priority</Tag></span>}</td>
               <td data-label="Customer">{c.name || c.customer_id || 'Visitor'}
                 {(c.name && c.customer_id) || c.phone ? <span className="st-sub">{[c.name ? c.customer_id : null, c.phone].filter(Boolean).join(' · ')}</span> : null}</td>
               <td data-label="Issue" className="st-wrap">{c.summary}{c.preferred_time && <span className="st-sub">Preferred time: {c.preferred_time}</span>}</td>
-              <td data-label="Due" className="st-nowrap">{formatDateTime(c.due_at)}{c.overdue && careOpen(c) && <span className="st-flag"><Tag tone="danger">Overdue</Tag></span>}</td>
+              <td data-label="Due" className="st-nowrap">{careOpen(c) ? <><SlaRing c={c} now={now} /><span className="st-sub">Due {formatDateTime(utc(c.due_at))}</span></>
+                : formatDateTime(utc(c.due_at))}</td>
               <td className="st-status"><Tag tone={CARE_STATUS[c.status]?.[0] || 'neutral'}>{CARE_STATUS[c.status]?.[1] || humanizeCode(c.status)}</Tag></td>
               <td className="st-act"><div className="row-actions">
                 {c.status === 'OPEN' && <button type="button" className="k-btn outline sm" disabled={busy === c.id} onClick={() => update(c, 'IN_PROGRESS')}>Take</button>}
@@ -106,8 +174,8 @@ const CarePanel: React.FC<{ cases: CareCase[] | null; reload: () => Promise<void
                 {c.status === 'RESOLVED' && <span className="muted">Closed</span>}
               </div></td>
             </motion.tr>))}</AnimatePresence></tbody>
-        </table></div>
-      ) : <Empty title={filter === 'overdue' ? 'Nothing is overdue' : 'No cases in this view'}>Cases customers raise through Mitra appear here.</Empty>}
+        </table></div>)}</Paged>
+      : <Empty title={filter === 'overdue' ? 'Nothing is overdue' : 'No cases in this view'}>Cases customers raise through Mitra appear here.</Empty>}
 
       {resolving && (
         <Modal isOpen onClose={() => !busy && setResolving(null)} title={`Resolve ${CARE_KIND[resolving.kind]?.toLowerCase() || 'case'} ${resolving.id}`}
@@ -171,13 +239,13 @@ const CustomersPanel: React.FC<{ customers: any[] | null; reload: () => Promise<
           <button type="button" className="k-btn outline sm" onClick={() => setSent(null)}>Done</button></div>}
         {error && <p className="form-error" role="alert">{error}</p>}
       </div>}
-      {!customers ? <div className="st-loading" aria-busy="true"><i /><i /><i /></div> : customers.length ? (
+      {!customers ? <SkeletonRows rows={3} label="Loading customers" /> : customers.length ? <Paged rows={customers}>{shown => (
         <div className="table-scroll"><table className="table st-cards st-sticky">
           <thead><tr><th>Customer</th><th>Contact</th><th>Sign-in</th><th className="num">Balance</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead>
-          <tbody><AnimatePresence initial={false}>{customers.map((c, i) => {
+          <tbody><AnimatePresence initial={false}>{shown.map((c, i) => {
             const removed = c.status === 'ACCESS_REMOVED';
             return (
-              <motion.tr key={c.customer_id} {...rowMotion(i)}>
+              <motion.tr key={c.customer_id} {...rowMotion(i % 20)}>
                 <td className="st-main"><strong>{c.full_name}</strong><span className="st-sub">{c.customer_id}{c.member_since ? ` · since ${formatDate(c.member_since)}` : ''}</span></td>
                 <td data-label="Contact"><span className="st-contact"><Icon name="phone" />{c.phone_number || '—'}</span>
                   <span className="st-contact st-sub"><Icon name="mail" />{c.email || '—'}</span></td>
@@ -193,8 +261,8 @@ const CustomersPanel: React.FC<{ customers: any[] | null; reload: () => Promise<
                 </div></td>
               </motion.tr>);
           })}</AnimatePresence></tbody>
-        </table></div>
-      ) : <Empty icon="users" title="No customers yet">Customers appear here once they have a Kosh sign-in.</Empty>}
+        </table></div>)}</Paged>
+      : <Empty icon="users" title="No customers yet">Customers appear here once they have a Kosh sign-in.</Empty>}
 
       {toWipe && (
         <Modal isOpen onClose={() => !wiping && setToWipe(null)} title={`Ask to remove ${toWipe.full_name}'s access`} subtitle={`${toWipe.customer_id} · two people decide this`}>
@@ -224,6 +292,12 @@ const CustomersPanel: React.FC<{ customers: any[] | null; reload: () => Promise<
 /* ---------------- Review queue ---------------- */
 type View = 'requests' | 'care' | 'customers';
 
+/** Refresh button: the arrows turn while it loads. */
+const RefreshButton: React.FC<{ busy: boolean; onClick: () => void }> = ({ busy, onClick }) => (
+  <button type="button" className="k-btn outline sm" onClick={onClick} disabled={busy} aria-busy={busy}>
+    <Icon name="refresh" className={`icon ${busy ? 'st-spin' : ''}`} />{busy ? 'Refreshing…' : 'Refresh'}</button>
+);
+
 const QueuePage: React.FC = () => {
   const { overview, refreshOverview } = useBanking();
   const ops: any[] = (overview as any)?.operations || overview?.requests || [];
@@ -235,12 +309,29 @@ const QueuePage: React.FC = () => {
   const [customers, setCustomers] = useState<any[] | null>(null);
   const [leads, setLeads] = useState<any[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [seen, setSeen] = useState<Set<string> | null>(null);  // ids on screen since the first load
+  const [fresh, setFresh] = useState<Set<string>>(() => new Set());  // arrived later: glow once, "New" until handled
+  const [arrived, setArrived] = useState('');
+  const inFlight = useRef(false);
 
-  const loadCare = () => get<{ cases: CareCase[] }>('/api/officer/care-cases').then(r => setCare(r.cases)).catch(() => setCare([]));
-  const loadCustomers = () => fetchOfficerCustomers().then(r => setCustomers(r.customers || [])).catch(() => setCustomers([]));
-  const loadLeads = () => fetchOfficerLeads().then(r => setLeads(r.leads || [])).catch(() => setLeads([]));
-  useEffect(() => { loadCare(); loadCustomers(); loadLeads(); }, []);
-  const refresh = async () => { setBusy(true); await Promise.all([refreshOverview(), loadCare(), loadCustomers(), loadLeads()]); setBusy(false); };
+  // A failed refresh keeps what is on screen; only a first load that fails shows an empty list.
+  const loadCare = useCallback(() => get<{ cases: CareCase[] }>('/api/officer/care-cases').then(r => setCare(r.cases)).catch(() => setCare(c => c ?? [])), []);
+  const loadCustomers = useCallback(() => fetchOfficerCustomers().then(r => setCustomers(r.customers || [])).catch(() => setCustomers(c => c ?? [])), []);
+  const loadLeads = useCallback(() => fetchOfficerLeads().then(r => setLeads(r.leads || [])).catch(() => setLeads(l => l ?? [])), []);
+  useEffect(() => { loadCare(); loadCustomers(); loadLeads(); }, [loadCare, loadCustomers, loadLeads]);
+  /** One refresh at a time: a tick that finds one still running is skipped. */
+  const refresh = useCallback(async (manual = false) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    if (manual) setBusy(true);
+    try { await Promise.all([refreshOverview(), loadCare(), loadLeads(), manual && loadCustomers()]); }
+    finally { inFlight.current = false; if (manual) setBusy(false); }
+  }, [refreshOverview, loadCare, loadLeads, loadCustomers]);
+  // The queue stays live: every 30 seconds while this tab is on screen.
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
 
   const open = ops.filter(r => ACTIVE.includes(r.status)).sort(byOldest);
   const toDecide = open.filter(r => DECIDE_STATUSES.includes(r.status));
@@ -256,15 +347,28 @@ const QueuePage: React.FC = () => {
   const waiting = toDecide.length + apps.length + overdue.length;
   const loaded = care && leads;
 
+  // New arrivals: compared with what was on screen, during render (no effect needed).
+  const ids = overview && care ? [...open.map(r => String(r.id)), ...careOpenList.map(c => c.id)] : null;
+  const added = ids && seen ? ids.filter(id => !seen.has(id)) : [];
+  if (ids && !seen) setSeen(new Set(ids));
+  if (added.length) {
+    setSeen(new Set([...seen!, ...added]));
+    setFresh(new Set([...fresh, ...added]));
+    setArrived(`${plural(added.length, 'new item')} in the queue`);
+  }
+  const handled = (id: string) => setFresh(f => (f.has(id) ? without(f, id) : f));
+  const openRequest = (r: any) => { handled(String(r.id)); setOpenCase(r); };
+
   return (
     <div className="k-page-stack st-page">
       <PageHeader eyebrow="Bank operations" title="Review queue"
         subtitle="Service requests, customer care and customer access, most urgent first. Mitra and the copilot never decide; you do."
-        actions={<button type="button" className="k-btn outline sm" onClick={refresh} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh'}</button>} />
+        actions={<RefreshButton busy={busy} onClick={() => refresh(true)} />} />
+      <p className="sr-only" aria-live="polite">{arrived}</p>
 
       {loaded && (waiting ? (
         <Attention title={`${plural(waiting, 'item')} waiting for you`}
-          actions={toDecide.length ? <button type="button" className="k-btn primary sm" onClick={() => setOpenCase(toDecide[0])}>Review the oldest request</button>
+          actions={toDecide.length ? <button type="button" className="k-btn primary sm" onClick={() => openRequest(toDecide[0])}>Review the oldest request</button>
             : overdue.length ? <button type="button" className="k-btn primary sm" onClick={() => show('care', 'overdue')}>Show overdue cases</button>
             : <a className="k-btn primary sm" href="#leads">Go to applications</a>}>
           <span className="st-attention-list">
@@ -297,16 +401,16 @@ const QueuePage: React.FC = () => {
                 { id: 'all', label: 'All open', count: open.length }, { id: 'decide', label: 'To decide', count: toDecide.length },
                 { id: 'ESCALATED', label: 'Escalated', count: open.filter(r => r.status === 'ESCALATED').length },
                 { id: 'cbs', label: 'Core banking', count: cbs.length }]} />}>
-              {rows.length ? <RequestsTable rows={rows} onOpen={setOpenCase} />
+              {rows.length ? <RequestsTable rows={rows} onOpen={openRequest} reset={filter} fresh={fresh} />
                 : <Empty title="Nothing waits here">New service requests from customers appear here. Finished ones move to Case history.</Empty>}
             </Panel>)}
-          {view === 'care' && <CarePanel cases={care} reload={loadCare} filter={careFilter} setFilter={setCareFilter} />}
+          {view === 'care' && <CarePanel cases={care} reload={loadCare} filter={careFilter} setFilter={setCareFilter} fresh={fresh} seen={handled} />}
           {view === 'customers' && <CustomersPanel customers={customers} reload={loadCustomers} />}
         </motion.div>
       </AnimatePresence>
 
       <OfficerCopilot requestId={openCase?.id} />
-      {openCase && <CaseDialog request={openCase} onClose={() => setOpenCase(null)} />}
+      <AnimatePresence>{openCase && <CaseDialog key={openCase.id} request={openCase} onClose={() => setOpenCase(null)} />}</AnimatePresence>
     </div>
   );
 };
@@ -324,15 +428,14 @@ const HistoryPage: React.FC = () => {
   return (
     <div className="k-page-stack st-page">
       <PageHeader eyebrow="Bank operations" title="Case history" subtitle="Decided, completed and cancelled requests, newest first. Open one to see what was checked and decided."
-        actions={<button type="button" className="k-btn outline sm" disabled={busy}
-          onClick={async () => { setBusy(true); await refreshOverview(); setBusy(false); }}>{busy ? 'Refreshing…' : 'Refresh'}</button>} />
+        actions={<RefreshButton busy={busy} onClick={async () => { setBusy(true); await refreshOverview(); setBusy(false); }} />} />
       <Panel title="Past requests" count={rows.length}
         actions={<FilterTabs name="history" label="Filter by outcome" value={filter} onChange={setFilter}
           tabs={[{ id: 'all', label: 'All', count: done.length }, ...statuses.map(s => ({ id: s, label: humanizeCode(s), count: done.filter((r: any) => r.status === s).length }))]} />}>
-        {rows.length ? <RequestsTable rows={rows} onOpen={setOpenCase} history />
+        {rows.length ? <RequestsTable rows={rows} onOpen={setOpenCase} history reset={filter} />
           : <Empty icon="file" title="No requests in this view">Requests appear here once they are decided or cancelled.</Empty>}
       </Panel>
-      {openCase && <CaseDialog request={openCase} onClose={() => setOpenCase(null)} />}
+      <AnimatePresence>{openCase && <CaseDialog key={openCase.id} request={openCase} onClose={() => setOpenCase(null)} />}</AnimatePresence>
     </div>
   );
 };

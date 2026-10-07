@@ -24,6 +24,41 @@ const Slider: React.FC<{
   </label>
 );
 
+/** Evenly spaced points 1…n, at most 12 of them, always ending at n. */
+const steps = (n: number) => {
+  const c = Math.min(n, 12);
+  return Array.from({ length: c }, (_, i) => Math.round(((i + 1) * n) / c));
+};
+
+/** Loan balance left after `months` EMIs (reducing balance, monthly rests), using the same EMI the calculator shows. */
+const balanceAfter = (amount: number, rate: number, emi: number, months: number) => {
+  let b = amount;
+  for (let m = 0; m < months; m++) b = b * (1 + rate / 1200) - emi;
+  return Math.max(0, b);
+};
+
+/**
+ * Bars over time: `base` (principal colour) in front of `total` (interest colour, optional), so each bar reads as a stack.
+ * Only scaleY changes, so the bars glide as the sliders move. The summary sentence is what screen readers get.
+ */
+const Bars: React.FC<{ title: string; summary: string; axis: [string, string]; points: { base: number; total?: number }[] }> = ({ title, summary, axis, points }) => {
+  const max = Math.max(1, ...points.map(p => p.total ?? p.base));
+  return (
+    <figure className="k-bars">
+      <figcaption>{title}</figcaption>
+      <div className="k-bars-plot" role="img" aria-label={summary}>
+        {points.map((p, i) => (
+          <span key={i}>
+            {p.total !== undefined && <motion.i className="interest" style={{ originY: 1 }} initial={{ scaleY: 0 }} animate={{ scaleY: p.total / max }} />}
+            <motion.i className="principal" style={{ originY: 1 }} initial={{ scaleY: 0 }} animate={{ scaleY: p.base / max }} />
+          </span>
+        ))}
+      </div>
+      <div className="k-bars-axis" aria-hidden="true"><span>{axis[0]}</span><span>{axis[1]}</span></div>
+    </figure>
+  );
+};
+
 const Row: React.FC<{ label: string; value: React.ReactNode; swatch?: string }> = ({ label, value, swatch }) => (
   <div><dt>{swatch && <i className={`sw ${swatch}`} />}{label}</dt><dd>{value}</dd></div>
 );
@@ -36,6 +71,7 @@ export const EmiCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   const emi = monthlyEmi(amount, rate, years * 12);
   const total = emi * years * 12;
   const share = total > 0 ? (total - amount) / total : 0;
+  const at = steps(years);
   return (
     <div className="k-calc">
       <div>
@@ -48,6 +84,12 @@ export const EmiCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
         <div className="k-donut" style={{ '--i': share } as React.CSSProperties} role="img" aria-label={t('Interest is {pct}% of what you repay', { pct: Math.round(share * 100) })}>
           <div><small>{t('Monthly EMI')}</small><strong><Rupees value={emi} /></strong></div>
         </div>
+        <Bars
+          title={t('Loan balance by year')}
+          summary={t('Loan balance falls from {amount} to zero over {n} years', { amount: formatRupees(amount), n: years })}
+          axis={[t('Year {n}', { n: at[0] }), t('Year {n}', { n: years })]}
+          points={at.map(y => ({ base: balanceAfter(amount, rate, emi, y * 12) }))}
+        />
         <dl>
           <Row label={t('Principal')} value={<Rupees value={amount} />} swatch="principal" />
           <Row label={t('Total interest')} value={<Rupees value={total - amount} />} swatch="interest" />
@@ -69,6 +111,7 @@ const FdCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   const [senior, setSenior] = useState(false);
   const effective = rate + (senior ? 0.5 : 0);
   const maturity = fdMaturity(amount, effective, years);
+  const at = steps(years);
   return (
     <div className="k-calc">
       <div>
@@ -83,6 +126,12 @@ const FdCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
       </div>
       <div className="k-calc-result">
         <div className="k-calc-big"><small>{t('Maturity amount')}</small><strong><Rupees value={maturity} /></strong></div>
+        <Bars
+          title={t('Value by year')}
+          summary={t('Grows from {start} to {end} over {n} years', { start: formatRupees(amount), end: formatRupees(maturity), n: years })}
+          axis={[t('Year {n}', { n: at[0] }), t('Year {n}', { n: years })]}
+          points={at.map(y => ({ base: amount, total: fdMaturity(amount, effective, y) }))}
+        />
         <dl>
           <Row label={t('You invest')} value={<Rupees value={amount} />} swatch="principal" />
           <Row label={t('Interest earned')} value={<Rupees value={maturity - amount} />} swatch="interest" />
@@ -104,6 +153,7 @@ const RdCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   const [months, setMonths] = useState(24);
   const maturity = rdMaturity(monthly, rate, months);
   const invested = monthly * months;
+  const at = steps(months);
   return (
     <div className="k-calc">
       <div>
@@ -114,6 +164,12 @@ const RdCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
       </div>
       <div className="k-calc-result">
         <div className="k-calc-big"><small>{t('Maturity amount')}</small><strong><Rupees value={maturity} /></strong></div>
+        <Bars
+          title={t('Value over time')}
+          summary={t('Grows to {end} over {n} months, of which you invest {start}', { start: formatRupees(invested), end: formatRupees(maturity), n: months })}
+          axis={[t('Month {n}', { n: at[0] }), t('Month {n}', { n: months })]}
+          points={at.map(m => ({ base: monthly * m, total: rdMaturity(monthly, rate, m) }))}
+        />
         <dl>
           <Row label={t('You invest')} value={<Rupees value={invested} />} swatch="principal" />
           <Row label={t('Interest earned')} value={<Rupees value={maturity - invested} />} swatch="interest" />

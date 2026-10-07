@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useBanking } from '../../context/BankingContext';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
 import { Badge } from '../common/Badge';
 import { PageHeader } from '../common/PageHeader';
-import { AnimatedNumber, Stagger } from '../common/Animate';
-import { prefersReducedMotion } from '../common/motion';
+import { Stagger, motion } from '../common/Animate';
+import { HideBalancesToggle, Money } from '../app/Balance';
 import { formatDate, formatMoney } from '../common/Formatters';
 import { ServiceRequestDialog, type ServiceSpec } from '../app/ServiceRequestDialog';
 import type { Transaction } from '../../types/banking';
@@ -27,16 +27,24 @@ const sinceFor = (period: string) => {
 };
 
 const amountOf = (x: Transaction) => x.amount_minor ?? x.amount_paise ?? 0;
-const money = (v: number) => formatMoney(Math.round(v));
+const TYPE: Record<string, string> = { CURRENT: 'Current', FIXED_DEPOSIT: 'Fixed deposit', RECURRING_DEPOSIT: 'Recurring deposit' };
+const radius = { borderRadius: 16 };  // set inline so the shared-element morph keeps the corners round
 
 export const AccountsPage: React.FC<AccountsPageProps> = ({ onNavigate }) => {
   const { t } = useI18n();
   const { overview } = useBanking();
   const accounts = overview?.accounts || [];
-  const [accountId, setAccountId] = useState(accounts[0]?.id || '');
+  // The open account expands in place (shared layoutIds) into its detail and statement; Back folds it into its tile again.
+  const [openId, setOpenId] = useState<string | null>(null);
   const [period, setPeriod] = useState<string>('90');
   const [spec, setSpec] = useState<ServiceSpec | null>(null);
-  const account = accounts.find(a => a.id === accountId) || accounts[0];
+  const account = accounts.find(a => a.id === openId);
+  const [lastId, setLastId] = useState<string | null>(null);
+  const open = (id: string) => { setOpenId(id); setLastId(id); };
+  // Focus follows the morph: the account's heading on open, its tile's button on the way back.
+  useEffect(() => {
+    document.getElementById(openId ? 'acc-detail-title' : `acc-open-${lastId}`)?.focus();
+  }, [openId, lastId]);
 
   const rows = useMemo(() => {
     const since = sinceFor(period).getTime();
@@ -110,65 +118,86 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({ onNavigate }) => {
     },
   ];
 
-  const showStatement = (id: string) => {
-    setAccountId(id);
-    document.getElementById('statement')?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
-  };
+  const ids = (id: string) => ({ card: `acc-${id}`, type: `acc-type-${id}`, name: `acc-name-${id}`, no: `acc-no-${id}`, badge: `acc-badge-${id}`, bal: `acc-bal-${id}` });
+  const typeLabel = (type?: string) => t(TYPE[type || ''] || 'Savings');
 
   return (
     <>
-      <PageHeader title={t('Accounts and statements')} subtitle={t('Balances, statements and account documents in one place.')} />
+      <PageHeader title={t('Accounts and statements')} subtitle={t('Balances, statements and account documents in one place.')}
+        actions={<HideBalancesToggle />} />
       <div className="k-page-stack">
-      <Stagger as="section" className="k-acc-grid" aria-label={t('Your accounts')}>
-        {accounts.map(a => {
-          const current = a.id === account?.id;
-          return (
-            <Stagger.Item as="article" key={a.id} className={`k-acc ${current ? 'c-acc-current' : ''}`}>
-              <header>
-                <span className="k-acc-type">{t(a.type === 'CURRENT' ? 'Current' : 'Savings')}</span>
-                <Badge status={a.status} />
+      {account ? (() => {
+        const id = ids(account.id);
+        return (
+          <motion.section layoutId={id.card} style={radius} className="k-panel c-acc-detail" aria-labelledby="acc-detail-title">
+            <div className="c-acc-detail-head">
+              <motion.button type="button" className="k-btn outline sm" onClick={() => setOpenId(null)}
+                initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.12 } }}>
+                <Icon name="arrow-right" className="icon c-flip" />{t('All accounts')}
+              </motion.button>
+              <div className="c-acc-detail-id">
+                <motion.span layoutId={id.type} className="k-acc-type">{typeLabel(account.type)}</motion.span>
+                <motion.h2 layoutId={id.name} id="acc-detail-title" tabIndex={-1}>{account.name}</motion.h2>
+                <motion.span layoutId={id.no} className="k-acc-no">{account.account_number_masked}{account.ifsc_code ? ` · IFSC ${account.ifsc_code}` : ''}</motion.span>
+              </div>
+              <div className="c-acc-detail-bal">
+                <motion.span layoutId={id.badge}><Badge status={account.status} /></motion.span>
+                <motion.strong layoutId={id.bal} className="k-acc-bal"><Money value={account.available_balance_minor ?? 0} /></motion.strong>
+              </div>
+            </div>
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.14 } }}>
+              <header className="k-panel-head c-acc-statement-head">
+                <div><h3>{t('Statement')}</h3></div>
+                <div className="c-statement-tools">
+                  <select aria-label={t('Period')} value={period} onChange={e => setPeriod(e.target.value)}>
+                    {PERIODS.map(([v, l]) => <option key={v} value={v}>{t(l)}</option>)}
+                  </select>
+                  <button type="button" className="k-btn outline sm" onClick={downloadCsv} disabled={!rows.length}><Icon name="download" />CSV</button>
+                  <button type="button" className="k-btn outline sm" onClick={() => window.print()} disabled={!rows.length}><Icon name="file" />{t('Print or PDF')}</button>
+                </div>
               </header>
-              <h3>{a.name}</h3>
-              <span className="k-acc-no">{a.account_number_masked}{a.ifsc_code ? ` · IFSC ${a.ifsc_code}` : ''}</span>
-              <strong className="k-acc-bal"><AnimatedNumber value={a.available_balance_minor ?? 0} format={money} /></strong>
-              {current
-                ? <span className="c-acc-showing"><Icon name="check" />{t('Statement shown below')}</span>
-                : <button type="button" className="k-link" onClick={() => showStatement(a.id)}>{t('View statement')} <Icon name="arrow-right" /></button>}
+              {rows.length ? (
+                <div className="table-scroll">
+                  <table className="table c-stmt-table">
+                    <thead><tr><th>{t('Date')}</th><th>{t('Description')}</th><th className="amount">{t('Amount')}</th></tr></thead>
+                    <tbody>
+                      {rows.map(x => (
+                        <tr key={x.id}>
+                          <td className="muted date-col">{formatDate(x.created_at)}</td>
+                          <td>{x.description}</td>
+                          <td className={`amount ${amountOf(x) > 0 ? 'credit' : ''}`}>{amountOf(x) > 0 ? '+ ' : ''}{formatMoney(amountOf(x))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="empty"><Icon name="file" /><h3>{t('No transactions in this period')}</h3><p>{t('Try a longer period.')}</p></div>
+              )}
+            </motion.div>
+          </motion.section>
+        );
+      })() : (
+      <>
+      <Stagger as="section" className="k-acc-grid" aria-label={t('Your accounts')} initial={lastId ? false : 'hidden'}>
+        {accounts.map(a => {
+          const id = ids(a.id);
+          return (
+            <Stagger.Item as="article" key={a.id} layoutId={id.card} style={radius} className="k-acc">
+              <header>
+                <motion.span layoutId={id.type} className="k-acc-type">{typeLabel(a.type)}</motion.span>
+                <motion.span layoutId={id.badge}><Badge status={a.status} /></motion.span>
+              </header>
+              <motion.h3 layoutId={id.name}>{a.name}</motion.h3>
+              <motion.span layoutId={id.no} className="k-acc-no">{a.account_number_masked}{a.ifsc_code ? ` · IFSC ${a.ifsc_code}` : ''}</motion.span>
+              <motion.strong layoutId={id.bal} className="k-acc-bal"><Money value={a.available_balance_minor ?? 0} /></motion.strong>
+              <button type="button" className="k-link" id={`acc-open-${a.id}`} onClick={() => open(a.id)}>
+                {t('Statement and details')} <Icon name="arrow-right" />
+              </button>
             </Stagger.Item>
           );
         })}
       </Stagger>
-
-      <section className="k-panel" id="statement">
-        <header className="k-panel-head">
-          <div><h2>{t('Statement')}</h2><p>{account?.name} · {account?.account_number_masked}</p></div>
-          <div className="c-statement-tools">
-            <select aria-label={t('Period')} value={period} onChange={e => setPeriod(e.target.value)}>
-              {PERIODS.map(([v, l]) => <option key={v} value={v}>{t(l)}</option>)}
-            </select>
-            <button type="button" className="k-btn outline sm" onClick={downloadCsv} disabled={!rows.length}><Icon name="download" />CSV</button>
-            <button type="button" className="k-btn outline sm" onClick={() => window.print()} disabled={!rows.length}><Icon name="file" />{t('Print or PDF')}</button>
-          </div>
-        </header>
-        {rows.length ? (
-          <div className="table-scroll">
-            <table className="table c-stmt-table">
-              <thead><tr><th>{t('Date')}</th><th>{t('Description')}</th><th className="amount">{t('Amount')}</th></tr></thead>
-              <tbody>
-                {rows.map(x => (
-                  <tr key={x.id}>
-                    <td className="muted date-col">{formatDate(x.created_at)}</td>
-                    <td>{x.description}</td>
-                    <td className={`amount ${amountOf(x) > 0 ? 'credit' : ''}`}>{amountOf(x) > 0 ? '+ ' : ''}{formatMoney(amountOf(x))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="empty"><Icon name="file" /><h3>{t('No transactions in this period')}</h3><p>{t('Try a longer period.')}</p></div>
-        )}
-      </section>
 
       <section aria-labelledby="docs-title">
         <div className="c-section-head">
@@ -185,6 +214,8 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({ onNavigate }) => {
           ))}
         </Stagger>
       </section>
+      </>
+      )}
       </div>
 
       <ServiceRequestDialog spec={spec} onClose={() => setSpec(null)} />

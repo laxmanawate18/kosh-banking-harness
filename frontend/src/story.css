@@ -74,14 +74,9 @@
 .ks-door.left .ks-door-art { right: -70%; }
 .ks-door.right .ks-door-art { left: -70%; }
 
-/* ---------------------------------------------------------------- page progress */
-.ks-progress { display: none; position: fixed; z-index: 1000; inset: 0 0 auto 0; height: 2px; pointer-events: none; background: var(--lux-metal); transform-origin: left; scale: 0 1; }
-@media (prefers-reduced-motion: no-preference) {
-  @supports (animation-timeline: scroll()) {
-    .ks-progress { display: block; animation: ks-progress linear both; animation-timeline: scroll(root); }
-  }
-}
-@keyframes ks-progress { to { scale: 1 1; } }
+/* ---------------------------------------------------------------- page progress (ScrollProgress sets scaleX from the scroll position) */
+.ks-progress { position: fixed; z-index: 1000; inset: 0 0 auto 0; height: 3px; pointer-events: none; background: var(--lux-metal); transform-origin: left; }
+.k-site:not(.is-lux) .ks-progress { background: var(--accent); }
 
 /* ---------------------------------------------------------------- responsive */
 @media (max-width: 1100px) {

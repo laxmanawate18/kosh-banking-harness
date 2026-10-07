@@ -11,6 +11,7 @@ import { OverviewPage } from './components/overview/OverviewPage';
 import { NotFound } from './components/site/InfoPages';
 import { MotionProvider } from './components/common/Animate';
 import { LotusLoader } from './components/common/LotusLoader';
+import { ToastProvider } from './components/common/Toast';
 
 // Route-level code splitting: each page (and the heavy workflow dialog) loads on first visit.
 const named = <K extends string>(loader: () => Promise<Record<K, React.ComponentType<any>>>, key: K) =>
@@ -148,6 +149,7 @@ const MainAppRouter: React.FC = () => {
 export default function App() {
   return (
     <MotionProvider>
+    <ToastProvider>
     <AuthProvider>
       <BankingProvider>
         <ChatProvider>
@@ -155,6 +157,7 @@ export default function App() {
         </ChatProvider>
       </BankingProvider>
     </AuthProvider>
+    </ToastProvider>
     </MotionProvider>
   );
 }

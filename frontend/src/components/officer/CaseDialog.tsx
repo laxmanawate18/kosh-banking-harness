@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { formatDate, formatRupees, humanizeCode } from '../common/Formatters';
 import { useBanking } from '../../context/BankingContext';
 import { fetchOfficerRpaStatus, recordOfficerDecision } from '../../services/banking';
 import { Badge } from '../common/Badge';
 import { Icon } from '../common/Icon';
-import { Modal } from '../common/Modal';
+import { useToast } from '../common/Toast';
+import { DUR, EASE, motion } from '../common/Animate';
 import { Tag, errorText } from './StaffKit';
 
 /** One service request, as the officer reviews it: what the customer sent, what the checks found, the CBS robot, and the decision. */
@@ -59,8 +60,43 @@ function parseSignal(item: unknown) {
   return { code: obj.code || 'SIGNAL', status: String(obj.status || 'INFO').toUpperCase(), message: obj.message || humanizeCode(obj.code) || 'Check recorded' };
 }
 
+/**
+ * The case opens as a drawer: from the right on desktop, a sheet from the bottom on phones. Native modal <dialog>, so focus
+ * stays inside and Esc closes; on close, focus returns to the button that opened it. Render it inside <AnimatePresence>.
+ */
+const Drawer: React.FC<{ title: string; subtitle: string; onClose: () => void; children: ReactNode }> = ({ title, subtitle, onClose, children }) => {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const [off] = useState(() => (window.matchMedia('(max-width: 720px)').matches ? { y: '100%' } : { x: '100%' }));
+  const [opener] = useState(() => document.activeElement as HTMLElement | null);  // read before showModal moves focus
+  useLayoutEffect(() => {
+    const d = ref.current;
+    if (d && !d.open) d.showModal();
+    // Close before focusing: this runs while the dialog is still in the page, and an open modal makes everything else inert.
+    return () => { d?.close(); if (opener?.isConnected) opener.focus(); };
+  }, [opener]);
+  return (
+    <motion.dialog ref={ref} className="k-dialog st-drawer" aria-labelledby={titleId}
+      initial={off} animate={{ x: 0, y: 0 }} exit={{ ...off, transition: { duration: DUR.base, ease: EASE } }} transition={{ duration: DUR.slow, ease: EASE }}
+      onCancel={e => { e.preventDefault(); onClose(); }} onClose={() => { if (!ref.current?.open) onClose(); }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="st-drawer-inner">
+        <div className="k-dialog-head">
+          <h2 id={titleId}>{title}</h2>
+          <p>{subtitle}</p>
+          <button type="button" className="k-close" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+        </div>
+        <div className="k-dialog-body">{children}</div>
+      </div>
+    </motion.dialog>
+  );
+};
+
+/** After these the robot is working on the account: the drawer stays open to follow it. */
+const ROBOT_AT_WORK = ['QUEUED_FOR_CBS', 'RPA_EXECUTING'];
+
 export const CaseDialog: React.FC<{ request: any; onClose: () => void }> = ({ request, onClose }) => {
   const { refreshOverview } = useBanking();
+  const toast = useToast();
   const [c, setC] = useState<any>(request);
   const isKyc = c.service_id === 'P1-17';
   const [notes, setNotes] = useState(isKyc ? 'KYC documents, PAN and address proof verified against bank policy.'
@@ -112,8 +148,15 @@ export const CaseDialog: React.FC<{ request: any; onClose: () => void }> = ({ re
         if (override.trim()) payload.override_justification = override.trim();
         else if (c.discrepancy_flags?.length) payload.override_justification = notes.trim() || 'Officer verified submitted evidence against bank policy.';
       }
-      setC(await recordOfficerDecision(c.id, payload));
+      const updated = await recordOfficerDecision(c.id, payload);
+      setC(updated);
       await refreshOverview();
+      // The decision lands: the drawer closes, the row folds out of the queue and the counts tick. CBS work stays open to watch.
+      if (!ROBOT_AT_WORK.includes(updated?.status)) {
+        toast({ message: `${action === 'APPROVE' ? 'Approved' : 'Rejected'}: ${c.service_name || 'request'} ${c.id}`,
+          tone: action === 'APPROVE' ? 'success' : 'info' });
+        onClose();
+      }
     } catch (err) {
       setError(errorText(err, 'The decision could not be recorded'));
     } finally {
@@ -129,7 +172,7 @@ export const CaseDialog: React.FC<{ request: any; onClose: () => void }> = ({ re
   const job = c.rpa_job;
 
   return (
-    <Modal isOpen onClose={onClose} wide title={c.service_name || c.prompt || c.id}
+    <Drawer onClose={onClose} title={c.service_name || c.prompt || c.id}
       subtitle={`Submitted ${formatDate(c.created_at)} · ${c.customer_id || c.user_id}`}>
       <div className="st-case">
         <div className="case-summary-strip">
@@ -267,6 +310,6 @@ export const CaseDialog: React.FC<{ request: any; onClose: () => void }> = ({ re
           </div>
         )}
       </div>
-    </Modal>
+    </Drawer>
   );
 };

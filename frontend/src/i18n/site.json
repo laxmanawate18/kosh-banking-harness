@@ -1302,5 +1302,77 @@
   "Demat and portfolio tools linked to your Kosh account.": {
     "hi": "आपके कोष खाते से जुड़े डीमैट और पोर्टफ़ोलियो टूल।",
     "mr": "तुमच्या कोष खात्याशी जोडलेली डीमॅट आणि पोर्टफोलिओ साधने."
+  },
+  "Not sure which one fits?": {
+    "hi": "पक्का नहीं कि कौन-सा सही रहेगा?",
+    "mr": "कोणते योग्य ठरेल याची खात्री नाही?"
+  },
+  "Compare every Kosh product side by side, ask Mitra in your language, or talk to our team.": {
+    "hi": "कोष के हर प्रोडक्ट की साथ-साथ तुलना करें, मित्र से अपनी भाषा में पूछें, या हमारी टीम से बात करें।",
+    "mr": "कोषच्या प्रत्येक प्रॉडक्टची शेजारी-शेजारी तुलना करा, मित्रला तुमच्या भाषेत विचारा किंवा आमच्या टीमशी बोला."
+  },
+  "Compare all products": {
+    "hi": "सभी प्रोडक्ट की तुलना करें",
+    "mr": "सर्व प्रॉडक्ट्सची तुलना करा"
+  },
+  "Help me choose the right Kosh product for my needs.": {
+    "hi": "मेरी ज़रूरतों के लिए सही कोष प्रोडक्ट चुनने में मेरी मदद करें।",
+    "mr": "माझ्या गरजांसाठी योग्य कोष प्रॉडक्ट निवडायला मला मदत करा."
+  },
+  "Loan balance by year": {
+    "hi": "साल-दर-साल लोन बैलेंस",
+    "mr": "वर्षानुसार कर्जाची शिल्लक"
+  },
+  "Loan balance falls from {amount} to zero over {n} years": {
+    "hi": "लोन बैलेंस {n} साल में {amount} से घटकर शून्य हो जाता है",
+    "mr": "कर्जाची शिल्लक {n} वर्षांत {amount} वरून शून्यावर येते"
+  },
+  "Year {n}": {
+    "hi": "साल {n}",
+    "mr": "वर्ष {n}"
+  },
+  "Month {n}": {
+    "hi": "महीना {n}",
+    "mr": "महिना {n}"
+  },
+  "Value by year": {
+    "hi": "साल-दर-साल मूल्य",
+    "mr": "वर्षानुसार मूल्य"
+  },
+  "Value over time": {
+    "hi": "समय के साथ मूल्य",
+    "mr": "काळानुसार मूल्य"
+  },
+  "Grows from {start} to {end} over {n} years": {
+    "hi": "{n} साल में {start} से बढ़कर {end} हो जाता है",
+    "mr": "{n} वर्षांत {start} वरून {end} पर्यंत वाढते"
+  },
+  "Grows to {end} over {n} months, of which you invest {start}": {
+    "hi": "{n} महीनों में बढ़कर {end} हो जाता है, जिसमें से {start} आप जमा करते हैं",
+    "mr": "{n} महिन्यांत {end} पर्यंत वाढते, त्यापैकी {start} तुम्ही गुंतवता"
+  },
+  "Application received": {
+    "hi": "आवेदन मिल गया",
+    "mr": "अर्ज मिळाला"
+  },
+  "Decision": {
+    "hi": "फ़ैसला",
+    "mr": "निर्णय"
+  },
+  "Next": {
+    "hi": "अगला",
+    "mr": "पुढील"
+  },
+  "PRODUCT DEMO — not a real bank": {
+    "hi": "प्रोडक्ट डेमो — असली बैंक नहीं",
+    "mr": "प्रॉडक्ट डेमो — खरी बँक नाही"
+  },
+  "A product demo, not a bank": {
+    "hi": "एक प्रोडक्ट डेमो, बैंक नहीं",
+    "mr": "एक प्रॉडक्ट डेमो, बँक नाही"
+  },
+  "Kosh is a demonstration bank built to showcase Mitra and Kavach. It is not a licensed bank, holds no real deposits and is not insured by DICGC. Never enter real OTPs, PINs or card details.": {
+    "hi": "कोष मित्र और कवच को दिखाने के लिए बनाया गया एक डेमो बैंक है। यह लाइसेंस-प्राप्त बैंक नहीं है, इसमें कोई असली जमा नहीं है और यह DICGC से बीमित नहीं है। कभी भी असली OTP, PIN या कार्ड की जानकारी न डालें।",
+    "mr": "कोष ही मित्र आणि कवच दाखवण्यासाठी बनवलेली डेमो बँक आहे. ही परवानाधारक बँक नाही, यात कोणत्याही खऱ्या ठेवी नाहीत आणि ती DICGC द्वारे विमाकृत नाही. कधीही खरे OTP, PIN किंवा कार्ड तपशील टाकू नका."
   }
 }

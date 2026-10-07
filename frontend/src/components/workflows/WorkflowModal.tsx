@@ -14,6 +14,8 @@ import { completeStepUp, sendStepUpCode } from '../../services/firebaseAuth';
 import { useBanking } from '../../context/BankingContext';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
+import { useI18n } from '../../i18n';
+import { Icon } from '../common/Icon';
 
 interface WorkflowModalProps {
   workflowId: string | null;
@@ -27,6 +29,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
   const { overview, refreshOverview } = useBanking();
   const { sendMessage } = useChat();
   const { auth, publicConfig } = useAuth();
+  const { t } = useI18n();
 
   const [workflow, setWorkflow] = useState<BankingWorkflow | null>(null);
   const [services, setServices] = useState<ServiceSchema[]>([]);
@@ -51,6 +54,12 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
   const [scanConsent, setScanConsent] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalBodyRef = useRef<HTMLDivElement>(null);
+  // The chosen file, for the scan flourish only (the upload still reads the input itself).
+  const [picked, setPicked] = useState<{ name: string; key: number } | null>(null);
+
+  // Fields the customer edited since the last save. Mitra can update the draft in the background
+  // (document prefill), so saves send only these and always target the latest server revision.
+  const editedKeys = useRef<Set<string>>(new Set());
 
   // Step-up authentication
   const [stepUpOpen, setStepUpOpen] = useState<boolean>(false);
@@ -128,10 +137,6 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
     }
     return f.choices || [];
   };
-
-  // Fields the customer edited since the last save. Mitra can update the draft in the background
-  // (document prefill), so saves send only these and always target the latest server revision.
-  const editedKeys = useRef<Set<string>>(new Set());
 
   const handleFieldChange = (key: string, val: string) => {
     setFormData(prev => ({ ...prev, [key]: val }));
@@ -336,6 +341,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
       setFormData(prev => ({ ...prev, ...(updated.fields || {}) }));
       setStatusMessage('Document uploaded and scanned successfully.');
       if (fileInputRef.current) fileInputRef.current.value = '';
+      setPicked(null);
 
       // Auto-prefill if text was extracted from document
       if (updated.documents?.some(d => d.scan_status === 'TEXT_EXTRACTED')) {
@@ -643,8 +649,16 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
                           type="file"
                           ref={fileInputRef}
                           accept="image/jpeg,image/png,application/pdf"
+                          onChange={e => { const f = e.target.files?.[0]; setPicked(f ? { name: f.name, key: e.timeStamp } : null); }}
                         />
                       </label>
+                      {picked && (
+                        <div key={picked.key} className="wf-scan" role="status">
+                          <span className="wf-scan-doc" aria-hidden="true"><Icon name="file" /><i className="wf-scan-line" /></span>
+                          <span className="wf-scan-name">{picked.name}</span>
+                          <span className="wf-scan-ok"><Icon name="check" />{t('Ready to scan')}</span>
+                        </div>
+                      )}
                     </div>
 
                     <label className="wf-permission">

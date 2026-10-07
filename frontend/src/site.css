@@ -101,17 +101,16 @@
 .k-faq-group h2 { margin: 8px 0 0; font-size: clamp(26px, 2.4vw, 32px); }
 .k-faq { max-width: none; }
 @media (max-width: 900px) { .k-faq-group { grid-template-columns: minmax(0, 1fr); } }
-.k-faq details { transition: border-color 200ms ease; }
-.k-faq details[open] { border-color: var(--line-strong); }
-.k-faq summary { min-height: 44px; font-size: 17.5px; line-height: 1.35; }
-.k-faq summary:hover .icon { color: var(--ink); }
-@media (prefers-reduced-motion: no-preference) {
-  .k-faq details { interpolate-size: allow-keywords; }
-  .k-faq details::details-content { height: 0; overflow: clip; transition: height 280ms var(--ease-out), content-visibility 280ms allow-discrete; }
-  .k-faq details[open]::details-content { height: auto; }
-  .k-faq details[open] > div { animation: k-faq-in 280ms var(--ease-out); }
-}
-@keyframes k-faq-in { from { opacity: 0; translate: 0 -6px; } }
+.k-faq-item { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); transition: border-color 200ms ease; }
+.k-faq-item.open { border-color: var(--line-strong); }
+.k-faq-item h3 { margin: 0; }
+.k-faq-item button { width: 100%; min-height: 44px; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px 20px; border: 0; border-radius: inherit; background: none; cursor: pointer; text-align: left; font: 650 17.5px/1.35 var(--k-display); color: var(--ink); }
+.k-faq-item button .icon { flex-shrink: 0; color: var(--muted); transition: rotate 220ms var(--ease-out), color 150ms ease; }
+.k-faq-item button:hover .icon { color: var(--ink); }
+.k-faq-item.open button .icon { rotate: 180deg; }
+.k-faq-item button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.k-faq-a { overflow: hidden; }
+.k-faq-a p { margin: 0; padding: 0 20px 18px; max-width: 70ch; font-size: 16px; line-height: 1.6; color: var(--ink-2); }
 .k-cta-card { margin-top: clamp(40px, 5vw, 64px); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px 32px; padding: clamp(24px, 3.4vw, 40px); border-radius: var(--r-lg); border: 1px solid var(--line);
   background: radial-gradient(70% 160% at 100% 0%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 62%), var(--surface); }
 .k-cta-card h2 { margin: 0 0 6px; }
@@ -155,6 +154,21 @@
 .k-track-result h2 { margin: 6px 0 0; font: 650 22px var(--k-display); }
 .k-track-result p { margin: 0; font-size: 16px; }
 .k-track-ref { font: 600 15px var(--k-mono); letter-spacing: .04em; color: var(--ink-2); }
+/* Status timeline: filled dots are done, the ringed one is in progress (it pulses gently), an empty ring is next. Each also says so in words. */
+.k-steps { justify-self: stretch; list-style: none; margin: 10px 0 6px; padding: 0; display: grid; }
+.k-steps li { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 14px; padding-bottom: 18px; }
+.k-steps li:last-child { padding-bottom: 0; }
+.k-steps li:not(:last-child)::after { content: ''; position: absolute; left: 15px; top: 36px; bottom: 4px; width: 2px; border-radius: 1px; background: var(--line-strong); }
+.k-step-dot { position: relative; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--line-strong); background: var(--surface); color: var(--accent-ink); }
+.k-step-dot .icon { width: 16px; height: 16px; }
+.k-steps .done .k-step-dot { border-color: var(--brand); background: var(--brand); color: var(--on-brand); }
+.k-steps .current .k-step-dot { border-color: var(--accent); }
+.k-steps strong { display: block; margin-top: 4px; font: 650 16.5px/1.3 var(--k-display); color: var(--ink); }
+.k-steps small { font-size: 14.5px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) {
+  .k-steps .current .k-step-dot::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--accent); animation: k-step-pulse 2s var(--ease-out) infinite; }
+}
+@keyframes k-step-pulse { from { scale: 1; opacity: .8; } to { scale: 1.6; opacity: 0; } }
 .k-track-help { padding: 6px 0 0 clamp(24px, 3vw, 48px); border-left: 1px solid var(--line); }
 .k-track-help h2 { margin-bottom: 10px; font-size: clamp(26px, 2.4vw, 32px); }
 .k-track-help p { max-width: 46ch; margin: 0 0 10px; font-size: 16.5px; }
@@ -166,6 +180,15 @@
 /* ---------------------------------------------------------------- calculators */
 .k-calc { box-shadow: var(--shadow); }
 .k-calc h3 { font: 400 clamp(26px, 2.6vw, 32px) var(--k-serif); letter-spacing: -.02em; }
+/* Bars over time: each slot is a faint track; principal (brand) stands in front of the total (accent), both scaled from the bottom. */
+.k-bars { width: 100%; margin: 0; display: grid; gap: 8px; }
+.k-bars figcaption { font: 600 14.5px var(--k-sans); color: var(--muted); }
+.k-bars-plot { display: flex; gap: 4px; height: 112px; }
+.k-bars-plot > span { position: relative; flex: 1; overflow: hidden; border-radius: 4px 4px 0 0; background: color-mix(in srgb, var(--line) 60%, transparent); }
+.k-bars-plot i { position: absolute; inset: 0; }
+.k-bars-plot .interest { background: var(--accent); }
+.k-bars-plot .principal { background: var(--brand); }
+.k-bars-axis { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--muted); }
 
 /* ---------------------------------------------------------------- footer: two link columns on phones, room for Ask Mitra at the end */
 .k-footer-base { padding-bottom: 84px; }
@@ -182,6 +205,18 @@
 @media (max-width: 760px) {
   .k-site ~ .k-fab { padding: 7px; }
   .k-site ~ .k-fab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+/* Reading down the page (AuthScreen sets data-fab="mini" past 200px) folds the pill to its 44px lotus; scrolling up unfolds it.
+   The lotus sits at the right end, so the fold is a clip plus a label fade: the box never changes size or moves, nothing reflows,
+   the clip trims the click target to the visible circle, and the label stays in the DOM so the button's name never changes. */
+@media (min-width: 761px) {
+  .k-site ~ .k-fab { flex-direction: row-reverse; padding: 7px 7px 7px 20px; clip-path: inset(-48px round 70px); }
+  .k-site[data-fab="mini"] ~ .k-fab:not(:focus-visible) { clip-path: inset(0 0 0 calc(100% - 44px) round 22px); }
+  .k-site[data-fab="mini"] ~ .k-fab:not(:focus-visible) span { opacity: 0; }
+}
+@media (min-width: 761px) and (prefers-reduced-motion: no-preference) {
+  .k-site ~ .k-fab { transition: clip-path 280ms var(--ease-out), transform 140ms var(--ease-out), background-color 150ms ease; }
+  .k-site ~ .k-fab span { transition: opacity 180ms ease; }
 }
 
 /* ---------------------------------------------------------------- application form (InstantOnboardingModal): Kosh tokens and readable sizes
@@ -260,3 +295,17 @@
 .k-login-form p { margin: 0 0 26px; font-size: 16.5px; }
 .k-login-form .k-btn { min-height: 52px; font-size: 16.5px; }
 .k-login-art strong { font: 400 34px/1.08 var(--k-serif); letter-spacing: -.02em; }
+
+/* ---------------------------------------------------------------- products: a helper card fills a category with one product */
+.k-product-help { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 12px; padding: clamp(22px, 3vw, 32px); border-radius: var(--r); border: 1px dashed var(--line-strong);
+  background: radial-gradient(80% 120% at 100% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 65%), var(--surface); }
+.k-product-help > .icon { width: 28px; height: 28px; color: var(--accent-ink); }
+.k-product-help h3 { margin: 0; font: 400 clamp(26px, 2.4vw, 32px)/1.1 var(--k-serif); letter-spacing: -.02em; color: var(--ink); }
+.k-product-help p { margin: 0; max-width: 44ch; font-size: 16px; line-height: 1.55; color: var(--muted); }
+.k-product-help-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-top: 8px; }
+
+/* ---------------------------------------------------------------- application sent: the lotus bloom above the result */
+.iob-bloom { display: block; width: 104px; height: 104px; margin: -8px auto 0; overflow: visible; }
+.iob-bloom path { fill: color-mix(in srgb, var(--accent) 24%, transparent); stroke: var(--accent); stroke-width: 1.3; stroke-linejoin: round; }
+.iob-bloom .drift { fill: var(--accent); stroke: none; }
+.iob-bloom .base { fill: none; stroke-linecap: round; }

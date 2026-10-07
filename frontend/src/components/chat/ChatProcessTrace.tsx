@@ -13,6 +13,12 @@ import {
 } from 'lucide-react';
 import type { ExecutionStep } from '../../types/chat';
 import { useI18n } from '../../i18n';
+import { DUR, EASE, SPRING, motion } from '../common/Animate';
+import { humanizeCode } from '../common/Formatters';
+
+/** "Tool Call: get_account_summary" -> "Get account summary". */
+const toolName = (label: string) => humanizeCode(label.replace(/^Tool (Call|Result):\s*/i, ''));
+const isTool = (step: ExecutionStep) => step.type === 'tool_call' || step.type === 'tool_result';
 
 interface ChatProcessTraceProps {
   steps?: ExecutionStep[];
@@ -73,7 +79,7 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
 
   const formatDuration = (ms?: number) => {
     if (!ms && ms !== 0) return null;
-    if (ms < 1000) return `${ms}ms`;
+    if (ms < 1000) return `${Math.round(ms)}ms`;
     return `${(ms / 1000).toFixed(1)}s`;
   };
 
@@ -158,10 +164,12 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
               const hasInspector = hasArgs || hasResult;
               const isDetailOpen = !!expandedDetails[step.id];
 
+              const tool = isTool(step);
               return (
-                <div
+                <motion.div
                   key={step.id || idx}
                   className={`chat-trace-step ${step.status} ${getStepBadgeClass(step)}`}
+                  initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: DUR.base, ease: EASE }}
                 >
                   <div className="trace-node-track">
                     <div className="trace-node-icon">
@@ -170,9 +178,11 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
                     {idx < steps.length - 1 && <div className="trace-node-line" />}
                   </div>
 
-                  <div className="trace-step-content">
-                    <div className="trace-step-top">
-                      <span className="trace-step-label">{step.label}</span>
+                  {/* A tool call is a small chip while it runs and opens into a result card when it returns. */}
+                  <motion.div layout transition={SPRING}
+                    className={`trace-step-content ${tool ? (step.status === 'running' ? 'c-tool-chip' : 'c-tool-card') : ''}`}>
+                    <motion.div layout="position" className="trace-step-top">
+                      <span className="trace-step-label">{tool ? toolName(step.label) : step.label}</span>
                       <div className="trace-step-meta">
                         {step.duration_ms != null && step.duration_ms > 0 && (
                           <span className="trace-step-time">{formatDuration(step.duration_ms)}</span>
@@ -185,14 +195,20 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
                         {step.status === 'running' && (
                           <span className="trace-step-status running">{t('in progress')}</span>
                         )}
+                        {step.status === 'failed' && <span className="trace-step-status failed">{t('Did not finish')}</span>}
                       </div>
-                    </div>
+                    </motion.div>
 
-                    {step.detail && (
+                    {step.detail && !tool && (
                       <p className="trace-step-detail">{step.detail}</p>
                     )}
+                    {tool && step.status === 'completed' && (
+                      <motion.p className="trace-step-detail c-tool-done" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.08 }}>
+                        {t('Result received')}
+                      </motion.p>
+                    )}
 
-                    {hasInspector && (
+                    {hasInspector && !(tool && step.status === 'running') && (
                       <div className="trace-inspector-wrap">
                         <button
                           type="button"
@@ -229,8 +245,8 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
                         )}
                       </div>
                     )}
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
               );
             })}
           </div>

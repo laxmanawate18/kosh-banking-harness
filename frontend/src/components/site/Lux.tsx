@@ -6,6 +6,8 @@ import { FeatureIcon, type FeatureIconName } from '../common/FeatureIcon';
 import { LotusMark, Rangoli } from '../common/KoshLogo';
 import { prefersReducedMotion } from '../common/motion';
 import { rich, useScrollProgress, WordReveal } from './Story';
+import { DUR, EASE, SPRING, motion } from '../common/Animate';
+import { useInView, useReducedMotion, type Variants } from 'framer-motion';
 import '../../lux.css';
 
 type Vars = React.CSSProperties & Record<`--${string}`, string | number>;
@@ -189,7 +191,58 @@ export const SafetyStatement: React.FC = () => {
       <FeatureIcon name="kavach" variant="bare" size={64} />
       <h2 id="safe-title" className="kl-eyebrow">{t('Your money is yours. Keeping it safe is ours.')}</h2>
       <WordReveal className="kl-safe-text" text={t('Every payment is checked by *Sentinel* before it leaves your account. OTPs stay inside a trusted Kosh screen, never in chat. Your data is encrypted and *never sold*.')} />
+      <SentinelDemo />
     </section>
+  );
+};
+
+/* ------------------------------------------------------------------ Sentinel scan demo (an illustration with sample data) */
+
+/** The kinds of signal Sentinel really weighs (known device, usual hour, amount against your baseline, new payee). */
+const CHECKS: { title: string; note: string; hold?: boolean }[] = [
+  { title: 'Device recognised', note: 'This phone is registered to you' },
+  { title: 'Usual time of day', note: 'You often pay at this hour' },
+  { title: 'Amount within your usual range', note: 'Close to your past payments' },
+  { title: 'Approval needed from you', note: 'First payment to this payee: you confirm with an OTP on the secure Kosh screen', hold: true },
+];
+const beam: Variants = { hidden: { y: '-100%', opacity: 0 }, show: { y: ['-100%', '0%'], opacity: [0, 1, 1, 0], transition: { duration: 1.7, ease: 'easeInOut' } } };
+const checks: Variants = { hidden: {}, show: { transition: { delayChildren: 0.45, staggerChildren: 0.42 } } };
+const row: Variants = { hidden: { opacity: 0.4 }, show: { opacity: 1, transition: { duration: DUR.slow, ease: EASE } } };
+const tick: Variants = { hidden: { scale: 0.3, opacity: 0 }, show: { scale: 1, opacity: 1, transition: SPRING } };
+
+/** A sample payment is scanned and the checks tick in one by one, once, when it scrolls into view. Reduced motion: the finished state. */
+export const SentinelDemo: React.FC = () => {
+  const { t } = useI18n();
+  const reduce = useReducedMotion();
+  const ref = useRef<HTMLElement>(null);
+  const seen = useInView(ref, { once: true, amount: 0.45 });
+  const [run, setRun] = useState(0);
+  return (
+    <figure ref={ref} className="kl-scan" aria-labelledby="scan-title">
+      <figcaption id="scan-title" className="kl-eyebrow">{t('How Sentinel checks a payment — example')}</figcaption>
+      <motion.div key={run} className="kl-scan-body" initial={reduce ? false : 'hidden'} animate={reduce || seen ? 'show' : 'hidden'}>
+        <div className="kl-scan-pay">
+          <small>{t('Sample payment')}</small>
+          <strong>₹2,400</strong>
+          <span>{t('To')} Asha Traders</span>
+          <span className="kl-scan-upi">asha.traders@kosh</span>
+          {!reduce && <motion.i className="kl-scan-beam" variants={beam} aria-hidden="true" />}
+        </div>
+        <motion.ol variants={checks}>
+          {CHECKS.map(c => (
+            <motion.li key={c.title} variants={row} className={c.hold ? 'hold' : undefined}>
+              <span className="kl-scan-dot"><motion.span variants={tick}><Icon name={c.hold ? 'key' : 'check'} /></motion.span></span>
+              <span><strong>{t(c.title)}</strong><small>{t(c.note)}</small></span>
+              <em>{c.hold ? t('Your approval') : t('Passed')}</em>
+            </motion.li>
+          ))}
+        </motion.ol>
+      </motion.div>
+      <p className="kl-scan-note">
+        {t('An illustration with sample data, not a live payment.')}
+        {!reduce && <button type="button" className="kl-link" onClick={() => setRun(r => r + 1)}><Icon name="refresh" /> {t('Replay')}</button>}
+      </p>
+    </figure>
   );
 };
 

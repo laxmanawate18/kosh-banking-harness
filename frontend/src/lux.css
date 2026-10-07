@@ -140,6 +140,35 @@
 .kl-safe-text { max-width: 900px; margin: 6px 0 0; font: 500 clamp(26px, 3.2vw, 44px)/1.3 var(--k-sans); letter-spacing: -0.015em; color: var(--lux-ink); text-wrap: balance; }
 .kl-safe-text .ks-w.hot { font-family: var(--k-serif); }
 
+/* Sentinel scan demo: a sample payment card, a beam that sweeps it once, and the checks ticking in beside it. */
+.kl-scan { width: min(880px, 100%); margin: clamp(28px, 4vw, 48px) 0 0; display: grid; gap: 18px; text-align: left; }
+.kl-scan figcaption { justify-self: center; text-align: center; letter-spacing: .14em; }
+.kl-scan-body { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); align-items: center; gap: clamp(18px, 3vw, 36px); padding: clamp(16px, 2.4vw, 28px); border-radius: 22px; background: var(--lux-bg-2); box-shadow: 0 0 0 1px var(--lux-line), 0 40px 70px -40px rgb(0 0 0 / .8); }
+.kl-scan-pay { position: relative; overflow: hidden; display: grid; gap: 6px; padding: 24px 22px; border-radius: 16px; background: linear-gradient(150deg, var(--lux-bg-3), var(--lux-deep)); box-shadow: inset 0 0 0 1px var(--lux-line); }
+.kl-scan-pay small { font: 600 12px var(--k-sans); letter-spacing: .16em; text-transform: uppercase; color: var(--lux-thread); }
+.kl-scan-pay strong { margin: 8px 0 4px; font: 600 clamp(36px, 4vw, 48px)/1 var(--k-display); letter-spacing: -.02em; color: var(--lux-ink); }
+.kl-scan-pay span { font-size: 16px; color: var(--lux-ink); }
+.kl-scan-pay .kl-scan-upi { font: 500 14px var(--k-mono); color: var(--lux-muted); }
+.kl-scan-beam { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 55%, rgb(var(--lux-glow) / .14) 94%, var(--lux-thread) 100%); }
+.kl-scan ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.kl-scan li { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--lux-line); }
+.kl-scan li:last-child { border-bottom: 0; }
+.kl-scan-dot { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px rgb(242 242 240 / .25); }
+.kl-scan-dot > span { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; background: var(--lux-platinum); color: var(--lux-on-accent); }
+.kl-scan li.hold .kl-scan-dot > span { background: var(--lux-thread); }
+.kl-scan-dot .icon { width: 17px; height: 17px; }
+.kl-scan li strong { display: block; font: 600 16px/1.3 var(--k-sans); color: var(--lux-ink); }
+.kl-scan li small { display: block; margin-top: 2px; font-size: 14px; line-height: 1.45; color: var(--lux-muted); }
+.kl-scan li em { padding: 4px 10px; border-radius: 999px; border: 1px solid rgb(242 242 240 / .24); font: 600 12px var(--k-sans); font-style: normal; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; color: var(--lux-ink); }
+.kl-scan li.hold em { border-color: var(--lux-thread); color: var(--lux-thread); }
+.kl-scan-note { justify-self: center; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 18px; margin: 0; font-size: 14.5px; color: var(--lux-muted); }
+.kl-scan-note .kl-link { min-height: 44px; font-size: 15px; }
+@media (max-width: 760px) {
+  .kl-scan-body { grid-template-columns: minmax(0, 1fr); }
+  .kl-scan li { grid-template-columns: 32px minmax(0, 1fr); }
+  .kl-scan li em { grid-column: 2; justify-self: start; }
+}
+
 /* ---------------------------------------------------------------- editorial photo stories */
 .kl-editorial { position: relative; isolation: isolate; background: var(--lux-bg); color: var(--lux-ink); padding: clamp(96px, 12vw, 170px) clamp(20px, 5vw, 72px); border-top: 1px solid var(--lux-line); }
 .kl-editorial-head { position: relative; z-index: 1; max-width: 1360px; margin: 0 auto clamp(48px, 6vw, 80px); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .8fr); align-items: end; gap: 24px 64px; }

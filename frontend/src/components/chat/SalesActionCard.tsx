@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowRight } from 'lucide-react';
 import { useChat } from '../../context/ChatContext';
 import type { SalesAction } from '../../types/chat';
+import { Stagger } from '../common/Animate';
 
 interface SalesActionCardProps {
   salesAction: SalesAction;
@@ -36,18 +37,20 @@ export const SalesActionCard: React.FC<SalesActionCardProps> = ({
       )}
 
       {queries.length > 0 && (
-        <div className="sac-queries">
+        <Stagger className="sac-queries">
           {queries.map((q, idx) => (
-            <button
+            <Stagger.Item
+              as="button"
+              type="button"
               key={idx}
               onClick={() => onQueryClick(q)}
               disabled={!isConnected || isStreaming}
               className="ai-prompt-chip ai-suggestion"
             >
               {q}
-            </button>
+            </Stagger.Item>
           ))}
-        </div>
+        </Stagger>
       )}
     </div>
   );

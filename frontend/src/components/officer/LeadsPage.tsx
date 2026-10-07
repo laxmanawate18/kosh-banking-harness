@@ -7,8 +7,9 @@ import { Icon } from '../common/Icon';
 import { Modal } from '../common/Modal';
 import { PageHeader } from '../common/PageHeader';
 import { FilterTabs } from '../common/FilterTabs';
+import { SkeletonRows } from '../common/Skeleton';
 import { AnimatePresence, motion } from '../common/Animate';
-import { Attention, Bar, Empty, Kpi, Panel, rowMotion, channelName, errorText } from './StaffKit';
+import { Attention, Bar, Empty, Kpi, Paged, Panel, rowMotion, channelName, errorText } from './StaffKit';
 
 /** AI sales leads: interest Mitra recorded, and applications from new customers that need the officer's approval. */
 
@@ -183,7 +184,8 @@ export const LeadsPage: React.FC = () => {
     <div className="k-page-stack st-page">
       <PageHeader eyebrow="Bank operations" title="AI sales leads"
         subtitle="Interest Mitra recorded, and applications from new customers. A new customer can sign in only after you approve."
-        actions={<button type="button" className="k-btn outline sm" onClick={refresh} disabled={busy}>{busy ? 'Refreshing…' : 'Refresh'}</button>} />
+        actions={<button type="button" className="k-btn outline sm" onClick={refresh} disabled={busy} aria-busy={busy}>
+          <Icon name="refresh" className={`icon ${busy ? 'st-spin' : ''}`} />{busy ? 'Refreshing…' : 'Refresh'}</button>} />
 
       {leads && (pending.length
         ? <Attention title={`${pending.length} application${pending.length > 1 ? 's' : ''} waiting for your approval`}
@@ -207,13 +209,13 @@ export const LeadsPage: React.FC = () => {
           { id: 'all', label: 'All', count: all.length }, { id: 'pending', label: 'To approve', count: pending.length },
           { id: 'open', label: 'Open', count: openLeads.length }, { id: 'converted', label: 'Converted', count: converted.length },
           { id: 'closed', label: 'Closed', count: closed.length }]} />}>
-        {!leads ? <div className="st-loading" aria-busy="true"><i /><i /><i /></div> : rows.length ? (
+        {!leads ? <SkeletonRows rows={4} label="Loading leads" /> : rows.length ? <Paged rows={rows} reset={filter}>{shown => (
           <div className="table-scroll"><table className="table st-cards st-sticky">
             <thead><tr><th>Product</th><th>Applicant</th><th className="num">Amount asked</th><th className="num">Monthly income</th><th>Status</th><th>Received</th><th><span className="sr-only">Action</span></th></tr></thead>
-            <tbody><AnimatePresence initial={false}>{rows.map((l, i) => {
+            <tbody><AnimatePresence initial={false}>{shown.map((l, i) => {
               const p = products[l.recommended_product_id];
               return (
-                <motion.tr key={l.id} {...rowMotion(i)}>
+                <motion.tr key={l.id} {...rowMotion(i % 20)}>
                   <td className="st-main"><strong>{productOf(l, p)}</strong><span className="st-sub">{kindOf(l, p)}</span></td>
                   <td data-label="Applicant"><strong>{who(l)}</strong>
                     {l.preferences?.phone_number && <span className="st-sub st-nowrap">{l.preferences.phone_number}</span>}
@@ -230,8 +232,8 @@ export const LeadsPage: React.FC = () => {
                   </div></td>
                 </motion.tr>);
             })}</AnimatePresence></tbody>
-          </table></div>
-        ) : <Empty title="No leads in this view">When people ask Mitra about loans, cards or accounts, their interest appears here.</Empty>}
+          </table></div>)}</Paged>
+        : <Empty title="No leads in this view">When people ask Mitra about loans, cards or accounts, their interest appears here.</Empty>}
       </Panel>
 
       {funnel && <OfferFunnel data={funnel} />}

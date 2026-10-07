@@ -3,6 +3,8 @@ import { Product, ProductApplyResponse, CrossSellOffer } from '../../types/produ
 import { applyForProduct, fetchProducts } from '../../services/products';
 import { Modal } from '../common/Modal';
 import { monthlyEmi } from '../common/Formatters';
+import { EASE, motion } from '../common/Animate';
+import { useReducedMotion } from 'framer-motion';
 import {
   CheckCircle2,
   Copy,
@@ -154,6 +156,9 @@ export const InstantOnboardingModal: React.FC<InstantOnboardingModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} subtitle={modalSubtitle}>
+      {/* Present from the start, so the success line is announced (politely) the moment it arrives. */}
+      <p className="sr-only" role="status">{result ? `${modalTitle}. ${modalSubtitle}` : ''}</p>
+      {result && <LotusBloom />}
       {error && <div className="iob-error">{error}</div>}
 
       {result && result.application_type === 'credit_card' && (
@@ -424,6 +429,32 @@ export const InstantOnboardingModal: React.FC<InstantOnboardingModalProps> = ({
         </form>
       )}
     </Modal>
+  );
+};
+
+const PETAL = 'M24 11C30.5 18 30.5 28 24 35C17.5 28 17.5 18 24 11Z';
+const BLOOM = [{ r: 0, s: 1 }, { r: -36, s: 0.9 }, { r: 36, s: 0.9 }, { r: -72, s: 0.72 }, { r: 72, s: 0.72 }];
+const DRIFT = Array.from({ length: 7 }, (_, i) => {
+  const a = Math.PI * (1.08 + (i / 6) * 0.84);  // fanned across the top half
+  return { x: Math.cos(a) * 34, y: Math.sin(a) * 22 - 4, r: (i - 3) * 38 };
+});
+
+/** One-shot success moment: the Kosh lotus unfolds from its centre, a few loose petals drift up and fade, then it rests. Reduced motion: the still lotus. */
+const LotusBloom: React.FC = () => {
+  const reduce = useReducedMotion();
+  const origin = { originX: 0.5, originY: 1 };
+  return (
+    <svg className="iob-bloom" viewBox="0 0 48 48" aria-hidden="true">
+      {!reduce && DRIFT.map((d, i) => (
+        <motion.path key={i} d={PETAL} className="drift" style={origin} initial={{ x: 0, y: 0, rotate: 0, scale: 0.2, opacity: 0 }}
+          animate={{ x: d.x, y: d.y, rotate: d.r, scale: 0.34, opacity: [0, 0.9, 0] }} transition={{ duration: 1.5, delay: 0.45 + i * 0.04, ease: EASE }} />
+      ))}
+      {BLOOM.map(({ r, s }, i) => (
+        <motion.path key={r} d={PETAL} style={origin} initial={reduce ? false : { rotate: 0, scale: 0.15, opacity: 0 }}
+          animate={{ rotate: r, scale: s, opacity: 1 }} transition={{ duration: 0.8, delay: 0.08 + i * 0.07, ease: EASE }} />
+      ))}
+      <motion.path d="M13 37.5Q24 42.5 35 37.5" className="base" initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.6, ease: EASE }} />
+    </svg>
   );
 };
 

@@ -5,7 +5,7 @@ import { Icon } from '../common/Icon';
 import { PageHeader } from '../common/PageHeader';
 import { FilterTabs } from '../common/FilterTabs';
 import { AnimatePresence, motion } from '../common/Animate';
-import { Empty, Panel, Tag, rowMotion } from './StaffKit';
+import { Empty, Paged, Panel, Tag, rowMotion } from './StaffKit';
 
 interface AuditActivityPageProps {
   onExportAudit?: () => void;
@@ -72,13 +72,13 @@ export const AuditActivityPage: React.FC<AuditActivityPageProps> = ({ onExportAu
           <label className="st-search"><Icon name="search" /><span className="sr-only">Search events</span>
             <input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search events, e.g. Sentinel, card, consent" /></label>
         </div>
-        {groups.length ? (
+        {groups.length ? <Paged rows={groups} reset={`${filter}|${q}`}>{shown => (
           <div className="table-scroll"><table className="table st-cards">
             <thead><tr><th>When</th><th>Event</th><th>Severity</th><th className="num">Times</th></tr></thead>
-            <tbody><AnimatePresence initial={false}>{groups.map((g, i) => {
+            <tbody><AnimatePresence initial={false}>{shown.map((g, i) => {
               const e = g.first; const sev = SEVERITY[e.severity] || ['neutral', humanizeCode(e.severity) || 'Info'];
               return (
-                <motion.tr key={g.key} {...rowMotion(i)}>
+                <motion.tr key={g.key} {...rowMotion(i % 20)}>
                   <td data-label="When" className="st-nowrap">{formatDateTime(e.created_at)}
                     {g.count > 1 && g.earliest && formatTime(g.earliest) !== formatTime(e.created_at) && <span className="st-sub">first at {formatTime(g.earliest)}</span>}</td>
                   <td className="st-main"><strong>{nameOf(e)}</strong>
@@ -88,8 +88,8 @@ export const AuditActivityPage: React.FC<AuditActivityPageProps> = ({ onExportAu
                   <td data-label="Times" className="num">{g.count > 1 ? <strong>{g.count}×</strong> : 1}</td>
                 </motion.tr>);
             })}</AnimatePresence></tbody>
-          </table></div>
-        ) : <Empty icon="security" title={all.length ? 'No event matches' : 'No activity to show'}>
+          </table></div>)}</Paged>
+        : <Empty icon="security" title={all.length ? 'No event matches' : 'No activity to show'}>
           {all.length ? 'Try another word or filter.' : 'Security decisions will be recorded here.'}</Empty>}
       </Panel>
     </div>

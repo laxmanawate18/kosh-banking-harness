@@ -6,6 +6,7 @@ import { FilterTabs } from '../common/FilterTabs';
 import { RecentTransactions, TransactionDetailModal, categoryLabel } from '../overview/RecentTransactions';
 import type { Transaction } from '../../types/banking';
 import { useI18n } from '../../i18n';
+import { useSeenSince } from '../overview/seen';
 
 const amountOf = (tx: Transaction) => tx.amount_minor ?? tx.amount_paise ?? 0;
 
@@ -16,6 +17,7 @@ export const TransactionsPage: React.FC = () => {
   const [accountFilter, setAccountFilter] = useState('all');
   const [direction, setDirection] = useState('all');
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const seenSince = useSeenSince(overview?.transactions);
 
   const accounts = overview?.accounts || [];
   const q = search.toLowerCase().trim();
@@ -46,7 +48,7 @@ export const TransactionsPage: React.FC = () => {
             { id: 'out', label: t('Money out'), count: out.length },
           ]} />
         </div>
-        <RecentTransactions key={`${direction}-${accountFilter}`} transactions={shown} compact={false} accounts={accounts} onSelectTransaction={setSelectedTx} />
+        <RecentTransactions key={`${direction}-${accountFilter}`} transactions={shown} compact={false} accounts={accounts} newSince={seenSince} onSelectTransaction={setSelectedTx} />
       </section>
 
       {selectedTx && <TransactionDetailModal tx={selectedTx} onClose={() => setSelectedTx(null)} />}

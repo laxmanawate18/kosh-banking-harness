@@ -4,6 +4,7 @@ import { Icon } from '../common/Icon';
 import { FeatureIcon, type FeatureIconName } from '../common/FeatureIcon';
 import { LotusMark, Rangoli } from '../common/KoshLogo';
 import { prefersReducedMotion } from '../common/motion';
+import { motion, useScroll } from 'framer-motion';
 import '../../story.css';
 
 type Vars = React.CSSProperties & Record<`--${string}`, string | number>;
@@ -194,5 +195,8 @@ export const DoorFinale: React.FC<{ onOpen: () => void; onAsk: (prompt: string) 
   );
 };
 
-/** Thin saffron bar showing how far down the page you are (CSS scroll timeline; hidden where unsupported). */
-export const ScrollProgress: React.FC = () => <div className="ks-progress" aria-hidden="true" />;
+/** Thin accent bar showing how far down the page you are: scroll position drives scaleX directly (transform only, no React renders). */
+export const ScrollProgress: React.FC = () => {
+  const { scrollYProgress } = useScroll();
+  return <motion.div className="ks-progress" style={{ scaleX: scrollYProgress }} aria-hidden="true" />;
+};
