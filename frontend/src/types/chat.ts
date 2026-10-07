@@ -91,6 +91,8 @@ export interface SalesAction {
     type: 'OPEN_APPLICATION' | string;
     product_id: string;
     label: string;
+    /** Mitra opened the secure application form: show it now (details are typed there, never in chat). */
+    auto_open?: boolean;
   } | null;
   suggested_queries?: string[];
   disclosures?: string[];

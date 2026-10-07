@@ -2,13 +2,13 @@
 
 Its tools are declared in the `officer` channel of config/harness/tools.json, its instructions live in
 config/harness/agents/officer_copilot.md, and it runs through the shared gate, audit, kill switch and model settings.
-It reads the queue and drafts recommendations; only the officer decides. Results are masked before the model sees them.
+It reads the queue and drafts recommendations; only the officer decides. Results pass the LLM boundary (backend/llm_boundary.py):
+the model reads only the fields its tool declares, never customer identifiers or document values.
 """
 
 from __future__ import annotations
 
 import asyncio
-import functools
 import hashlib
 import uuid
 from typing import Any, Callable, Dict, List
@@ -17,6 +17,7 @@ from sqlalchemy import select
 
 from backend import care
 from backend.agent_config import create_harness_agent_config
+from backend.llm_boundary import Vault, audit_hits, guarded_tools
 from backend.harness import REGISTRY_PATH
 from backend.mitra_ops import mask_deep
 from persistence import ServiceRequestRecord, utc_dt
@@ -36,12 +37,6 @@ def instructions_version() -> str:
 
 
 def build_officer_tools(db, request_service, officer_user_id: str) -> List[Callable[..., Dict[str, Any]]]:
-    def masked(fn):  # data minimisation: identifiers are masked before results reach the model
-        @functools.wraps(fn)
-        def call(**kwargs):
-            return mask_deep(fn(**kwargs))
-        return call
-
     def list_pending_requests(status: str = "", limit: int = 20) -> dict:
         """Service requests waiting for an officer decision, newest first."""
         statuses = [status] if status else ["PENDING_APPROVAL", "ESCALATED", "MORE_INFO_REQUIRED", "RPA_FAILED"]
@@ -57,6 +52,8 @@ def build_officer_tools(db, request_service, officer_user_id: str) -> List[Calla
         if not request:
             return {"error": "Request not found"}
         request.pop("rpa_job", None)
+        # The copilot reasons on which details were collected and the server's discrepancy findings, not on the values.
+        request["collected_fields"] = sorted(k for k, v in (request.get("collected_data") or {}).items() if v)
         return request
 
     def get_customer_profile(customer_id: str) -> dict:
@@ -103,19 +100,22 @@ def build_officer_tools(db, request_service, officer_user_id: str) -> List[Calla
                         summary=f"Officer copilot drafted {recommendation} (not a decision)", details=note)
         return {"recorded": True, "note": "Draft saved for the officer. Only the officer can decide."}
 
-    return [masked(fn) for fn in (list_pending_requests, get_request_details, get_customer_profile, list_care_cases,
-                                  get_last_reconciliation, verify_audit_trail, query_bank_knowledge)] + [draft_decision_note]
+    return [list_pending_requests, get_request_details, get_customer_profile, list_care_cases,
+            get_last_reconciliation, verify_audit_trail, query_bank_knowledge, draft_decision_note]
 
 
 async def ask(agent_factory, db, request_service, *, officer_user_id: str, message: str,
               history: List[Dict[str, str]], request_id: str | None = None) -> Dict[str, Any]:
     """One copilot turn. The server keeps no conversation: the console sends the last few messages back."""
     session_id = f"OFFICER-{officer_user_id}-{uuid.uuid4().hex[:8]}"
-    context = {"session_id": session_id, "user_id": officer_user_id, "customer_id": None, "scopes": SCOPES, "tool_calls_this_turn": 0}
-    config = create_harness_agent_config(CHANNEL, session_id, instructions(), build_officer_tools(db, request_service, officer_user_id), context)
+    vault = Vault()
+    context = {"session_id": session_id, "user_id": officer_user_id, "customer_id": None, "scopes": SCOPES, "tool_calls_this_turn": 0,
+               "vault": vault}
+    tools = guarded_tools(build_officer_tools(db, request_service, officer_user_id), CHANNEL, vault)
+    config = create_harness_agent_config(CHANNEL, session_id, instructions(), tools, context)
     lines = [f"{m.get('role')}: {str(m.get('text', ''))[:800]}" for m in history[-10:] if m.get("text")]
-    prompt = ((("Earlier in this conversation (context only):\n" + "\n".join(lines) + "\n\n") if lines else "")
-              + (f"The officer is looking at request {request_id}.\n\n" if request_id else "") + f"Officer: {message}")
+    prompt = vault.redact((("Earlier in this conversation (context only):\n" + "\n".join(lines) + "\n\n") if lines else "")
+                          + (f"The officer is looking at request {request_id}.\n\n" if request_id else "") + f"Officer: {message}")
     from google.antigravity import types
     text, tools_used = "", []
 
@@ -137,6 +137,7 @@ async def ask(agent_factory, db, request_service, *, officer_user_id: str, messa
         text, tools_used = "", []
         context["tool_calls_this_turn"] = 0
         await asyncio.wait_for(run_once(), TURN_SECONDS)
+    audit_hits(vault, db, session_id=session_id, customer_id=None)
     db.append_audit("COPILOT_TURN", actor="officer", approver_id=officer_user_id, session_id=session_id,
                     summary="Officer copilot answered", details={"tools": tools_used, "instructions_version": instructions_version()})
-    return {"reply": mask_deep(text.strip()), "tools": tools_used, "instructions_version": instructions_version()}
+    return {"reply": mask_deep(vault.fill(text.strip())), "tools": tools_used, "instructions_version": instructions_version()}

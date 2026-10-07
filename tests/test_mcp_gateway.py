@@ -61,7 +61,13 @@ class McpGatewayTests(unittest.TestCase):
     def test_read_tool_returns_the_callers_own_data_and_is_audited(self):
         status, result = self.call("get_customer_summary")
         self.assertEqual(status, 200)
-        self.assertEqual(result["customer"]["display_name"], "Aarav Mehta")
+        account = next(a for a in result["accounts"] if a["id"] == "ACC-SAL-001")
+        self.assertEqual(account["account_number_masked"], "•••• 4821")
+        # An outside agent is another company's model: no name, no internal customer id, no figures.
+        self.assertNotIn("display_name", result["customer"])
+        self.assertNotIn("customer_id", account)
+        self.assertEqual(account["available_balance_minor"], "[shown only in the Kosh app]")
+        self.assertNotIn("_ref", result)
         events = [e for e in dev_ui.db.get_audit_events(limit=20) if e["event_type"] == "AGENT_TOOL_ALLOWED"]
         self.assertTrue(events and events[0]["session_id"].startswith("MCP-kosh-mcp-test"))
 

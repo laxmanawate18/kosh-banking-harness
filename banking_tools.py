@@ -146,6 +146,8 @@ class SecureBankingService:
             if not account or account.get("customer_id") != customer_id:
                 return {"success": False, "error": "Account not found."}
         transactions = self.db.get_transactions(customer_id, account_id=account_id, limit=limit)
+        # The model sees amounts only as placeholders, so it is told the direction instead of reading the sign.
+        transactions = [{**t, "direction": "DEBIT" if (t.get("amount_minor") or 0) < 0 else "CREDIT"} for t in transactions]
         return {
             "success": True,
             "transactions": transactions,
@@ -1155,7 +1157,37 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
 
     from knowledge_service import query_bank_knowledge
 
+    # Arithmetic on the customer's money happens here, on the server: the model only ever sees placeholders for figures.
+    def check_funds(amount_minor: int, account_id: str = "") -> dict:
+        """Whether an account (the primary one if none is given) has at least this amount available, in integer paise.
+        Use it for "can I afford / do I have enough". Answers yes or no; the figures come back as placeholders."""
+        ctx = signed_in()
+        accounts = [a for a in banking_service.db.snapshot().get("accounts", {}).values() if a.get("customer_id") == ctx["customer_id"]]
+        account = next((a for a in accounts if a["id"] == account_id.upper()), None) if account_id \
+            else next((a for a in accounts if a.get("is_primary")), accounts[0] if accounts else None)
+        if not account:
+            return {"success": False, "error": "Account not found."}
+        available = int(account.get("available_balance_minor") or 0)
+        return {"success": True, "account_id": account["id"], "account_name": account.get("name"), "covers": available >= amount_minor,
+                "available_minor": available, "shortfall_minor": max(0, amount_minor - available)}
+
+    def summarise_spending(days: int = 30, category: str = "") -> dict:
+        """Money out and money in over the last `days` days (1 to 365), optionally for one category such as P2P_TRANSFER
+        or BILL_PAYMENT. Totals come back as placeholders; counts per category are plain numbers."""
+        ctx = signed_in()
+        since = (datetime.now(timezone.utc) - timedelta(days=max(1, min(int(days), 365)))).isoformat()
+        txns = [t for t in banking_service.db.snapshot().get("transactions", []) if t.get("customer_id") == ctx["customer_id"]
+                and (t.get("created_at") or "") >= since and (not category or t.get("category") == category.upper())]
+        categories: Dict[str, int] = {}
+        for t in txns:
+            categories[t.get("category") or "OTHER"] = categories.get(t.get("category") or "OTHER", 0) + 1
+        return {"success": True, "days": days, "category": category.upper() or None, "count": len(txns), "categories": categories,
+                "spent_minor": sum(-int(t["amount_minor"]) for t in txns if (t.get("amount_minor") or 0) < 0),
+                "received_minor": sum(int(t["amount_minor"]) for t in txns if (t.get("amount_minor") or 0) > 0)}
+
     return [repeat_safe(tool) for tool in (
+        check_funds,
+        summarise_spending,
         get_customer_summary,
         get_transaction_history,
         get_outstanding_bills,

@@ -122,14 +122,38 @@ class CloudDocumentScanner:
                 "status": "TEXT_EXTRACTED" if text.strip() else "NO_TEXT_FOUND"}
 
 
+_LABEL_LINE = re.compile(r"^(?:name|नाम)\s*[:/]?\s*(.*)$", re.I)
+
+
 def basic_fields(text, doc_type):
-    """Unambiguous OCR candidates only. The same Antigravity agent interprets layouts."""
+    """Unambiguous OCR candidates only, read on the server. No model ever sees the document; the customer confirms these
+    in the form, and an officer checks them against the document."""
     fields = {}
+    upper = text.upper()
     if doc_type == "PAN":
-        matches = set(re.findall(r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", text.upper()))
+        matches = set(re.findall(r"\b[A-Z]{5}[0-9]{4}[A-Z]\b", upper))
         if len(matches) == 1:
             fields["pan_number"] = matches.pop()
-    match = re.search(r"(?:DOB|Date of Birth)\s*[: -]?\s*(\d{2})[/-](\d{2})[/-](\d{4})", text, re.I)
+    match = re.search(r"(?:DOB|Date of Birth|जन्म तिथि)\s*[: /-]?\s*(\d{2})[/-](\d{2})[/-](\d{4})", text, re.I)
     if match:
         fields["date_of_birth"] = f"{match[3]}-{match[2]}-{match[1]}"
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for i, line in enumerate(lines):  # "Name: X" on one line, or a "Name" label with the value on the next line
+        label = _LABEL_LINE.match(line)
+        if label:
+            candidate = label[1] or (lines[i + 1] if i + 1 < len(lines) else "")
+            if re.fullmatch(r"[A-Za-z][A-Za-z .'-]{1,78}", candidate):
+                fields["full_name"] = " ".join(candidate.split()).title()
+                break
+    if doc_type in {"AADHAAR", "VOTER_ID", "DRIVING_LICENSE", "PASSPORT", "NPR_LETTER"}:
+        address = re.search(r"(?:Address|पता)\s*[:]?\s*(.+?\b[1-9]\d{5}\b)", text, re.I | re.S)
+        if address:
+            fields["address"] = " ".join(address[1].split())[:240]
+        pincodes = set(re.findall(r"\b[1-9]\d{5}\b", text))
+        if len(pincodes) == 1:
+            fields["pincode"] = pincodes.pop()
+    if doc_type == "AADHAAR":
+        last4 = re.findall(r"XXXX XXXX (\d{4})", text)  # redact() already replaced the full number
+        if len(set(last4)) == 1:
+            fields["document_last4"] = last4[0]
     return fields

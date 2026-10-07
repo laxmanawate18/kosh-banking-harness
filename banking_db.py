@@ -61,6 +61,14 @@ def _lead_dict(row: CrossSellLeadRecord) -> Dict[str, Any]:
             "updated_at": row.updated_at.isoformat() if row.updated_at else None}
 
 
+
+def customer_token(customer_id: Optional[str]) -> str:
+    """The audit trail's pseudonym for a customer. Keyed (HMAC with the audit key, labelled for this use), so it cannot be
+    reversed by hashing guessable ids like CUST-1001. Records written before this keep their old token; each record's own
+    hash covers whatever it stored, so the chain still verifies."""
+    key = required_secret("SENTINEL_AUDIT_HMAC_KEY", "sentinel-demo-audit-key").encode("utf-8")
+    return hmac.new(key, b"customer-token|" + str(customer_id or "UNKNOWN").encode("utf-8"), hashlib.sha256).hexdigest()[:24]
+
 class BankingDatabase:
     """Atomic repository whose mutable domain snapshot lives in PostgreSQL JSONB.
 
@@ -156,7 +164,7 @@ class BankingDatabase:
         details["chain"] = 2  # every hashed field is stored, so the record can be re-verified
         fields = {
             "event_id": event["id"], "session_id": event.get("session_id"),
-            "customer_id_token": hashlib.sha256(str(event.get("customer_id") or "UNKNOWN").encode()).hexdigest()[:24],
+            "customer_id_token": customer_token(event.get("customer_id")),
             "event_type": event.get("event_type", "UNKNOWN"), "service_id": event.get("service_id"),
             "actor": event.get("actor", "system"), "model_version": event.get("model_version"),
             "prompt_version": event.get("prompt_version"),

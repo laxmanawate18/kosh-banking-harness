@@ -3,6 +3,78 @@
   "version": "2026-10-05.1",
   "channels": {
     "customer": {
+      "check_funds": {
+        "description": "Whether an account has enough available for an amount (yes or no; figures stay on the server)",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "amount_minor": {
+            "type": "integer",
+            "min": 1,
+            "max": 100000000000,
+            "required": true
+          },
+          "account_id": {
+            "type": "string",
+            "pattern": "^(?i:ACC-[A-Z0-9-]{1,40})$",
+            "required": false
+          }
+        },
+        "consent": "accounts:read",
+        "model_view": {
+          "fields": [
+            "success",
+            "error",
+            "account_id",
+            "account_name",
+            "covers"
+          ],
+          "amounts": [
+            "available_minor",
+            "shortfall_minor"
+          ]
+        }
+      },
+      "summarise_spending": {
+        "description": "Money in and out over recent days, by category (totals stay on the server)",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "days": {
+            "type": "integer",
+            "min": 1,
+            "max": 365,
+            "required": false
+          },
+          "category": {
+            "type": "string",
+            "max_length": 40,
+            "required": false
+          }
+        },
+        "consent": "accounts:read",
+        "model_view": {
+          "fields": [
+            "success",
+            "days",
+            "category",
+            "count",
+            "categories"
+          ],
+          "amounts": [
+            "spent_minor",
+            "received_minor"
+          ]
+        }
+      },
       "get_customer_summary": {
         "description": "Accounts, balances and payees of the signed-in customer",
         "effect": "read",
@@ -12,7 +84,32 @@
           "banking.read"
         ],
         "args": {},
-        "consent": "accounts:read"
+        "consent": "accounts:read",
+        "model_view": {
+          "fields": [
+            "customer.tier",
+            "customer.kyc_status",
+            "accounts[].id",
+            "accounts[].name",
+            "accounts[].type",
+            "accounts[].status",
+            "accounts[].currency",
+            "accounts[].account_number_masked",
+            "accounts[].is_primary",
+            "beneficiaries[].id",
+            "beneficiaries[].display_name",
+            "beneficiaries[].destination_masked",
+            "beneficiaries[].kind",
+            "beneficiaries[].relationship",
+            "beneficiaries[].availability",
+            "currency"
+          ],
+          "amounts": [
+            "accounts[].available_balance_minor",
+            "accounts[].balance_minor",
+            "total_available_minor"
+          ]
+        }
       },
       "get_transaction_history": {
         "description": "Recent transactions",
@@ -34,7 +131,26 @@
             "max": 50
           }
         },
-        "consent": "transactions:read"
+        "consent": "transactions:read",
+        "model_view": {
+          "fields": [
+            "success",
+            "error",
+            "transactions[].id",
+            "transactions[].account_id",
+            "transactions[].created_at",
+            "transactions[].description",
+            "transactions[].category",
+            "transactions[].direction",
+            "transactions[].currency",
+            "transactions[].beneficiary_id",
+            "transactions[].status",
+            "transactions[].reference"
+          ],
+          "amounts": [
+            "transactions[].amount_minor"
+          ]
+        }
       },
       "get_outstanding_bills": {
         "description": "Bills due",
@@ -45,7 +161,22 @@
           "banking.read"
         ],
         "args": {},
-        "consent": "accounts:read"
+        "consent": "accounts:read",
+        "model_view": {
+          "fields": [
+            "success",
+            "bills[].id",
+            "bills[].biller_name",
+            "bills[].category",
+            "bills[].due_date",
+            "bills[].status",
+            "bills[].reference_masked",
+            "untrusted_external_content"
+          ],
+          "amounts": [
+            "bills[].amount_minor"
+          ]
+        }
       },
       "get_security_alerts": {
         "description": "Security alerts on the account",
@@ -56,7 +187,19 @@
           "banking.read"
         ],
         "args": {},
-        "consent": "accounts:read"
+        "consent": "accounts:read",
+        "model_view": {
+          "fields": [
+            "success",
+            "alerts[].id",
+            "alerts[].card_id",
+            "alerts[].created_at",
+            "alerts[].title",
+            "alerts[].severity",
+            "alerts[].status",
+            "alerts[].signals"
+          ]
+        }
       },
       "propose_bill_payment": {
         "description": "Propose paying a registered bill",
@@ -78,7 +221,34 @@
             "required": true
           }
         },
-        "consent": "payments:propose"
+        "consent": "payments:propose",
+        "model_view": {
+          "fields": [
+            "success",
+            "status",
+            "error",
+            "challenge_id",
+            "payment_intent_id",
+            "sentinel.decision",
+            "sentinel.reason_codes",
+            "challenge.payee_name",
+            "challenge.destination_masked",
+            "challenge.source_account_name",
+            "challenge.source_account_masked",
+            "challenge.expires_at",
+            "receipt.reference",
+            "receipt.payee_name",
+            "receipt.source_account_masked",
+            "receipt.status",
+            "receipt.executed_at",
+            "presentation.title"
+          ],
+          "amounts": [
+            "challenge.amount_minor",
+            "receipt.amount_minor",
+            "receipt.remaining_balance_minor"
+          ]
+        }
       },
       "propose_transfer": {
         "description": "Propose a transfer to a saved payee",
@@ -111,7 +281,34 @@
             "required": false
           }
         },
-        "consent": "payments:propose"
+        "consent": "payments:propose",
+        "model_view": {
+          "fields": [
+            "success",
+            "status",
+            "error",
+            "challenge_id",
+            "payment_intent_id",
+            "sentinel.decision",
+            "sentinel.reason_codes",
+            "challenge.payee_name",
+            "challenge.destination_masked",
+            "challenge.source_account_name",
+            "challenge.source_account_masked",
+            "challenge.expires_at",
+            "receipt.reference",
+            "receipt.payee_name",
+            "receipt.source_account_masked",
+            "receipt.status",
+            "receipt.executed_at",
+            "presentation.title"
+          ],
+          "amounts": [
+            "challenge.amount_minor",
+            "receipt.amount_minor",
+            "receipt.remaining_balance_minor"
+          ]
+        }
       },
       "freeze_card": {
         "description": "Freeze a card at once (protective); unfreezing is confirmed by the bank",
@@ -133,7 +330,34 @@
             "required": true
           }
         },
-        "consent": "cards:protect"
+        "consent": "cards:protect",
+        "model_view": {
+          "fields": [
+            "success",
+            "status",
+            "error",
+            "challenge_id",
+            "payment_intent_id",
+            "sentinel.decision",
+            "sentinel.reason_codes",
+            "challenge.payee_name",
+            "challenge.destination_masked",
+            "challenge.source_account_name",
+            "challenge.source_account_masked",
+            "challenge.expires_at",
+            "receipt.reference",
+            "receipt.payee_name",
+            "receipt.source_account_masked",
+            "receipt.status",
+            "receipt.executed_at",
+            "presentation.title",
+            "card.id",
+            "card.type",
+            "card.network",
+            "card.status",
+            "card.card_number_masked"
+          ]
+        }
       },
       "get_kyc_status": {
         "description": "KYC status and pending requirements",
@@ -144,7 +368,24 @@
           "banking.read"
         ],
         "args": {},
-        "consent": "accounts:read"
+        "consent": "accounts:read",
+        "model_view": {
+          "fields": [
+            "success",
+            "status",
+            "kyc_status",
+            "kyc_type",
+            "is_initial_kyc",
+            "due_date",
+            "requires_re_kyc",
+            "requires_initial_kyc",
+            "requires_kyc",
+            "registered_pan_masked",
+            "pending_request_id",
+            "pending_requirements",
+            "account_restrictions"
+          ]
+        }
       },
       "validate_kyc_document": {
         "description": "Check the format of a PAN, Aadhaar or passport number",
@@ -173,7 +414,19 @@
             "required": true
           }
         },
-        "consent": "service_requests:create"
+        "consent": "service_requests:create",
+        "model_view": {
+          "fields": [
+            "success",
+            "doc_type",
+            "is_valid",
+            "masked_identifier",
+            "verification_status",
+            "issuer_verified",
+            "validation_message",
+            "error"
+          ]
+        }
       },
       "start_banking_workflow": {
         "description": "Open a guided service workflow",
@@ -190,7 +443,32 @@
             "required": true
           }
         },
-        "consent": "service_requests:create"
+        "consent": "service_requests:create",
+        "model_view": {
+          "fields": [
+            "id",
+            "skill_id",
+            "name",
+            "status",
+            "revision",
+            "filled_fields",
+            "checks[].code",
+            "checks[].status",
+            "checks[].message",
+            "checks[].blocking",
+            "documents[].id",
+            "documents[].document_type",
+            "documents[].scan_status",
+            "documents[].quality_score",
+            "documents[].fields_found",
+            "request_id",
+            "outcome",
+            "fulfilment_summary",
+            "workflow_guide",
+            "success",
+            "error"
+          ]
+        }
       },
       "record_document_extraction": {
         "description": "Record facts read from an uploaded document for officer review",
@@ -222,7 +500,32 @@
             "required": true
           }
         },
-        "consent": "service_requests:create"
+        "consent": "service_requests:create",
+        "model_view": {
+          "fields": [
+            "id",
+            "skill_id",
+            "name",
+            "status",
+            "revision",
+            "filled_fields",
+            "checks[].code",
+            "checks[].status",
+            "checks[].message",
+            "checks[].blocking",
+            "documents[].id",
+            "documents[].document_type",
+            "documents[].scan_status",
+            "documents[].quality_score",
+            "documents[].fields_found",
+            "request_id",
+            "outcome",
+            "fulfilment_summary",
+            "workflow_guide",
+            "success",
+            "error"
+          ]
+        }
       },
       "start_account_opening": {
         "description": "Start an account-opening workflow",
@@ -233,7 +536,32 @@
           "banking.propose"
         ],
         "args": {},
-        "consent": "service_requests:create"
+        "consent": "service_requests:create",
+        "model_view": {
+          "fields": [
+            "id",
+            "skill_id",
+            "name",
+            "status",
+            "revision",
+            "filled_fields",
+            "checks[].code",
+            "checks[].status",
+            "checks[].message",
+            "checks[].blocking",
+            "documents[].id",
+            "documents[].document_type",
+            "documents[].scan_status",
+            "documents[].quality_score",
+            "documents[].fields_found",
+            "request_id",
+            "outcome",
+            "fulfilment_summary",
+            "workflow_guide",
+            "success",
+            "error"
+          ]
+        }
       },
       "check_account_opening_status": {
         "description": "Status of an account opening",
@@ -250,7 +578,16 @@
             "required": false
           }
         },
-        "consent": "accounts:read"
+        "consent": "accounts:read",
+        "model_view": {
+          "fields": [
+            "status",
+            "application_reference",
+            "presentation.application_reference",
+            "job.status",
+            "error"
+          ]
+        }
       },
       "record_customer_lead": {
         "description": "Record a product interest for follow-up (consent-gated)",
@@ -302,7 +639,19 @@
             "required": false
           }
         },
-        "consent": "marketing"
+        "consent": "marketing",
+        "model_view": {
+          "fields": [
+            "success",
+            "lead_id",
+            "status",
+            "category",
+            "product_title",
+            "headline_rate",
+            "special_offer",
+            "error"
+          ]
+        }
       },
       "get_lead_reengagement_offer": {
         "description": "Follow-up facts for an earlier product interest",
@@ -313,7 +662,21 @@
           "banking.read"
         ],
         "args": {},
-        "consent": "marketing"
+        "consent": "marketing",
+        "model_view": {
+          "fields": [
+            "has_active_lead",
+            "lead_id",
+            "category",
+            "sub_type",
+            "recommended_product_id",
+            "special_offer_note",
+            "follow_up_pitch"
+          ],
+          "amounts": [
+            "amount_requested_minor"
+          ]
+        }
       },
       "get_next_best_offer": {
         "description": "A personalised offer, only with marketing consent",
@@ -324,7 +687,16 @@
           "banking.read"
         ],
         "args": {},
-        "consent": "marketing"
+        "consent": "marketing",
+        "model_view": {
+          "fields": [
+            "has_offer",
+            "reason",
+            "product_id",
+            "title",
+            "why_this_offer"
+          ]
+        }
       },
       "decline_offer": {
         "description": "Record that the customer declined an offer",
@@ -341,7 +713,13 @@
             "required": true
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": {
+          "fields": [
+            "recorded",
+            "message"
+          ]
+        }
       },
       "start_video_kyc": {
         "description": "Book a video KYC session",
@@ -352,7 +730,16 @@
           "banking.propose"
         ],
         "args": {},
-        "consent": "service_requests:create"
+        "consent": "service_requests:create",
+        "model_view": {
+          "fields": [
+            "available",
+            "reason",
+            "sandbox",
+            "note",
+            "error"
+          ]
+        }
       },
       "register_complaint": {
         "description": "Register a complaint with a reference and RBI timelines",
@@ -374,7 +761,20 @@
             "required": false
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": {
+          "fields": [
+            "registered",
+            "reference",
+            "id",
+            "kind",
+            "status",
+            "due_at",
+            "due_by",
+            "timeline",
+            "message"
+          ]
+        }
       },
       "request_callback": {
         "description": "Request a callback from a person",
@@ -396,7 +796,20 @@
             "required": false
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": {
+          "fields": [
+            "registered",
+            "reference",
+            "id",
+            "kind",
+            "status",
+            "due_at",
+            "due_by",
+            "timeline",
+            "message"
+          ]
+        }
       },
       "check_loan_affordability": {
         "description": "EMI and affordability check",
@@ -436,7 +849,8 @@
             "max": 1000000000
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "query_bank_knowledge": {
         "description": "Search Kosh's policy and help documents",
@@ -458,7 +872,8 @@
             "required": false
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "search_public_products": {
         "description": "Search the published product catalogue",
@@ -480,7 +895,8 @@
             "required": false
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "get_public_product_details": {
         "description": "Published facts for named products",
@@ -502,7 +918,8 @@
             "required": true
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "compare_public_products": {
         "description": "Compare published products",
@@ -534,7 +951,8 @@
             "required": true
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "get_product_disclosures": {
         "description": "Key Fact Statement and disclosures",
@@ -551,7 +969,8 @@
             "required": true
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "check_application_status": {
         "description": "Status of an application by reference and mobile",
@@ -573,7 +992,8 @@
             "required": true
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       }
     },
     "visitor": {
@@ -597,7 +1017,8 @@
             "required": false
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "get_public_product_details": {
         "description": "Published facts for named products",
@@ -619,7 +1040,8 @@
             "required": true
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "compare_public_products": {
         "description": "Compare published products",
@@ -651,7 +1073,8 @@
             "required": true
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "get_product_disclosures": {
         "description": "Key Fact Statement and disclosures",
@@ -668,7 +1091,8 @@
             "required": true
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "check_application_status": {
         "description": "Status of an application by reference and mobile",
@@ -690,7 +1114,8 @@
             "required": true
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "check_loan_affordability": {
         "description": "EMI and affordability check",
@@ -730,7 +1155,8 @@
             "max": 1000000000
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "query_bank_knowledge": {
         "description": "Search Kosh's policy and help documents",
@@ -752,83 +1178,8 @@
             "required": false
           }
         },
-        "consent": "none"
-      },
-      "prepare_product_application": {
-        "description": "Collect a new applicant's details for review before submission",
-        "effect": "write",
-        "risk": "low",
-        "approval": "none",
-        "scopes": [
-          "banking.propose"
-        ],
-        "args": {
-          "product_id": {
-            "type": "string",
-            "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
-            "required": true
-          },
-          "full_name": {
-            "type": "string",
-            "max_length": 120,
-            "required": true
-          },
-          "mobile": {
-            "type": "string",
-            "pattern": "^[+0-9 -]{10,16}$",
-            "required": true
-          },
-          "email": {
-            "type": "string",
-            "pattern": "^[^@\\s]{1,64}@[^@\\s]{1,190}$",
-            "required": true
-          },
-          "employment_type": {
-            "type": "string",
-            "max_length": 40,
-            "required": false
-          },
-          "pan_number": {
-            "type": "string",
-            "pattern": "^(?i:[A-Z]{5}[0-9]{4}[A-Z])?$"
-          },
-          "pincode": {
-            "type": "string",
-            "pattern": "^([1-9][0-9]{5})?$"
-          },
-          "monthly_income": {
-            "type": "number",
-            "min": 0,
-            "max": 1000000000
-          },
-          "loan_amount": {
-            "type": "number",
-            "min": 0,
-            "max": 1000000000
-          },
-          "loan_tenure_months": {
-            "type": "integer",
-            "min": 0,
-            "max": 480
-          },
-          "loan_purpose": {
-            "type": "string",
-            "max_length": 200,
-            "required": false
-          }
-        },
-        "consent": "none"
-      },
-      "submit_product_application": {
-        "description": "Submit the confirmed application to the bank for review",
-        "effect": "write",
-        "risk": "medium",
-        "approval": "officer",
-        "scopes": [
-          "banking.propose"
-        ],
-        "args": {},
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "register_complaint": {
         "description": "Register a complaint with a reference and RBI timelines",
@@ -860,7 +1211,20 @@
             "required": false
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": {
+          "fields": [
+            "registered",
+            "reference",
+            "id",
+            "kind",
+            "status",
+            "due_at",
+            "due_by",
+            "timeline",
+            "message"
+          ]
+        }
       },
       "request_callback": {
         "description": "Request a callback from a person",
@@ -892,7 +1256,38 @@
             "required": false
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": {
+          "fields": [
+            "registered",
+            "reference",
+            "id",
+            "kind",
+            "status",
+            "due_at",
+            "due_by",
+            "timeline",
+            "message"
+          ]
+        }
+      },
+      "open_application_form": {
+        "description": "Open the secure application form for a product; the visitor types their details there, not in chat",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "product_id": {
+            "type": "string",
+            "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
+            "required": true
+          }
+        },
+        "consent": "none",
+        "model_view": "public"
       }
     },
     "officer": {
@@ -920,7 +1315,17 @@
             "max": 50
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": {
+          "fields": [
+            "requests[].id",
+            "requests[].customer_id",
+            "requests[].service_id",
+            "requests[].status",
+            "requests[].discrepancies",
+            "requests[].updated_at"
+          ]
+        }
       },
       "get_request_details": {
         "description": "One request: collected data (masked), findings, discrepancies, confidence and history",
@@ -937,7 +1342,25 @@
             "required": true
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": {
+          "fields": [
+            "id",
+            "customer_id",
+            "service_id",
+            "status",
+            "auth_level",
+            "collected_fields",
+            "findings",
+            "discrepancy_flags",
+            "confidence_scores",
+            "approver_id",
+            "resolution_reason",
+            "created_at",
+            "updated_at",
+            "error"
+          ]
+        }
       },
       "get_customer_profile": {
         "description": "A customer's KYC standing, risk category and accounts (masked)",
@@ -954,7 +1377,21 @@
             "required": true
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": {
+          "fields": [
+            "customer_id",
+            "kyc_status",
+            "kyc_type",
+            "risk_category",
+            "pending_requirements",
+            "accounts[].id",
+            "accounts[].type",
+            "accounts[].status",
+            "accounts[].account_number_masked",
+            "error"
+          ]
+        }
       },
       "list_care_cases": {
         "description": "Open customer-care cases: complaints, fraud reports, callbacks and hardship",
@@ -975,7 +1412,20 @@
             ]
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": {
+          "fields": [
+            "cases[].id",
+            "cases[].kind",
+            "cases[].status",
+            "cases[].priority",
+            "cases[].customer_id",
+            "cases[].category",
+            "cases[].due_at",
+            "cases[].created_at",
+            "cases[].overdue"
+          ]
+        }
       },
       "get_last_reconciliation": {
         "description": "The latest reconciliation between Kosh and the core banking journal",
@@ -986,7 +1436,8 @@
           "officer.read"
         ],
         "args": {},
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "verify_audit_trail": {
         "description": "Re-check the tamper-evident audit chain",
@@ -997,7 +1448,8 @@
           "officer.read"
         ],
         "args": {},
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "query_bank_knowledge": {
         "description": "Search Kosh's policy and help documents",
@@ -1018,7 +1470,8 @@
             "max_length": 40
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       },
       "draft_decision_note": {
         "description": "Record a draft recommendation on a request for the officer to review; it is not a decision",
@@ -1050,9 +1503,11 @@
             "required": true
           }
         },
-        "consent": "none"
+        "consent": "none",
+        "model_view": "public"
       }
     }
   },
-  "_consent": "Each tool names the customer consent it relies on: a digital-banking consent scope, 'marketing' (the separate personalised-offers consent) or 'none' (public information, or a right that is never gated: complaints, callbacks, declining an offer). The gate refuses the tool without that active consent and records the consent id on the audit record."
+  "_consent": "Each tool names the customer consent it relies on: a digital-banking consent scope, 'marketing' (the separate personalised-offers consent) or 'none' (public information, or a right that is never gated: complaints, callbacks, declining an offer). The gate refuses the tool without that active consent and records the consent id on the audit record.",
+  "_model_view": "model_view: the result fields a model may read. Anything not listed never reaches a model; 'amounts' become placeholders the server fills in the reply; 'public' marks results that carry no customer data. See backend/llm_boundary.py."
 }

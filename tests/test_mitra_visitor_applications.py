@@ -1,8 +1,7 @@
-"""Mitra takes real applications in chat: prepare -> visitor confirms -> submit once; companion offers shown once."""
+"""Visitor applications: Mitra opens the secure form (details never pass through chat); companion offers shown once."""
 import os
 import tempfile
 import unittest
-import uuid
 from pathlib import Path
 
 _DATABASE = tempfile.TemporaryDirectory()
@@ -16,46 +15,24 @@ class MitraVisitorApplicationTests(unittest.TestCase):
     def setUp(self):
         self.context = SalesSessionContext()
         self.tools = {tool.__name__: tool for tool in build_public_sales_tools(lambda: self.context)}
-        self.phone = f"98{uuid.uuid4().int % 100000000:08d}"
 
-    def prepare(self, **extra):
-        return self.tools["prepare_product_application"](
-            "PROD-SAV-PREMIER", "Laxman Awate", self.phone, "laxman@example.com", employment_type="Salaried", **extra)
+    def test_mitra_opens_the_secure_form_and_never_collects_details_in_chat(self):
+        opened = self.tools["open_application_form"]("PROD-SAV-PREMIER")
+        self.assertTrue(opened["ok"])
+        self.assertEqual(self.context.form_product_id, "PROD-SAV-PREMIER")
+        self.assertIn("Never ask for", opened["instruction"])
+        self.assertFalse(self.tools["open_application_form"]("PROD-NOPE")["ok"])
+        # The applicant's details go from the form to /api/products/apply; the chat tools take none of them.
+        self.assertNotIn("prepare_product_application", self.tools)
+        self.assertNotIn("submit_product_application", self.tools)
 
-    def test_submission_needs_the_visitors_own_confirmation(self):
-        self.assertEqual(self.prepare()["status"], "AWAITING_VISITOR_CONFIRMATION")
-        refused = self.tools["submit_product_application"]()
-        self.assertFalse(refused["ok"])
-        self.context.update("Laxman Awate 9820515974")  # more details is not a confirmation
-        self.assertFalse(self.tools["submit_product_application"]()["ok"])
-        self.context.update("confirm")
-        submitted = self.tools["submit_product_application"]()
-        self.assertTrue(submitted["ok"], submitted)
-        self.assertTrue(submitted["application_ref"].startswith("SAV-APP-"))
-        lead = next(l for l in dev_ui.db.list_leads() if (l.get("preferences") or {}).get("app_ref") == submitted["application_ref"])
-        self.assertEqual(lead["preferences"]["email"], "laxman@example.com")
-        self.assertEqual(lead["status"], "PENDING_APPROVAL")
-
-    def test_same_product_is_never_submitted_twice(self):
-        self.prepare(); self.context.update("yes, submit it")
-        first = self.tools["submit_product_application"]()
-        again = self.prepare()
-        self.assertEqual(again["already_submitted"]["application_ref"], first["application_ref"])
-        refs = [l for l in dev_ui.db.list_leads() if (l.get("preferences") or {}).get("phone_number", "").endswith(self.phone)]
-        self.assertEqual(len(refs), 1)
-
-    def test_missing_details_are_asked_for_not_invented(self):
-        result = self.tools["prepare_product_application"]("PROD-SAV-PREMIER", "Laxman Awate", self.phone, "")
-        self.assertEqual(result["missing_fields"], ["email"])
-        card = self.tools["prepare_product_application"]("PROD-CARD-CASHBACK", "Laxman Awate", self.phone, "l@example.com")
-        self.assertEqual(set(card["missing_fields"]), {"pan_number", "employment_type", "monthly_income"})
-
-    def test_invalid_details_come_back_as_a_correctable_error(self):
-        self.tools["prepare_product_application"]("PROD-SAV-PREMIER", "Laxman Awate", "12345", "l@example.com")
-        self.context.update("confirm")
-        result = self.tools["submit_product_application"]()
-        self.assertFalse(result["ok"])
-        self.assertIn("mobile", result["error"].lower())
+    def test_the_trusted_context_sent_each_turn_holds_no_personal_details(self):
+        self.tools["open_application_form"]("PROD-CARD-CASHBACK")
+        self.context.update("My PAN is ABCDE1234F and mobile 9820515974")
+        snapshot = str(self.context.snapshot())
+        self.assertIn("PROD-CARD-CASHBACK", snapshot)
+        self.assertNotIn("ABCDE1234F", snapshot.replace(" ", ""))
+        self.assertNotIn("9820515974", snapshot)
 
     def turn(self, context, prompt):  # same order as the chat runtime: update context, then build the sales action
         context.update(prompt)

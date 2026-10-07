@@ -5,6 +5,8 @@ Every call goes through the same controls as Mitra:
   OAuth bearer token from Kosh's authorization server, bound to one customer, with per-tool scopes
   the tool registry (declared tools only, typed and bounded arguments), the bank's kill switch and rate limits
   the tamper-evident audit trail (masked arguments, allow/deny, result)
+  the LLM boundary: an outside agent is another company's model, so it gets only the fields each tool declares
+  (config/harness/tools.json "model_view"), never identifiers, and no amounts: figures stay in the Kosh app
   Sentinel for every money movement: an agent can only *propose*; the customer approves in Kavach on Kosh's own app.
 """
 
@@ -26,6 +28,7 @@ from mcp.types import ToolAnnotations
 from backend import harness
 from backend.agent_config import SecureToolGateHook, SessionPostToolCallHook, audit_tool_decision
 from backend.chat_runtime import over_rate_limit
+from backend.llm_boundary import Vault, audit_hits, known_identifiers
 from banking_db import db
 from banking_tools import build_banking_tools
 from product_service import SalesSessionContext, build_public_sales_tools
@@ -92,7 +95,12 @@ def _expose(server: MCPServer, name: str, fn: Callable[..., Any], spec: Dict[str
                                                        caller["customer_id"], f"assistant app {caller['session_id']}")
         token = _CALLER.set(caller)
         try:
-            result = await asyncio.to_thread(fn, **kwargs)  # to_thread copies the context, so the tool sees the caller
+            full = await asyncio.to_thread(fn, **kwargs)  # to_thread copies the context, so the tool sees the caller
+            vault = Vault(known_identifiers(db, caller["customer_id"]))
+            result = vault.model_view("customer", name, full, amounts="withhold")
+            if isinstance(result, dict):
+                result.pop("_ref", None)  # there is no Kosh screen on the other side to look it up
+            audit_hits(vault, db, session_id=caller["session_id"], customer_id=caller["customer_id"])
             outcome = types.ToolResult(name=name, id=request.id, result=result)
         except Exception as exc:
             result, outcome = _refused(type(exc).__name__), types.ToolResult(name=name, id=request.id, error=str(exc))

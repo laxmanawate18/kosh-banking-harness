@@ -47,9 +47,14 @@ class OfficerCopilotTests(unittest.TestCase):
             create_harness_agent_config("officer", "S", "x", [*self.tools.values(), lambda: None], {})
 
     def test_results_are_masked_before_the_model_sees_them(self):
-        details = str(self.tools["get_request_details"](request_id=self.request["id"]))
-        self.assertNotIn("ABCDE1234F", details)
-        self.assertNotIn("9876543210", details)
+        from backend.llm_boundary import Vault, guarded_tools
+        model_tools = {t.__name__: t for t in guarded_tools(self.tools.values(), "officer", Vault())}
+        details = model_tools["get_request_details"](request_id=self.request["id"])
+        self.assertNotIn("ABCDE1234F", str(details))
+        self.assertNotIn("9876543210", str(details))
+        # The copilot learns which details were collected, never their values.
+        self.assertEqual(details["collected_fields"], ["card", "mobile", "pan_number"])
+        self.assertNotIn("collected_data", details)
 
     def test_a_draft_is_never_a_decision(self):
         result = self.tools["draft_decision_note"](request_id=self.request["id"], recommendation="APPROVE", reasoning="All checks match.")

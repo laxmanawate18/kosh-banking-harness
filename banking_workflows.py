@@ -74,9 +74,13 @@ class WorkflowService:
 
     def view(self, row):
         payload = row.payload
-        documents = [{k:v for k,v in d.items() if k not in {"encrypted_content", "text"}} for d in payload.get("documents", [])]
+        documents = [{**{k:v for k,v in d.items() if k not in {"encrypted_content", "text"}},
+                      "fields_found": sorted(k for k, v in (d.get("extracted_fields") or {}).items() if v)}
+                     for d in payload.get("documents", [])]
+        fields = payload.get("fields", {})
         return {"id": row.id, "skill_id": row.skill_id, "name": WORKFLOWS[row.skill_id]["name"], "status": row.status,
-                "revision": row.revision, "fields": payload.get("fields", {}), "sources": payload.get("sources", {}),
+                "revision": row.revision, "fields": fields, "filled_fields": sorted(k for k, v in fields.items() if v),
+                "sources": payload.get("sources", {}),
                 "documents": documents, "checks": self.checks(row), "request_id": row.request_id,
                 "review_digest": payload.get("review_digest"), "review_expires_at": payload.get("review_expires_at"),
                 "outcome": WORKFLOWS[row.skill_id]["outcome"], "download": payload.get("download"),
@@ -271,7 +275,7 @@ class WorkflowService:
                 "encrypted_content":cipher().encrypt(raw).decode(), "scan_status":scan["status"], "provider":scan["provider"],
                 "quality_score":scan.get("quality_score"), "text":scan.get("text", ""), "extracted_fields":fields,
                 "authenticity":"NOT_VERIFIED", "consented_at":utc_dt().isoformat(), "message":scan.get("message", "Review extracted information before continuing")}
-            # OCR text is encrypted too; only redacted text is supplied to the single agent.
+            # OCR text is encrypted at rest and never supplied to a model; the parser above pre-fills the form.
             doc["text"] = cipher().encrypt(doc["text"].encode()).decode()
             p["documents"].append(doc)
             for key, value in fields.items():
@@ -305,7 +309,11 @@ class WorkflowService:
     def agent_context(self, workflow_id, customer_id):
         with self.db.runtime.sessions() as session:
             row = self.owned(session, workflow_id, customer_id)
-            return [{"document_id":d["id"], "document_type":d["document_type"], "untrusted_ocr_text":cipher().decrypt(d["text"].encode()).decode()}
+            # What Mitra may know about each document: never its text or values, only what the bank's parser found.
+            return [{"document_id":d["id"], "document_type":d["document_type"], "scan_status":d.get("scan_status"),
+                     "fields_found":sorted(k for k, v in (d.get("extracted_fields") or {}).items() if v),
+                     "fields_still_needed":[k for k in ("full_name","date_of_birth","address","pincode")
+                                            if not row.payload.get("fields", {}).get(k)]}
                     for d in row.payload.get("documents", [])]
 
     def get_skill_for_workflow(self, workflow_id, customer_id) -> str:

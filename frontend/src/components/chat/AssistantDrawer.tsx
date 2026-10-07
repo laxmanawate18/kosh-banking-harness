@@ -23,6 +23,17 @@ export function AssistantDrawer() {
   useEffect(() => {
     if (activeWorkflowId || activeChallenge) setIsOpen(false);
   }, [activeWorkflowId, activeChallenge, setIsOpen]);
+  const autoOpened = useRef(new Set<string>());
+  useEffect(() => {
+    // Mitra opened the secure application form for this product: show it once.
+    const next = messages[messages.length - 1]?.salesAction?.next_action;
+    if (!next?.auto_open || next.type !== 'OPEN_APPLICATION' || autoOpened.current.has(next.product_id)) return;
+    const product = messages.flatMap(m => m.salesAction?.products || []).find(p => p.id === next.product_id);
+    if (product) {
+      autoOpened.current.add(next.product_id);
+      setSelectedProduct(product as Product);
+    }
+  }, [messages]);
   useEffect(() => {
     const handleOpenLogin = () => setIsOpen(false);
     window.addEventListener('open-login-modal', handleOpenLogin);
