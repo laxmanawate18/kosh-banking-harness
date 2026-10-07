@@ -41,6 +41,12 @@ MAX_TOOL_CALLS_PER_TURN = harness.policy()["chat"]["max_tool_calls_per_turn"]
 MODEL_RETRY = types.RetryConfig(api_retry=types.ModelAPIRetryConfig(
     max_retries=3, initial_sleep_duration_ms=1000, exponential_multiplier=2.0, jitter_range=0.2))
 MODEL_OPTIONS = types.GeminiModelOptions(thinking_level=types.ThinkingLevel[os.getenv("GEMINI_THINKING_LEVEL", "LOW").upper()])
+# Gemini 2.x rejects thinking_level ("not supported by this model"); it thinks at its own default instead.
+LEGACY_MODEL_OPTIONS = types.GeminiModelOptions()
+
+
+def _options(model: str) -> types.GeminiModelOptions:
+    return LEGACY_MODEL_OPTIONS if model.startswith(("gemini-1", "gemini-2")) else MODEL_OPTIONS
 
 # Standing multilingual rule shared by the visitor and customer agents.
 LANGUAGE_RULE = (
@@ -332,14 +338,15 @@ def _model_settings(model: Optional[str] = None, *, api_key: Optional[str] = Non
     resolved_api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     resolved_project = project_id or os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID") or DEFAULT_PROJECT_ID
     resolved_location = os.getenv("GOOGLE_CLOUD_LOCATION") or DEFAULT_LOCATION
+    model = model or DEFAULT_MODEL
     if USE_VERTEXAI or bool(resolved_project and not resolved_api_key):
-        endpoint = models.VertexEndpoint(project=resolved_project, location=resolved_location, options=MODEL_OPTIONS)
-        return models.ModelTarget(name=model or DEFAULT_MODEL, endpoint=endpoint), {
+        endpoint = models.VertexEndpoint(project=resolved_project, location=resolved_location, options=_options(model))
+        return models.ModelTarget(name=model, endpoint=endpoint), {
             "vertex": True, "project": resolved_project, "location": resolved_location,
             "env": {"GOOGLE_GENAI_USE_VERTEXAI": "True", "GOOGLE_CLOUD_PROJECT": resolved_project,
                     "GOOGLE_CLOUD_LOCATION": resolved_location, "PROJECT_ID": resolved_project}}
-    endpoint = models.GeminiAPIEndpoint(api_key=resolved_api_key, options=MODEL_OPTIONS)
-    return models.ModelTarget(name=model or DEFAULT_MODEL, endpoint=endpoint), {"api_key": resolved_api_key, "project": resolved_project}
+    endpoint = models.GeminiAPIEndpoint(api_key=resolved_api_key, options=_options(model))
+    return models.ModelTarget(name=model, endpoint=endpoint), {"api_key": resolved_api_key, "project": resolved_project}
 
 
 class HarnessGateHook(hooks.PreToolCallDecideHook):

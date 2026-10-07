@@ -11,8 +11,10 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -164,6 +166,31 @@ def update_registry(db, record_id: str, *, approval: Optional[Dict[str, Any]] = 
             summary["evaluations"] = (summary.get("evaluations") or [])[-9:] + [evaluation]
         row.evaluation_summary = summary
         return True
+
+
+PRIMARY_REST_SECONDS = 120  # after the main model is overloaded, new turns use the backup model for this long
+_OVERLOAD_SIGNS = ("429", "RESOURCE_EXHAUSTED", "Too Many Requests", "503", "UNAVAILABLE")
+_primary_rest_until = [float("-inf")]  # per server instance
+
+
+def overloaded(exc: BaseException) -> bool:
+    """A quota, capacity or stall error: the model is busy, not the request wrong."""
+    return isinstance(exc, TimeoutError) or any(sign in f"{type(exc).__name__} {exc}" for sign in _OVERLOAD_SIGNS)
+
+
+def note_model_failure(exc: BaseException) -> None:
+    """Rest the main model when it is overloaded, so the next turns go straight to the backup instead of waiting on it."""
+    from backend.settings import FALLBACK_MODEL
+    if FALLBACK_MODEL and overloaded(exc):
+        _primary_rest_until[0] = time.monotonic() + PRIMARY_REST_SECONDS
+        logging.getLogger(__name__).warning("Main model overloaded (%s); new turns use %s for %ss",
+                                            type(exc).__name__, FALLBACK_MODEL, PRIMARY_REST_SECONDS)
+
+
+def turn_model() -> Optional[str]:
+    """The model for a new turn: None means the main model; the backup while the main model rests."""
+    from backend.settings import FALLBACK_MODEL
+    return FALLBACK_MODEL if FALLBACK_MODEL and time.monotonic() < _primary_rest_until[0] else None
 
 
 def token_counts(usage: Any) -> List[int]:

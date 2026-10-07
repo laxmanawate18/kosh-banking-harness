@@ -76,3 +76,28 @@ class ModelFallbackTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MainModelRests(unittest.TestCase):
+    """After the main model is overloaded, new turns go straight to the backup for a while, then back."""
+
+    def setUp(self):
+        from backend import mitra_ops
+        self.ops = mitra_ops
+        self.addCleanup(lambda: mitra_ops._primary_rest_until.__setitem__(0, float("-inf")))
+
+    def test_overload_rests_the_main_model_other_errors_do_not(self):
+        with patch("backend.settings.FALLBACK_MODEL", "gemini-2.5-flash"):
+            self.ops.note_model_failure(ValueError("400 bad request"))
+            self.assertIsNone(self.ops.turn_model())
+            self.ops.note_model_failure(RuntimeError("model response error: 429 Too Many Requests"))
+            self.assertEqual(self.ops.turn_model(), "gemini-2.5-flash")
+            with patch("backend.mitra_ops.time.monotonic", return_value=10**9):
+                self.assertIsNone(self.ops.turn_model())  # the rest is over: back to the main model
+        with patch("backend.settings.FALLBACK_MODEL", None):
+            self.assertIsNone(self.ops.turn_model())  # no backup configured: always the main model
+
+    def test_gemini_2_gets_no_thinking_level(self):
+        from backend.agent_config import _options
+        self.assertIsNone(_options("gemini-2.5-flash").thinking_level)  # Vertex rejects it for 2.x
+        self.assertIsNotNone(_options("gemini-3.8-flash").thinking_level)

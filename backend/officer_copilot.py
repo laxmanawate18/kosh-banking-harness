@@ -15,7 +15,8 @@ from typing import Any, Callable, Dict, List
 
 from sqlalchemy import select
 
-from backend import care, ontology
+from backend import care, mitra_ops, ontology
+from backend.settings import DEFAULT_MODEL, FALLBACK_MODEL
 from backend.agent_config import create_harness_agent_config
 from backend.llm_boundary import Vault, audit_hits, guarded_tools
 from backend.harness import REGISTRY_PATH
@@ -112,7 +113,10 @@ async def ask(agent_factory, db, request_service, *, officer_user_id: str, messa
     context = {"session_id": session_id, "user_id": officer_user_id, "customer_id": None, "scopes": SCOPES, "tool_calls_this_turn": 0,
                "vault": vault}
     tools = guarded_tools(build_officer_tools(db, request_service, officer_user_id), CHANNEL, vault)
-    config = create_harness_agent_config(CHANNEL, session_id, instructions(), tools, context)
+    model = mitra_ops.turn_model()  # None: the main model; the backup while it rests after overload
+
+    def config_for(chosen):
+        return create_harness_agent_config(CHANNEL, session_id, instructions(), tools, context, model=chosen)
     lines = [f"{m.get('role')}: {str(m.get('text', ''))[:800]}" for m in history[-10:] if m.get("text")]
     # The banking-ontology process: the request's own service when the officer has one open, else what they asked.
     service = (request_service.get(request_id.upper()) or {}).get("service_id") if request_id else None
@@ -123,7 +127,7 @@ async def ask(agent_factory, db, request_service, *, officer_user_id: str, messa
     from google.antigravity import types
     text, tools_used = "", []
 
-    async def run_once() -> None:
+    async def run_once(config) -> None:
         nonlocal text
         async with agent_factory(config) as agent:
             response = await agent.chat(prompt)
@@ -133,16 +137,19 @@ async def ask(agent_factory, db, request_service, *, officer_user_id: str, messa
                 elif isinstance(chunk, types.ToolCall):
                     tools_used.append(str(chunk.name))
     try:
-        await asyncio.wait_for(run_once(), TURN_SECONDS)
-    except (asyncio.TimeoutError, TimeoutError):
-        if "draft_decision_note" in tools_used:  # something was saved; a retry could save it twice
+        await asyncio.wait_for(run_once(config_for(model)), TURN_SECONDS)
+    except Exception as exc:
+        if not mitra_ops.overloaded(exc) or "draft_decision_note" in tools_used:  # a retry could save the note twice
             raise
-        # The model connection occasionally stalls; retry once on a fresh agent, as Mitra does.
+        # A stall or quota error: retry once on a fresh agent, on the backup model when one is set, as Mitra does.
+        mitra_ops.note_model_failure(exc)
+        model = model or FALLBACK_MODEL
         text, tools_used = "", []
         context["tool_calls_this_turn"] = 0
-        await asyncio.wait_for(run_once(), TURN_SECONDS)
+        await asyncio.wait_for(run_once(config_for(model)), TURN_SECONDS)
     audit_hits(vault, db, session_id=session_id, customer_id=None)
     db.append_audit("COPILOT_TURN", actor="officer", approver_id=officer_user_id, session_id=session_id,
                     summary="Officer copilot answered", details={"tools": tools_used, "instructions_version": instructions_version(),
+                                                                 "model": model or DEFAULT_MODEL,
                              **({"process": process_id} if process_id else {})})
     return {"reply": mask_deep(vault.fill(text.strip())), "tools": tools_used, "instructions_version": instructions_version()}
