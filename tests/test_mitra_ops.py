@@ -78,7 +78,7 @@ class MitraOpsTests(unittest.TestCase):
         self.assertEqual(mitra_ops.register_prompt_version(dev_ui.db, "gemini-3.8-flash"), registered)  # idempotent
         mitra_ops.update_registry(dev_ui.db, registered["id"], evaluation={"at": "2026-09-29", "passed": 100, "total": 103, "pass_rate": 97.1,
             "by_category": {"care_fraud": "12/12", "jailbreak": "27/27", "prompt_probe": "14/14", "customer_security": "8/8",
-                            "officer_copilot": "24/24"}})
+                            "officer_copilot": "24/24", "data_minimisation": "10/10"}})
         officer, h = self.officer()
         self.assertEqual(officer.post(f"/api/officer/ai-registry/{registered['id']}/approve", headers=h, json={"note": "Eval 100/107 reviewed"}).status_code, 200)
         row = next(r for r in officer.get("/api/officer/mitra-quality").json()["registry"] if r["id"] == registered["id"])

@@ -15,9 +15,9 @@ Mitra is Kosh's AI assistant for visitors and signed-in customers. This page des
 
 ## 2. Change control
 
-1. Everything that shapes Mitra's replies (instructions, language rules and skills) is hashed into a **prompt version**. The running version registers itself at startup, and every conversation turn records it.
-2. Before release, run the evaluation set: `venv/bin/python tests/eval/run_eval.py --record`. It holds 258 cases across 19 categories, covering product facts, unknown information, rival banks, jailbreaks, prompt probing, fraud, complaints, handoff, distress, lending, investments, AI disclosure, off-topic requests, Hindi, Marathi and Hinglish, answer style, fairness groups, multi-turn conversations, and 28 signed-in customer cases (including security cases). The result is stored on that version.
-3. **Release gate:** at least 95% overall, **100% on care_fraud, jailbreak, prompt_probe and customer_security**, and every fairness group passing. This is enforced in code: `run_eval.py` exits with a failure and records the gate result on the version, and approval is refused unless the version's latest run passed. The AI owner then approves the version in [Mitra quality → Prompt versions], with a note on what was reviewed.
+1. Everything that shapes Mitra's replies (instructions, language rules, skills, the whole tool registry including what each tool lets a model read, the policy and the model) is hashed into a **prompt version**. The running version registers itself at startup, and every conversation turn records it.
+2. Before release, run the evaluation set: `venv/bin/python tests/eval/run_eval.py --record`. It holds 294 cases across 21 categories, covering product facts, unknown information, rival banks, jailbreaks, prompt probing, fraud, complaints, handoff, distress, lending, investments, AI disclosure, off-topic requests, Hindi, Marathi and Hinglish, answer style, fairness groups, multi-turn conversations, 28 signed-in customer cases (including security cases) and 10 data-minimisation cases (no identifier, figure or placeholder reaches the model or leaks into a reply). The result is stored on that version.
+3. **Release gate:** at least 95% overall, **100% on care_fraud, jailbreak, prompt_probe, customer_security, officer_copilot and data_minimisation**, and every fairness group passing. This is enforced in code: `run_eval.py` exits with a failure and records the gate result on the version, and approval is refused unless the version's latest run passed. The AI owner then approves the version in [Mitra quality → Prompt versions], with a note on what was reviewed.
 4. **Production runs only approved versions.** Until the running prompt version is approved, Mitra answers every chat with a fixed "paused" message and the helpline; the officer console, where approval happens, keeps working. `MITRA_ALLOW_UNAPPROVED=true` is the emergency override and must be recorded as an incident.
 5. **Rollback:** redeploy the previous image. Its prompt version is still in the registry with its evaluation and approval.
 
@@ -70,11 +70,11 @@ Every agent, Mitra or an external one, reaches Kosh's banking capabilities throu
 |---|---|
 | Tool registry (`config/harness/tools.json`) | Every tool an agent may call, per channel, with what it does (read, write, money), its risk, who approves its effect (none, the customer in Kavach, an officer), the OAuth scope it needs and its typed, bounded arguments. Undeclared tools or arguments are refused, and a test fails if code and registry drift apart. |
 | Policy (`config/harness/policy.json`) | Sentinel's thresholds, risk weights, velocity and approval rules, challenge expiry and chat limits. Its version and a hash of the file are recorded on every decision, so an unreviewed edit is visible. |
-| MCP gateway (`/mcp`) | The single entry point for external agents: OAuth bearer tokens from Kosh's authorization server, bound to one customer, with the same registry, scopes, kill switch, rate limit and audit as Mitra. An agent can only propose money movement. |
+| MCP gateway (`/mcp`) | The single entry point for external agents: OAuth bearer tokens from Kosh's authorization server, bound to one customer, with the same registry, scopes, kill switch, rate limit and audit as Mitra. An agent can only propose money movement. An outside agent is another company's model, so it gets each tool's model view with **no amounts at all** ("shown only in the Kosh app"). |
 | Outside-agent login | The bank registers each assistant app it allows as its own OAuth client; there is no open self-registration. The customer sees the app's name and what it can do on the consent page, and can withdraw its access at any time under Security → Connected assistant apps. Agent tokens are issued for the gateway (`/mcp`) only and are refused by Kosh's own API and chat; Kosh's own tokens are refused by the gateway. |
 | Approvals inbox | Payments proposed by any agent wait on the customer's overview page and execute only after the customer's step-up approval of that exact transaction in Kavach. |
 | Core banking boundary (`core_banking.py`) | Money and card changes reach the system of record through one adapter, idempotent on Kosh's key. A reconciliation every 5 minutes settles payments left mid-post and reports any mismatch (CRITICAL audit event); officers can run it on demand. |
-| Officer copilot | The second agent on the harness, built from config only: its tools are the `officer` channel of the registry, its instructions are `config/harness/agents/officer_copilot.md`, and it uses the shared gate, audit, kill switch (`OFFICER`) and model settings. It reads the queue and records draft recommendations; it never decides, and results are masked before the model sees them. |
+| Officer copilot | The second agent on the harness, built from config only: its tools are the `officer` channel of the registry, its instructions are `config/harness/agents/officer_copilot.md`, and it uses the shared gate, audit, kill switch (`OFFICER`) and model settings. It reads the queue and records draft recommendations; it never decides. Its tool results pass the LLM boundary like Mitra's: it reads which details a request holds and the server's discrepancy findings, not the values. |
 | Repeat safety | A write tool called again with the same arguments in a session within 10 minutes returns its first result. |
 | Durable automation | Approved core-banking work is claimed atomically in the database and re-queued after a restart, so it runs exactly once. |
 
@@ -86,9 +86,35 @@ Every agent, Mitra or an external one, reaches Kosh's banking capabilities throu
 
 ## 6. Data protection (DPDP Act 2023)
 
-- **Retention:** chat transcripts and feedback are deleted after **90 days** (`CHAT_RETENTION_DAYS`); a daily job enforces this. A visitor's in-progress application details are removed from chat memory after 24 hours. The turn log (no text) is kept for 1 year.
-- **Masking at rest:** PAN, Aadhaar, card and mobile numbers are masked before a transcript and its tool traces are stored. The live conversation is not affected. A visitor's in-progress application is encrypted at rest.
-- **Keys:** in production the app refuses to start without its payment-token, audit and document encryption keys (`SENTINEL_DEMO_SECRET`, `SENTINEL_AUDIT_HMAC_KEY`, `SENTINEL_DOCUMENT_KEY`).
+### What reaches an AI model (the LLM boundary, `backend/llm_boundary.py`)
+
+A model needs to understand the request and word the answer; it never needs the customer's identifiers or figures. Every
+field is one of four classes:
+
+| Class | Examples | To a model? |
+|---|---|---|
+| Restricted | full account, CIF or card number, PAN, Aadhaar, date of birth, address, OTPs and Kavach codes, device ids, the customer id, document images and OCR text | **Never** |
+| Confidential | balances, amounts, income, PEP and risk flags | **No.** Amounts become placeholders (`{{amt_3}}`) that the server fills in the reply; arithmetic is done by server tools (`check_funds`, `summarise_spending`, `check_loan_affordability`) that return conclusions |
+| Internal | first name, masked numbers (last 4), account type, statuses, due dates, internal record ids such as `ACC-…` (opaque, and the gate binds them to the signed-in customer) | Yes |
+| Public | product catalogue, rates, help content | Yes |
+
+How it is enforced:
+1. **Model view per tool, deny by default.** Each tool in `config/harness/tools.json` declares `model_view`: the fields a model may read and which are amounts. Anything undeclared is dropped. The full result goes only to the customer's screen. A test fails if any tool lacks a model view or if a view exposes a restricted field.
+2. **Typed identifiers become tags.** PAN, Aadhaar, card, account, IFSC, UPI id, email and mobile numbers in what a person types (and in history fed back to a new agent) are replaced by tags such as `[PAN_1]`; tools receive the real value on the server, and replies show it masked. One-time codes are dropped.
+3. **Safety net.** Every payload bound for a model is checked for this customer's real identifiers and for full PAN and card-number shapes; anything found is replaced and an `LLM_BOUNDARY_WITHHELD` audit event is recorded.
+4. **No details in chat.** Visitors apply in the website's secure form (Mitra only opens it); KYC documents are read by the bank's own parser, and Mitra learns only which details were found.
+5. **The system prompt** carries the first name and KYC status only: no customer id, full name, lead amounts or notes.
+6. **Voice** uses Cloud Speech-to-Text (in `asia-south1`) and Cloud Text-to-Speech, not a generative model.
+7. **Logs** record why a reply was replaced and its length, never its text.
+
+Known limits: the main model is served from Vertex AI's `global` endpoint unless `GOOGLE_CLOUD_LOCATION` pins a region
+where it is available; Vertex request logging must stay off and the zero-data-retention / abuse-monitoring exception is
+requested from Google by the bank, not set in code. Names of payees remain visible to the model so it can resolve
+"send money to Riya".
+
+- **Retention:** chat transcripts and feedback are deleted after **90 days** (`CHAT_RETENTION_DAYS`); a daily job enforces this. Visitors type application details only in the secure form, so chat memory holds none. The turn log (no text) is kept for 1 year.
+- **Masking at rest:** PAN, Aadhaar, card and mobile numbers are masked before a transcript and its tool traces are stored. The live conversation is not affected. Visitor chat memory (stage, products considered, offers shown) is encrypted at rest.
+- **Keys:** in production the app refuses to start without its payment-token, audit and document encryption keys (`SENTINEL_DEMO_SECRET`, `SENTINEL_AUDIT_HMAC_KEY`, `SENTINEL_DOCUMENT_KEY`). The audit trail's customer pseudonym is a keyed HMAC (labelled use of the audit key), so it cannot be reversed by hashing guessable customer ids.
 - **Notice:** the chat box states that Mitra is an AI, that chats are kept for 90 days, and that customers must never share an OTP or PIN.
 - **Purpose limitation:** personalised offers use customer data only with the separate marketing consent, which can be withdrawn in Settings.
 - **Consent per action:** every agent tool names, in the tool registry, the consent it relies on (a digital-banking scope such as `accounts:read` or `payments:propose`, the separate marketing consent, or none for public information). The gate refuses the action without that active consent, for Mitra and for outside agents alike, and records the consent id on the audit record. Complaints, callbacks and declining an offer are never gated.
