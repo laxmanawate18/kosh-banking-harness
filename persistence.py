@@ -311,12 +311,41 @@ class EkycSessionRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
 
 
+class OntologyApprovalRecord(Base):
+    """An admin's approval of one banking-ontology process, for its exact content: any edit needs a new approval."""
+
+    __tablename__ = "ontology_approvals"
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    process_id: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    content_hash: Mapped[str] = mapped_column(String(24), nullable=False)
+    approved_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    note: Mapped[str] = mapped_column(Text, nullable=False)
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
+
+
+class CustomerDeletionRecord(Base):
+    """A request to remove a customer's access and contact details. An officer asks, an admin decides (two people).
+    Accounts, transactions, KYC and the audit trail are kept: the bank must retain them."""
+
+    __tablename__ = "customer_deletions"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    customer_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)  # PENDING | IN_PROGRESS | COMPLETED | REJECTED
+    requested_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    decided_by: Mapped[str | None] = mapped_column(String(80))
+    decision_note: Mapped[str | None] = mapped_column(Text)
+    result: Mapped[dict | None] = mapped_column(JSON_DOCUMENT)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt, index=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class CareCaseRecord(Base):
     """A complaint, callback request, fraud report or hardship request raised through Mitra (visitor or customer)."""
 
     __tablename__ = "care_cases"
     id: Mapped[str] = mapped_column(String(80), primary_key=True)
-    kind: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # GRIEVANCE | CALLBACK | FRAUD | HARDSHIP
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # GRIEVANCE | CALLBACK | FRAUD | HARDSHIP | CARD_FREEZE
     status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # OPEN | IN_PROGRESS | RESOLVED | ESCALATED
     priority: Mapped[str] = mapped_column(String(10), nullable=False, default="NORMAL")
     customer_id: Mapped[str | None] = mapped_column(String(80), index=True)

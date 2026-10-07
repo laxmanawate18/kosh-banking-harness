@@ -29,6 +29,7 @@ export const Topbar: React.FC<TopbarProps> = ({ activeRouteLabel, onOpenMobileMe
   const { user } = useAuth();
   const [hi, en] = greeting();
   const isOfficer = user?.role === 'OFFICER';
+  const isAdmin = user?.role === 'ADMIN';
 
   return (
     <header className="k-top">
@@ -52,13 +53,13 @@ export const Topbar: React.FC<TopbarProps> = ({ activeRouteLabel, onOpenMobileMe
           <Icon name="search" />
         </button>
         <PreferencesMenu />
-        {!isOfficer && <NotificationsMenu onNavigate={r => onNavigate?.(r)} />}
-        <button id="profileBtn" type="button" className="k-profile" onClick={() => onNavigate?.(isOfficer ? 'audit' : 'settings')}
+        {!isOfficer && !isAdmin && <NotificationsMenu onNavigate={r => onNavigate?.(r)} />}
+        <button id="profileBtn" type="button" className="k-profile" onClick={() => onNavigate?.(isAdmin ? 'admin-audit' : isOfficer ? 'audit' : 'settings')}
           aria-label={t('Profile and settings')}>
           <span id="profileInitials" className="k-avatar">{initials(user?.display_name)}</span>
           <span className="k-profile-text">
             <strong id="signedInIdentity">{user?.display_name || t('Customer')}</strong>
-            <small id="signedInRole">{isOfficer ? t('Bank officer') : t('Personal account')}</small>
+            <small id="signedInRole">{isAdmin ? t('AI admin') : isOfficer ? t('Bank officer') : t('Personal account')}</small>
           </span>
         </button>
       </div>

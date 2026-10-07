@@ -8,7 +8,7 @@ import {
   updateOfficerLeadStatus,
   approveOfficerLead,
   fetchOfficerCustomers,
-  wipeOfficerCustomer,
+  requestCustomerDeletion,
   resendOfficerCustomerCredentials,
 } from '../../services/banking';
 import { get, post } from '../../services/api';
@@ -114,7 +114,8 @@ const OfferFunnel: React.FC = () => {
 
 type CareCase = { id: string; kind: string; status: string; priority: string; customer_id: string | null; name: string | null;
   phone: string | null; category: string | null; summary: string; preferred_time: string | null; due_at: string; created_at: string; overdue: boolean };
-const CARE_KIND: Record<string, string> = { GRIEVANCE: 'Complaint', CALLBACK: 'Callback', FRAUD: 'Fraud report', HARDSHIP: 'Hardship' };
+const CARE_KIND: Record<string, string> = { GRIEVANCE: 'Complaint', CALLBACK: 'Callback', FRAUD: 'Fraud report', HARDSHIP: 'Hardship',
+  CARD_FREEZE: 'Card freeze review' };
 
 /** Complaints, callbacks, fraud reports and hardship requests raised through Mitra, with their RBI-driven due times. */
 const CareQueue: React.FC = () => {
@@ -153,59 +154,6 @@ const CareQueue: React.FC = () => {
           </table>
         </div>
       ) : <p>No complaints, callbacks or fraud reports yet.</p>}
-    </section>
-  );
-};
-
-type Quality = { days: number; turns: number; outcomes: Record<string, number>; channels: Record<string, number>; languages: Record<string, number>;
-  fallback_rate: number; guarded_rate: number; error_rate: number; fallback_reasons: Record<string, number>; care_intents: Record<string, number>;
-  latency_ms: { median: number; p90: number }; feedback: { up: number; down: number; recent_negative: { at: string; channel: string; comment: string | null; reply: string }[] };
-  prompt_version: string | null; owner: string;
-  registry: { id: string; version: string; model: string; active: boolean; created_at: string; approval: { by: string; at: string; note: string } | null;
-    evaluations: { at: string; passed: number; total: number; pass_rate: number; by_category?: Record<string, string> }[] }[] };
-const pairs = (o: Record<string, number>) => Object.entries(o).map(([k, v]) => `${k} ${v}`).join(' · ') || '—';
-
-/** Mitra quality and governance: outcomes, withheld replies, care volume, latency, feedback and prompt-version approval. */
-const MitraQuality: React.FC = () => {
-  const [q, setQ] = useState<Quality | null>(null);
-  const load = () => get('/api/officer/mitra-quality?days=7').then(setQ).catch(() => setQ(null));
-  useEffect(() => { load(); }, []);
-  if (!q) return <section className="panel"><p>Loading Mitra quality…</p></section>;
-  const approve = async (id: string) => {
-    const note = window.prompt('Approval note (what was reviewed)'); if (note === null) return;
-    await post(`/api/officer/ai-registry/${id}/approve`, { note }); load();
-  };
-  return (
-    <section className="panel" aria-label="Mitra quality">
-      <h2 style={{ marginTop: 0 }}>Mitra quality · last {q.days} days</h2>
-      <div className="metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
-        <div className="metric"><span>Turns</span><strong>{q.turns}</strong></div>
-        <div className="metric"><span>Withheld replies</span><strong>{q.fallback_rate}%</strong></div>
-        <div className="metric"><span>Jailbreak / probe refusals</span><strong>{q.guarded_rate}%</strong></div>
-        <div className="metric"><span>Errors</span><strong>{q.error_rate}%</strong></div>
-        <div className="metric"><span>Reply time (median / p90)</span><strong>{(q.latency_ms.median / 1000).toFixed(1)}s / {(q.latency_ms.p90 / 1000).toFixed(1)}s</strong></div>
-        <div className="metric"><span>Feedback</span><strong>👍 {q.feedback.up} · 👎 {q.feedback.down}</strong></div>
-      </div>
-      <p><b>Outcomes:</b> {pairs(q.outcomes)}<br /><b>Why replies were withheld:</b> {pairs(q.fallback_reasons)}<br />
-        <b>Care:</b> {pairs(q.care_intents)}<br /><b>Channels:</b> {pairs(q.channels)} · <b>Languages:</b> {pairs(q.languages)}</p>
-      <h3>Recent 👎 feedback</h3>
-      {q.feedback.recent_negative.length ? (
-        <table className="table"><thead><tr><th>When</th><th>Channel</th><th>Comment</th><th>Mitra said (masked)</th></tr></thead>
-          <tbody>{q.feedback.recent_negative.map((f, i) => (
-            <tr key={i}><td>{new Date(f.at).toLocaleString()}</td><td>{f.channel}</td><td>{f.comment || '—'}</td><td style={{ maxWidth: 480 }}>{f.reply}</td></tr>))}</tbody></table>
-      ) : <p>No negative feedback.</p>}
-      <h3>Prompt versions · owner: {q.owner}</h3>
-      <table className="table"><thead><tr><th>Version</th><th>Model</th><th>Status</th><th>Evaluation</th><th>Approval</th><th /></tr></thead>
-        <tbody>{q.registry.map(r => {
-          const ev = r.evaluations?.[r.evaluations.length - 1];
-          return (
-            <tr key={r.id}>
-              <td><code>{r.version}</code>{r.version === q.prompt_version ? ' (running)' : ''}</td><td>{r.model}</td><td>{r.active ? 'Active' : 'Retired'}</td>
-              <td>{ev ? `${ev.passed}/${ev.total} passed (${ev.pass_rate}%) · ${new Date(ev.at).toLocaleDateString()}` : 'Not evaluated'}</td>
-              <td>{r.approval ? `${r.approval.by} · ${new Date(r.approval.at).toLocaleDateString()}${r.approval.note ? ` · ${r.approval.note}` : ''}` : 'Not approved'}</td>
-              <td>{!r.approval && r.active && <button type="button" className="button primary" onClick={() => approve(r.id)}>Approve</button>}</td>
-            </tr>);
-        })}</tbody></table>
     </section>
   );
 };
@@ -285,6 +233,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
   const [customerToWipe, setCustomerToWipe] = useState<any | null>(null);
   const [isWipingCustomer, setIsWipingCustomer] = useState(false);
   const [customerWipeError, setCustomerWipeError] = useState<string | null>(null);
+  const [deletionReason, setDeletionReason] = useState('');
 
   const loadLeads = async () => {
     try {
@@ -304,18 +253,17 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
     }
   };
 
-  const handleWipeCustomer = async (customerId: string) => {
+  const handleRequestDeletion = async (customerId: string) => {
     try {
       setIsWipingCustomer(true);
       setCustomerWipeError(null);
-      await wipeOfficerCustomer(customerId);
-      setLeadActionMsg(`Customer ${customerId} and login credentials wiped successfully.`);
+      await requestCustomerDeletion(customerId, deletionReason.trim());
+      setLeadActionMsg(`Deletion of ${customerId} sent to the admin for approval. Nothing is removed until then.`);
       await loadCustomers();
-      await loadLeads();
       setCustomerToWipe(null);
+      setDeletionReason('');
     } catch (err: any) {
-      console.error('Failed to wipe customer', err);
-      setCustomerWipeError(err.message || 'Failed to wipe customer account.');
+      setCustomerWipeError(err?.detail?.toString?.() || err.message || 'The request could not be sent.');
     } finally {
       setIsWipingCustomer(false);
     }
@@ -554,7 +502,6 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
         ['QUEUED_FOR_CBS', 'CBS queue'],
         ['RPA_FAILED', 'RPA attention'],
         ['care', 'Customer care 🛟'],
-        ['mitra', 'Mitra quality 📈'],
         ['leads', `AI Sales Leads 🎯 ${openLeadsCount > 0 ? `(${openLeadsCount})` : ''}`],
         ['customers', `Customers & Accounts 👥 ${customers.length > 0 ? `(${customers.length})` : ''}`],
       ]
@@ -589,7 +536,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
             {filter === 'leads'
               ? 'Review, qualify, and convert credit card & loan opportunities captured from non-customers and returning visitors.'
               : filter === 'customers'
-              ? 'Manage active customer banking relationships, inspect provisioned digital credentials, and wipe accounts for onboarding re-testing.'
+              ? 'Manage active customer banking relationships, inspect provisioned digital credentials, and request removal of customer access (approved by the admin).'
               : !isHistory
               ? 'Review the complete customer application, follow CBS automation, or track AI sales leads.'
               : 'Decisions, CBS results, and cancelled requests in one place.'}
@@ -634,7 +581,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
       </div>
 
       {filter === 'leads' && <OfferFunnel />}
-      {filter === 'care' ? <CareQueue /> : filter === 'mitra' ? <MitraQuality /> : (
+      {filter === 'care' ? <CareQueue /> : (
       <section className="panel">
         {filter === 'leads' ? (
           leads.length ? (
@@ -832,7 +779,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                           <button
                             type="button"
                             className="button ops-pill info"
-                            disabled={resendingCids[c.customer_id]}
+                            disabled={resendingCids[c.customer_id] || c.status === 'ACCESS_REMOVED'}
                             onClick={() => handleResendCredentials(c)}
                           >
                             {resendingCids[c.customer_id] ? 'Sending…' : '✉️ Resend Creds'}
@@ -840,9 +787,10 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
                           <button
                             type="button"
                             className="button ops-pill wipe"
+                            disabled={c.deletion_pending || c.status === 'ACCESS_REMOVED'}
                             onClick={() => setCustomerToWipe(c)}
                           >
-                            Wipe Out 🗑️
+                            {c.status === 'ACCESS_REMOVED' ? 'Access removed' : c.deletion_pending ? 'Deletion pending' : 'Request deletion'}
                           </button>
                         </div>
                       </td>
@@ -1371,22 +1319,22 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
         <Modal
           isOpen={Boolean(customerToWipe)}
           onClose={() => !isWipingCustomer && setCustomerToWipe(null)}
-          title={`Wipe Out Customer: ${customerToWipe.customer_id}`}
+          title={`Request deletion: ${customerToWipe.customer_id}`}
         >
           <div className="ops-wipe">
             <div className="ops-wipe-warn">
-              <strong>⚠️ Permanent Customer & Credential Wipe Out:</strong>
+              <strong>Two people decide this.</strong>
               <p>
-                You are about to permanently purge the customer profile, user login credentials, accounts, and CRM leads for{' '}
-                <strong>{customerToWipe.full_name}</strong> (<code>{customerToWipe.customer_id}</code>).
+                You are asking to remove <strong>{customerToWipe.full_name}</strong>'s (<code>{customerToWipe.customer_id}</code>) access.
+                The admin approves or rejects it in the Admin Panel; nothing changes until then.
               </p>
               <ul>
-                <li>Registered Mobile: <strong>{customerToWipe.phone_number || 'N/A'}</strong> (will be completely freed for clean visitor re-testing)</li>
-                <li>Digital Username: <strong>@{customerToWipe.username || 'unlinked'}</strong> (will be deleted from auth records)</li>
-                <li>Primary Account: <strong>{customerToWipe.primary_account_number || 'N/A'}</strong> (balance: {customerToWipe.total_balance_formatted})</li>
-                <li>All active sessions, security tokens, and leads will be wiped.</li>
+                <li>Removed: the login (@{customerToWipe.username || 'unlinked'}), sessions, chats, unsent forms, sales leads, phone number and email.</li>
+                <li>Kept, as the bank must retain them: name and KYC, accounts, cards, transactions, service requests, consents and the audit trail.</li>
               </ul>
             </div>
+            <textarea className="input" rows={3} style={{ width: '100%' }} placeholder="Reason (required, at least 10 characters)"
+              value={deletionReason} onChange={e => setDeletionReason(e.target.value)} />
 
             {customerWipeError && (
               <div className="ops-wipe-error">
@@ -1406,10 +1354,10 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
               <button
                 type="button"
                 className="button ops-confirm"
-                disabled={isWipingCustomer}
-                onClick={() => handleWipeCustomer(customerToWipe.customer_id)}
+                disabled={isWipingCustomer || deletionReason.trim().length < 10}
+                onClick={() => handleRequestDeletion(customerToWipe.customer_id)}
               >
-                {isWipingCustomer ? 'Wiping Out...' : 'Confirm Wipe Out 🗑️'}
+                {isWipingCustomer ? 'Sending…' : 'Send for approval'}
               </button>
             </div>
           </div>

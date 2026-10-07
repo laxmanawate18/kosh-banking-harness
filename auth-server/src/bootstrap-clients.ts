@@ -57,28 +57,23 @@ export async function bootstrap() {
       );
     }
   }
-  const staff = await authPool.query(
-    'SELECT "id" FROM "user" WHERE "sentinelUserId" = $1 OR "username" = $2 OR "email" = $3 LIMIT 1',
-    [config.staffSentinelUserId, config.staffUsername, config.staffEmail],
-  );
-  if (!staff.rowCount) {
-    const created = await auth.api.signUpEmail({
-      body: {
-        name: config.staffName,
-        email: config.staffEmail,
-        password: config.staffPassword,
-        username: config.staffUsername,
-      },
-    });
-    await authPool.query(
-      'UPDATE "user" SET "sentinelUserId" = $1 WHERE "id" = $2',
-      [config.staffSentinelUserId, created.user.id],
+  const staffAccounts = [
+    { sentinelUserId: config.staffSentinelUserId, username: config.staffUsername, email: config.staffEmail,
+      name: config.staffName, password: config.staffPassword },
+    { sentinelUserId: config.adminSentinelUserId, username: config.adminUsername, email: config.adminEmail,
+      name: config.adminName, password: config.adminPassword },
+  ];
+  for (const account of staffAccounts) {
+    const staff = await authPool.query(
+      'SELECT "id" FROM "user" WHERE "sentinelUserId" = $1 OR "username" = $2 OR "email" = $3 LIMIT 1',
+      [account.sentinelUserId, account.username, account.email],
     );
-  } else {
-    await authPool.query(
-      'UPDATE "user" SET "sentinelUserId" = $1 WHERE "id" = $2',
-      [config.staffSentinelUserId, staff.rows[0].id],
-    );
+    const userId = staff.rowCount
+      ? staff.rows[0].id
+      : (await auth.api.signUpEmail({
+          body: { name: account.name, email: account.email, password: account.password, username: account.username },
+        })).user.id;
+    await authPool.query('UPDATE "user" SET "sentinelUserId" = $1 WHERE "id" = $2', [account.sentinelUserId, userId]);
   }
   const adminSignIn = await auth.api.signInUsername({
     body: { username: config.staffUsername, password: config.staffPassword },

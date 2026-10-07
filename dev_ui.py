@@ -226,6 +226,13 @@ def require_officer(context: AuthContext = Depends(require_auth)) -> AuthContext
     return context
 
 
+def require_admin(context: AuthContext = Depends(require_auth)) -> AuthContext:
+    """The AI and platform admin. Separate from bank officers: neither can do the other's approvals."""
+    if context.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return context
+
+
 def require_csrf(request: Request,
                  sentinel_session: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
                  x_csrf_token: Optional[str] = Header(default=None, alias="X-CSRF-Token")) -> AuthContext:
@@ -286,6 +293,9 @@ async def get_index(request: Request):
         return FileResponse(index_path, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     host = request.url.hostname or "localhost"
     return RedirectResponse(f"http://{host}:3000/", status_code=307)
+
+from backend.admin_routes import make_admin_router
+app.include_router(make_admin_router(db, require_admin, require_csrf))
 
 from portal import make_portal_router
 app.include_router(make_portal_router(db, banking_service, auth_service, request_service,

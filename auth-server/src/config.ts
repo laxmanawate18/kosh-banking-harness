@@ -48,6 +48,9 @@ if (production && (!process.env.SENTINEL_WEB_CLIENT_SECRET || !process.env.SENTI
   throw new Error("SENTINEL_WEB_CLIENT_SECRET and SENTINEL_CHAT_CLIENT_SECRET are required in production");
 }
 
+if (production && !process.env.AUTH_ADMIN_PASSWORD) {
+  throw new Error("AUTH_ADMIN_PASSWORD is required in production");
+}
 if (production && !process.env.AUTH_INTERNAL_TOKEN) {
   throw new Error("AUTH_INTERNAL_TOKEN is required in production");
 }
@@ -98,6 +101,12 @@ export const config = {
   staffEmail: process.env.AUTH_STAFF_EMAIL ?? "officer.mumbai@staff.sentinel.invalid",
   staffName: process.env.AUTH_STAFF_NAME ?? "Neha Rao",
   staffSentinelUserId: process.env.AUTH_STAFF_SENTINEL_USER_ID ?? "USR-OFFICER-001",
+  // The AI and platform admin (Admin Panel). A separate person from the bank officer above.
+  adminUsername: process.env.AUTH_ADMIN_USERNAME ?? "admin.kosh",
+  adminPassword: process.env.AUTH_ADMIN_PASSWORD ?? "Admin@2468",
+  adminEmail: process.env.AUTH_ADMIN_EMAIL ?? "admin.kosh@staff.sentinel.invalid",
+  adminName: process.env.AUTH_ADMIN_NAME ?? "Kosh AI Admin",
+  adminSentinelUserId: process.env.AUTH_ADMIN_SENTINEL_USER_ID ?? "USR-ADMIN-001",
 } as const;
 
 export function isAllowedReturnURL(value: string): boolean {

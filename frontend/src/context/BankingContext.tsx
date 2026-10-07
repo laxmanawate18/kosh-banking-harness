@@ -137,7 +137,9 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (!auth && !user) return;
     setIsLoading(true);
     try {
-      if (user?.role === 'OFFICER') {
+      if (user?.role === 'ADMIN') {
+        // The Admin Panel loads its own data; an admin has no banking overview.
+      } else if (user?.role === 'OFFICER') {
         const ops = await bankingService.fetchOperationsQueue().catch(() => null);
         if (ops) {
           const reqs = (ops as any).requests || (ops as any).cases || [];

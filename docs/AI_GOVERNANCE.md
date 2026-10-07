@@ -6,7 +6,7 @@ Mitra is Kosh's AI assistant for visitors and signed-in customers. This page des
 
 | Role | Responsibility |
 |---|---|
-| **AI owner** (`AI_OWNER` setting, shown in [Operations → Mitra quality]) | Accountable for Mitra's behaviour; approves every prompt version before it goes live; chairs the quarterly review. |
+| **AI owner** (`AI_OWNER` setting; signs in to the Admin Panel as the ADMIN role, separate from bank officers) | Accountable for Mitra's behaviour; approves every prompt version before it goes live; chairs the quarterly review. |
 | Compliance | Reviews the response rules (section 3), complaint and fraud scripts, and evaluation results each quarter. |
 | Customer care | Works the [Customer care] queue: complaints, callbacks, fraud reports and hardship requests. |
 | Engineering | Runs the evaluation set on every change and keeps the audit trail. |
@@ -17,8 +17,8 @@ Mitra is Kosh's AI assistant for visitors and signed-in customers. This page des
 
 1. Everything that shapes Mitra's replies (instructions, language rules, skills, the whole tool registry including what each tool lets a model read, the policy and the model) is hashed into a **prompt version**. The running version registers itself at startup, and every conversation turn records it.
 2. Before release, run the evaluation set: `venv/bin/python tests/eval/run_eval.py --record`. It holds 294 cases across 21 categories, covering product facts, unknown information, rival banks, jailbreaks, prompt probing, fraud, complaints, handoff, distress, lending, investments, AI disclosure, off-topic requests, Hindi, Marathi and Hinglish, answer style, fairness groups, multi-turn conversations, 28 signed-in customer cases (including security cases) and 10 data-minimisation cases (no identifier, figure or placeholder reaches the model or leaks into a reply). The result is stored on that version.
-3. **Release gate:** at least 95% overall, **100% on care_fraud, jailbreak, prompt_probe, customer_security, officer_copilot and data_minimisation** (plus process_routing when the banking ontology is on, `docs/ONTOLOGY.md`), and every fairness group passing. This is enforced in code: `run_eval.py` exits with a failure and records the gate result on the version, and approval is refused unless the version's latest run passed. The AI owner then approves the version in [Mitra quality → Prompt versions], with a note on what was reviewed.
-4. **Production runs only approved versions.** Until the running prompt version is approved, Mitra answers every chat with a fixed "paused" message and the helpline; the officer console, where approval happens, keeps working. `MITRA_ALLOW_UNAPPROVED=true` is the emergency override and must be recorded as an incident.
+3. **Release gate:** at least 95% overall, **100% on care_fraud, jailbreak, prompt_probe, customer_security, officer_copilot and data_minimisation** (plus process_routing when the banking ontology is on or its cases were run, `docs/ONTOLOGY.md`), and every fairness group passing. This is enforced in code: `run_eval.py` exits with a failure and records the gate result on the version, and approval is refused unless the version's latest run passed. The AI owner then approves the version in [Admin Panel → Approvals], with a note on what was reviewed. Bank officers cannot approve AI changes, and the admin cannot decide banking requests.
+4. **Production runs only approved versions.** Until the running prompt version is approved, Mitra answers every chat with a fixed "paused" message and the helpline; the Admin Panel, where approval happens, keeps working. `MITRA_ALLOW_UNAPPROVED=true` is the emergency override and must be recorded as an incident.
 5. **Rollback:** redeploy the previous image. Its prompt version is still in the registry with its evaluation and approval.
 
 ## 3. Response rules (enforced in code, then in instructions)
@@ -43,13 +43,13 @@ Mitra is Kosh's AI assistant for visitors and signed-in customers. This page des
 | Abuse limits | Chat messages are limited per minute per user (or per address for visitors); a signed-in turn may call at most 12 tools |
 | Personalised offers | Only with separate marketing consent, KYC verified, frequency caps and suppression (see the offer engine) |
 
-## 4. Monitoring ([Operations → Mitra quality])
+## 4. Monitoring ([Admin Panel → Mitra quality, Cost and latency])
 
 Each turn records its channel, language, outcome (answered, withheld, refused, fraud script, paused, error), the reason a reply was withheld, any care intents, latency, model, prompt version, and input and output tokens. **No message text is stored in this log.**
 
 **Audit trail.** Every tool the agent asks for is recorded in the tamper-evident audit chain: the tool, its arguments (identifiers masked, secrets removed), whether it was allowed or denied and why, and its result or error. Every record's hash covers only stored fields, so the chain can be re-checked at any time ([GET /api/officer/audit/verify]); an altered or removed record is reported.
 
-**Kill switches.** An officer can pause Mitra for visitors, for signed-in customers, or block single tools, instantly and across all instances ([PUT /api/officer/controls], a reason is required and audited). A paused channel answers with a fixed message and the helpline; the fraud script and the self-harm helpline still run.
+**Kill switches.** The admin can pause Mitra for visitors, for signed-in customers, or block single tools, instantly and across all instances ([Admin Panel → Kill switches], PUT /api/admin/controls; a reason is required and audited). A paused channel answers with a fixed message and the helpline; the fraud script and the self-harm helpline still run.
 
 **Model resilience.** Transient model errors are retried three times with backoff. If a signed-in turn still fails before any tool ran or any text was produced, it is retried once on the backup model (`MITRA_FALLBACK_MODEL`). Customers never see raw error text.
 

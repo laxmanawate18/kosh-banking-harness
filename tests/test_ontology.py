@@ -168,31 +168,39 @@ class Routing(unittest.TestCase):
             self.assertEqual(mitra_ops.release_gate(run), [])
         with patch.object(ontology, "MODE", "on"):
             self.assertEqual(mitra_ops.release_gate(run), ["process_routing was not run"])
+        with patch.object(ontology, "MODE", "off"):  # a run that has the cases is held to them, whatever the mode
+            self.assertEqual(mitra_ops.release_gate({**run, "by_category": {**run["by_category"], "process_routing": "9/10"}}),
+                             ["process_routing is 9/10; it must be 100%"])
 
 
-class SelectedProcessOnlyNarrows(unittest.TestCase):
+class OutsideProcessIsFlaggedNotRefused(unittest.TestCase):
+    """A two-part request ("freeze my card and pay Vikram") must still work; the audit shows what fell outside the process."""
+
     def setUp(self):
         import dev_ui
+        self.db = dev_ui.db
         grant_consent(dev_ui.db)
 
     def gate(self, name, args, process_id):
         context = {"session_id": "S-ONT", "customer_id": "CUST-1001", "scopes": ["banking.read", "banking.propose"],
                    "process_id": process_id}
-        return asyncio.run(SecureToolGateHook(context).run(None, types.ToolCall(name=name, args=args)))
+        result = asyncio.run(SecureToolGateHook(context).run(None, types.ToolCall(name=name, args=args)))
+        audit = next(e for e in self.db.get_audit_events(session_id="S-ONT", limit=1))
+        return result, audit["details"]
 
-    def test_writes_outside_the_process_are_refused_reads_and_handover_are_not(self):
+    def test_writes_outside_the_process_are_allowed_and_flagged(self):
         freeze = ("freeze_card", {"card_id": "CARD-DEBIT-001", "reason": "lost"})
         with patch.object(ontology, "MODE", "on"):
-            refused = self.gate(*freeze, "proc.payment_authorisation")
-            self.assertFalse(refused.allow)
-            self.assertIn("PROCESS_SCOPE", refused.message)
-            self.assertTrue(self.gate("get_transaction_history", {}, "proc.payment_authorisation").allow)
-            self.assertTrue(self.gate("register_complaint", {"summary": "fee"}, "proc.payment_authorisation").allow)
-            self.assertTrue(self.gate("start_banking_workflow", {"skill_id": "standing_instruction"}, "proc.payment_authorisation").allow)
-            self.assertFalse(self.gate("start_banking_workflow", {"skill_id": "kyc"}, "proc.dormancy_and_closure").allow)
-        with patch.object(ontology, "MODE", "shadow"):  # recorded, never enforced
-            self.assertNotIn("PROCESS_SCOPE", self.gate(*freeze, "proc.payment_authorisation").message or "")
-
+            result, details = self.gate(*freeze, "proc.payment_authorisation")
+            self.assertTrue(result.allow, result.message)
+            self.assertEqual((details["process"], details.get("outside_process")), ("proc.payment_authorisation", True))
+            for name, args in (("get_transaction_history", {}), ("register_complaint", {"summary": "fee"}),
+                               ("start_banking_workflow", {"skill_id": "standing_instruction"})):
+                result, details = self.gate(name, args, "proc.payment_authorisation")  # a read, a handover, its own tool
+                self.assertTrue(result.allow)
+                self.assertNotIn("outside_process", details, name)
+        with patch.object(ontology, "MODE", "off"):
+            self.assertNotIn("outside_process", self.gate(*freeze, "proc.payment_authorisation")[1])
 
 
 class ChatTurn(unittest.TestCase):

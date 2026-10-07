@@ -197,10 +197,13 @@ async def main() -> int:
         import os
         os.environ.update(ENABLE_CLOUD_SQL_SYNC="false", SENTINEL_DATABASE_URL=args.db)  # before any app import opens a database
         from banking_db import db
-        from backend.mitra_ops import prompt_version, update_registry  # noqa: E402
-        ok = update_registry(db, f"PROMPT-{prompt_version()}", evaluation={k: summary[k] for k in (
+        from backend.mitra_ops import registry, update_registry  # noqa: E402
+        # The version the app under test is running (the one active row), never one computed here: this process may not
+        # share the app's settings (ONTOLOGY_MODE changes the version).
+        running = next((v["id"] for v in registry(db) if v["active"]), None)
+        ok = running and update_registry(db, running, evaluation={k: summary[k] for k in (
             "at", "passed", "total", "pass_rate", "by_category", "fairness", "gate_failures")})
-        print("recorded on prompt version" if ok else "prompt version not registered yet (start the app first)")
+        print(f"recorded on {running}" if ok else "no running prompt version registered (start the app first)")
     return 1 if failures else 0
 
 

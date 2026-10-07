@@ -7,12 +7,13 @@ Routing      Every turn is matched to at most one process the agent's channel ma
              progress, and (only when all of those miss) a model that may answer nothing but one of the allowed process
              ids. A customer can never reach an officer-only process, even by naming it.
 Authority    Selecting a process decides what Mitra is told, never what it may do. Permissions stay in the harness,
-             Sentinel, Kavach and four-eyes. A selected process can only narrow: a write or money tool outside its
-             `kosh_tools` is refused (complaints and callbacks are always allowed, guardrail G1).
+             Sentinel, Kavach and four-eyes. A write or money call outside the process's `kosh_tools` is flagged on its
+             audit record (`outside_process`), not refused (see `outside_process`).
 Model view   The model reads only the selected process: its purpose, steps, exceptions, the rules of the activities
              it uses and the agent guardrails. Never other processes, tables, edges, evidence or detection logic.
-Approval     In production a process is used only when its file is `status: approved` (conventions.md); the files
-             are part of the prompt version, so an edit needs a fresh evaluation and approval.
+Approval     In production a process guides Mitra only after an admin approved it in the Admin Panel, for its exact
+             content (`content_hash`): editing the process, an activity it uses or the guardrails needs a new approval.
+             The files are also part of the prompt version, so an edit needs a fresh evaluation as well.
 
 ONTOLOGY_MODE: off (default: nothing changes) | shadow (route and record only) | on (record, guide, narrow).
 """
@@ -24,6 +25,7 @@ import hashlib
 import logging
 import os
 import re
+import time
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -40,7 +42,7 @@ ENQUIRY_SKILLS = frozenset({"account_insights"})  # balances and spending: an en
 # Kept by Kosh's server, not the model: reading the files (G2), idempotency (G12) and the audit trail (G13).
 SERVER_GUARDRAILS = frozenset({"G2", "G12", "G13"})
 VIEW_LIMIT = 8000  # characters of process guide per turn
-CLASSIFY_SECONDS = 2.5
+CLASSIFY_SECONDS = 1.5  # a routing hint must not hold up the reply
 # Visitor chats are mostly product questions: the rules route them, a model call per turn would not pay off.
 CLASSIFIED_CHANNELS = frozenset({"customer", "officer"})
 logger = logging.getLogger(__name__)
@@ -50,6 +52,7 @@ logger = logging.getLogger(__name__)
 class Process:
     id: str
     name: str
+    domain: str
     status: str            # draft | reviewed | approved | deprecated
     kosh_status: str       # implemented | partial | not_implemented
     channels: frozenset
@@ -103,7 +106,7 @@ def load() -> Dict[str, Process]:
         meta, body = front_matter(path.read_text(encoding="utf-8"))
         phrases = sorted(_bullets(_section(body, "Use this process when")), key=len, reverse=True)
         processes[str(meta["id"])] = Process(
-            id=str(meta["id"]), name=str(meta["name"]), status=str(meta["status"]), kosh_status=str(meta["kosh_status"]),
+            id=str(meta["id"]), name=str(meta["name"]), domain=str(meta["domain"]), status=str(meta["status"]), kosh_status=str(meta["kosh_status"]),
             channels=frozenset(meta["kosh_channels"]), tools=frozenset(meta["kosh_tools"]), skills=frozenset(meta["kosh_skills"]),
             care=tuple(meta["kosh_care"]), services=frozenset(meta["kosh_services"]), tables=tuple(meta["kosh_tables"]),
             activities=tuple(meta["uses_activities"]),            note=str(meta.get("kosh_note", "")),
@@ -125,12 +128,56 @@ def allowed(channel: str) -> Dict[str, Process]:
     return {pid: p for pid, p in load().items() if channel in p.channels}
 
 
+def _path(node_id: str) -> Path:
+    folder = {"proc": "processes", "act": "activities"}[node_id.split(".", 1)[0]]
+    return ROOT / folder / f"{node_id.split('.', 1)[1].replace('_', '-')}.md"
+
+
+@lru_cache(maxsize=64)
+def content_hash(process_id: str) -> str:
+    """Hash of everything the process's agent view is built from: its file, the activities it uses and the guardrails."""
+    files = [_path(process_id), *(_path(a) for a in load()[process_id].activities), ROOT / "policies" / "agent-guardrails.md"]
+    return hashlib.sha256(b"\0".join(f.read_bytes() for f in files)).hexdigest()[:16]
+
+
+APPROVAL_TTL_SECONDS = 30  # each server instance re-reads approvals this often
+_approvals: Dict[str, object] = {"at": float("-inf"), "set": frozenset()}
+
+
+def approved(process_id: str) -> bool:
+    """Whether an admin approved this process for its current content (read from the database, briefly cached)."""
+    if time.monotonic() - _approvals["at"] > APPROVAL_TTL_SECONDS:
+        try:
+            from sqlalchemy import select
+            from banking_db import db
+            from persistence import OntologyApprovalRecord
+            with db.runtime.sessions() as s:
+                rows = s.execute(select(OntologyApprovalRecord.process_id, OntologyApprovalRecord.content_hash)).all()
+            _approvals.update(at=time.monotonic(), set=frozenset(map(tuple, rows)))
+        except Exception as exc:  # keep the last known approvals; with none, nothing is approved (fail closed)
+            logger.warning("Ontology approvals unavailable: %r", exc)
+    return (process_id, content_hash(process_id)) in _approvals["set"]
+
+
+def record_approval(db, process_id: str, admin_user_id: str, note: str) -> Dict[str, str]:
+    import uuid
+    from persistence import OntologyApprovalRecord
+    digest = content_hash(process_id)
+    with db.runtime.sessions.begin() as s:
+        s.add(OntologyApprovalRecord(id=f"ONT-{uuid.uuid4().hex[:16].upper()}", process_id=process_id, content_hash=digest,
+                                     approved_by=admin_user_id, note=note))
+    db.append_audit("ONTOLOGY_PROCESS_APPROVED", actor="admin", approver_id=admin_user_id,
+                    summary=f"Admin approved {process_id} for use by Mitra", details={"process": process_id, "content_hash": digest})
+    _approvals["at"] = float("-inf")  # this instance sees it at once
+    return {"process_id": process_id, "content_hash": digest}
+
+
 def usable(process_id: Optional[str]) -> bool:
-    """Whether a routed process may guide the model and narrow tools: mode on, and in production an approved file."""
+    """Whether a routed process may guide the model and narrow tools: mode on, and in production approved by an admin."""
     if MODE != "on" or not process_id or process_id not in load():
         return False
     from backend.settings import PRODUCTION
-    return not PRODUCTION or load()[process_id].status == "approved"
+    return not PRODUCTION or approved(process_id)
 
 
 def route(text: str, channel: str, *, care: Iterable[str] = (), workflow: Optional[str] = None, service: Optional[str] = None,
@@ -256,7 +303,8 @@ def view(process_id: str) -> str:
         if r[5] != "none":
             step += f" Approval: {_plain(r[5])}."
         if r[7] != "always":
-            step += f" Only if: {_plain(r[7])}"
+            condition = _plain(r[7])
+            step += f" {condition}" if condition.lower().startswith("only if") else f" Only if: {condition}"
         steps.append(step)
     exceptions = [f"- If {_plain(r[0])}: {_plain(r[1])}" for r in _rows(_section(body, "Exceptions"))]
     rules = []
@@ -272,9 +320,9 @@ def view(process_id: str) -> str:
     return text if len(text) <= VIEW_LIMIT else text[:VIEW_LIMIT].rsplit("\n", 1)[0]
 
 
-def tool_refusal(process_id: Optional[str], tool: str, effect: str) -> Optional[str]:
-    """Why a tool call is outside the selected process (writes and money only), or None."""
-    if not usable(process_id) or effect not in {"write", "money"} or tool in HANDOVER_TOOLS or tool in load()[process_id].tools:
-        return None
-    return (f"PROCESS_SCOPE: {tool} is not part of {load()[process_id].name}, the task in progress. Ask the customer what they "
-            "want to do next; do not try another action in this turn.")
+def outside_process(process_id: Optional[str], tool: str, effect: Optional[str]) -> bool:
+    """Whether a write or money call falls outside the routed process. Recorded on the tool decision, not refused: refusing
+    broke real two-part requests ("freeze my card and pay Vikram") in evaluation, and permissions are enforced by the
+    harness, consent, Sentinel and Kavach regardless (ponytail: monitor first; enforce once the audit shows few such calls)."""
+    return (MODE != "off" and process_id in load() and effect in {"write", "money"} and tool not in HANDOVER_TOOLS
+            and tool not in load()[process_id].tools)

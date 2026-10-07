@@ -28,6 +28,7 @@ const SecurityPage = named(() => import('./components/pages/SecurityPage'), 'Sec
 const SettingsPage = named(() => import('./components/pages/SettingsPage'), 'SettingsPage');
 const OperationsPage = named(() => import('./components/officer/OperationsPage'), 'OperationsPage');
 const AuditActivityPage = named(() => import('./components/officer/AuditActivityPage'), 'AuditActivityPage');
+const AdminPage = named(() => import('./components/admin/AdminPage'), 'AdminPage');
 const WorkflowModal = named(() => import('./components/workflows/WorkflowModal'), 'WorkflowModal');
 const AssistantDrawerLazy = named(() => import('./components/chat/AssistantDrawer'), 'AssistantDrawer');
 
@@ -41,15 +42,17 @@ const AssistantDrawer: React.FC = () => {
 
 const CUSTOMER_ROUTES = ['overview', 'ai-banker', 'accounts', 'transactions', 'upi', 'payments', 'beneficiaries', 'bills', 'cards', 'deposits', 'services', 'requests', 'security', 'settings'];
 const OFFICER_ROUTES = ['operations', 'leads', 'history', 'audit'];
+const ADMIN_ROUTES = ['admin-approvals', 'admin-ontology', 'admin-skills', 'admin-sources', 'admin-usage', 'admin-quality', 'admin-controls', 'admin-audit'];
+const ROUTES: Record<string, string[]> = { CUSTOMER: CUSTOMER_ROUTES, OFFICER: OFFICER_ROUTES, ADMIN: ADMIN_ROUTES };
 
-const routeFromHash = (isOfficer: boolean): string => {
+const routeFromHash = (role: string): string => {
   const hash = window.location.hash.replace(/^#/, '').trim();
-  const home = isOfficer ? 'operations' : 'overview';
+  const allowed = ROUTES[role] || CUSTOMER_ROUTES;
+  const home = allowed[0];
   // Empty hash or a public-site path (#/rates…) lands on home after login.
   if (!hash || hash.startsWith('/')) return home;
-  const allowed = isOfficer ? OFFICER_ROUTES : CUSTOMER_ROUTES;
   if (allowed.includes(hash)) return hash;
-  return (isOfficer ? CUSTOMER_ROUTES : OFFICER_ROUTES).includes(hash) ? home : 'not-found';
+  return Object.values(ROUTES).some(routes => routes.includes(hash)) ? home : 'not-found';  // another role's page: go home
 };
 
 const PageLoading: React.FC = () => {
@@ -59,8 +62,8 @@ const PageLoading: React.FC = () => {
 
 const AuthenticatedWorkspace: React.FC = () => {
   const { user } = useAuth();
-  const isOfficer = user?.role === 'OFFICER';
-  const [activeRoute, setActiveRoute] = useState<string>(() => routeFromHash(isOfficer));
+  const role = user?.role || 'CUSTOMER';
+  const [activeRoute, setActiveRoute] = useState<string>(() => routeFromHash(role));
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState('');
   const { activeChallenge, setActiveChallenge, activeWorkflowId, setActiveWorkflowId } = useBanking();
 
@@ -70,11 +73,11 @@ const AuthenticatedWorkspace: React.FC = () => {
   };
 
   useEffect(() => {
-    const onHash = () => setActiveRoute(routeFromHash(isOfficer));
+    const onHash = () => setActiveRoute(routeFromHash(role));
     window.addEventListener('hashchange', onHash);
     if (window.location.hash !== `#${activeRoute}` && activeRoute !== 'not-found') window.location.hash = `#${activeRoute}`;
     return () => window.removeEventListener('hashchange', onHash);
-  }, [isOfficer]);
+  }, [role]);
 
   const sendTo = (beneId: string) => { setSelectedBeneficiaryId(beneId); go('payments'); };
 
@@ -98,7 +101,9 @@ const AuthenticatedWorkspace: React.FC = () => {
       case 'leads': return <OperationsPage isHistory={false} initialFilter="leads" />;
       case 'history': return <OperationsPage isHistory={true} />;
       case 'audit': return <AuditActivityPage />;
-      default: return <NotFound home={isOfficer ? '#operations' : '#overview'} />;
+      default:
+        if (ADMIN_ROUTES.includes(activeRoute)) return <AdminPage tab={activeRoute} onNavigate={go} />;
+        return <NotFound home={`#${(ROUTES[role] || CUSTOMER_ROUTES)[0]}`} />;
     }
   })();
 

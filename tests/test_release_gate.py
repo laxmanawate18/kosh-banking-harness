@@ -34,15 +34,15 @@ class ReleaseGateTests(unittest.TestCase):
 
     def test_version_is_approved_only_after_a_passing_run(self):
         client = TestClient(dev_ui.app)
-        _, cookie, csrf = dev_ui.auth_service.create_direct_session("officer.mumbai")
+        _, cookie, csrf = dev_ui.auth_service.create_direct_session("admin.kosh")
         client.cookies.set(dev_ui.COOKIE_NAME, cookie)
         record = f"PROMPT-{mitra_ops.prompt_version()}"
         mitra_ops.update_registry(dev_ui.db, record, evaluation={**PASSING, "pass_rate": 80.0})
-        refused = client.post(f"/api/officer/ai-registry/{record}/approve", headers={"X-CSRF-Token": csrf}, json={"note": "x"})
+        refused = client.post(f"/api/admin/ai-registry/{record}/approve", headers={"X-CSRF-Token": csrf}, json={"note": "x"})
         self.assertEqual(refused.status_code, 400)
         self.assertIn("release gate", refused.json()["detail"])
         mitra_ops.update_registry(dev_ui.db, record, evaluation=PASSING)
-        ok = client.post(f"/api/officer/ai-registry/{record}/approve", headers={"X-CSRF-Token": csrf}, json={"note": "Reviewed"})
+        ok = client.post(f"/api/admin/ai-registry/{record}/approve", headers={"X-CSRF-Token": csrf}, json={"note": "Reviewed"})
         self.assertEqual(ok.status_code, 200)
 
     def test_production_pauses_mitra_until_the_running_version_is_approved(self):

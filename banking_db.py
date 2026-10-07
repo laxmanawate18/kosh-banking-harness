@@ -18,20 +18,18 @@ import banking_store
 from backend.settings import required_secret
 from banking_store import TYPED_MARKER
 from persistence import (
-    ApprovalActionRecord,
     AuditEventRecord,
     AuthSessionRecord,
     BankDocumentRecord,
     BankIdempotencyRecord,
     BankingStateRecord,
     BankingWorkflowRecord,
-    ConsentRecord,
     ConversationRecord,
     CrossSellLeadRecord,
+    CustomerDeletionRecord,
     DatabaseRuntime,
-    DocumentRecord,
     OAuthGrantRecord,
-    ServiceRequestRecord,
+    OfferEventRecord,
     UserRecord,
     WebSocketTicketRecord,
     utc_dt,
@@ -609,7 +607,7 @@ class BankingDatabase:
                     "product_title": product.get("title"),
                     "account_id": acc_id,
                     "card_id": card_id,
-                    "phone_number": phone_number,
+                    "phone_masked": "••••" + phone_number[-4:],  # no raw contact details in the audit trail (G9)
                     "username": username,
                 }
             })
@@ -783,6 +781,8 @@ class BankingDatabase:
 
         user_map: Dict[str, Dict[str, Any]] = {}
         with self.runtime.sessions() as session:
+            pending_deletion = set(session.scalars(select(CustomerDeletionRecord.customer_id)
+                                                   .where(CustomerDeletionRecord.status == "PENDING")).all())
             users = session.scalars(select(UserRecord)).all()
             for u in users:
                 if u.customer_id:
@@ -818,7 +818,8 @@ class BankingDatabase:
                 "username": user_info.get("username") or "",
                 "user_id": user_info.get("user_id") or "",
                 "tier": cust.get("relationship_tier") or cust.get("tier") or "STANDARD",
-                "status": cust.get("status") or "ACTIVE",
+                "status": "ACCESS_REMOVED" if cust.get("access_removed_at") else cust.get("status") or "ACTIVE",
+                "deletion_pending": cust_id in pending_deletion,
                 "primary_account_number": primary_acc.get("account_number") if primary_acc else "N/A",
                 "primary_account_id": primary_acc.get("id") if primary_acc else None,
                 "account_count": len(cust_accounts),
@@ -832,66 +833,35 @@ class BankingDatabase:
         result.sort(key=lambda x: x["customer_id"], reverse=True)
         return result
 
-    def wipe_customer(self, customer_id: str, phone_number: Optional[str] = None) -> Dict[str, Any]:
-        """Completely wipe out a customer profile, user logins, credentials, accounts, and leads."""
-        cleaned_users: List[Dict[str, Any]] = []
+    def remove_customer_access(self, customer_id: str) -> Dict[str, Any]:
+        """Remove a customer's way in and contact details, keep what the bank must retain.
+
+        Removed: logins, sessions, sign-in grants, chats, unsent form drafts, sales leads and offer history, and the phone
+        number and email on the customer record. Kept: the customer's name and KYC, accounts, cards, transactions,
+        service requests with their documents and decisions, consents (the record of what was agreed) and the audit trail.
+        Returns counts only, never the removed values, so the result can be stored and audited."""
+        removed = {"logins": 0, "chats": 0, "drafts": 0, "leads": 0}
+        logins: List[Dict[str, Optional[str]]] = []
         with self.runtime.sessions.begin() as session:
-            # 1. Gather all users by customer_id or phone_number
-            query = select(UserRecord).where(UserRecord.customer_id == customer_id)
-            users = list(session.scalars(query).all())
-            if phone_number:
-                for pu in session.scalars(select(UserRecord).where(UserRecord.phone_number == phone_number)).all():
-                    if pu not in users:
-                        users.append(pu)
-
-            # 2. Delete associated auth & chat records for each user
-            for user in users:
-                cleaned_users.append({
-                    "id": user.id,
-                    "username": user.username,
-                    "phone": user.phone_number,
-                    "customer_id": user.customer_id,
-                })
-                uid = user.id
-                session.execute(delete(OAuthGrantRecord).where(OAuthGrantRecord.user_id == uid))
-                session.execute(delete(WebSocketTicketRecord).where(WebSocketTicketRecord.user_id == uid))
-                session.execute(delete(AuthSessionRecord).where(AuthSessionRecord.user_id == uid))
-                session.execute(delete(ConversationRecord).where(ConversationRecord.user_id == uid))
-                session.execute(delete(BankingWorkflowRecord).where(BankingWorkflowRecord.user_id == uid))
+            for user in session.scalars(select(UserRecord).where(UserRecord.customer_id == customer_id)).all():
+                logins.append({"username": user.username, "phone": user.phone_number})
+                for record in (OAuthGrantRecord, WebSocketTicketRecord, AuthSessionRecord):
+                    session.execute(delete(record).where(record.user_id == user.id))
                 session.delete(user)
+                removed["logins"] += 1
+            removed["chats"] = session.execute(delete(ConversationRecord).where(ConversationRecord.customer_id == customer_id)).rowcount or 0
+            removed["drafts"] = session.execute(delete(BankingWorkflowRecord).where(
+                BankingWorkflowRecord.customer_id == customer_id, BankingWorkflowRecord.status.notin_(("SUBMITTED", "COMPLETED")))).rowcount or 0
+            removed["leads"] = session.execute(delete(CrossSellLeadRecord).where(CrossSellLeadRecord.customer_id == customer_id)).rowcount or 0
+            session.execute(delete(OfferEventRecord).where(OfferEventRecord.customer_id == customer_id))
 
-            # 3. Clean records tied directly to customer_id & their service requests
-            session.execute(delete(ConsentRecord).where(ConsentRecord.customer_id == customer_id))
-            session.execute(delete(ConversationRecord).where(ConversationRecord.customer_id == customer_id))
-            session.execute(delete(BankingWorkflowRecord).where(BankingWorkflowRecord.customer_id == customer_id))
+        def _mutate(payload: dict) -> None:
+            customer = payload.get("customers", {}).get(customer_id)
+            if customer:
+                customer.update(email=None, phone_number=None, phone_masked=None, access_removed_at=utc_now())
 
-            req_ids = list(session.scalars(select(ServiceRequestRecord.id).where(ServiceRequestRecord.customer_id == customer_id)).all())
-            if req_ids:
-                session.execute(delete(ApprovalActionRecord).where(ApprovalActionRecord.request_id.in_(req_ids)))
-                session.execute(delete(DocumentRecord).where(DocumentRecord.request_id.in_(req_ids)))
-                session.execute(delete(ServiceRequestRecord).where(ServiceRequestRecord.id.in_(req_ids)))
-
-
-            # 4. Clean leads matching customer_id or phone_number
-            for lead in session.scalars(select(CrossSellLeadRecord).where(CrossSellLeadRecord.customer_id == customer_id)).all():
-                session.delete(lead)
-            if phone_number:
-                for lead in session.scalars(select(CrossSellLeadRecord)).all():
-                    if (lead.preferences or {}).get("phone_number") == phone_number:
-                        session.delete(lead)
-
-        # 5. Remove the customer's banking records in one atomic transaction
-        def _mutate(payload: dict):
-            removed = {}
-            for kind in ("accounts", "cards", "bills", "devices", "delegations"):
-                rows = payload.get(kind, {})
-                removed[kind] = [key for key, row in rows.items() if row.get("customer_id") == customer_id]
-                payload[kind] = {key: row for key, row in rows.items() if row.get("customer_id") != customer_id}
-            payload["transactions"] = [t for t in payload.get("transactions", []) if t.get("customer_id") != customer_id]
-            return {"customer_id": customer_id, "removed_customer": payload.setdefault("customers", {}).pop(customer_id, None),
-                    "removed_accounts": removed["accounts"], "removed_cards": removed["cards"], "cleaned_users": cleaned_users}
-
-        return self.transaction(_mutate)
-
+        self.transaction(_mutate)
+        return {"removed": removed, "kept": ["name and KYC", "accounts", "cards", "transactions", "service requests",
+                                             "consents", "audit trail"], "_logins": logins}
 
 db = BankingDatabase()

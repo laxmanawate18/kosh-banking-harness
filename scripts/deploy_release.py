@@ -63,10 +63,12 @@ MIGRATED = {
     "kosh-oauth-token-encryption-key": {APP: "OAUTH_TOKEN_ENCRYPTION_KEY"},
     "kosh-auth-internal-token": {APP: "AUTH_INTERNAL_TOKEN", AUTH: "AUTH_INTERNAL_TOKEN"},
 }
-NEW_KEYS = {  # required in production since this release; generated once
-    "kosh-sentinel-token-secret": ("SENTINEL_DEMO_SECRET", lambda: secrets.token_urlsafe(48)),
-    "kosh-audit-hmac-key": ("SENTINEL_AUDIT_HMAC_KEY", lambda: secrets.token_urlsafe(48)),
-    "kosh-document-key": ("SENTINEL_DOCUMENT_KEY", lambda: base64.urlsafe_b64encode(os.urandom(32)).decode()),  # a Fernet key
+NEW_KEYS = {  # required in production since this release; generated once: secret -> (service, variable, generator)
+    "kosh-sentinel-token-secret": (APP, "SENTINEL_DEMO_SECRET", lambda: secrets.token_urlsafe(48)),
+    "kosh-audit-hmac-key": (APP, "SENTINEL_AUDIT_HMAC_KEY", lambda: secrets.token_urlsafe(48)),
+    "kosh-document-key": (APP, "SENTINEL_DOCUMENT_KEY", lambda: base64.urlsafe_b64encode(os.urandom(32)).decode()),  # a Fernet key
+    # The Admin Panel login (admin.kosh). Read it once with: gcloud secrets versions access latest --secret=kosh-admin-password
+    "kosh-admin-password": (AUTH, "AUTH_ADMIN_PASSWORD", lambda: secrets.token_urlsafe(18)),
 }
 # Kosh sends no e-mail: every SMTP setting goes (revoke the Gmail app password separately).
 REMOVED = {APP: {"DEMO_OTP", "SMTP_HOST", "SMTP_PORT", "SMTP_USE_TLS", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM_EMAIL",
@@ -97,8 +99,7 @@ def service_account(service: str) -> str:
 def split_env(env: list[dict], service: str) -> tuple[dict[str, str], dict[str, str]]:
     """(plain variables to keep, secret references {VAR: secret}) for one service after this release."""
     secret_vars = {var: name for name, by_service in MIGRATED.items() for svc, var in by_service.items() if svc == service}
-    if service == APP:
-        secret_vars.update({var: name for name, (var, _) in NEW_KEYS.items()})
+    secret_vars.update({var: name for name, (svc, var, _) in NEW_KEYS.items() if svc == service})
     plain = {e["name"]: e.get("value", "") for e in env
              if "valueFrom" not in e and e["name"] not in secret_vars and e["name"] not in REMOVED[service]}
     existing_refs = {e["name"]: e["valueFrom"]["secretKeyRef"]["name"] for e in env if "valueFrom" in e}
@@ -201,9 +202,9 @@ def main() -> int:
             else:
                 status = "kept" if exists else "would copy from the service"
             print(f"    {name:34} {status} -> {svc}")
-    for name, (var, make) in NEW_KEYS.items():
-        status = ensure_secret(name, make(), accounts[APP]) if args.apply else ("kept" if secret_exists(name) else "would generate")
-        print(f"    {name:34} {status} -> {APP} {var}")
+    for name, (svc, var, make) in NEW_KEYS.items():
+        status = ensure_secret(name, make(), accounts[svc]) if args.apply else ("kept" if secret_exists(name) else "would generate")
+        print(f"    {name:34} {status} -> {svc} {var}")
 
     step(4, f"Backup model {args.fallback_model}")
     if not model_answers(args.fallback_model):

@@ -68,6 +68,9 @@ export const post = <T = any>(url: string, body: any = {}, options: RequestInit 
 export const patch = <T = any>(url: string, body: any = {}, options: RequestInit = {}) =>
   request<T>(url, { method: 'PATCH', body: JSON.stringify(body), ...options });
 
+export const put = <T = any>(url: string, body: any = {}, options: RequestInit = {}) =>
+  request<T>(url, { method: 'PUT', body: JSON.stringify(body), ...options });
+
 export const del = <T = any>(url: string, options: RequestInit = {}) =>
   request<T>(url, { method: 'DELETE', ...options });
 

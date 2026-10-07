@@ -7,6 +7,7 @@ import functools
 import hashlib
 import hmac
 import json
+import logging
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -667,6 +668,13 @@ class SecureBankingService:
         frozen = self.db.transaction(mutate)
         self._alert(session_context.get("customer_id"), "card_frozen", card["id"],
                     last4=str(frozen.get("card_number_masked", ""))[-4:])
+        from backend import care  # a person reviews every protective freeze afterwards (approval matrix row 8)
+        try:
+            care.open_case(self.db, "CARD_FREEZE", f"Card ending {str(frozen.get('card_number_masked', ''))[-4:]} frozen through "
+                           f"Mitra. Reason given: {reason[:300]}. Check for fraud, contact the customer and confirm or lift the freeze.",
+                           customer_id=customer_id, session_id=session_context.get("session_id"))
+        except Exception:  # the card is frozen either way; a missing review must be noticed, not hidden
+            logging.getLogger(__name__).exception("Card %s frozen but its review case could not be opened", card["id"])
         return {
             "success": True,
             "status": "FROZEN",

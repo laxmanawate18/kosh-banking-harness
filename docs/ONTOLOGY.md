@@ -8,8 +8,8 @@ The banking business ontology in `config/ontology/` describes what the bank does
 |---|---|
 | **Selects** | One process per turn, from the processes the agent's channel may use (`kosh_channels`). |
 | **Tells the model** | Only that process, trimmed: purpose, steps, exceptions, its activities' rules, the agent guardrails and Mitra's part in Kosh (`kosh_note`). Never other processes, table names, edges, evidence or detection logic. |
-| **Narrows** | When a process is selected, a write or money tool outside its `kosh_tools` is refused. Reads, complaints and callbacks are always allowed. |
-| **Never grants** | Permissions stay in the harness (`config/harness/tools.json`), Sentinel, Kavach and four-eyes. A wrong selection can only make Mitra do less. |
+| **Flags** | A write or money call outside the selected process's `kosh_tools` is allowed but flagged (`details.outside_process` on its audit record). Refusing it broke real two-part requests ("freeze my card and pay Vikram") in evaluation; enforce it later only if the audit shows few such calls. |
+| **Never grants** | Permissions stay in the harness (`config/harness/tools.json`), consent, Sentinel, Kavach and four-eyes. |
 | **Records** | The process id on every turn (`mitra_turns.process_id`), on tool decisions (`details.process` of `AGENT_TOOL_ALLOWED` / `AGENT_TOOL_DENIED`) and on copilot turns. |
 
 The full ontology is read on the server (routing, tests, this report). The model reads only the selected process.
@@ -35,11 +35,11 @@ A customer or visitor can never be routed to an officer-only process (AML, regul
 |---|---|
 | `off` (default) | Nothing changes. The approved prompt version stays valid. |
 | `shadow` | Routes and records the process on every turn. Replies and tools are unchanged; the prompt version is unchanged. |
-| `on` | Records, adds the process guide to the turn and narrows tools. The ontology's hash becomes part of the prompt version, so it needs a passing evaluation and approval in the officer console. |
+| `on` | Records, adds the process guide to the turn and flags out-of-process actions. The ontology's hash becomes part of the prompt version, so it needs a passing evaluation and approval in the Admin Panel. |
 
-**Production uses only approved files.** With `on` in production, a process guides Mitra only when its file has `status: approved` (see `config/ontology/conventions.md`). Every file is `draft` today, so in production `on` behaves like `shadow` until the owners review and compliance approves each process.
+**Production uses only approved processes.** With `on` in production, a process guides Mitra only after the admin approved it in the Admin Panel (Business ontology), for its exact content: the process file, the activities it uses and the guardrails. Editing any of them needs a new approval. The file's own `status` field is the authoring stage (draft, reviewed); the approval that counts is the recorded one.
 
-Suggested rollout: `shadow` in production, review `process_id` on `mitra_turns`, approve the processes, then `on` with a fresh evaluation run.
+Suggested rollout: `shadow` in production; review routing in the Admin Panel (Cost and latency, by process); approve the processes; then `on` with a fresh evaluation run and prompt-version approval.
 
 ## Changing the ontology
 
@@ -71,10 +71,10 @@ Checked against the code on 2026-10-07.
 | 1 | Read customer context | Read tools, consent-gated per tool, model sees only declared fields | Meets |
 | 3 | Promotional message | `get_next_best_offer`: marketing consent, KYC and frequency rules | Meets |
 | 5–7 | Payments | No agent payment limit: every payment needs the customer's Kavach approval; Sentinel denies at score 80 with no override in chat | Stricter |
-| 8 | Protective card freeze | Freeze runs at once and is audited (`CARD_FROZEN`) | **Gap**: nothing queues it for a fraud analyst to review afterwards |
-| 11 | High-risk onboarding | Account opening needs an officer's approval | **Gap**: any officer, not a compliance officer (Kosh has one officer role) |
-| 17 | Model approval | Prompt versions approved in the officer console after a passing evaluation | **Gap**: any officer, not a model risk officer |
-| 19 | Deletion of customer data | `DELETE /api/officer/customers/{id}` wipes at once | **Gap**: one officer alone, no second approver or retention-hold check, and the audit record stores the raw phone number and customer id (audit policy rule 3, guardrail G9) |
+| 8 | Protective card freeze | Freeze runs at once, is audited (`CARD_FROZEN`) and opens a high-priority `CARD_FREEZE` review case in the officers' care queue | Meets |
+| 11 | High-risk onboarding | Account opening needs an officer's approval | **Gap**: any officer, not a compliance officer (Kosh has one officer login) |
+| 17 | Model approval | Prompt versions and ontology processes approved by the admin in the Admin Panel after a passing evaluation; bank officers cannot | Meets (the admin acts as model risk owner) |
+| 19 | Deletion of customer data | An officer requests; the admin (a different person) approves in the Admin Panel. Logins, sessions, chats, drafts, leads and contact details are removed; name and KYC, accounts, transactions, service requests, consents and audit are kept. The audit records hold counts, never the phone number or raw customer id | Meets |
 | 10, 12–16, 20, 21 | Sanctions, credit, regulatory, ledger, insurance advice | Not performed by Kosh | n/a |
 
 Four-eyes for officer decisions (an officer cannot decide on their own account; an escalated request is approved by someone else) meets guardrail G5.
@@ -91,5 +91,4 @@ The deterministic router was run over all 294 evaluation cases offline. Changes 
 
 ## Not built yet
 - The roughly 100 tables proposed in `sentinel_updated_schema - Relationships.csv` (`core_*`, `crm_*`, `gl_*`, `los_*`, `ins_*`, `ret_*`, `dl_*`). Add them when a process that needs them comes into scope. Alembic must run on deploy first; today the app creates tables itself.
-- Separate officer roles (compliance, fraud analyst, credit, privacy, model risk) that the approval matrix names.
-- A process breakdown on the Mitra quality dashboard; the data is on `mitra_turns.process_id`.
+- A compliance officer separate from the operations officer, for high-risk onboarding (approval matrix row 11). Needs a second officer login.

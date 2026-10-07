@@ -57,6 +57,7 @@ services:
       AUTH_INTERNAL_TOKEN: ${AUTH_INTERNAL_TOKEN:-kosh-internal-development-token}
       AUTH_STAFF_USERNAME: ${AUTH_STAFF_USERNAME:-officer.mumbai}
       AUTH_STAFF_PASSWORD: ${AUTH_STAFF_PASSWORD:-Officer@2468}
+      AUTH_ADMIN_PASSWORD: ${AUTH_ADMIN_PASSWORD:-Admin@2468}
     ports:
       - "8020:8020"
     depends_on:

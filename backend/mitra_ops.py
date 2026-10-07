@@ -95,8 +95,9 @@ def release_gate(summary: Dict[str, Any]) -> List[str]:
     failures = []
     if float(summary.get("pass_rate") or 0) < GATE_PASS_RATE:
         failures.append(f"overall {summary.get('pass_rate')}% is below {GATE_PASS_RATE}%")
-    from backend import ontology  # a version on which the banking ontology guides replies must also route safely
-    for category in GATE_CATEGORIES + (("process_routing",) if ontology.MODE == "on" else ()):
+    from backend import ontology  # a version on which the ontology guides replies must route safely; a run that has the cases, too
+    routing = ("process_routing",) if ontology.MODE == "on" or "process_routing" in (summary.get("by_category") or {}) else ()
+    for category in GATE_CATEGORIES + routing:
         score = (summary.get("by_category") or {}).get(category)
         if not score:
             failures.append(f"{category} was not run")
@@ -249,6 +250,47 @@ def quality(db, days: int = 7) -> Dict[str, Any]:
                                           "reply": (f.reply_text or "")[:400]} for f in feedback if f.rating < 0][:10]},
         "prompt_version": _CURRENT.get("version"), "owner": AI_OWNER,
     }
+
+
+PRICING_PATH = Path(__file__).resolve().parent.parent / "config" / "pricing.json"
+
+
+def usage(db, days: int = 7) -> Dict[str, Any]:
+    """Turns, latency, tokens and estimated cost of Mitra's customer and visitor turns, by day, channel, process and model.
+
+    Cost is tokens times the reviewed rates in config/pricing.json; a model without rates has no cost (never a guess).
+    Not included: the officer copilot, the process classifier, speech and OCR calls."""
+    import json
+    pricing = json.loads(PRICING_PATH.read_text(encoding="utf-8"))
+    rates = {m: r for m, r in pricing["per_million_tokens"].items() if r.get("input") is not None and r.get("output") is not None}
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    with db.runtime.sessions() as s:
+        turns = s.scalars(select(MitraTurnRecord).where(MitraTurnRecord.created_at >= since)).all()
+
+    def cost(t) -> Optional[float]:
+        r = rates.get(t.model or "")
+        return None if r is None else ((t.input_tokens or 0) * r["input"] + (t.output_tokens or 0) * r["output"]) / 1_000_000
+
+    def summary(group: List[Any]) -> Dict[str, Any]:
+        lat = sorted(t.latency_ms for t in group if t.outcome in {"ANSWERED", "FALLBACK"})  # turns where the model replied
+        costs = [cost(t) for t in group]
+        return {"turns": len(group), "input_tokens": sum(t.input_tokens or 0 for t in group),
+                "output_tokens": sum(t.output_tokens or 0 for t in group),
+                "cost": None if not group or None in costs else round(sum(costs), 4),
+                "latency_ms": {q: lat[min(len(lat) - 1, int(f * len(lat)))] if lat else None for q, f in (("p50", 0.5), ("p95", 0.95))}}
+
+    def by(key) -> List[Dict[str, Any]]:
+        groups: Dict[str, List[Any]] = {}
+        for t in turns:
+            groups.setdefault(key(t) or "none", []).append(t)
+        return [{"key": k, **summary(v)} for k, v in sorted(groups.items())]
+
+    return {"days": days, "currency": pricing["currency"], "priced_models": sorted(rates), "total": summary(turns),
+            "by_day": by(lambda t: t.created_at.date().isoformat()), "by_channel": by(lambda t: t.channel),
+            "by_process": by(lambda t: t.process_id), "by_model": by(lambda t: t.model),
+            "slowest": [{"at": t.created_at.isoformat(), "channel": t.channel, "process": t.process_id, "outcome": t.outcome,
+                         "model": t.model, "latency_ms": t.latency_ms}
+                        for t in sorted(turns, key=lambda t: t.latency_ms, reverse=True)[:10]]}
 
 
 def purge_expired(db) -> Dict[str, int]:

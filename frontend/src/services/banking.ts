@@ -1,4 +1,4 @@
-import { get, post, patch, del } from './api';
+import { get, post, patch } from './api';
 import type { PortalOverview, AuditEvent } from '../types/banking';
 
 export async function fetchOverview(): Promise<PortalOverview> {
@@ -133,8 +133,9 @@ export async function fetchOfficerCustomers(): Promise<{ customers: any[] }> {
   return get('/api/officer/customers');
 }
 
-export async function wipeOfficerCustomer(customerId: string): Promise<any> {
-  return del(`/api/officer/customers/${encodeURIComponent(customerId)}`);
+/** An officer asks; the admin approves in the Admin Panel. Nothing is removed until then. */
+export async function requestCustomerDeletion(customerId: string, reason: string): Promise<any> {
+  return post(`/api/officer/customers/${encodeURIComponent(customerId)}/deletion-request`, { reason });
 }
 
 export async function resendOfficerCustomerCredentials(customerId: string): Promise<any> {

@@ -23,9 +23,11 @@ from sqlalchemy import select
 from persistence import CareCaseRecord, utc_dt
 
 HELPLINE = "1800 000 5674"
-DUE = {"GRIEVANCE": timedelta(days=30), "CALLBACK": timedelta(hours=24), "FRAUD": timedelta(hours=4), "HARDSHIP": timedelta(days=7)}
-PRIORITY = {"FRAUD": "HIGH", "HARDSHIP": "HIGH"}
-PREFIX = {"GRIEVANCE": "CMP", "CALLBACK": "CB", "FRAUD": "FRD", "HARDSHIP": "HRD"}
+# CARD_FREEZE is internal: every protective freeze is reviewed by a person afterwards (approval matrix row 8).
+DUE = {"GRIEVANCE": timedelta(days=30), "CALLBACK": timedelta(hours=24), "FRAUD": timedelta(hours=4), "HARDSHIP": timedelta(days=7),
+       "CARD_FREEZE": timedelta(hours=24)}
+PRIORITY = {"FRAUD": "HIGH", "HARDSHIP": "HIGH", "CARD_FREEZE": "HIGH"}
+PREFIX = {"GRIEVANCE": "CMP", "CALLBACK": "CB", "FRAUD": "FRD", "HARDSHIP": "HRD", "CARD_FREEZE": "FRZ"}
 MOBILE = re.compile(r"^(?:\+?91)?[6-9]\d{9}$")
 
 _I = re.IGNORECASE
@@ -184,6 +186,8 @@ def open_case(db, kind: str, summary: str, *, customer_id: Optional[str] = None,
         s.add(CareCaseRecord(id=case_id, kind=kind, status="OPEN", priority=PRIORITY.get(kind, "NORMAL"), customer_id=customer_id,
                              session_id=session_id, name=(name or "")[:120] or None, phone=mobile, category=(category or kind)[:60],
                              summary=summary, preferred_time=(preferred_time or "")[:80] or None, due_at=now + DUE[kind]))
+    if kind == "CARD_FREEZE":  # an internal review, not something the customer asked for
+        return {"reference": case_id, "kind": kind, "status": "OPEN", "due_by": (now + DUE[kind]).isoformat()}
     from backend.notifications import notify, phone_for
     notify(db, "care_case_registered", mobile or phone_for(db, customer_id), customer_id=customer_id, reference=case_id,
            kind={"GRIEVANCE": "complaint", "CALLBACK": "callback request", "FRAUD": "fraud report", "HARDSHIP": "hardship request"}[kind],

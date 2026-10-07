@@ -10,7 +10,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
-from backend.api_models import ApprovalDecisionRequest, HarnessControlsRequest, OfficerCopilotRequest, SessionCreateRequest, SessionUpdateRequest
+from backend.api_models import ApprovalDecisionRequest, OfficerCopilotRequest, SessionCreateRequest, SessionUpdateRequest
 from backend.conversations import create_session_data, list_sessions_metadata, load_session, sanitized_session, save_session
 from backend import care, mitra_ops
 from backend.offers import funnel as offer_funnel
@@ -299,55 +299,12 @@ def make_session_router(
             logger.exception("Officer copilot failed")
             raise HTTPException(status_code=502, detail="The copilot could not answer right now.")
 
-    @router.get("/api/officer/controls")
-    async def officer_get_controls(context=Depends(require_officer)):
-        del context
-        return db.get_controls()
-
-    @router.put("/api/officer/controls")
-    async def officer_set_controls(req: HarnessControlsRequest, context=Depends(require_csrf)):
-        require_officer(context)
-        from banking_tools import BANKING_TOOL_NAMES
-        from product_service import PUBLIC_SALES_TOOL_NAMES, VISITOR_APPLICATION_TOOL_NAMES
-        unknown = (set(req.disabled_channels) - {"VISITOR", "CUSTOMER", "MCP", "OFFICER"}) | (
-            set(req.disabled_tools) - BANKING_TOOL_NAMES - PUBLIC_SALES_TOOL_NAMES - VISITOR_APPLICATION_TOOL_NAMES)
-        if unknown:
-            raise HTTPException(status_code=400, detail=f"Unknown channels or tools: {sorted(unknown)}")
-        return db.set_controls(disabled_channels=req.disabled_channels, disabled_tools=req.disabled_tools,
-                               reason=req.reason.strip(), officer_user_id=context.user_id)
-
     @router.post("/api/officer/reconciliation/run")
     async def officer_run_reconciliation(context=Depends(require_csrf)):
         require_officer(context)
         from core_banking import reconcile
         from banking_tools import banking_service
         return await asyncio.to_thread(reconcile, db, banking_service.core)
-
-    @router.get("/api/officer/audit/verify")
-    async def officer_verify_audit(context=Depends(require_officer)):
-        del context
-        return await asyncio.to_thread(db.verify_audit_chain)
-
-    @router.get("/api/officer/mitra-quality")
-    async def officer_mitra_quality(days: int = 7, context=Depends(require_officer)):
-        del context
-        from backend import mitra_ops
-        return {**mitra_ops.quality(db, max(1, min(days, 90))), "registry": mitra_ops.registry(db)[:10]}
-
-    @router.post("/api/officer/ai-registry/{record_id}/approve")
-    async def officer_approve_prompt(record_id: str, req: dict, context=Depends(require_csrf)):
-        require_officer(context)
-        from backend import mitra_ops
-        note = str(req.get("note", "")).strip()[:500]
-        version = next((v for v in mitra_ops.registry(db) if v["id"] == record_id), None)
-        if not version:
-            raise HTTPException(status_code=404, detail="Version not found")
-        latest = (version.get("evaluations") or [None])[-1]
-        if not latest or mitra_ops.release_gate(latest):
-            raise HTTPException(status_code=400, detail="This version cannot be approved: its latest evaluation run is missing or "
-                                f"fails the release gate ({'; '.join(mitra_ops.release_gate(latest)) if latest else 'no run recorded'}).")
-        mitra_ops.update_registry(db, record_id, approval={"by": context.user_id, "at": utc_now_iso(), "note": note})
-        return {"approved": record_id}
 
     @router.get("/api/officer/care-cases")
     async def officer_care_cases(status: str = None, context=Depends(require_officer)):
@@ -375,41 +332,34 @@ def make_session_router(
         del context
         return {"customers": db.list_customers_summary()}
 
-    @router.delete("/api/officer/customers/{customer_id}")
-    async def wipe_officer_customer(customer_id: str, context=Depends(require_officer)):
-        customer = db.get_customer(customer_id)
-        phone = customer.get("phone_number") if customer else None
-        username = None
-        with auth_service.runtime.sessions() as session:
-            user = session.scalar(select(UserRecord).where(UserRecord.customer_id == customer_id))
-            if user:
-                username = user.username
-                phone = phone or user.phone_number
-        wipe_result = db.wipe_customer(customer_id=customer_id, phone_number=phone)
-        _auth_server("wipe-user", {"sentinelUserId": customer_id, "phoneNumber": phone or "", "username": username or ""})
-        db.append_audit(
-            "OFFICER_WIPED_CUSTOMER_RELATIONSHIP",
-            actor=context.username,
-            summary=f"Officer wiped out customer {customer_id} and all associated accounts/credentials",
-            details={
-                "customer_id": customer_id,
-                "phone_number": phone,
-                "officer": context.username,
-                "wipe_result": wipe_result,
-            },
-        )
-        return {
-            "success": True,
-            "message": f"Successfully wiped out customer {customer_id} and all associated credentials/accounts.",
-            "customer_id": customer_id,
-            "wipe_result": wipe_result,
-        }
+    @router.post("/api/officer/customers/{customer_id}/deletion-request")
+    async def request_customer_deletion(customer_id: str, req: dict, context=Depends(require_csrf)):
+        """An officer asks; an admin decides in the Admin Panel (two people). Nothing is removed yet."""
+        require_officer(context)
+        reason = str(req.get("reason", "")).strip()[:500]
+        if len(reason) < 10:
+            raise HTTPException(status_code=400, detail="Give the reason for the deletion (at least 10 characters)")
+        if not db.get_customer(customer_id):
+            raise HTTPException(status_code=404, detail="Customer not found")
+        from persistence import CustomerDeletionRecord
+        with db.runtime.sessions.begin() as session:
+            if session.scalar(select(CustomerDeletionRecord.id).where(CustomerDeletionRecord.customer_id == customer_id,
+                                                                      CustomerDeletionRecord.status == "PENDING")):
+                raise HTTPException(status_code=409, detail="A deletion request for this customer is already waiting for approval")
+            request_id = f"DEL-{uuid.uuid4().hex[:10].upper()}"
+            session.add(CustomerDeletionRecord(id=request_id, customer_id=customer_id, status="PENDING",
+                                               requested_by=context.user_id, reason=reason))
+        db.append_audit("CUSTOMER_DELETION_REQUESTED", actor="officer", approval_request_id=request_id, customer_id=customer_id,
+                        summary="Officer requested removal of a customer's access and contact details", details={"request": request_id})
+        return {"id": request_id, "status": "PENDING", "message": "Sent to the admin for approval. Nothing is removed until then."}
 
     @router.post("/api/officer/customers/{customer_id}/resend-credentials")
     async def resend_customer_credentials(customer_id: str, context=Depends(require_officer)):
         cust = db.get_customer(customer_id)
         if not cust:
             raise HTTPException(status_code=404, detail="Customer not found")
+        if cust.get("access_removed_at"):
+            raise HTTPException(status_code=409, detail="This customer's access was removed; a new login needs a new onboarding")
 
         temp_password = _temp_password()
         full_name = cust.get("display_name") or cust.get("full_name") or f"{cust.get('first_name', '')} {cust.get('last_name', '')}".strip() or "Valued Customer"

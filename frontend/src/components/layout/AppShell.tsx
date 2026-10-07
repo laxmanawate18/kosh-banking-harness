@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Sidebar } from './Sidebar';
+import { ADMIN_NAV, Sidebar } from './Sidebar';
+
+const ADMIN_TITLES: Record<string, string> = Object.fromEntries(ADMIN_NAV.flatMap(([, items]) => items.map(i => [i.id, i.title])));
 import { Topbar } from './Topbar';
 import { ConsentModal } from './ConsentModal';
 import { GlobalSearchModal } from './GlobalSearchModal';
@@ -51,7 +53,7 @@ export const AppShell: React.FC<AppShellProps> = ({ activeRoute, onRouteChange, 
   const [searchOpen, setSearchOpen] = useState(false);
   const { user } = useAuth();
   const { setIsOpen: setChatOpen } = useChat();
-  const isOfficer = user?.role === 'OFFICER';
+  const isOfficer = user?.role === 'OFFICER' || user?.role === 'ADMIN';  // staff: no customer chat
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -72,7 +74,7 @@ export const AppShell: React.FC<AppShellProps> = ({ activeRoute, onRouteChange, 
 
       <div className="k-body">
         <Topbar
-          activeRouteLabel={t(ROUTE_TITLES[activeRoute] || 'Home')}
+          activeRouteLabel={t(ROUTE_TITLES[activeRoute] || ADMIN_TITLES[activeRoute] || 'Home')}
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
           onOpenSearch={() => setSearchOpen(true)}
           onNavigate={onRouteChange}

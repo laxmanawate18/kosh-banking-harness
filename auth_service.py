@@ -82,6 +82,8 @@ class AuthService:
             ("USR-CUSTOMER-001", "aarav", "+919876543210", "Aarav Mehta", "CUSTOMER", "CUST-1001"),
             ("USR-CUSTOMER-002", "sudhir", "+919839774797", "Sudhir Jaiswal", "CUSTOMER", "CUST-1002"),
             ("USR-OFFICER-001", "officer.mumbai", None, "Neha Rao", "OFFICER", None),
+            # The AI and platform admin: governs Mitra (versions, ontology, switches, cost), never banking decisions.
+            ("USR-ADMIN-001", "admin.kosh", None, "Kosh AI Admin", "ADMIN", None),
         ]
         with self.runtime.sessions.begin() as session, session.no_autoflush:
             for user_id, username, phone, display_name, role, customer_id in demo_users:

@@ -26,9 +26,9 @@ class MitraOpsTests(unittest.TestCase):
         dev_ui.limiter.reset()
         self.client = TestClient(dev_ui.app)
 
-    def officer(self):
+    def admin(self):  # Mitra's quality and approvals live in the Admin Panel, not the bank officer's console
         client = TestClient(dev_ui.app)
-        _, cookie, csrf = dev_ui.auth_service.create_direct_session("officer.mumbai")
+        _, cookie, csrf = dev_ui.auth_service.create_direct_session("admin.kosh")
         client.cookies.set(dev_ui.COOKIE_NAME, cookie)
         return client, {"X-CSRF-Token": csrf}
 
@@ -51,8 +51,8 @@ class MitraOpsTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/chat/feedback", json={"session_id": "GUEST-feedback-test", "message_index": 0, "rating": 1}).status_code, 422)
         chat("owned-by-aarav", user_id="aarav")
         self.assertEqual(self.client.post("/api/chat/feedback", json={"session_id": "owned-by-aarav", "message_index": 1, "rating": 1}).status_code, 404)
-        officer, _ = self.officer()
-        quality = officer.get("/api/officer/mitra-quality").json()
+        admin, _ = self.admin()
+        quality = admin.get("/api/admin/quality").json()
         negative = quality["feedback"]["recent_negative"][0]
         self.assertNotIn("9876543210", negative["comment"])
         self.assertIn("lifetime free", negative["reply"])
@@ -61,12 +61,12 @@ class MitraOpsTests(unittest.TestCase):
         mitra_ops.record_turn(dev_ui.db, session_id="S1", channel="VISITOR", language="en", outcome="FALLBACK",
                               reason="unverified competitor comparison", latency_ms=4000)
         mitra_ops.record_turn(dev_ui.db, session_id="S1", channel="VISITOR", language="hi", outcome="ANSWERED", latency_ms=2000)
-        officer, _ = self.officer()
-        q = officer.get("/api/officer/mitra-quality").json()
+        admin, _ = self.admin()
+        q = admin.get("/api/admin/quality").json()
         self.assertGreaterEqual(q["turns"], 2)
         self.assertIn("unverified competitor comparison", q["fallback_reasons"])
         self.assertGreater(q["latency_ms"]["p90"], 0)
-        self.assertEqual(self.client.get("/api/officer/mitra-quality").status_code, 401)
+        self.assertEqual(self.client.get("/api/admin/quality").status_code, 401)
 
     def test_prompt_version_is_registered_and_can_be_approved_and_evaluated(self):
         import subprocess, sys
@@ -80,9 +80,9 @@ class MitraOpsTests(unittest.TestCase):
         mitra_ops.update_registry(dev_ui.db, registered["id"], evaluation={"at": "2026-09-29", "passed": 100, "total": 103, "pass_rate": 97.1,
             "by_category": {"care_fraud": "12/12", "jailbreak": "27/27", "prompt_probe": "14/14", "customer_security": "8/8",
                             "officer_copilot": "24/24", "data_minimisation": "10/10"}})
-        officer, h = self.officer()
-        self.assertEqual(officer.post(f"/api/officer/ai-registry/{registered['id']}/approve", headers=h, json={"note": "Eval 100/107 reviewed"}).status_code, 200)
-        row = next(r for r in officer.get("/api/officer/mitra-quality").json()["registry"] if r["id"] == registered["id"])
+        admin, h = self.admin()
+        self.assertEqual(admin.post(f"/api/admin/ai-registry/{registered['id']}/approve", headers=h, json={"note": "Eval 100/107 reviewed"}).status_code, 200)
+        row = next(r for r in admin.get("/api/admin/quality").json()["registry"] if r["id"] == registered["id"])
         self.assertTrue(row["active"])
         self.assertEqual(row["approval"]["note"], "Eval 100/107 reviewed")
         self.assertEqual(row["evaluations"][-1]["passed"], 100)

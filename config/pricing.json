@@ -1,0 +1,7 @@
+{
+  "_about": "Model prices for the Admin Panel's cost estimate: amount per one million tokens, per model. Copy the prices from your Google Cloud pricing page or contract. null means not set: the panel then shows tokens but no cost. Change only through review.",
+  "currency": "USD",
+  "per_million_tokens": {
+    "gemini-3.8-flash": {"input": null, "output": null}
+  }
+}

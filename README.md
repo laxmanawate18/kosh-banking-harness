@@ -33,7 +33,8 @@ Open [http://127.0.0.1:8017](http://127.0.0.1:8017). The OAuth authority and its
 Demo identities (local simulation only):
 
 - Customer OAuth: the configured Firebase test phone and verification code
-- Better Auth staff: `officer.mumbai` / `Officer@2468`
+- Better Auth staff: `officer.mumbai` / `Officer@2468` (bank officer)
+- Better Auth admin: `admin.kosh` / `Admin@2468` (Admin Panel: Mitra, ontology, cost, approvals; local only, production reads `kosh-admin-password`)
 
 Customer sign-in verifies Firebase phone credentials at the isolated Better Auth service. Staff sign in there with username/password. Kosh is an OAuth resource server and BFF: it keeps authorization-code PKCE verifiers and rotating refresh tokens server-side, validates five-minute JWT access tokens through OIDC/JWKS, and exposes only an HttpOnly application cookie to the browser. OAuth consent and banking-purpose consent remain separate. Fresh Firebase reauthentication raises only the current OAuth session to L3 for five minutes.
 
@@ -136,6 +137,7 @@ Soft signals include new beneficiary, amount above baseline, high value, new dev
 - `GET /api/demo/config`
 - `GET /api/services`, `GET|POST /api/service-requests`
 - `GET /api/officer/queue`, `POST /api/officer/requests/{id}/decision`
+- `/api/admin/*` (ADMIN role only): skills, data sources, ontology and its approvals, usage and cost, quality, prompt-version approval, kill switches, audit check, customer-deletion approval
 - `GET /api/officer/requests/{id}/rpa` for the sanitized live RPA timeline and result
 
 Frontend rendering is allowlisted to fixed local presentation types. Tool data cannot provide HTML, scripts, CSS classes, URLs, or event handlers.

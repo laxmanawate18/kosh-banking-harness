@@ -49,6 +49,21 @@ export const OFFICER_NAV: [string, NavItem[]][] = [
   ]],
 ];
 
+export const ADMIN_NAV: [string, NavItem[]][] = [
+  ['Governance', [
+    { id: 'admin-approvals', title: 'Approvals', icon: 'check' },
+    { id: 'admin-ontology', title: 'Business ontology', icon: 'book' },
+    { id: 'admin-controls', title: 'Kill switches', icon: 'pause' },
+    { id: 'admin-audit', title: 'Audit chain', icon: 'lock' },
+  ]],
+  ['Mitra', [
+    { id: 'admin-quality', title: 'Mitra quality', icon: 'sparkles' },
+    { id: 'admin-usage', title: 'Cost and latency', icon: 'timer' },
+    { id: 'admin-skills', title: 'Skills and tools', icon: 'services' },
+    { id: 'admin-sources', title: 'Data sources', icon: 'building' },
+  ]],
+];
+
 const OPEN_STATUSES = ['SUBMITTED', 'PENDING_APPROVAL', 'ESCALATED', 'MORE_INFO_REQUIRED'];
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onRouteChange, isOpen, onClose }) => {
@@ -56,7 +71,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onRouteChange, is
   const { user, logout } = useAuth();
   const { overview } = useBanking();
   const isOfficer = user?.role === 'OFFICER';
-  const groups = isOfficer ? OFFICER_NAV : CUSTOMER_NAV;
+  const isAdmin = user?.role === 'ADMIN';
+  const groups = isAdmin ? ADMIN_NAV : isOfficer ? OFFICER_NAV : CUSTOMER_NAV;
+  const home = isAdmin ? 'admin-approvals' : isOfficer ? 'operations' : 'overview';
   const openRequests = overview?.requests?.filter((r: ServiceRequestItem) => OPEN_STATUSES.includes(r.status)).length || 0;
   const go = (id: string) => { onRouteChange(id); onClose(); };
 
@@ -65,11 +82,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onRouteChange, is
       <div className={`k-side-scrim ${isOpen ? 'show' : ''}`} onClick={onClose} aria-hidden="true" />
       <aside id="sidebar" className={`k-side ${isOpen ? 'open' : ''}`} aria-label={t('Main navigation')}>
         <Rangoli className="k-side-motif" />
-        <a href={isOfficer ? '#operations' : '#overview'} className="k-side-logo"
-          onClick={e => { e.preventDefault(); go(isOfficer ? 'operations' : 'overview'); }}>
+        <a href={`#${home}`} className="k-side-logo"
+          onClick={e => { e.preventDefault(); go(home); }}>
           <KoshLogo size={36} tone="light" />
         </a>
-        <span className="k-side-space">{isOfficer ? t('Bank operations') : t('Personal banking')}</span>
+        <span className="k-side-space">{isAdmin ? t('AI administration') : isOfficer ? t('Bank operations') : t('Personal banking')}</span>
 
         <nav id="navigation" aria-label={t('Main navigation')}>
           {groups.map(([group, items]) => (

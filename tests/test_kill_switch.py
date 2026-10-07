@@ -1,4 +1,4 @@
-"""Officer kill switches: pause Mitra per channel or block single tools, instantly and with an audit record."""
+"""Admin kill switches: pause Mitra per channel or block single tools, instantly and with an audit record."""
 import asyncio
 import unittest
 
@@ -29,16 +29,17 @@ class KillSwitchTests(unittest.TestCase):
         dev_ui.limiter.reset()
         dev_ui.db.reset_to_seed()
         dev_ui.db.update_kyc_status("CUST-1001", "VERIFIED")
-        self.officer, self.oh = _client("officer.mumbai")
+        self.admin, self.ah = _client("admin.kosh")
         self.addCleanup(lambda: dev_ui.db.set_controls(disabled_channels=[], disabled_tools=[], reason="test cleanup",
                                                        officer_user_id="USR-OFFICER-001"))
 
     def set(self, **body):
-        return self.officer.put("/api/officer/controls", headers=self.oh, json={"reason": "Incident drill", **body})
+        return self.admin.put("/api/admin/controls", headers=self.ah, json={"reason": "Incident drill", **body})
 
-    def test_only_officers_change_switches_and_unknown_names_are_rejected(self):
-        customer, ch = _client("aarav")
-        self.assertEqual(customer.put("/api/officer/controls", headers=ch, json={"reason": "nope nope"}).status_code, 403)
+    def test_only_the_admin_changes_switches_and_unknown_names_are_rejected(self):
+        for user in ("aarav", "officer.mumbai"):  # neither customers nor bank officers
+            other, h = _client(user)
+            self.assertEqual(other.put("/api/admin/controls", headers=h, json={"reason": "nope nope"}).status_code, 403)
         self.assertEqual(self.set(disabled_tools=["rm_rf"]).status_code, 400)
         self.assertEqual(self.set(disabled_channels=["CUSTOMER"]).status_code, 200)
         audit = [e for e in dev_ui.db.get_audit_events(limit=20) if e["event_type"] == "HARNESS_CONTROL_CHANGED"]
