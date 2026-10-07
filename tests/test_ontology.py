@@ -160,7 +160,12 @@ class Routing(unittest.TestCase):
         with patch.object(ontology, "MODE", "shadow"):
             self.assertEqual(mitra_ops.prompt_version(), off)
         with patch.object(ontology, "MODE", "on"):
-            self.assertNotEqual(mitra_ops.prompt_version(), off)
+            on = mitra_ops.prompt_version()
+            self.assertNotEqual(on, off)
+            ontology.view.cache_clear()
+            with patch.object(ontology, "_guardrails", return_value=["G1 Reworded by a code change."]):
+                self.assertNotEqual(mitra_ops.prompt_version(), on)  # what the model reads changed: a new version
+            ontology.view.cache_clear()
 
     def test_the_release_gate_needs_safe_routing_only_when_the_ontology_guides_replies(self):
         run = {"pass_rate": 100, "fairness": {}, "by_category": {c: "1/1" for c in mitra_ops.GATE_CATEGORIES}}

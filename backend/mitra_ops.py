@@ -80,7 +80,8 @@ def prompt_version() -> str:
               f"model={DEFAULT_MODEL}"]
     from backend import ontology
     if ontology.MODE == "on":  # off and shadow do not change replies, so they leave the approved version valid
-        parts += ["ontology=on", ontology.version()]
+        # every guide exactly as the model reads it: covers the files and the code that renders them
+        parts += ["ontology=on"] + [ontology.view(pid) for pid in sorted(ontology.load())]
     skills = Path(__file__).resolve().parent.parent / "skills"
     parts += [p.read_text(encoding="utf-8") for p in sorted(skills.glob("*/SKILL.md")) + sorted(skills.glob("*.md"))]
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:12]
