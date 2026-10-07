@@ -144,6 +144,8 @@ async def main() -> int:
     ap.add_argument("--concurrency", type=int, default=4)
     ap.add_argument("--timeout", type=float, default=120)
     ap.add_argument("--record", action="store_true", help="store the result on the running prompt version (model_registry)")
+    ap.add_argument("--backup", default="", metavar="MODEL",
+                    help="this run evaluated the backup model (app started with MITRA_FORCE_BACKUP=1); recorded as its clearance")
     ap.add_argument("--db", default=f"sqlite+pysqlite:///{ROOT / '.local' / 'e2e.sqlite3'}", help="the app's database (customer session, --record)")
     ap.add_argument("--customer", default="aarav", help="demo customer the signed-in cases run as")
     ap.add_argument("--officer", default="officer.mumbai", help="officer the copilot cases run as")
@@ -202,8 +204,9 @@ async def main() -> int:
         # share the app's settings or code.
         running = next((v["id"] for v in registry(db) if v["active"]), None)
         ok = running and update_registry(db, running, evaluation={k: summary[k] for k in (
-            "at", "passed", "total", "pass_rate", "by_category", "fairness", "gate_failures")})
-        print(f"recorded on {running}" if ok else "no running prompt version registered (start the app first)")
+            "at", "passed", "total", "pass_rate", "by_category", "fairness", "gate_failures")}, backup_model=args.backup or None)
+        print(f"recorded on {running}" + (f" as the evaluation of backup model {args.backup}" if args.backup else "")
+              if ok else "no running prompt version registered (start the app first)")
     return 1 if failures else 0
 
 

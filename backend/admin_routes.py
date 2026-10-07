@@ -56,7 +56,8 @@ def data_sources(db) -> list:
         ("Sign-in server (Better Auth)", "Identity", "Customer, officer and admin sign-in; OAuth for outside agents",
          "connected" if _reachable(f"{auth_url}/healthz") else "unreachable"),
         ("Gemini" + (" on Vertex AI" if vertex else " API (consumer endpoint)"), "AI model",
-         f"{DEFAULT_MODEL} · project {DEFAULT_PROJECT_ID} · {DEFAULT_LOCATION}" + (f" · backup {FALLBACK_MODEL}" if FALLBACK_MODEL else " · no backup model"),
+         f"{DEFAULT_MODEL} · project {DEFAULT_PROJECT_ID} · {DEFAULT_LOCATION}" + (f" · backup {FALLBACK_MODEL} ({'cleared: passed the release gate' if mitra_ops.backup_cleared() else 'not cleared: no passing evaluation, so no switch'})"
+            if FALLBACK_MODEL else " · no backup model"),
          "configured"),
         ("Cloud Speech-to-Text", "Voice", f"{env('KOSH_SPEECH_MODEL', 'chirp_2')} · {env('KOSH_SPEECH_LOCATION', 'asia-southeast1')}", "configured"),
         ("Cloud Text-to-Speech", "Voice", "Reads Mitra's replies aloud", "configured"),
@@ -186,8 +187,17 @@ def make_admin_router(db, require_admin, require_csrf):
 
     @router.get("/approvals")
     async def admin_approvals(context=Depends(require_admin)):
+        from backend.settings import FALLBACK_MODEL
+
+        def backup(v):  # whether this version's backup model may take turns when the main model is overloaded
+            if not FALLBACK_MODEL:
+                return None
+            runs = (v.get("backup_evaluations") or {}).get(FALLBACK_MODEL) or []
+            return {"model": FALLBACK_MODEL, "evaluation": runs[-1] if runs else None,
+                    "gate": mitra_ops.release_gate(runs[-1]) if runs else ["no evaluation of the backup recorded"]}
+
         prompts = [{"id": v["id"], "version": v["version"], "model": v["model"], "created_at": v["created_at"],
-                    "evaluation": (v.get("evaluations") or [None])[-1],
+                    "evaluation": (v.get("evaluations") or [None])[-1], "backup": backup(v),
                     "gate": mitra_ops.release_gate(v["evaluations"][-1]) if v.get("evaluations") else ["no evaluation recorded"]}
                    for v in mitra_ops.registry(db) if v["active"] and not v.get("approval")]
         processes = [{"id": p.id, "name": p.name, "kosh_status": p.kosh_status} for p in ontology.load().values()

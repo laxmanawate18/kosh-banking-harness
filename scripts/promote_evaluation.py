@@ -72,6 +72,13 @@ def promote(source_url: str, target_url: str, version: str, apply: bool) -> int:
             print("Dry run. Re-run with --apply to copy it; then approve it in the production Admin Panel (Approvals).")
             return 0
         summary["evaluations"] = (summary.get("evaluations") or [])[-9:] + [promoted]
+        # A backup model's latest passing run on this version clears it to take turns in production too.
+        backups = dict(summary.get("backup_evaluations") or {})
+        for model, model_runs in ((source or {}).get("backup_evaluations") or {}).items():
+            if model_runs and not release_gate(model_runs[-1]) and model_runs[-1] not in (backups.get(model) or []):
+                backups[model] = (backups.get(model) or [])[-9:] + [{**model_runs[-1], "promoted_from": "local evaluation run"}]
+                print(f"Backup model {model}: run {model_runs[-1]['at']} passed the release gate; copied (clears it to take turns).")
+        summary["backup_evaluations"] = backups
         row.evaluation_summary = summary
         session.commit()
     print(f"Copied. Approve {record_id} in the Admin Panel → Approvals (sign in as the admin).")

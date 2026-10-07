@@ -30,7 +30,8 @@ async function act(call: () => Promise<unknown>, done: () => void) {
 
 /* ---------------- Approvals ---------------- */
 type Approvals = {
-  prompt_versions: { id: string; version: string; model: string; evaluation: { passed: number; total: number; pass_rate: number; at: string } | null; gate: string[] }[];
+  prompt_versions: { id: string; version: string; model: string; evaluation: { passed: number; total: number; pass_rate: number; at: string } | null; gate: string[];
+    backup: { model: string; evaluation: { passed: number; total: number; pass_rate: number } | null; gate: string[] } | null }[];
   processes: { id: string; name: string; kosh_status: string }[];
   deletions: { id: string; customer_id: string; status: string; requested_by: string; reason: string; created_at: string;
     decided_by: string | null; decision_note: string | null }[];
@@ -52,12 +53,15 @@ const ApprovalsTab: React.FC<{ go: (route: string) => void }> = ({ go }) => {
       <section className="panel">
         <h2 style={{ marginTop: 0 }}>Prompt versions waiting for approval</h2>
         {data.prompt_versions.length ? (
-          <table className="table"><thead><tr><th>Version</th><th>Model</th><th>Latest evaluation</th><th>Release gate</th><th /></tr></thead>
+          <table className="table"><thead><tr><th>Version</th><th>Model</th><th>Latest evaluation</th><th>Release gate</th><th>Backup model</th><th /></tr></thead>
             <tbody>{data.prompt_versions.map(v => (
               <tr key={v.id}>
                 <td><code>{v.version}</code></td><td>{v.model}</td>
                 <td>{v.evaluation ? `${v.evaluation.passed}/${v.evaluation.total} (${v.evaluation.pass_rate}%) · ${when(v.evaluation.at)}` : 'Not evaluated'}</td>
                 <td>{v.gate.length ? <span style={{ color: '#b91c1c' }}>{v.gate.join('; ')}</span> : <Badge variant="success">Passes</Badge>}</td>
+                <td>{!v.backup ? 'None' : <>{v.backup.model}<br />{v.backup.gate.length
+                  ? <small style={{ color: '#b45309' }}>Not cleared: never answers ({v.backup.gate.join('; ')})</small>
+                  : <small>Cleared: {v.backup.evaluation?.passed}/{v.backup.evaluation?.total}</small>}</>}</td>
                 <td>{!v.gate.length && <button type="button" className="button primary" onClick={() => approvePrompt(v.id)}>Approve</button>}</td>
               </tr>))}</tbody></table>
         ) : <p>Nothing waiting.</p>}

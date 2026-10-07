@@ -25,7 +25,7 @@ from google.antigravity import types
 
 from backend.agent_config import TOOL_RESULT_QUEUES, CheckedRelease, create_agent_config, visitor_reply
 from backend.conversations import create_session_data, load_session, save_session
-from backend.settings import DEFAULT_MODEL, FALLBACK_MODEL
+from backend.settings import DEFAULT_MODEL
 from auth_service import COOKIE_NAME, AuthContext
 from backend import care, harness, mitra_ops, offers, ontology, rate_limit
 from backend.llm_boundary import Vault, audit_hits, known_identifiers
@@ -394,7 +394,7 @@ async def serve_visitor_websocket(
                     logger.warning("Visitor turn retry after %r", exc)
                     mitra_ops.note_model_failure(exc)
                     await agent.__aexit__(None, None, None)
-                    agent_model = FALLBACK_MODEL or agent_model
+                    agent_model = mitra_ops.backup_model() or agent_model
                     agent, agent_is_new = await fresh_agent(agent_model), True
                     final_reply = await stream_reply()
                     agent_is_new = False
@@ -1026,13 +1026,14 @@ async def serve_chat_websocket(
                     failed, session.agent = session.agent, None
                     if failed:
                         asyncio.ensure_future(failed.__aexit__(None, None, None))
-                    if FALLBACK_MODEL and model is None and not tool_calls and not accumulated_text:
-                        # Nothing ran and nothing was shown, so one retry on the backup model is safe.
+                    backup = mitra_ops.backup_model()
+                    if backup and model is None and not tool_calls and not accumulated_text:
+                        # Nothing ran and nothing was shown, so one retry on the (evaluated) backup model is safe.
                         mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome="ERROR",
-                                              reason=f"{type(exc).__name__}: switched to {FALLBACK_MODEL}", intents=intents,
+                                              reason=f"{type(exc).__name__}: switched to {backup}", intents=intents,
                                               latency_ms=int((time.time() - started) * 1000), model=DEFAULT_MODEL)
                         TOOL_RESULT_QUEUES.pop(session.session_id, None)
-                        await process_turn(FALLBACK_MODEL)
+                        await process_turn(backup)
                         return
                     message = chat_text("advisor_error", language)
                     mitra_ops.record_turn(db, session_id=session.session_id, channel="CUSTOMER", language=language, outcome="ERROR",

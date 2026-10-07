@@ -10,8 +10,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
 DEFAULT_MODEL = "gemini-3.8-flash"
-# Used for one retry when the main model still fails after the SDK's own retries (quota or outage). Unset = no switch.
+# The backup model takes turns while the main model is overloaded, but only once it has passed the release gate on the
+# running prompt version (mitra_ops.backup_cleared). Unset, or not yet evaluated = no switch.
 FALLBACK_MODEL = os.getenv("MITRA_FALLBACK_MODEL") or None
+# Every turn on the backup model: only to evaluate it (run_eval.py --backup) or for a drill. Never left on.
+FORCE_BACKUP = os.getenv("MITRA_FORCE_BACKUP", "").lower() in {"1", "true"}
 DEFAULT_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID") or "project-5fc303c2-29cb-4e5d-9f9"
 # gemini-3.8-flash is served from the Vertex "global" endpoint (not us-central1).
 DEFAULT_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION") or "global"

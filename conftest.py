@@ -24,7 +24,12 @@ class _OfflineModel:
 
 
 @pytest.fixture(autouse=True)
-def _offline_process_classifier(monkeypatch):
-    from backend import ontology
+def _offline_and_no_local_backup(monkeypatch):
+    from backend import mitra_ops, ontology
     monkeypatch.setattr(ontology, "_CLIENT", _OfflineModel())
+    # Tests never inherit the backup model from a local .env; tests about the backup set it themselves.
+    monkeypatch.setattr("backend.settings.FALLBACK_MODEL", None)
+    monkeypatch.setattr("backend.settings.FORCE_BACKUP", False)
+    monkeypatch.setattr(mitra_ops, "_primary_rest_until", [float("-inf")])
+    monkeypatch.setattr(mitra_ops, "_backup_clearance", {"at": float("-inf"), "cleared": False})
     yield

@@ -154,7 +154,9 @@ def registry(db) -> List[Dict[str, Any]]:
                  **(r.evaluation_summary or {})} for r in rows]
 
 
-def update_registry(db, record_id: str, *, approval: Optional[Dict[str, Any]] = None, evaluation: Optional[Dict[str, Any]] = None) -> bool:
+def update_registry(db, record_id: str, *, approval: Optional[Dict[str, Any]] = None, evaluation: Optional[Dict[str, Any]] = None,
+                    backup_model: Optional[str] = None) -> bool:
+    """Record an approval or an evaluation run. With backup_model, the run evaluated that backup model on this version."""
     with db.runtime.sessions.begin() as s:
         row = s.get(ModelRegistryRecord, record_id)
         if not row:
@@ -162,7 +164,11 @@ def update_registry(db, record_id: str, *, approval: Optional[Dict[str, Any]] = 
         summary = dict(row.evaluation_summary or {})
         if approval:
             summary["approval"] = approval
-        if evaluation:
+        if evaluation and backup_model:
+            backups = dict(summary.get("backup_evaluations") or {})
+            backups[backup_model] = (backups.get(backup_model) or [])[-9:] + [evaluation]
+            summary["backup_evaluations"] = backups
+        elif evaluation:
             summary["evaluations"] = (summary.get("evaluations") or [])[-9:] + [evaluation]
         row.evaluation_summary = summary
         return True
@@ -178,6 +184,34 @@ def overloaded(exc: BaseException) -> bool:
     return isinstance(exc, TimeoutError) or any(sign in f"{type(exc).__name__} {exc}" for sign in _OVERLOAD_SIGNS)
 
 
+BACKUP_CHECK_SECONDS = 30
+_backup_clearance: Dict[str, Any] = {"at": float("-inf"), "cleared": False}
+
+
+def backup_cleared() -> bool:
+    """Whether the backup model passed the release gate on the running prompt version. A backup that was never evaluated,
+    or failed, never answers customers: gemini-2.5-flash failed 5 of 6 safety cases that gemini-3.8-flash passed."""
+    from backend.settings import FALLBACK_MODEL
+    if not FALLBACK_MODEL:
+        return False
+    if time.monotonic() - _backup_clearance["at"] > BACKUP_CHECK_SECONDS:
+        try:
+            from banking_db import db
+            with db.runtime.sessions() as s:
+                row = s.get(ModelRegistryRecord, f"PROMPT-{_CURRENT.get('version')}")
+                runs = (((row.evaluation_summary or {}).get("backup_evaluations") or {}).get(FALLBACK_MODEL) or []) if row else []
+            _backup_clearance.update(at=time.monotonic(), cleared=bool(runs) and not release_gate(runs[-1]))
+        except Exception as exc:  # keep the last answer; with none, not cleared (fail closed)
+            logging.getLogger(__name__).warning("Backup clearance unavailable: %r", exc)
+    return _backup_clearance["cleared"]
+
+
+def backup_model() -> Optional[str]:
+    """The backup model if it may answer customers, else None (then a failed turn ends in the safe error message)."""
+    from backend.settings import FALLBACK_MODEL
+    return FALLBACK_MODEL if backup_cleared() else None
+
+
 def note_model_failure(exc: BaseException) -> None:
     """Rest the main model when it is overloaded, so the next turns go straight to the backup instead of waiting on it."""
     from backend.settings import FALLBACK_MODEL
@@ -188,9 +222,11 @@ def note_model_failure(exc: BaseException) -> None:
 
 
 def turn_model() -> Optional[str]:
-    """The model for a new turn: None means the main model; the backup while the main model rests."""
-    from backend.settings import FALLBACK_MODEL
-    return FALLBACK_MODEL if FALLBACK_MODEL and time.monotonic() < _primary_rest_until[0] else None
+    """The model for a new turn: None means the main model; the cleared backup while the main model rests."""
+    from backend.settings import FALLBACK_MODEL, FORCE_BACKUP
+    if FORCE_BACKUP:
+        return FALLBACK_MODEL  # evaluating the backup itself
+    return backup_model() if time.monotonic() < _primary_rest_until[0] else None
 
 
 def token_counts(usage: Any) -> List[int]:

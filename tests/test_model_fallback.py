@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from google.antigravity import types
 
 import dev_ui
-from backend import chat_runtime
+from backend import chat_runtime, mitra_ops
 from persistence import MitraTurnRecord
 
 
@@ -57,8 +57,8 @@ class ModelFallbackTests(unittest.TestCase):
                 events.append(ws.receive_json())
         return events
 
-    def test_switches_to_backup_model_when_main_model_fails(self):
-        with patch.object(chat_runtime, "FALLBACK_MODEL", "backup-model"):
+    def test_switches_to_a_cleared_backup_model_when_main_model_fails(self):
+        with patch.object(mitra_ops, "backup_model", return_value="backup-model"):
             events = self.turn("Is my salary account active?")
         self.assertEqual([a.model for a in FlakyAgent.instances], ["gemini-3.8-flash", "backup-model"])
         self.assertEqual(events[-1]["type"], "turn_complete")
@@ -67,37 +67,53 @@ class ModelFallbackTests(unittest.TestCase):
             last = s.query(MitraTurnRecord).order_by(MitraTurnRecord.created_at.desc()).first()
         self.assertEqual((last.model, last.input_tokens, last.output_tokens), ("backup-model", 100, 25))
 
-    def test_without_backup_the_customer_sees_a_safe_message(self):
-        with patch.object(chat_runtime, "FALLBACK_MODEL", None):
+    def test_an_uncleared_backup_never_answers_the_customer_sees_a_safe_message(self):
+        with patch("backend.settings.FALLBACK_MODEL", "never-evaluated-model"), patch.object(mitra_ops, "backup_cleared", return_value=False):
             events = self.turn("Is my salary account active?")
+        self.assertEqual([a.model for a in FlakyAgent.instances], ["gemini-3.8-flash"])
         self.assertEqual(events[-1]["type"], "error")
         self.assertNotIn("private-provider-details", events[-1]["message"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class MainModelRests(unittest.TestCase):
-    """After the main model is overloaded, new turns go straight to the backup for a while, then back."""
+    """After the main model is overloaded, new turns go to the backup for a while, only if the backup passed the gate."""
 
     def setUp(self):
-        from backend import mitra_ops
-        self.ops = mitra_ops
         self.addCleanup(lambda: mitra_ops._primary_rest_until.__setitem__(0, float("-inf")))
+        self.addCleanup(lambda: mitra_ops._backup_clearance.update(at=float("-inf"), cleared=False))
 
     def test_overload_rests_the_main_model_other_errors_do_not(self):
-        with patch("backend.settings.FALLBACK_MODEL", "gemini-2.5-flash"):
-            self.ops.note_model_failure(ValueError("400 bad request"))
-            self.assertIsNone(self.ops.turn_model())
-            self.ops.note_model_failure(RuntimeError("model response error: 429 Too Many Requests"))
-            self.assertEqual(self.ops.turn_model(), "gemini-2.5-flash")
+        with patch("backend.settings.FALLBACK_MODEL", "gemini-3.7-flash"), patch.object(mitra_ops, "backup_cleared", return_value=True):
+            mitra_ops.note_model_failure(ValueError("400 bad request"))
+            self.assertIsNone(mitra_ops.turn_model())
+            mitra_ops.note_model_failure(RuntimeError("model response error: 429 Too Many Requests"))
+            self.assertEqual(mitra_ops.turn_model(), "gemini-3.7-flash")
             with patch("backend.mitra_ops.time.monotonic", return_value=10**9):
-                self.assertIsNone(self.ops.turn_model())  # the rest is over: back to the main model
+                self.assertIsNone(mitra_ops.turn_model())  # the rest is over: back to the main model
         with patch("backend.settings.FALLBACK_MODEL", None):
-            self.assertIsNone(self.ops.turn_model())  # no backup configured: always the main model
+            self.assertIsNone(mitra_ops.turn_model())  # no backup configured: always the main model
+
+    def test_the_backup_is_cleared_only_by_a_passing_run_on_the_running_version(self):
+        record = mitra_ops.register_prompt_version(dev_ui.db, "gemini-3.8-flash")["id"]
+        mitra_ops.set_current_version(record.removeprefix("PROMPT-"))
+        passing = {"at": "2026-10-07", "passed": 10, "total": 10, "pass_rate": 100.0, "fairness": {},
+                   "by_category": {c: "1/1" for c in mitra_ops.GATE_CATEGORIES}}
+        with patch("backend.settings.FALLBACK_MODEL", "gemini-3.7-flash"):
+            for run, cleared in (({**passing, "pass_rate": 80.0}, False), (passing, True)):
+                mitra_ops.update_registry(dev_ui.db, record, evaluation=run, backup_model="gemini-3.7-flash")
+                mitra_ops._backup_clearance["at"] = float("-inf")
+                self.assertEqual(mitra_ops.backup_cleared(), cleared)
+            mitra_ops.note_model_failure(TimeoutError())
+            self.assertEqual(mitra_ops.turn_model(), "gemini-3.7-flash")
+        with patch("backend.settings.FALLBACK_MODEL", "gemini-2.5-flash"):  # a run for another model clears nothing
+            mitra_ops._backup_clearance["at"] = float("-inf")
+            self.assertFalse(mitra_ops.backup_cleared())
 
     def test_gemini_2_gets_no_thinking_level(self):
         from backend.agent_config import _options
         self.assertIsNone(_options("gemini-2.5-flash").thinking_level)  # Vertex rejects it for 2.x
         self.assertIsNotNone(_options("gemini-3.8-flash").thinking_level)
+
+
+if __name__ == "__main__":
+    unittest.main()

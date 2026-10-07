@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, List
 from sqlalchemy import select
 
 from backend import care, mitra_ops, ontology
-from backend.settings import DEFAULT_MODEL, FALLBACK_MODEL
+from backend.settings import DEFAULT_MODEL
 from backend.agent_config import create_harness_agent_config
 from backend.llm_boundary import Vault, audit_hits, guarded_tools
 from backend.harness import REGISTRY_PATH
@@ -143,7 +143,7 @@ async def ask(agent_factory, db, request_service, *, officer_user_id: str, messa
             raise
         # A stall or quota error: retry once on a fresh agent, on the backup model when one is set, as Mitra does.
         mitra_ops.note_model_failure(exc)
-        model = model or FALLBACK_MODEL
+        model = model or mitra_ops.backup_model()
         text, tools_used = "", []
         context["tool_calls_this_turn"] = 0
         await asyncio.wait_for(run_once(config_for(model)), TURN_SECONDS)
