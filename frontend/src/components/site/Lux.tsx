@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
 import { Card3D } from '../common/Card3D';
+import { HeroCard } from './HeroCard';
 import { FeatureIcon, type FeatureIconName } from '../common/FeatureIcon';
 import { LotusMark, Rangoli } from '../common/KoshLogo';
 import { prefersReducedMotion } from '../common/motion';
@@ -48,10 +49,7 @@ export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({
             <button type="button" className="kl-link" onClick={onLogin}>{t('Login')} <Icon name="arrow-right" /></button>
           </div>
         </div>
-        <div className="kl-card3d" aria-hidden="true" inert>
-          <div className="kl-card-glow" />
-          <div className="kl-card-css"><Card3D float /></div>
-        </div>
+        <div className="kl-card3d"><HeroCard /></div>
       </div>
       <ul className="kl-trustline" aria-label={t('Why bank with Kosh')}>
         <li>{t('Demo bank — no real deposits or money')}</li>
