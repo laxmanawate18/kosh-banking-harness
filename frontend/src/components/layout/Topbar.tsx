@@ -46,7 +46,7 @@ export const Topbar: React.FC<TopbarProps> = ({ activeRouteLabel, onOpenMobileMe
       <div className="k-top-actions">
         <button id="searchBtn" type="button" className="k-search" onClick={onOpenSearch} aria-label={t('Search')}>
           <Icon name="search" />
-          <span>{t('Search accounts, payees, services')}</span>
+          <span>{isOfficer || isAdmin ? t('Search pages') : t('Search accounts, payees, services')}</span>
           <kbd>⌘K</kbd>
         </button>
         <button type="button" className="k-icon-btn k-only-mobile" aria-label={t('Search')} onClick={onOpenSearch}>

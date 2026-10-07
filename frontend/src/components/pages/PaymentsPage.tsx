@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useBanking } from '../../context/BankingContext';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
+import { PageHeader } from '../common/PageHeader';
 import { Modal } from '../common/Modal';
 import { Celebrate } from '../common/Celebrate';
 import { formatDateTime, formatMoney } from '../common/Formatters';
@@ -89,11 +90,9 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialBeneficiaryId
   };
 
   return (
-    <div className="k-app-page">
-      <header className="k-app-head">
-        <h1>{t('Send money')}</h1>
-        <p>{t('Choose a payee and amount. Sentinel checks the payment before any money moves.')}</p>
-      </header>
+    <>
+      <PageHeader title={t('Send money')} subtitle={t('Choose a payee and amount. Sentinel checks the payment before any money moves.')} />
+      <div className="k-page-stack">
 
       {restricted && (
         <section className="k-alert danger">
@@ -108,7 +107,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialBeneficiaryId
 
       <div className="k-two">
         <section className="k-panel">
-          <div className="k-panel-body" style={{ paddingTop: 20 }}>
+          <div className="k-panel-body c-pt">
             <form id="transferForm" onSubmit={review} noValidate>
               <label className="k-field">
                 {t('From account')}
@@ -127,11 +126,11 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialBeneficiaryId
                   ))}
                 </select>
               </label>
-              <button type="button" className="k-link" style={{ marginBottom: 16 }} onClick={() => setAddOpen(true)} disabled={restricted}>
+              <button type="button" className="k-link c-mb" onClick={() => setAddOpen(true)} disabled={restricted}>
                 <Icon name="beneficiaries" />{t('Add a new payee')}
               </button>
               {cooling && (
-                <div className="k-note warn" style={{ marginBottom: 14 }}>
+                <div className="k-note warn c-mb">
                   <Icon name="timer" />
                   <span>{t('{name} was added recently. Up to ₹25,000 until {time}.', { name: payeeName, time: formatDateTime(cooling.toISOString()) })}</span>
                 </div>
@@ -153,7 +152,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialBeneficiaryId
           </div>
         </section>
 
-        <div style={{ display: 'grid', gap: 18 }}>
+        <div className="k-page-stack">
           <section className="k-panel">
             <header className="k-panel-head"><div><h2>{t('Your payees')}</h2></div></header>
             <div className="k-panel-body">
@@ -176,6 +175,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialBeneficiaryId
           </aside>
         </div>
       </div>
+      </div>
 
       {addOpen && (
         <Modal isOpen onClose={() => setAddOpen(false)} title={t('Add a payee')} subtitle={t('For your safety, a new payee can receive up to ₹25,000 in the first 24 hours.')}>
@@ -195,7 +195,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialBeneficiaryId
       {reviewing && (
         <Modal isOpen onClose={() => setReviewing(false)} title={t('Review payment')} subtitle={t('Check the payee and amount before you send.')}>
           <div className="review-amount">{formatMoney(amountMinor)}</div>
-          <p className="review-payee" style={{ textAlign: 'center' }}>{t('To {payee}', { payee: payeeName })}</p>
+          <p className="review-payee">{t('To {payee}', { payee: payeeName })}</p>
           <div className="info-row"><span>{t('From account')}</span><strong>{account?.name}</strong></div>
           <div className="info-row"><span>{t('UPI ID')}</span><strong>{payee?.upi_id || payee?.account_number}</strong></div>
           {note && <div className="info-row"><span>{t('Note')}</span><strong>{note}</strong></div>}
@@ -210,11 +210,11 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialBeneficiaryId
         <Modal isOpen onClose={() => setSuccess(null)} title={t('Payment sent')} subtitle={t('Kavach verified and completed your payment.')}>
           <Celebrate />
           <div className="review-amount">{formatMoney(success.amount)}</div>
-          <p className="review-payee" style={{ textAlign: 'center' }}>{t('To {payee}', { payee: success.payee })}</p>
+          <p className="review-payee">{t('To {payee}', { payee: success.payee })}</p>
           {success.ref && <div className="info-row"><span>{t('Reference')}</span><strong>{success.ref}</strong></div>}
           <div className="k-dialog-actions"><button type="button" className="k-btn primary wide" onClick={() => setSuccess(null)}>{t('Done')}</button></div>
         </Modal>
       )}
-    </div>
+    </>
   );
 };

@@ -6,7 +6,7 @@ import {
   Languages, Lightbulb, Lock, LogOut, Mail, MapPin, Menu, Moon, Pause, Percent, Phone, PiggyBank, Plane, Play,
   QrCode, Receipt, ScanLine, Search, Send, Settings, Share2, Shield, ShieldCheck, ShoppingBasket, ShoppingCart,
   Smartphone, Sparkles, Sprout, Sun, Timer, Type, UserPlus, Users, Wallet, Wifi, X, Zap, CircleHelp, ClipboardList,
-  PackageOpen, Snowflake, Undo2, ArrowUpRight, ArrowDownLeft,
+  PackageOpen, Snowflake, Undo2, RefreshCw, ArrowUpRight, ArrowDownLeft,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -94,6 +94,7 @@ const ICONS: Record<string, LucideIcon> = {
   idea: Lightbulb,
   freeze: Snowflake,
   undo: Undo2,
+  refresh: RefreshCw,
   'chevron-down': ChevronDown,
   'chevron-right': ChevronRight,
 };

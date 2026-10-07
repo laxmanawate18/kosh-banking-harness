@@ -7,6 +7,8 @@ import { ConsentModal } from './ConsentModal';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { Icon } from '../common/Icon';
 import { LotusMark } from '../common/KoshLogo';
+import { motion, pageMotion } from '../common/Animate';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import { SessionGuard } from '../app/SessionGuard';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
@@ -29,7 +31,7 @@ export const ROUTE_TITLES: Record<string, string> = {
   bills: 'Bills and recharge',
   cards: 'Cards',
   deposits: 'Deposits',
-  services: 'Banking services',
+  services: 'Services',
   requests: 'My requests',
   security: 'Sentinel security',
   settings: 'Profile and settings',
@@ -79,9 +81,9 @@ export const AppShell: React.FC<AppShellProps> = ({ activeRoute, onRouteChange, 
           onOpenSearch={() => setSearchOpen(true)}
           onNavigate={onRouteChange}
         />
-        <main id="mainContent" tabIndex={-1} key={activeRoute} className="k-main k-page-enter">
-          {children}
-        </main>
+        <motion.main id="mainContent" tabIndex={-1} key={activeRoute} className="k-main" {...pageMotion}>
+          <ErrorBoundary resetKey={activeRoute}>{children}</ErrorBoundary>
+        </motion.main>
       </div>
 
       <ConsentModal />

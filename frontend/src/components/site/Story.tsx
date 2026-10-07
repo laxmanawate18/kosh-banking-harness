@@ -152,7 +152,7 @@ export const Leaflet: React.FC = () => {
   return (
     <section className="k-section ks-leaflet-section" aria-labelledby="everyone-title">
       <div className="k-section-head reveal">
-        <span className="k-eyebrow">{t('Banking for everyone')}</span>
+        <span className="kl-eyebrow"><i />{t('Banking for everyone')}</span>
         <h2 id="everyone-title">{rich(t('A bank for *every* Indian.'))}</h2>
       </div>
       <div ref={ref} className="ks-leaflet">

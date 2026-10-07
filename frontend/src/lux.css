@@ -37,8 +37,6 @@
 .is-lux .k-nav a:hover { color: #fff; background: rgb(255 255 255 / .06); }
 .is-lux .k-nav a[aria-current="page"] { color: #fff; background: rgb(255 255 255 / .08); }
 @media (max-width: 1024px) { .is-lux .k-nav { background: var(--lux-bg-2); border-color: var(--lux-line); } }
-[data-hero] .k-fab { background: rgb(var(--lux-bg-rgb) / .82); backdrop-filter: blur(14px); color: var(--lux-ink); box-shadow: inset 0 0 0 1px rgb(var(--lux-glow) / .28), 0 16px 34px -14px rgb(0 0 0 / .7); }
-[data-hero] .k-fab:hover { background: rgb(var(--lux-bg-rgb) / .95); }
 
 /* ---------------------------------------------------------------- shared */
 .kl-grain, .kl-rewards::after, .ks-manifesto::after { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; background-image: var(--grain); opacity: .06; mix-blend-mode: overlay; }

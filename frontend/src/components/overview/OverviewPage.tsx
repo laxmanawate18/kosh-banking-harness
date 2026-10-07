@@ -10,11 +10,11 @@ import { SpendingBreakdown } from './SpendingBreakdown';
 import { formatMoney, formatDate, formatDateTime } from '../common/Formatters';
 import { Icon } from '../common/Icon';
 import { FeatureIcon, type FeatureIconName } from '../common/FeatureIcon';
-import { Modal } from '../common/Modal';
 import { Badge } from '../common/Badge';
 import { Card3D } from '../common/Card3D';
+import { LotusLoader } from '../common/LotusLoader';
 import { LotusMark, Rangoli } from '../common/KoshLogo';
-import { prefersReducedMotion } from '../common/motion';
+import { AnimatedNumber, Stagger } from '../common/Animate';
 import type { Challenge, Transaction } from '../../types/banking';
 
 type PendingApproval = Challenge & { requested_via: 'MITRA' | 'ASSISTANT_APP' };
@@ -58,24 +58,8 @@ const ACTIONS: { id: string; label: string; icon: FeatureIconName; hl?: boolean 
   { id: 'accounts', label: 'Statements', icon: 'statement' },
 ];
 
+const money = (v: number) => formatMoney(Math.round(v));
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replace(/_/g, ' ');
-
-function useCountUp(target: number, ms = 900) {
-  const [v, setV] = useState(prefersReducedMotion() ? target : 0);
-  useEffect(() => {
-    if (prefersReducedMotion()) { setV(target); return; }
-    let raf = 0;
-    const start = performance.now();
-    const step = (now: number) => {
-      const p = Math.min(1, (now - start) / ms);
-      setV(Math.round(target * (1 - Math.pow(1 - p, 3))));
-      if (p < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target, ms]);
-  return v;
-}
 
 /** Previous session start if the user has one, else this session's start. */
 function useLastLogin() {
@@ -152,10 +136,9 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
 
   const accounts = overview?.accounts || [];
   const totalBalance = overview?.total_available_minor ?? accounts.reduce((s, a) => s + (a.available_balance_minor || 0), 0);
-  const animated = useCountUp(totalBalance);
 
   if (isLoading || !overview) {
-    return <div className="k-loading"><LotusMark size={56} className="k-spin-slow" /><span>{t('Preparing your Kosh…')}</span></div>;
+    return <LotusLoader label={t('Preparing your Kosh…')} />;
   }
 
   const transactions = overview.transactions || [];
@@ -189,7 +172,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
               <Icon name={showBalance ? 'eye-off' : 'eye'} />{showBalance ? t('Hide') : t('Show')}
             </button>
           </div>
-          <div className="k-balance">{showBalance ? formatMoney(animated) : '₹ ••,••,•••'}</div>
+          <div className="k-balance">{showBalance ? <AnimatedNumber value={totalBalance} format={money} /> : '₹ ••,••,•••'}</div>
           <div className="k-dash-flow">
             <span className="in"><Icon name="arrow-down-left" />{t('In')} {formatMoney(credits)}</span>
             <span className="out"><Icon name="arrow-up-right" />{t('Out')} {formatMoney(debits)}</span>
@@ -202,12 +185,12 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
         </div>
         <div className="k-dash-hero-card">
           <Card3D
-            holder={(card?.cardholder_name || user?.display_name || 'Kosh customer').toUpperCase()}
+            holder={(overview.customer?.display_name || user?.display_name || card?.cardholder_name || 'Kosh customer').toUpperCase()}
             number={card?.card_number_masked ? `•••• •••• ${card.card_number_masked}` : undefined}
             label={(card?.card_type || 'Kosh Platinum Debit').replace(/sentinel/i, 'Kosh')}
             frozen={card?.status === 'FROZEN' || card?.is_frozen}
+            hint
           />
-          <small>{t('Tap the card to flip it')}</small>
         </div>
       </section>
 
@@ -229,14 +212,14 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
         </section>
       )}
 
-      <nav className="k-actions" aria-label={t('Quick actions')}>
+      <Stagger as="nav" className="k-actions" aria-label={t('Quick actions')}>
         {ACTIONS.map(a => (
-          <button key={a.id} type="button" className={`k-action fi-host ${a.hl ? 'hl' : ''}`} onClick={() => onNavigate(a.id)}>
+          <Stagger.Item as="button" tilt={4} key={a.id} type="button" className={`k-action fi-host ${a.hl ? 'hl' : ''}`} whileTap={{ scale: 0.97 }} onClick={() => onNavigate(a.id)}>
             <FeatureIcon name={a.icon} size={50} />
             <span>{t(a.label)}</span>
-          </button>
+          </Stagger.Item>
         ))}
-      </nav>
+      </Stagger>
 
       <section aria-label={t('Offers for you')}>
         <div className="k-offers">
@@ -252,20 +235,20 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
         </div>
       </section>
 
-      <section className="k-acc-grid" aria-label={t('Your accounts')}>
+      <Stagger as="section" className="k-acc-grid" aria-label={t('Your accounts')}>
         {accounts.map(a => (
-          <article key={a.id} className="k-acc">
+          <Stagger.Item as="article" tilt={3} key={a.id} className="k-acc">
             <header>
               <span className="k-acc-type">{t(titleCase(a.type || a.account_type || 'SAVINGS'))}</span>
-              <Badge status={a.status}>{t(a.status === 'ACTIVE' ? 'Active' : a.status)}</Badge>
+                <Badge status={a.status} />
             </header>
             <h3>{a.name || t('Savings account')}</h3>
             <span className="k-acc-no">{a.account_number_masked || '•••• 0000'}{a.ifsc_code ? ` · ${a.ifsc_code}` : ''}</span>
-            <strong className="k-acc-bal">{showBalance ? formatMoney(a.available_balance_minor ?? 0) : '₹ •••••'}</strong>
+            <strong className="k-acc-bal">{showBalance ? <AnimatedNumber value={a.available_balance_minor ?? 0} format={money} /> : '₹ •••••'}</strong>
             <button type="button" className="k-link" onClick={() => onNavigate('accounts')}>{t('Details and statements')} <Icon name="arrow-right" /></button>
-          </article>
+          </Stagger.Item>
         ))}
-      </section>
+      </Stagger>
 
       <div className="k-dash-grid">
         <section className="k-panel">
@@ -273,7 +256,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
             <div><h2>{t('Recent transactions')}</h2><p>{t('Your latest account activity')}</p></div>
             <button type="button" className="k-link" onClick={() => onNavigate('transactions')}>{t('View all')} <Icon name="arrow-right" /></button>
           </header>
-          <RecentTransactions transactions={transactions} compact onViewAll={() => onNavigate('transactions')} onSelectTransaction={setSelectedTx} />
+          <RecentTransactions transactions={transactions} compact onSelectTransaction={setSelectedTx} />
         </section>
 
         <div className="k-dash-side">

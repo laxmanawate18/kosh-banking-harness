@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import { formatMoney } from '../common/Formatters';
+import { formatDate, formatMoney } from '../common/Formatters';
 import { useBanking } from '../../context/BankingContext';
 import { Icon } from '../common/Icon';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { PageHeader } from '../common/PageHeader';
+import { AnimatePresence, AnimatedNumber, Stagger, motion } from '../common/Animate';
+import { categoryLabel } from '../overview/RecentTransactions';
+import { LotusLoader } from '../common/LotusLoader';
 import { useI18n } from '../../i18n';
+
+const amountOf = (b: any) => b.amount_minor ?? b.amount_paise ?? 0;
+const isDue = (b: any) => ['DUE', 'PENDING', 'OVERDUE'].includes(b.status);
 
 export const BillsPage: React.FC = () => {
   const { overview, payBill } = useBanking();
@@ -15,18 +22,13 @@ export const BillsPage: React.FC = () => {
   const [toastMsg, setToastMsg] = useState('');
   const [payError, setPayError] = useState('');
 
-  const bills = overview?.bills || [];
+  // Bills that need paying come first.
+  const bills = [...(overview?.bills || [])].sort((a: any, b: any) => Number(isDue(b)) - Number(isDue(a)));
   const accounts = overview?.accounts || [];
+  const due = bills.filter(isDue);
 
-  const formatDate = (isoStr?: string) => {
-    if (!isoStr) return t('Not set');
-    try {
-      const d = new Date(isoStr);
-      return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch {
-      return isoStr;
-    }
-  };
+  // Until the accounts arrive, say so instead of claiming there is nothing here.
+  if (!overview) return <LotusLoader label={t('Loading your bills…')} />;
 
   const handlePay = async () => {
     if (!selectedBill) return;
@@ -46,147 +48,87 @@ export const BillsPage: React.FC = () => {
 
   return (
     <>
-      <header className="page-heading">
-        <div>
-          <h1>{t('Bills, taken care of.')}</h1>
-          <p>{t('Review upcoming payments and bills you’ve already paid.')}</p>
-        </div>
-      </header>
+      <PageHeader title={t('Bills and recharge')} subtitle={t('Review upcoming payments and bills you’ve already paid.')} />
+      <div className="k-page-stack">
+        <AnimatePresence>
+          {toastMsg && (
+            <motion.div className="k-note c-note-ok" role="status" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <Icon name="check" /><span>{toastMsg}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {toastMsg && (
-        <div className="badge success" style={{ padding: '8px 14px', marginBottom: '14px', display: 'inline-flex' }}>
-          <Icon name="check" /> {toastMsg}
-        </div>
-      )}
+        <div className="c-bills-layout">
+          {bills.length === 0 ? (
+            <div className="k-card empty"><Icon name="bills" /><h3>{t('No bills yet')}</h3><p>{t('Bills from your registered billers will appear here.')}</p></div>
+          ) : (
+            <Stagger className="c-bill-list">
+              {bills.map((b: any) => (
+                <Stagger.Item as="article" key={b.id} className="k-panel c-bill">
+                  <header className="c-bill-head">
+                    <span className="merchant-icon utilities"><Icon name="utilities" /></span>
+                    <div>
+                      <h2>{b.biller_name}</h2>
+                      <small>{categoryLabel(t, b.category)} · {b.reference_masked || b.consumer_number}</small>
+                    </div>
+                    <Badge status={b.status} />
+                  </header>
+                  <div className="c-bill-amount">{formatMoney(amountOf(b))}</div>
+                  <div className="info-row"><span>{t('Due date')}</span><strong>{b.due_date ? formatDate(b.due_date) : t('Not set')}</strong></div>
+                  {b.paid_at && <div className="info-row"><span>{t('Paid on')}</span><strong>{formatDate(b.paid_at)}</strong></div>}
+                  {b.payment_reference && <div className="info-row"><span>{t('Payment reference')}</span><strong>{b.payment_reference}</strong></div>}
+                  {isDue(b) ? (
+                    <button type="button" className="k-btn primary wide c-mt" onClick={() => { setPayError(''); setSelectedBill(b); }}>
+                      {t('Review and pay')} <Icon name="arrow-right" />
+                    </button>
+                  ) : (
+                    <p className="c-paid"><Icon name="check" />{t('Paid. Nothing to do.')}</p>
+                  )}
+                </Stagger.Item>
+              ))}
+            </Stagger>
+          )}
 
-      <div className="two-grid">
-        {bills.map((b: any) => {
-          const isDue = b.status === 'DUE' || b.status === 'PENDING';
-          const amt = b.amount_minor ?? b.amount_paise ?? 0;
-
-          return (
-            <section key={b.id} className="panel panel-pad">
-              <div className="merchant-cell">
-                <span className="merchant-icon utilities">
-                  <Icon name="utilities" />
-                </span>
-                <div>
-                  <h3>{b.biller_name}</h3>
-                  <small className="muted">{b.category} · {b.reference_masked || b.consumer_number || '•••• 8821'}</small>
-                </div>
-              </div>
-
-              <div className="balance">{formatMoney(amt)}</div>
-              <Badge status={b.status}>{b.status}</Badge>
-
-              <div className="info-row">
-                <span>{t('Due date')}</span>
-                <strong>{formatDate(b.due_date)}</strong>
-              </div>
-
-              <div className="info-row">
-                <span>{t('Biller verification')}</span>
-                <strong>{t('Verified recurring biller')}</strong>
-              </div>
-
-              {b.payment_reference && (
-                <div className="info-row">
-                  <span>{t('Payment reference')}</span>
-                  <strong>{b.payment_reference}</strong>
-                </div>
-              )}
-
-              <div className="dialog-footer" style={{ marginTop: '16px' }}>
-                {isDue ? (
-                  <button
-                    type="button"
-                    className="button primary"
-                    onClick={() => {
-                      setPayError('');
-                      setSelectedBill(b);
-                    }}
-                  >
-                    {t('Review & pay')}
-                  </button>
-                ) : (
-                  <span className="muted">{t('Payment recorded')}</span>
-                )}
+          <aside className="k-page-stack">
+            <section className="k-panel">
+              <header className="k-panel-head"><div><h2>{t('At a glance')}</h2><p>{t('Across your registered billers')}</p></div></header>
+              <div className="k-panel-body">
+                <div className="info-row"><span>{t('To pay now')}</span><strong className="c-strong-num"><AnimatedNumber value={due.reduce((n, b) => n + amountOf(b), 0)} format={v => formatMoney(Math.round(v))} /></strong></div>
+                <div className="info-row"><span>{t('Bills due')}</span><strong>{due.length}</strong></div>
+                <div className="info-row"><span>{t('Bills paid')}</span><strong>{bills.length - due.length}</strong></div>
               </div>
             </section>
-          );
-        })}
-      </div>
-
-      <div className="content-note" style={{ marginTop: '20px' }}>
-        {t('Bill amounts are retrieved from your registered biller. The payment form cannot change the amount or destination.')}
+            <aside className="k-kavach-tip">
+              <Icon name="shield" />
+              <div>
+                <strong>{t('Safe bill payments')}</strong>
+                <p>{t('Bill amounts are retrieved from your registered biller. The payment form cannot change the amount or destination.')}</p>
+              </div>
+            </aside>
+          </aside>
+        </div>
       </div>
 
       {selectedBill && (
-        <Modal
-          isOpen={true}
-          onClose={() => setSelectedBill(null)}
-          title={t('Review bill payment')}
-          subtitle={t('Pay {name}', { name: selectedBill.biller_name })}
-        >
-          <div className="review-amount" style={{ textAlign: 'center', margin: '14px 0' }}>
-            {formatMoney(selectedBill.amount_minor ?? selectedBill.amount_paise ?? 0)}
-          </div>
-          <p className="review-payee" style={{ textAlign: 'center', marginBottom: '16px' }}>
-            {t('To {name}', { name: selectedBill.biller_name })}
-          </p>
-
-          <div className="payment-form">
-            <label>
-              {t('From account')}
-              <select
-                value={selectedAccountId}
-                onChange={e => setSelectedAccountId(e.target.value)}
-              >
-                {accounts.map(a => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} • {a.account_number_masked} · {formatMoney(a.available_balance_minor ?? a.balance_paise ?? 0)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="info-row">
-            <span>{t('Biller category')}</span>
-            <strong>{selectedBill.category}</strong>
-          </div>
-          <div className="info-row">
-            <span>{t('Due date')}</span>
-            <strong>{formatDate(selectedBill.due_date)}</strong>
-          </div>
-          <div className="info-row">
-            <span>{t('Payment fee')}</span>
-            <strong>₹0.00</strong>
-          </div>
-
-          <div className="content-note" style={{ margin: '14px 0' }}>
-            {t('Sentinel will verify the registered bill and authorize eligible payments.')}
-          </div>
-
+        <Modal isOpen onClose={() => setSelectedBill(null)} title={t('Review bill payment')} subtitle={t('Pay {name}', { name: selectedBill.biller_name })}>
+          <div className="review-amount">{formatMoney(amountOf(selectedBill))}</div>
+          <p className="review-payee">{t('To {name}', { name: selectedBill.biller_name })}</p>
+          <label className="k-field">
+            {t('From account')}
+            <select value={selectedAccountId} onChange={e => setSelectedAccountId(e.target.value)}>
+              {accounts.map(a => (
+                <option key={a.id} value={a.id}>{a.name} · {a.account_number_masked} · {formatMoney(a.available_balance_minor ?? a.balance_paise ?? 0)}</option>
+              ))}
+            </select>
+          </label>
+          <div className="info-row"><span>{t('Biller category')}</span><strong>{categoryLabel(t, selectedBill.category)}</strong></div>
+          <div className="info-row"><span>{t('Due date')}</span><strong>{selectedBill.due_date ? formatDate(selectedBill.due_date) : t('Not set')}</strong></div>
+          <div className="info-row"><span>{t('Payment fee')}</span><strong>₹0.00</strong></div>
+          <div className="k-note c-mt"><Icon name="shield" /><span>{t('Sentinel will verify the registered bill and authorize eligible payments.')}</span></div>
           {payError && <p className="form-error" role="alert">{payError}</p>}
-
-          <div className="dialog-footer">
-            <button
-              type="button"
-              className="button secondary"
-              onClick={() => setSelectedBill(null)}
-              disabled={isLoading}
-            >
-              {t('Cancel')}
-            </button>
-            <button
-              type="button"
-              className="button primary"
-              onClick={handlePay}
-              disabled={isLoading}
-            >
-              {isLoading ? t('Processing…') : t('Confirm bill payment')}
-            </button>
+          <div className="k-dialog-actions">
+            <button type="button" className="k-btn outline" onClick={() => setSelectedBill(null)} disabled={isLoading}>{t('Cancel')}</button>
+            <button type="button" className="k-btn primary" onClick={handlePay} disabled={isLoading}>{isLoading ? t('Processing…') : t('Confirm bill payment')}</button>
           </div>
         </Modal>
       )}

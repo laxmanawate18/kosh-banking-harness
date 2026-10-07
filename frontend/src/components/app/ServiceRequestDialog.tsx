@@ -23,6 +23,8 @@ export type ServiceSpec = {
   /** Human summary sent as the request's required `details` text (5–2000 chars). */
   details: (data: Record<string, string>) => string;
   submitLabel?: string;
+  /** Requests about the customer, not an account (contact details, branch visit): no account picker; the primary account is sent. */
+  hideAccount?: boolean;
 };
 
 /** Submits a catalogue service request; handles the backend's STEP_UP_REQUIRED with an in-place OTP step. */
@@ -84,7 +86,7 @@ export const ServiceRequestDialog: React.FC<{ spec: ServiceSpec | null; onClose:
   return (
     <Modal isOpen onClose={onClose} title={spec.title} subtitle={spec.subtitle}>
       <form onSubmit={submit}>
-        {accounts.length > 1 && (
+        {accounts.length > 1 && !spec.hideAccount && (
           <label className="k-field">
             {t('Account')}
             <select value={accountId} onChange={e => setAccountId(e.target.value)}>

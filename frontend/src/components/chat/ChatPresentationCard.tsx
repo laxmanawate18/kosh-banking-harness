@@ -3,6 +3,8 @@ import { formatMoney } from '../common/Formatters';
 import type { ChatPresentation } from '../../types/chat';
 import { useAuth } from '../../context/AuthContext';
 import { startVideoKyc } from '../../services/banking';
+import { Badge } from '../common/Badge';
+import { Icon } from '../common/Icon';
 
 interface ChatPresentationCardProps {
   presentation?: ChatPresentation;
@@ -86,18 +88,18 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
     return (
       <article className="chat-result">
         <h3>{title}</h3>
-        {kycStatus && <Row label="Status">{String(kycStatus).replace(/_/g, ' ')}</Row>}
+        {kycStatus && <div className="info-row"><span>Status</span><Badge status={String(kycStatus)} /></div>}
         {pan && <Row label="PAN">{pan}</Row>}
         {reqId ? (
           <Row label="Request">{reqId}</Row>
         ) : (
-          <div style={{ marginTop: '8px' }}>
+          <div className="c-mt">
             <p className="muted cr-note">
               Scan documents, review prefilled details and complete declarations in your saved form.
             </p>
             <button
               type="button"
-              className="button primary"
+              className="k-btn primary sm"
               onClick={() => {
                 const existingWfId = result.workflow_id || pres.workflow_id || result.id;
                 if (existingWfId && onOpenWorkflow) {
@@ -109,7 +111,7 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
                 }
               }}
             >
-              Open KYC form ↗
+              Open KYC form <Icon name="arrow-right" />
             </button>
           </div>
         )}
@@ -120,7 +122,7 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
   // Clarification / Missing parameters
   if (type === 'CLARIFICATION') {
     return (
-      <article className="chat-result" style={{ borderLeft: '3px solid #ffab00' }}>
+      <article className="chat-result c-edge-warn">
         <h3>{title}</h3>
         {pres.message && <p className="muted cr-note">{pres.message}</p>}
       </article>
@@ -148,9 +150,9 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
         )}
         {challenge?.amount_minor != null && <Row label="Amount">{formatMoney(challenge.amount_minor)}</Row>}
         {isCompleted ? (
-          <div className="cr-ok"><span>✓</span><span>Approved &amp; verified</span></div>
+          <div className="cr-ok"><Icon name="check" /><span>Approved &amp; verified</span></div>
         ) : (
-          <button type="button" className="button primary" onClick={() => onPaymentChallenge?.(challenge)}>
+          <button type="button" className="k-btn primary sm" onClick={() => onPaymentChallenge?.(challenge)}>
             Review & verify
           </button>
         )}
@@ -172,7 +174,7 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
         {sourceAcc && <Row label="From">{sourceAcc}</Row>}
         {receipt?.amount_minor != null && <Row label="Amount">{formatMoney(receipt.amount_minor)}</Row>}
         {ref && <Row label="Reference">{ref}</Row>}
-        <div className="cr-ok"><span>✓</span><span>Payment executed successfully</span></div>
+        <div className="cr-ok"><Icon name="check" /><span>Payment sent successfully</span></div>
       </article>
     );
   }
@@ -214,7 +216,7 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
         </p>
         <button
           type="button"
-          className="button primary"
+          className="k-btn primary sm"
           onClick={() => {
             if (onOpenWorkflow && wfId) {
               onOpenWorkflow(wfId);
@@ -225,7 +227,7 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
             }
           }}
         >
-          Open form ↗
+          Open form <Icon name="arrow-right" />
         </button>
       </article>
     );
@@ -240,58 +242,26 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
     const acct = pres.account_number || job.account_number || result.account_number || '1092004821';
     const ref = pres.application_reference || job.request_id || result.application_reference || 'APP-2026-9812';
 
+    // Customers see what happened to their account, not how the bank's systems did it.
     return (
-      <article className="chat-result" style={{ borderLeft: isCompleted ? '3px solid #00875a' : '3px solid #0052cc' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <h3 style={{ margin: 0 }}>{isCompleted ? '🎉 Account Created in CBS' : '🤖 RPA Account Opening In-Progress'}</h3>
-          <span style={{
-            fontSize: '10px',
-            fontWeight: 600,
-            padding: '2px 8px',
-            borderRadius: '12px',
-            background: isCompleted ? '#e3fcef' : '#deebff',
-            color: isCompleted ? '#006644' : '#0747a6'
-          }}>
-            {isCompleted ? 'CBS COMPLETED' : 'MAKER ENTRY'}
-          </span>
+      <article className={`chat-result ${isCompleted ? 'c-edge-ok' : 'c-edge-info'}`}>
+        <div className="c-result-head">
+          <h3>{isCompleted ? 'Your new account is open' : 'Opening your account'}</h3>
+          <Badge status={isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}>{isCompleted ? 'Open' : 'In progress'}</Badge>
         </div>
-
-        <Row label="Application Ref">{ref}</Row>
-
+        <Row label="Application reference">{ref}</Row>
         {isCompleted ? (
           <>
-            <div className="info-row">
-              <span>Core Banking CIF</span>
-              <strong style={{ color: '#00875a' }}>{cif}</strong>
-            </div>
-            <div className="info-row">
-              <span>New Account Number</span>
-              <strong style={{ letterSpacing: '1px' }}>{acct}</strong>
-            </div>
-            <div className="info-row">
-              <span>Maker-Checker Governance</span>
-              <span style={{ fontSize: '11px', color: '#6b778c' }}>Maker: RPA-AO-01 | Checker: Officer Sharma</span>
-            </div>
-            <div style={{ marginTop: '10px' }}>
-              <button
-                type="button"
-                className="button primary"
-                onClick={() => onPromptClick?.('Show my accounts and balance.')}
-              >
-                View Accounts & Balance ↗
-              </button>
-            </div>
+            <Row label="Customer number">{cif}</Row>
+            <Row label="Account number">{acct}</Row>
+            <button type="button" className="k-btn primary sm c-mt" onClick={() => onPromptClick?.('Show my accounts and balance.')}>
+              Show my accounts <Icon name="arrow-right" />
+            </button>
           </>
         ) : (
           <>
-            <Row label="Verification Status">✓ Verified by Officer</Row>
-            <div className="info-row">
-              <span>CBS Automation</span>
-              <span>Headless Playwright Runner (Maker)</span>
-            </div>
-            <p className="muted" style={{ fontSize: '11px', margin: '8px 0 0' }}>
-              RPA agent enters verified data into Finacle CBS with pre-submit DOM read-back validation.
-            </p>
+            <Row label="Your documents">Verified by the bank</Row>
+            <p className="muted cr-note">We are setting up your account now. This usually takes a few minutes.</p>
           </>
         )}
       </article>
@@ -327,7 +297,7 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
         <div className="cr-auth-actions">
           <button
             type="button"
-            className="button primary"
+            className="k-btn primary sm"
             onClick={() => {
               if (pres.action_url) {
                 window.location.assign(pres.action_url);
@@ -341,7 +311,7 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
           </button>
           <button
             type="button"
-            className="button secondary"
+            className="k-btn outline sm"
             onClick={() => {
               window.dispatchEvent(new CustomEvent('open-login-modal', { detail: { tab: 'password' } }));
             }}
@@ -364,8 +334,8 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
         <Row label="Product">{pres.title}</Row>
         <Row label="Reference">{pres.application_ref}</Row>
         <Row label="Status">Awaiting bank officer review</Row>
-        {pres.next_steps && <p style={{ marginTop: 10 }}>{pres.next_steps}</p>}
-        <p style={{ marginTop: 6 }}><a href={`#/track/${encodeURIComponent(pres.application_ref || '')}`}>Track this application</a></p>
+        {pres.next_steps && <p className="cr-note">{pres.next_steps}</p>}
+        <p className="cr-note"><a className="k-link" href={`#/track/${encodeURIComponent(pres.application_ref || '')}`}>Track this application</a></p>
       </article>
     );
   }
@@ -374,8 +344,8 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
     return (
       <article className="chat-result">
         <strong>Video KYC (V-CIP)</strong>
-        <p style={{ margin: '6px 0' }}>Aadhaar e-KYC, PAN check and a short live video call with a Kosh official. Keep your PAN card ready.</p>
-        {pres.sandbox && <p role="note" style={{ margin: '6px 0', color: '#b91c1c', fontWeight: 600 }}>Sandbox provider: this is a test. Nothing is really verified.</p>}
+        <p className="cr-note">Aadhaar e-KYC, PAN check and a short live video call with a Kosh official. Keep your PAN card ready.</p>
+        {pres.sandbox && <p role="note" className="cr-note c-sandbox">Sandbox provider: this is a test. Nothing is really verified.</p>}
         <button type="button" className="k-btn primary sm" onClick={() => startVideoKyc().catch((e) => alert(e.message))}>Start video KYC</button>
       </article>
     );

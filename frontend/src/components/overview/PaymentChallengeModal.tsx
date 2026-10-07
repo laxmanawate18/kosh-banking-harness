@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { ConfirmationResult } from 'firebase/auth';
+import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from 'framer-motion';
 import { Challenge } from '../../types/banking';
 import { formatMoney } from '../common/Formatters';
 import { Modal } from '../common/Modal';
-import { ShieldCheck, ArrowRight } from 'lucide-react';
+import { Icon } from '../common/Icon';
+import { ApprovalSeal } from '../common/ApprovalSeal';
+import { EASE } from '../common/Animate';
 import { useBanking } from '../../context/BankingContext';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
+import { useI18n } from '../../i18n';
 import { completeStepUp, sendStepUpCode } from '../../services/firebaseAuth';
 import { demoStepUp } from '../../services/auth';
 
@@ -15,10 +19,78 @@ interface PaymentChallengeModalProps {
   onClose: () => void;
 }
 
-export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
-  challenge,
-  onClose,
-}) => {
+type Receipt = { amount_minor?: number; beneficiary_name?: string; payment_ref?: string; completed_at?: string };
+
+/** Seconds left until the challenge expires, ticking once a second (null when the challenge has no expiry). */
+function useSecondsLeft(expiresAt?: string) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!expiresAt) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [expiresAt]);
+  return expiresAt ? Math.max(0, Math.round((new Date(expiresAt).getTime() - now) / 1000)) : null;
+}
+
+/** A thin ring that empties as the approval window closes; turns amber in the last minute. */
+const CountdownRing: React.FC<{ left: number; total: number }> = ({ left, total }) => {
+  const { t } = useI18n();
+  const r = 15, c = 2 * Math.PI * r;
+  const share = Math.max(0, Math.min(1, left / total));
+  const mm = Math.floor(left / 60), ss = String(left % 60).padStart(2, '0');
+  return (
+    <span className={`kv-ring ${left <= 60 ? 'late' : ''}`} title={t('Time left to approve')}>
+      <svg viewBox="0 0 36 36" aria-hidden="true">
+        <circle cx="18" cy="18" r={r} className="kv-ring-track" />
+        <circle cx="18" cy="18" r={r} className="kv-ring-fill" strokeDasharray={c} strokeDashoffset={c * (1 - share)} />
+      </svg>
+      <span aria-live="off">{mm}:{ss}</span>
+      <span className="sr-only">{t('{m} minutes {s} seconds left to approve', { m: mm, s: ss })}</span>
+    </span>
+  );
+};
+
+/** Six boxes over one real input: paste, autofill (one-time-code) and screen readers all work on the input. */
+const CodeBoxes: React.FC<{ value: string; onChange: (v: string) => void; invalid: boolean; disabled?: boolean }> = (
+  { value, onChange, invalid, disabled }) => {
+  const { t } = useI18n();
+  const ref = useRef<HTMLInputElement>(null);
+  const shake = useAnimationControls();
+  const reduce = useReducedMotion();
+  useEffect(() => {
+    if (invalid && !reduce) void shake.start({ x: [0, -8, 8, -5, 5, 0], transition: { duration: 0.36 } });
+  }, [invalid, reduce, shake]);
+  return (
+    <motion.div className={`kv-code ${invalid ? 'invalid' : ''}`} animate={shake} onClick={() => ref.current?.focus()}>
+      <input ref={ref} className="kv-code-input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required
+        aria-label={t('One-time verification code')} aria-invalid={invalid} value={value} disabled={disabled}
+        onChange={e => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+      {Array.from({ length: 6 }, (_, i) => {
+        const digit = value[i];
+        const active = i === Math.min(value.length, 5) && !disabled;
+        return (
+          <span key={i} className={`kv-box ${digit ? 'filled' : ''} ${active ? 'active' : ''}`} aria-hidden="true">
+            <AnimatePresence initial={false}>
+              {digit && (
+                <motion.span key={digit + i} initial={{ y: 10, opacity: 0, scale: 0.7 }} animate={{ y: 0, opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }} transition={{ type: 'spring', stiffness: 520, damping: 26 }}>
+                  {digit}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </span>
+        );
+      })}
+    </motion.div>
+  );
+};
+
+/**
+ * Kavach: the customer approves this exact payment with a fresh one-time code. The agent never sees the code.
+ * On success the gold seal plays once and the receipt stays on screen until the customer closes it.
+ */
+export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({ challenge, onClose }) => {
+  const { t } = useI18n();
   const { verifyChallenge } = useBanking();
   const { recordPaymentSuccess } = useChat();
   const { auth, publicConfig } = useAuth();
@@ -27,12 +99,19 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const left = useSecondsLeft(receipt ? undefined : challenge?.expires_at);
+  const total = useRef<number | null>(null);
+  if (left !== null && total.current === null) total.current = Math.max(left, 1);
 
   if (!challenge) return null;
+  const expired = left === 0 && !receipt;
+  const amount = challenge.amount_minor ?? challenge.amount_paise ?? 0;
 
   const handleSendCode = async () => {
     if (!publicConfig?.firebase_api_key || !auth?.user?.phone_number) {
-      setError('Firebase step-up is not configured for this account.');
+      setError(t('Phone verification is not set up for this account.'));
       return;
     }
     setIsLoading(true);
@@ -42,7 +121,7 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
       setConfirmation(sent.confirmation);
       setCode(sent.prefill);
     } catch (err: any) {
-      setError(err.message || 'Could not send a fresh Firebase verification code.');
+      setError(err.message || t('Could not send a fresh verification code.'));
     } finally {
       setIsLoading(false);
     }
@@ -55,96 +134,79 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({
     try {
       if (demo) await demoStepUp(code);
       else {
-        if (!confirmation) throw new Error('Send a fresh Firebase verification code first.');
+        if (!confirmation) throw new Error(t('Send a fresh verification code first.'));
         await completeStepUp(confirmation, code);
       }
       const res = await verifyChallenge();
       if (res.success || res.status === 'SUCCESS' || res.status === 'APPROVED') {
-        const receipt = res.receipt || {
-          amount_minor: challenge.amount_minor,
+        const done = res.receipt || {
+          amount_minor: amount,
           beneficiary_name: challenge.payee_name,
           source_account_name: challenge.source_account_name || (challenge as any).account_name,
           payment_ref: res.payment_ref || challenge.payment_intent_id,
           completed_at: new Date().toISOString(),
           status: 'SUCCESS',
         };
-        recordPaymentSuccess(receipt);
-        onClose();
+        recordPaymentSuccess(done);
+        setReceipt(done);
       } else {
-        setError(res.error || 'Authorization failed. Please try again.');
+        setError(res.error || t('That did not go through. Check the code and try again.'));
+        setAttempt(a => a + 1);
       }
     } catch (err: any) {
-      setError(err.message || 'Verification failed.');
+      setError(err.message || t('That code did not match. Check it and try again.'));
+      setAttempt(a => a + 1);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <Modal
-      isOpen={!!challenge}
-      onClose={onClose}
-      title="Approve this payment"
-      subtitle="Confirm your intent with a fresh Firebase phone verification."
-    >
-      <form onSubmit={handleSubmit} className="pcm-form">
-        {error && (
-          <div className="pcm-error">
-            {error}
-          </div>
+    <Modal isOpen={!!challenge} onClose={onClose}
+      title={receipt ? t('Payment approved') : t('Approve this payment')}
+      subtitle={receipt ? undefined : t('Enter the one-time code to approve this exact payment. Kosh and Mitra never see it.')}>
+      <AnimatePresence mode="wait" initial={false}>
+        {receipt ? (
+          <motion.div key="done" className="kv-done" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2, ease: EASE }}>
+            <ApprovalSeal title={formatMoney(receipt.amount_minor ?? amount)}
+              subtitle={t('Sent to {payee}. Approved with Kavach and checked by Sentinel.', { payee: receipt.beneficiary_name || challenge.payee_name || '' })} />
+            {receipt.payment_ref && <p className="kv-ref">{t('Reference')} <code>{receipt.payment_ref}</code></p>}
+            <button type="button" className="k-btn primary wide" onClick={onClose}>{t('Done')}</button>
+          </motion.div>
+        ) : (
+          <motion.form key="form" onSubmit={handleSubmit} className="kv-form" exit={{ opacity: 0, transition: { duration: 0.12 } }}>
+            <div className="kv-summary">
+              <div>
+                <span className="kv-label">{t('You are paying')}</span>
+                <strong className="kv-amount">{formatMoney(amount)}</strong>
+                <span className="kv-payee">{t('To {payee}', { payee: challenge.payee_name || t('your payee') })}
+                  {challenge.destination_masked ? ` · ${challenge.destination_masked}` : ''}</span>
+              </div>
+              {left !== null && total.current && <CountdownRing left={left} total={total.current} />}
+            </div>
+            <p className="kv-bound"><Icon name="lock" /> {t('This approval works only for this amount and payee.')}</p>
+
+            {error && <div className="k-note danger" role="alert"><Icon name="alert" /> <span>{error}</span></div>}
+            {expired && <div className="k-note warn" role="alert"><Icon name="clock" /> <span>{t('This approval window has closed. Close this and ask Mitra to prepare the payment again.')}</span></div>}
+
+            <div id="payment-step-up-recaptcha" />
+
+            {!demo && !confirmation ? (
+              <button type="button" onClick={handleSendCode} disabled={isLoading || expired} className="k-btn primary wide">
+                {isLoading ? t('Sending…') : t('Send a verification code')}
+              </button>
+            ) : (
+              <>
+                <CodeBoxes key={attempt} value={code} onChange={setCode} invalid={attempt > 0 && !!error} disabled={expired} />
+                <p className="kv-hint">{demo ? t('Demo mode: no SMS is sent. Enter the demo code to approve.') : t('We sent a 6-digit code to your registered mobile number.')}</p>
+                <button type="submit" disabled={isLoading || expired || code.length !== 6} className="k-btn primary wide">
+                  {isLoading ? t('Checking…') : t('Approve and pay')} <Icon name="arrow" />
+                </button>
+              </>
+            )}
+          </motion.form>
         )}
-
-        <div className="pcm-bound">
-          <span>
-            <ShieldCheck size={16} /> Transaction-bound approval
-          </span>
-          <span className="pcm-tag">
-            Immutable
-          </span>
-        </div>
-
-        <div className="pcm-amount">
-          <span>Payment Amount</span>
-          <div>{formatMoney(challenge.amount_minor)}</div>
-          <p>To: {challenge.payee_name}</p>
-        </div>
-
-        <div id="payment-step-up-recaptcha" />
-
-        {!demo && !confirmation && (
-          <button type="button" onClick={handleSendCode} disabled={isLoading} className="mf-go pcm-send">
-            {isLoading ? 'Sending…' : 'Send fresh verification code'}
-          </button>
-        )}
-
-        {(demo || confirmation) && <div>
-          <label className="mf-label">
-            One-time verification code
-          </label>
-          <input
-            type="text"
-            value={code}
-            onChange={e => setCode(e.target.value)}
-            maxLength={6}
-            required
-            className="pcm-code mf-focus"
-          />
-        </div>}
-
-        <p className="pcm-note">
-          {demo
-            ? 'Demo approval: no SMS is sent. Enter the demo code to approve this exact payment.'
-            : 'Firebase verifies the code, and the auth server grants this Kosh session five minutes of L3 assurance.'}
-        </p>
-
-        <button
-          type="submit"
-          disabled={isLoading || (!demo && !confirmation) || code.length !== 6}
-          className="mf-go mf-transition pcm-submit"
-        >
-          {isLoading ? 'Verifying…' : 'Verify & send payment'} <ArrowRight size={16} />
-        </button>
-      </form>
+      </AnimatePresence>
     </Modal>
   );
 };

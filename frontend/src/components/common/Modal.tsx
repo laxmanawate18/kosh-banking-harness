@@ -1,5 +1,6 @@
 import React, { type ReactNode, useEffect, useRef } from 'react';
 import { Icon } from './Icon';
+import { motion, EASE } from './Animate';
 import { useI18n } from '../../i18n';
 
 interface ModalProps {
@@ -33,14 +34,17 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, subtitle, 
       onCancel={e => { e.preventDefault(); onClose(); }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="k-dialog-head">
-        <h2 id="k-modal-title">{title}</h2>
-        {subtitle && <p>{subtitle}</p>}
-        <button type="button" className="k-close" onClick={onClose} aria-label={t('Close')}>
-          <Icon name="close" />
-        </button>
-      </div>
-      <div className="k-dialog-body">{children}</div>
+      <motion.div initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.26, ease: EASE }}>
+        <div className="k-dialog-head">
+          <h2 id="k-modal-title">{title}</h2>
+          {subtitle && <p>{subtitle}</p>}
+          <button type="button" className="k-close" onClick={onClose} aria-label={t('Close')}>
+            <Icon name="close" />
+          </button>
+        </div>
+        <div className="k-dialog-body">{children}</div>
+      </motion.div>
     </dialog>
   );
 };

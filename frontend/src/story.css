@@ -40,7 +40,7 @@
 
 /* ---------------------------------------------------------------- folding leaflet (products page) */
 .ks-leaflet { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); perspective: 1800px; }
-.ks-panel { --unfold: clamp(0, calc(var(--p, 1) * 1.25), 1); position: relative; display: flex; flex-direction: column; gap: 10px; min-height: 320px; padding: 26px 20px; color: var(--ink); text-decoration: none; background: linear-gradient(165deg, var(--surface) 40%, var(--surface-2)); border: 1px solid var(--line); border-left-width: 0; transform-origin: right center; transform: rotateY(calc((1 - var(--unfold)) * 58deg)); transition: transform 120ms linear, box-shadow 250ms ease; }
+.ks-panel { --unfold: clamp(0, calc(var(--p, 1) * 1.25), 1); position: relative; display: flex; flex-direction: column; gap: 10px; min-height: 320px; padding: 26px 20px; color: var(--ink); text-decoration: none; background: linear-gradient(165deg, var(--surface) 40%, var(--surface-2)); border: 1px solid var(--line); border-left-width: 0; transform-origin: right center; transform: rotateY(calc((1 - var(--unfold)) * 58deg)); transition: transform 120ms linear, translate 250ms var(--ease-out), box-shadow 250ms ease; }
 .ks-panel:nth-child(even) { transform-origin: left center; transform: rotateY(calc((1 - var(--unfold)) * -58deg)); }
 .ks-panel:first-child { border-left-width: 1px; border-radius: var(--r-lg) 0 0 var(--r-lg); }
 .ks-panel:last-child { border-radius: 0 var(--r-lg) var(--r-lg) 0; }
@@ -51,7 +51,7 @@
 .ks-panel-go { margin-top: auto; width: 20px; height: 20px; color: var(--accent-ink); transition: translate 250ms var(--ease-out); }
 .ks-panel:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; z-index: 1; }
 @media (hover: hover) and (pointer: fine) {
-  .ks-panel:hover { z-index: 1; box-shadow: var(--shadow-lg); transform: translateY(-6px); }
+  .ks-panel:hover { z-index: 1; box-shadow: var(--shadow-lg); translate: 0 -6px; }
   .ks-panel:hover .ks-panel-go { translate: 4px 0; }
 }
 
@@ -86,7 +86,7 @@
 /* ---------------------------------------------------------------- responsive */
 @media (max-width: 1100px) {
   .ks-leaflet { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; perspective: none; }
-  .ks-panel, .ks-panel:nth-child(even) { transform: none; border-width: 1px; border-radius: var(--r); min-height: 0; }
+  .ks-panel:nth-child(n) { transform: none; border-width: 1px; border-radius: var(--r); min-height: 0; }
   .ks-panel::after { display: none; }
 }
 @media (max-width: 900px) {
@@ -103,7 +103,7 @@
 /* ---------------------------------------------------------------- reduced motion: finished states */
 @media (prefers-reduced-motion: reduce) {
   .ks-w { opacity: 1; transition: none; }
-  .ks-panel, .ks-panel:nth-child(even) { transform: none; }
+  .ks-panel:nth-child(n) { transform: none; }
   .ks-panel::after { display: none; }
   .ks-door { display: none; }
   .ks-light { opacity: 1; scale: 1; }

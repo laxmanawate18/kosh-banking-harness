@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
 import { fdMaturity, formatRupees, maxEligibleLoan, monthlyEmi, rdMaturity } from '../common/Formatters';
+import { ActiveIndicator, AnimatedNumber, motion, pageMotion } from '../common/Animate';
+import { PageHero } from './SiteChrome';
+
+/** A rupee result that counts to its new value as the sliders move. */
+const Rupees: React.FC<{ value: number }> = ({ value }) => <AnimatedNumber value={value} format={formatRupees} />;
 
 type Ask = (prompt: string) => void;
 
@@ -19,7 +24,7 @@ const Slider: React.FC<{
   </label>
 );
 
-const Row: React.FC<{ label: string; value: string; swatch?: string }> = ({ label, value, swatch }) => (
+const Row: React.FC<{ label: string; value: React.ReactNode; swatch?: string }> = ({ label, value, swatch }) => (
   <div><dt>{swatch && <i className={`sw ${swatch}`} />}{label}</dt><dd>{value}</dd></div>
 );
 
@@ -41,12 +46,12 @@ export const EmiCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
       </div>
       <div className="k-calc-result">
         <div className="k-donut" style={{ '--i': share } as React.CSSProperties} role="img" aria-label={t('Interest is {pct}% of what you repay', { pct: Math.round(share * 100) })}>
-          <div><small>{t('Monthly EMI')}</small><strong>{formatRupees(emi)}</strong></div>
+          <div><small>{t('Monthly EMI')}</small><strong><Rupees value={emi} /></strong></div>
         </div>
         <dl>
-          <Row label={t('Principal')} value={formatRupees(amount)} swatch="principal" />
-          <Row label={t('Total interest')} value={formatRupees(total - amount)} swatch="interest" />
-          <Row label={t('Total payable')} value={formatRupees(total)} />
+          <Row label={t('Principal')} value={<Rupees value={amount} />} swatch="principal" />
+          <Row label={t('Total interest')} value={<Rupees value={total - amount} />} swatch="interest" />
+          <Row label={t('Total payable')} value={<Rupees value={total} />} />
         </dl>
         <button type="button" className="k-btn primary" onClick={() => onAsk(t('I want a loan of {amount} for {years} years at about {rate}%. Can you check my eligibility?', { amount: formatRupees(amount), years, rate }))}>
           {t('Check eligibility with Mitra')}
@@ -77,10 +82,10 @@ const FdCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
         </label>
       </div>
       <div className="k-calc-result">
-        <div className="k-calc-big"><small>{t('Maturity amount')}</small><strong>{formatRupees(maturity)}</strong></div>
+        <div className="k-calc-big"><small>{t('Maturity amount')}</small><strong><Rupees value={maturity} /></strong></div>
         <dl>
-          <Row label={t('You invest')} value={formatRupees(amount)} swatch="principal" />
-          <Row label={t('Interest earned')} value={formatRupees(maturity - amount)} swatch="interest" />
+          <Row label={t('You invest')} value={<Rupees value={amount} />} swatch="principal" />
+          <Row label={t('Interest earned')} value={<Rupees value={maturity - amount} />} swatch="interest" />
           <Row label={t('Effective rate')} value={`${effective.toFixed(2)}%`} />
         </dl>
         <p className="k-product-fine">{t('Compounded quarterly. TDS may apply if interest exceeds the yearly limit.')}</p>
@@ -108,10 +113,10 @@ const RdCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
         <Slider label={t('Tenure')} value={months} set={setMonths} min={6} max={120} step={3} show={t('{n} months', { n: months })} />
       </div>
       <div className="k-calc-result">
-        <div className="k-calc-big"><small>{t('Maturity amount')}</small><strong>{formatRupees(maturity)}</strong></div>
+        <div className="k-calc-big"><small>{t('Maturity amount')}</small><strong><Rupees value={maturity} /></strong></div>
         <dl>
-          <Row label={t('You invest')} value={formatRupees(invested)} swatch="principal" />
-          <Row label={t('Interest earned')} value={formatRupees(maturity - invested)} swatch="interest" />
+          <Row label={t('You invest')} value={<Rupees value={invested} />} swatch="principal" />
+          <Row label={t('Interest earned')} value={<Rupees value={maturity - invested} />} swatch="interest" />
         </dl>
         <button type="button" className="k-btn primary" onClick={() => onAsk(t('I want to start an RD of {amount} a month for {months} months.', { amount: formatRupees(monthly), months }))}>
           {t('Start an RD with Mitra')}
@@ -138,9 +143,9 @@ const EligibilityCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
         <Slider label={t('Tenure')} value={years} set={setYears} min={5} max={30} step={1} show={t('{n} years', { n: years })} />
       </div>
       <div className="k-calc-result">
-        <div className="k-calc-big"><small>{t('You may be eligible for up to')}</small><strong>{formatRupees(loan)}</strong></div>
+        <div className="k-calc-big"><small>{t('You may be eligible for up to')}</small><strong><Rupees value={loan} /></strong></div>
         <dl>
-          <Row label={t('EMI you can afford')} value={formatRupees(Math.max(0, income * 0.5 - existing))} />
+          <Row label={t('EMI you can afford')} value={<Rupees value={Math.max(0, income * 0.5 - existing)} />} />
         </dl>
         <p className="k-product-fine">{t('Based on up to 50% of income going to EMIs. The final amount depends on your credit score and documents.')}</p>
         <button type="button" className="k-btn primary" onClick={() => onAsk(t('My take-home income is {income} a month. How much home loan can I get?', { income: formatRupees(income) }))}>
@@ -163,23 +168,21 @@ export const CalculatorsPage: React.FC<{ tab?: string; onAsk: Ask }> = ({ tab = 
   const active = TABS.some(([id]) => id === tab) ? tab : 'emi';
   return (
     <>
-      <div className="k-page-hero">
-        <div className="k-crumbs"><a href="#/">{t('Home')}</a><Icon name="chevron-right" /><span>{t('Calculators')}</span></div>
-        <h1>{t('Calculators')}</h1>
-        <p>{t('Plan loans and savings with the same formulas Indian banks use. Results are estimates, not offers.')}</p>
-      </div>
-      <section className="k-section" style={{ paddingTop: 28 }}>
+      <PageHero eyebrow={t('Plan ahead')} title={t('Calculators')} intro={t('Plan loans and savings with the same formulas Indian banks use. Results are estimates, not offers.')} />
+      <section className="k-section">
         <nav className="k-tabs-row" aria-label={t('Calculators')}>
           {TABS.map(([id, label]) => (
             <a key={id} href={`#/calculators/${id}`} aria-current={active === id ? 'page' : undefined}>
-              <Icon name="calculator" /> {t(label)}
+              {active === id && <ActiveIndicator id="calculator-tab" />}<Icon name="calculator" /> {t(label)}
             </a>
           ))}
         </nav>
-        {active === 'emi' && <EmiCalculator onAsk={onAsk} />}
-        {active === 'fd' && <FdCalculator onAsk={onAsk} />}
-        {active === 'rd' && <RdCalculator onAsk={onAsk} />}
-        {active === 'eligibility' && <EligibilityCalculator onAsk={onAsk} />}
+        <motion.div key={active} {...pageMotion}>
+          {active === 'emi' && <EmiCalculator onAsk={onAsk} />}
+          {active === 'fd' && <FdCalculator onAsk={onAsk} />}
+          {active === 'rd' && <RdCalculator onAsk={onAsk} />}
+          {active === 'eligibility' && <EligibilityCalculator onAsk={onAsk} />}
+        </motion.div>
       </section>
     </>
   );

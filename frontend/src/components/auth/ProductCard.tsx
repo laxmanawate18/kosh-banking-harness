@@ -3,6 +3,7 @@ import type { Product } from '../../types/products';
 import { Icon } from '../common/Icon';
 import { FeatureIcon, type FeatureIconName } from '../common/FeatureIcon';
 import { useI18n } from '../../i18n';
+import { Stagger } from '../common/Animate';
 
 interface ProductCardProps {
   product: Product;
@@ -16,7 +17,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onApply, onAs
   const { t } = useI18n();
   const perks = [product.min_balance, product.joining_fee, product.tenure_range, product.welcome_bonus].filter(Boolean) as string[];
   return (
-    <article className={`k-product reveal fi-host ${product.featured ? 'featured' : ''}`}>
+    <Stagger.Item as="article" className={`k-product fi-host ${product.featured ? 'featured' : ''}`}>
       <header>
         <FeatureIcon name={ICON[product.category] || 'rewards'} size={48} />
         <div>
@@ -47,6 +48,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onApply, onAs
         <button type="button" className="k-btn primary" onClick={() => onApply(product)}>{t('Apply now')}</button>
         <button type="button" className="k-btn outline" onClick={() => onAskAI(product)}>{t('Ask Mitra')}</button>
       </footer>
-    </article>
+    </Stagger.Item>
   );
 };

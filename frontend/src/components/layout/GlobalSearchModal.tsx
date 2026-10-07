@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { Icon } from '../common/Icon';
 import { useI18n } from '../../i18n';
+import { useAuth } from '../../context/AuthContext';
+import { ADMIN_NAV, OFFICER_NAV } from './Sidebar';
 
 interface SearchItem {
   id: string;
@@ -36,7 +38,9 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const searchItems: SearchItem[] = [
+  const { user } = useAuth();
+  const staffNav = user?.role === 'ADMIN' ? ADMIN_NAV : user?.role === 'OFFICER' ? OFFICER_NAV : null;
+  const customerItems: SearchItem[] = [
     // Navigation
     { id: 'nav-overview', title: t('Overview and balance summary'), category: t('Navigation'), icon: 'overview', route: 'overview' },
     { id: 'nav-ai-banker', title: t('Chat with Mitra'), category: t('Navigation'), icon: 'ai-banker', route: 'ai-banker' },
@@ -63,6 +67,10 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
     { id: 'act-nominee', title: t('Update account nominee'), category: t('Service'), icon: 'requests', route: 'services' },
     { id: 'act-appointment', title: t('Book a branch appointment'), category: t('Service'), icon: 'calendar', route: 'services' },
   ];
+  // Staff search their own console's pages; customer pages are not theirs to open.
+  const searchItems: SearchItem[] = staffNav
+    ? staffNav.flatMap(([group, items]) => items.map(item => ({ id: `nav-${item.id}`, title: t(item.title), category: t(group), icon: item.icon, route: item.id })))
+    : customerItems;
 
   const filtered = searchItems.filter(item => {
     const q = query.toLowerCase().trim();
@@ -136,7 +144,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
           <input
             ref={inputRef}
             type="search"
-            placeholder={t('Search pages, services, accounts and actions')}
+            placeholder={staffNav ? t('Search pages') : t('Search pages, services, accounts and actions')}
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}

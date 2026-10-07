@@ -112,6 +112,16 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
         result["kyc"] = db.get_kyc_profile(context.customer_id)
         return result
 
+    # What a customer's activity feed may show: their own actions and outcomes. Never internal plumbing (agent tool calls,
+    # intent binding, model withholding) or Sentinel's risk decisions and reason codes (no tipping off, guardrail G8).
+    CUSTOMER_EVENT_TYPES = {
+        "OAUTH_AUTHENTICATION_SUCCEEDED", "STEP_UP_SUCCEEDED", "STEP_UP_FAILED", "SESSION_REVOKED", "AGENT_ACCESS_REVOKED",
+        "PAYMENT_PROPOSED", "CHALLENGE_ISSUED", "PAYMENT_EXECUTED", "PAYMENT_CANCELLED", "CARD_FROZEN", "CARD_UNFROZEN",
+        "PREFERENCES_UPDATED", "MARKETING_CONSENT_GRANTED", "MARKETING_CONSENT_WITHDRAWN", "CONSENT_GRANTED", "CONSENT_REVOKED",
+        "WORKFLOW_STARTED", "WORKFLOW_SUBMITTED", "DOCUMENT_CAPTURED", "EKYC_VERIFIED", "SERVICE_REQUEST_CREATED",
+        "OFFICER_DECISION", "CUSTOMER_RESPONSE", "REQUEST_CANCELLED",
+    }
+
     @router.get("/events")
     def events(context=Depends(customer)):
         # Customer activity spans authenticated forms and owned agent conversations.
@@ -122,6 +132,7 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
             sub_reqs = select(ServiceRequestRecord.id).where(ServiceRequestRecord.customer_id == context.customer_id).scalar_subquery()
             stmt = (
                 select(AuditEventRecord)
+                .where(AuditEventRecord.event_type.in_(CUSTOMER_EVENT_TYPES))
                 .where(
                     or_(
                         AuditEventRecord.actor == context.user_id,
@@ -140,8 +151,6 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
                 "summary": row.summary,
                 "severity": row.severity,
                 "created_at": row.created_at.isoformat().replace("+00:00", "Z"),
-                "policy_version": row.policy_version,
-                "details": {"reason_codes": (row.details or {}).get("reason_codes", [])},
             } for row in rows]
         return {"events": visible}
 
@@ -375,6 +384,19 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
             return {"sessions": [{"id": r.id, "current": r.id == context.session_id,
                 "created_at": r.created_at.isoformat(), "last_seen_at": r.last_seen_at.isoformat(),
                 "assurance_level": r.assurance_level} for r in rows]}
+
+    @router.delete("/security/sessions")
+    def revoke_other_sessions(context=Depends(customer_csrf)):
+        """Sign out every other device in one step (protective, so no extra verification). This session stays signed in."""
+        with db.runtime.sessions.begin() as session:
+            rows = session.scalars(select(AuthSessionRecord).where(
+                AuthSessionRecord.user_id == context.user_id, AuthSessionRecord.id != context.session_id,
+                AuthSessionRecord.revoked_at.is_(None))).all()
+            for row in rows:
+                row.revoked_at = utc_dt()
+        db.append_audit("SESSION_REVOKED", actor=context.user_id, summary=f"Customer signed out {len(rows)} other sessions",
+                        details={"sessions": len(rows), "kept": "this session"})
+        return {"revoked": len(rows)}
 
     @router.delete("/security/sessions/{session_id}")
     def revoke_session(session_id: str, context=Depends(customer_csrf)):

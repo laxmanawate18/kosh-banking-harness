@@ -1,0 +1,308 @@
+/* Styles for the signed-in customer pages (components/pages, overview, chat, app). Loaded after kosh.css; shared components live in kosh.css.
+   Tokens only (both themes); 8pt rhythm; text >= 13px; hover motion only for fine pointers; transforms use `translate`
+   so they never fight Framer Motion's inline `transform`. */
+
+/* ---------- Small helpers ---------- */
+.c-mt { margin-top: 16px; }
+.c-mb { margin-bottom: 16px; }
+.c-pt { padding-top: 20px; }
+.c-pad-x { padding: 0 20px; }
+.c-soft { color: var(--muted) !important; font-weight: 500 !important; }
+.c-body { margin: 0 0 16px; font-size: 15px; }
+.c-strong-num { font: 700 17px var(--k-display); font-variant-numeric: tabular-nums; }
+.review-amount.c-credit { color: var(--ok); }
+.review-payee { text-align: center; }
+
+/* Stacks are one column that never grows past the screen (a sideways-scrolling filter row would otherwise widen the page).
+   Suggested for .k-page-stack in kosh.css. */
+.k-page-stack { grid-template-columns: minmax(0, 1fr); }
+
+/* One section-heading size on every customer page (matches .panel-head / .k-panel-head h2). */
+.c-section-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 16px; }
+.c-section-head h2 { font-size: 19px; margin: 0; }
+
+/* Two columns that stack under 1024px (Security, Settings). */
+.c-split { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 1024px) { .c-split { grid-template-columns: minmax(0, 1fr); } }
+
+/* Tile grids: never cramped (320px min), one column on phones. */
+.c-tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 14px; }
+.c-tile-grid .k-quick-tile { height: 100%; align-items: flex-start; }
+.c-tile-grid .k-quick-tile > .icon:first-child { margin-top: 2px; }
+.c-tile-grid .k-quick-tile .k-go { align-self: center; }
+
+/* Notices: success tone for .k-note (shared one has info and warn). */
+.k-note.c-note-ok { background: var(--ok-bg); color: var(--ink); }
+.k-note.c-note-ok .icon { color: var(--ok); }
+.k-note > span { min-width: 0; }
+
+/* "Paid. Nothing to do." / "KYC up to date": a calm confirmation, not a disabled button. */
+.c-paid { display: flex; align-items: center; gap: 8px; margin: 16px 0 0; font-size: 15px; font-weight: 600; color: var(--ok); }
+.c-paid .icon { width: 18px; height: 18px; }
+
+/* Disabled primary buttons stay readable (≥4.5:1) in both themes instead of a faded platinum pill. */
+:is(.c-card-block, .c-save-row, #transferForm) .k-btn.primary:disabled { opacity: 1; background: var(--surface-2); color: var(--muted); border-color: var(--line); }
+
+/* Card headers: title block on the left, a link or badge aligned with the title on the right. */
+.k-panel-head { align-items: flex-start; }
+.k-panel-head > :not(div) { margin-top: 2px; }
+
+/* Print/export actions are desktop tasks; on phones they would be the biggest button on the page. */
+@media (max-width: 640px) { .c-hide-phone { display: none !important; } }
+
+/* Clickable cards lift a little on hover (mouse/trackpad only). */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  #mainContent :is(.k-quick-tile:not(.mitra), .k-action) { transition: translate 200ms var(--ease-out), border-color 150ms ease, box-shadow 200ms ease; }
+  #mainContent :is(.k-quick-tile:not(.mitra), .k-action):hover { translate: 0 -2px; box-shadow: var(--shadow); }
+}
+
+/* ---------- Home ---------- */
+.spending-visual { height: 184px; }
+.donut { width: 168px; height: 168px; }
+.donut-center strong { font: 700 22px var(--k-display); letter-spacing: -.01em; color: var(--ink); }
+.donut-center small { font-size: 13.5px; }
+.legend { gap: 10px; padding: 8px 20px 20px; }
+.legend-row { font-size: 15px; color: var(--ink-2); gap: 10px; }
+.legend-row span:last-child { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.k-offer-actions .k-btn.sm:not(.primary) { border-color: var(--line-strong); background: var(--surface); color: var(--ink); }
+
+/* ---------- Transactions ---------- */
+.c-tx-row { cursor: pointer; }
+.c-tx-toolbar { align-items: center; }
+.c-tx-toolbar .k-filter-tabs { flex: none; }
+@media (max-width: 760px) {
+  .c-tx-toolbar input, .c-tx-toolbar select { flex: 1 1 100%; }
+  .c-tx-toolbar .k-filter-tabs { width: 100%; }
+  .c-tx-toolbar .k-filter-tab { flex: 1 1 auto; justify-content: center; padding-inline: 12px; }
+}
+@media (max-width: 640px) { .tx-table .date-col { padding-left: 48px; } }
+
+/* ---------- Accounts ---------- */
+.k-acc.c-acc-current { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
+.c-acc-showing { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; font-size: 15px; font-weight: 600; color: var(--ok); }
+.c-acc-showing .icon { width: 16px; height: 16px; }
+.c-statement-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.c-statement-tools select { width: auto; min-height: 40px; margin: 0; padding-block: 6px; }
+/* Statement on phones: description and date on the left, amount always visible on the right. */
+@media (max-width: 640px) {
+  .c-stmt-table thead { display: none; }
+  .c-stmt-table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "what amount" "when amount"; column-gap: 12px; row-gap: 2px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .c-stmt-table tbody td { padding: 0; border: 0; }
+  .c-stmt-table td:nth-child(1) { grid-area: when; font-size: 13.5px; }
+  .c-stmt-table td:nth-child(2) { grid-area: what; font-weight: 600; overflow-wrap: anywhere; }
+  .c-stmt-table td.amount { grid-area: amount; align-self: center; }
+}
+
+/* ---------- UPI / Send money / Payees ---------- */
+.c-upi-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.c-payee-note { display: block; margin-top: 6px; font-size: 14px; color: var(--muted); }
+.k-acc .c-payee-send { margin-top: 16px; align-self: flex-start; }
+
+/* ---------- Bills ---------- */
+.c-bills-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 1024px) { .c-bills-layout { grid-template-columns: minmax(0, 1fr); } }
+.c-bill-list { display: grid; gap: 16px; }
+.c-bill { padding: 20px; }
+.c-bill-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.c-bill-head h2 { font-size: 19px; margin: 0; }
+.c-bill-head small { display: block; font-size: 14px; color: var(--muted); margin-top: 2px; }
+.c-bill-amount { font: 700 32px/1.1 var(--k-display); letter-spacing: -.01em; font-variant-numeric: tabular-nums; color: var(--ink); margin: 16px 0 8px; }
+
+/* ---------- Cards ---------- */
+.c-card-block { align-items: start; }
+.c-card-block .card-surface { display: grid; place-items: center; margin: 0; }
+.c-controls { border: 0; margin: 0; padding: 0; min-width: 0; }
+.c-controls:disabled .k-toggle-row, .c-controls:disabled .k-field { opacity: .5; }
+.c-controls:disabled :is(.k-switch, select, label) { cursor: not-allowed; }
+.c-card-more { display: grid; gap: 8px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
+
+/* Frozen card: readable, not hidden. Light frost, no blur, an icy ring, and a "Frozen" tag that sits beside the chip,
+   clear of the card number. (Overrides .k-card-frozen / .k-card3d.frozen in kosh.css.) */
+.k-card3d.frozen .k-card-face.front { filter: saturate(.35); box-shadow: 0 30px 46px -24px rgb(0 0 0 / .8), inset 0 0 0 2px rgb(156 187 233 / .7); }
+.k-card3d.frozen .k-card-face.front::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(135deg, rgb(255 255 255 / .06) 0 10px, transparent 10px 20px); pointer-events: none; }
+.k-card-frozen {
+  inset: auto; top: 41%; right: 22px; translate: 0 -50%;
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  font: 700 13px var(--k-sans); letter-spacing: .06em;
+  background: rgb(10 10 12 / .78); color: var(--platinum-hi); border: 1px solid rgb(156 187 233 / .55);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.k-card-frozen .icon { width: 16px; height: 16px; color: rgb(156 187 233); }
+
+/* ---------- Deposits ---------- */
+.c-product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 16px; }
+.c-product { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 24px; }
+.c-product h2 { font-size: 21px; margin: 0; }
+.c-product p { margin: 0; font-size: 15.5px; line-height: 1.6; flex: 1; }
+.c-product .k-btn { margin-top: 8px; }
+.c-rate { display: inline-block; margin-top: 4px; font: 650 16px var(--k-display); color: var(--accent-ink); }
+.c-maturity { margin: 8px 0 16px; padding: 4px 16px; border-radius: var(--r-field); background: var(--surface-2); border: 1px solid var(--line); }
+.c-maturity-value { color: var(--ok) !important; font-size: 16px; }
+
+/* ---------- Services ---------- */
+.c-services-tools { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; }
+.c-search { position: relative; flex: 1 1 280px; max-width: 420px; margin: 0; }
+.c-search .icon { position: absolute; left: 14px; top: 50%; translate: 0 -50%; width: 18px; height: 18px; color: var(--muted); pointer-events: none; }
+.c-search input { width: 100%; margin: 0; padding-left: 42px; }
+.c-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -8px 0 0; font-size: 14.5px; }
+.c-service .quick-icon { flex: none; }
+.c-tile-text { display: grid; gap: 2px; min-width: 0; }
+.c-tile-text small { margin-top: 0 !important; }
+.c-tag { display: inline-flex; align-items: center; gap: 5px; justify-self: start; margin-top: 8px; padding: 2px 10px; border-radius: 999px; font: 600 13px var(--k-sans); background: var(--surface-2); color: var(--ink-2); }
+.c-tag .icon { width: 14px; height: 14px; }
+.c-tag.guided { background: var(--info-tint); color: var(--info); }
+.c-legend .c-tag { margin: 0; }
+a.k-quick-tile { text-decoration: none; }
+.c-service strong { font-size: 17px; }
+
+/* ---------- Requests (also Deposits) ---------- */
+.request-list { display: grid; gap: 12px; }
+.request-card { padding: 16px 20px; gap: 16px; }
+.request-card h3 { font-size: 17px; margin: 0 0 4px; }
+.request-card p { font-size: 14px; margin: 0; overflow-wrap: anywhere; }
+.request-card .request-actions { flex-wrap: nowrap; gap: 12px; }
+@media (max-width: 640px) {
+  .request-card { flex-direction: column; align-items: stretch; }
+  .request-card .request-actions { flex-direction: row; justify-content: space-between; align-items: center; }
+}
+
+/* ---------- Security ---------- */
+.c-alert { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 16px 20px; border-top: 1px solid var(--line); }
+.c-alert h3 { font-size: 16.5px; margin: 0 0 4px; }
+.c-alert p { margin: 0; font-size: 15px; }
+.c-alert small { display: block; margin-top: 4px; font-size: 13.5px; color: var(--muted); }
+.c-alert-icon { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--ok-bg); color: var(--ok); }
+.c-alert.open .c-alert-icon { background: var(--warn-bg); color: var(--warn); }
+.c-alert-icon .icon { width: 18px; height: 18px; }
+.c-alert-actions { display: grid; gap: 8px; justify-items: end; }
+@media (max-width: 640px) {
+  .c-alert { grid-template-columns: auto minmax(0, 1fr); }
+  .c-alert-actions { grid-column: 2; justify-items: start; grid-auto-flow: column; align-items: center; }
+}
+.c-activity { list-style: none; margin: 0; padding: 0 20px 8px; }
+.c-activity li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 12px 0; border-top: 1px solid var(--line); }
+.c-activity li:first-child { border-top: 0; }
+.c-activity-text { font-size: 15px; color: var(--ink); }
+.c-activity time { font-size: 13.5px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.c-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); translate: 0 -1px; }
+.c-dot.ok { background: var(--ok); }
+.c-dot.warn { background: var(--warn); }
+@media (max-width: 480px) {
+  .c-activity li { grid-template-columns: auto minmax(0, 1fr); }
+  .c-activity time { grid-column: 2; }
+}
+.c-sessions { padding: 0 20px; }
+.c-sessions li { gap: 12px; }
+.c-session { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+.c-session > .icon { color: var(--ink-2); margin-top: 2px; }
+.c-session strong { display: block; color: var(--ink); font-size: 15.5px; }
+.c-show-all { margin: 4px 20px 18px; min-height: 36px; }
+.c-chevron { transition: rotate 200ms var(--ease-out); }
+.c-chevron.up { rotate: 180deg; }
+
+/* ---------- Settings ---------- */
+.c-profile-head { justify-content: flex-start; gap: 14px; }
+.c-profile-head .k-avatar { width: 48px; height: 48px; font-size: 16px; }
+.c-profile-head p { margin: 2px 0 0; }
+.c-paused { color: var(--warn) !important; margin-top: 4px; }
+.c-save-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 16px; margin-top: 8px; }
+.c-saved { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; color: var(--ok); }
+.c-saved .icon { width: 18px; height: 18px; }
+.k-toggle-row { cursor: pointer; }
+.k-toggle-row > div > div { min-width: 0; }
+
+/* ---------- Mitra AI banker ---------- */
+/* The workbench fills the window: no extra page padding under it, so nothing is cut off. */
+#mainContent:has(> .ai-workbench-grid) { padding-bottom: 24px; }
+.ai-workbench-grid { height: calc(100dvh - 72px - 26px - 24px); min-height: 520px; gap: 20px; grid-template-columns: 300px minmax(0, 1fr); }
+.ai-sidebar-panel { padding: 16px; gap: 14px; }
+.ai-customer-card { padding: 14px 16px; border-radius: var(--r); }
+.ai-customer-top { gap: 12px; margin-bottom: 6px; }
+.ai-customer-top strong { font-size: 16px; }
+.ai-customer-top small { display: block; font-size: 13.5px; }
+.ai-customer-card .info-row { font-size: 14.5px; padding: 9px 0; align-items: center; }
+.ai-customer-card .info-row:last-of-type { border-bottom: 0; }
+.c-ai-warn { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 0; font-size: 14px; color: var(--danger); }
+.c-ai-warn .icon { width: 18px; height: 18px; }
+.ai-section-title { font-size: 12.5px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; margin: 0 0 6px; }
+.ai-skills-list { gap: 4px; }
+.ai-skill-btn { min-height: 42px; padding: 6px 12px; gap: 10px; font-size: 15px; font-weight: 600; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); transition: border-color 150ms ease, background-color 150ms ease; }
+.ai-skill-btn:hover { background: var(--surface-2); border-color: var(--line-strong); color: var(--ink); }
+.ai-skill-btn > .icon { width: 18px; height: 18px; color: var(--ink-2); }
+.ai-skill-btn > span { flex: 1; min-width: 0; }
+.c-skill-go { width: 16px !important; height: 16px !important; color: var(--muted) !important; }
+.c-ai-sessions-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.c-ai-sessions-head .ai-section-title { margin: 0; }
+.c-ai-sessions-head .k-link { font-size: 14px; min-height: 32px; }
+.ai-sessions-list { max-height: none; gap: 4px; }
+.ai-session-item { min-height: 40px; padding: 8px 12px; font-size: 14.5px; color: var(--ink-2); }
+.ai-sessions-list > .muted { font-size: 14px; }
+.ai-security-shield { display: flex; gap: 10px; align-items: flex-start; padding-top: 14px; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+.ai-security-shield > .icon { width: 18px; height: 18px; color: var(--ok); margin-top: 2px; }
+.ai-security-shield strong { display: block; font-size: 14.5px; color: var(--ink); margin-bottom: 2px; }
+/* Suggestion cards: text starts at the same line in every card. */
+.ai-quick-cards { align-items: stretch; }
+.ai-quick-card { display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 4px; text-align: left; min-height: 44px; }
+.ai-feedback button { display: inline-grid; place-items: center; min-width: 36px; min-height: 32px; color: var(--muted); }
+.ai-feedback button:hover { color: var(--ink); }
+@media (max-width: 1024px) {
+  .ai-workbench-grid { height: calc(100dvh - 64px - 18px - 104px - env(safe-area-inset-bottom)); grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  #mainContent:has(> .ai-workbench-grid) { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  /* Small screens: the welcome fits under the chat header without scrolling. */
+  .ai-welcome-hero { padding: 8px 4px; }
+  .ai-welcome-hero .ai-avatar-lotus { display: none; }
+  .ai-welcome-hero h3 { font-size: 21px; }
+  .ai-welcome-hero p { font-size: 15px; margin-bottom: 12px; }
+  .ai-quick-card { padding: 10px 14px; }
+  .ai-quick-card small { display: none; }
+}
+
+/* ---------- Mitra result cards (chat) ---------- */
+.chat-result .info-row { font-size: 14.5px; }
+.chat-result .cr-note, .chat-result .cr-empty { font-size: 14px; line-height: 1.5; margin: 8px 0; }
+.chat-result .cr-ok { color: var(--ok); font-size: 15px; }
+.chat-result .cr-ok .icon { width: 18px; height: 18px; }
+.chat-result .info-row .badge.success { color: var(--ok); }
+.chat-result .info-row .badge.warning { color: var(--warn); }
+.chat-result .info-row .badge.danger { color: var(--danger); }
+.chat-result .info-row .badge.info { color: var(--info); }
+.chat-result .info-row .badge.neutral { color: var(--ink-2); }
+.chat-result.c-edge-ok { border-left: 3px solid var(--ok); }
+.chat-result.c-edge-info { border-left: 3px solid var(--info); }
+.chat-result.c-edge-warn { border-left: 3px solid var(--warn); }
+.c-result-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.c-result-head h3 { margin: 0 !important; }
+.c-sandbox { color: var(--danger) !important; font-weight: 600; }
+
+/* ---- Kavach payment approval (overview/PaymentChallengeModal.tsx) ---- */
+.kv-form, .kv-done { display: grid; gap: 16px; }
+.kv-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; border-radius: var(--r); background: var(--surface-2); border: 1px solid var(--line); }
+.kv-summary > div { display: grid; gap: 2px; min-width: 0; }
+.kv-label { font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.kv-amount { font: 650 34px/1.15 var(--k-display); color: var(--ink); font-variant-numeric: tabular-nums; }
+.kv-payee { font-size: 15px; color: var(--ink-2); overflow-wrap: anywhere; }
+.kv-bound { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: var(--muted); }
+.kv-bound .icon { width: 16px; height: 16px; color: var(--accent-ink); }
+.kv-hint { margin: 0; font-size: 14px; color: var(--muted); text-align: center; }
+.kv-ref { margin: 0; text-align: center; font-size: 14px; color: var(--muted); }
+.kv-ref code { color: var(--ink-2); overflow-wrap: anywhere; }
+
+/* Countdown ring: the approval window, amber in its last minute. */
+.kv-ring { position: relative; display: grid; place-items: center; width: 64px; height: 64px; flex: none; font: 600 14px var(--k-sans); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.kv-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.kv-ring-track { fill: none; stroke: var(--line-strong); stroke-width: 2.5; }
+.kv-ring-fill { fill: none; stroke: var(--ok); stroke-width: 2.5; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke 300ms ease; }
+.kv-ring.late { color: var(--warn); }
+.kv-ring.late .kv-ring-fill { stroke: var(--warn); }
+
+/* Six code boxes over one real input (paste and one-time-code autofill work). */
+.kv-code { position: relative; display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; cursor: text; }
+.kv-code-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; min-height: 0; font-size: 16px; z-index: 1; cursor: text; }
+.kv-box { display: grid; place-items: center; height: 56px; border-radius: var(--r-field); border: 1.5px solid var(--line-strong); background: var(--surface); font: 650 26px var(--k-display); color: var(--ink); transition: border-color 150ms ease, box-shadow 150ms ease; }
+.kv-box.filled { border-color: var(--ink-2); }
+.kv-code-input:focus-visible ~ .kv-box.active, .kv-code:focus-within .kv-box.active { border-color: var(--focus); box-shadow: 0 0 0 4px color-mix(in srgb, var(--focus) 22%, transparent); }
+.kv-code.invalid .kv-box { border-color: var(--danger); }
+@media (max-width: 420px) { .kv-box { height: 50px; font-size: 22px; } .kv-code { gap: 6px; } }

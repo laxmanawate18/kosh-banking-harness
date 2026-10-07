@@ -1,5 +1,6 @@
 import React from 'react';
 import { useI18n } from '../../i18n';
+import { humanizeCode } from './Formatters';
 
 interface BadgeProps {
   children?: React.ReactNode;
@@ -7,11 +8,7 @@ interface BadgeProps {
   status?: string;
 }
 
-function humanize(text: string): string {
-  if (text === 'BLOCKED_MULE') return 'Blocked';
-  const clean = text.replaceAll('_', ' ').toLowerCase();
-  return clean.charAt(0).toUpperCase() + clean.slice(1);
-}
+type Tone = 'success' | 'warning' | 'danger' | 'neutral' | 'info';
 
 export const Badge: React.FC<BadgeProps> = ({ children, variant, status }) => {
   const { t } = useI18n();
@@ -51,19 +48,24 @@ export const Badge: React.FC<BadgeProps> = ({ children, variant, status }) => {
     PENDING_RE_KYC: t('Re-KYC pending'),
     UNKNOWN: t('Unknown'),
   };
-  const label = (text: string) => labels[text] ?? humanize(text);
+  // Codes ("PENDING_APPROVAL") become words; text that is already words ("In Kosh") is shown as written.
+  const label = (text: string) => labels[text] ?? (/^[A-Z0-9_]+$/.test(text) ? humanizeCode(text === 'BLOCKED_MULE' ? 'BLOCKED' : text) : text);
 
-  const targetStatus = status || (typeof children === 'string' ? children : '');
-  const DANGER = ['DENY', 'DENIED', 'REJECTED', 'BLOCKED_MULE', 'LOCKED', 'FAILED', 'OVERDUE', 'NOT_DONE'];
-  const WARNING = ['PENDING_APPROVAL', 'MORE_INFO_REQUIRED', 'ESCALATED', 'CHALLENGE', 'CHALLENGE_REQUIRED', 'FROZEN', 'NEW', 'DUE', 'IN_REVIEW', 'PENDING', 'PENDING_RE_KYC', 'OPEN'];
-  const NEUTRAL = ['CANCELLED', 'SUBMITTED', 'SUBMITTED_FOR_REVIEW', 'DRAFT', 'CLOSED', 'UNKNOWN'];
-  // An explicit variant always wins; otherwise derive the colour from the status code.
-  const v = variant
-    || (DANGER.includes(targetStatus) ? 'danger'
-      : WARNING.includes(targetStatus) ? 'warning'
-        : NEUTRAL.includes(targetStatus) ? 'neutral' : 'success');
-
-  const variantClass = v === 'danger' ? 'danger' : v === 'warning' ? 'warning' : v === 'neutral' ? 'neutral' : '';
+  const targetStatus = (status || (typeof children === 'string' ? children : '')).toUpperCase();
+  // One status -> tone map for customers, officers and the admin. Unknown statuses are neutral, never "success".
+  const TONES: Record<Tone, string[]> = {
+    danger: ['DENY', 'DENIED', 'REJECTED', 'BLOCKED_MULE', 'BLOCKED', 'LOCKED', 'FAILED', 'OVERDUE', 'NOT_DONE', 'ERROR', 'BROKEN',
+      'RPA_FAILED', 'UNREACHABLE', 'HIGH', 'CRITICAL'],
+    warning: ['PENDING_APPROVAL', 'MORE_INFO_REQUIRED', 'ESCALATED', 'CHALLENGE', 'CHALLENGE_REQUIRED', 'FROZEN', 'DUE', 'IN_REVIEW',
+      'PENDING', 'PENDING_RE_KYC', 'OPEN', 'IN_PROGRESS', 'SANDBOX', 'MEDIUM', 'WARNING', 'NOT_CLEARED', 'PARTIAL'],
+    info: ['NEW', 'QUALIFIED', 'APPLIED', 'CONTACTED', 'CONFIGURED', 'QUEUED_FOR_CBS', 'RPA_EXECUTING', 'SUBMITTED', 'SUBMITTED_FOR_REVIEW',
+      'RUNNING', 'SHOWN', 'CLICKED'],
+    success: ['ACTIVE', 'VERIFIED', 'COMPLETED', 'APPROVED', 'EXECUTED', 'SUCCESS', 'PAID', 'CONVERTED', 'CONNECTED', 'ON', 'PASSES',
+      'INTACT', 'CLEARED', 'IMPLEMENTED', 'RESOLVED', 'LOW', 'SETTLED', 'POSTED'],
+    neutral: [],
+  };
+  // An explicit variant always wins; otherwise derive the tone from the status code.
+  const v: Tone = variant || (Object.keys(TONES) as Tone[]).find(k => TONES[k].includes(targetStatus)) || 'neutral';
 
   const displayContent =
     typeof children === 'string'
@@ -72,5 +74,6 @@ export const Badge: React.FC<BadgeProps> = ({ children, variant, status }) => {
       ? label(status)
       : children;
 
-  return <span className={`badge ${variantClass}`}>{displayContent}</span>;
+  // The dot repeats the tone in shape, and the label says it in words: status never relies on colour alone.
+  return <span className={`badge ${v}`}><i className="badge-dot" aria-hidden="true" />{displayContent}</span>;
 };

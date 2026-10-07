@@ -10,11 +10,11 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8017',
+        target: process.env.KOSH_API ?? 'http://127.0.0.1:8017',
         changeOrigin: true,
       },
       '/ws': {
-        target: 'http://127.0.0.1:8017',
+        target: process.env.KOSH_API ?? 'http://127.0.0.1:8017',
         ws: true,
       }
     }

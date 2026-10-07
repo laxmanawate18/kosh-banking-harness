@@ -164,6 +164,18 @@ class PortalTests(unittest.TestCase):
         self.assertEqual(result.json()['status'], 'PENDING_APPROVAL')
         self.assertEqual(dev_ui.db.dashboard()['total_available_minor'], before)
 
+    def test_sign_out_of_all_other_devices_keeps_this_one(self):
+        others = [dev_ui.auth_service.create_direct_session('aarav') for _ in range(3)]
+        done = self.client.delete('/api/portal/security/sessions', headers=self.headers)
+        self.assertEqual(done.status_code, 200, done.text)
+        self.assertGreaterEqual(done.json()['revoked'], 3)
+        left = self.client.get('/api/portal/security/sessions').json()['sessions']
+        self.assertEqual([s['current'] for s in left], [True])  # only this session remains
+        for _, cookie, _ in others:
+            other = TestClient(dev_ui.app)
+            other.cookies.set(dev_ui.COOKIE_NAME, cookie)
+            self.assertEqual(other.get('/api/portal/overview').status_code, 401)
+
     def test_customer_cannot_access_operations(self):
         self.assertEqual(self.client.get('/api/portal/operations').status_code, 403)
 
@@ -172,7 +184,10 @@ class PortalTests(unittest.TestCase):
         dev_ui.db.append_audit('PRIVATE_OTHER_EVENT', session_id='OTHER-AUTH-SESSION', actor='OTHER-USER',
                                summary='Other customer private activity', details={'secret': 'DO_NOT_EXPOSE'})
         result = self.client.get('/api/portal/events').json()['events']
-        self.assertTrue(any(e['event_type'] == 'INTENT_BOUND' for e in result))
+        self.assertTrue(any(e['event_type'] == 'PAYMENT_PROPOSED' for e in result))
+        # Internal plumbing and Sentinel's reasoning never reach the customer's feed.
+        self.assertFalse({'INTENT_BOUND', 'SENTINEL_DECISION', 'AGENT_TOOL_COMPLETED'} & {e['event_type'] for e in result})
+        self.assertNotIn('reason_codes', str(result))
         self.assertNotIn('DO_NOT_EXPOSE', str(result))
         self.assertNotIn('PRIVATE_OTHER_EVENT', str(result))
 

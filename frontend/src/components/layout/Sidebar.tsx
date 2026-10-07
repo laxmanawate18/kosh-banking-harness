@@ -4,6 +4,7 @@ import { useBanking } from '../../context/BankingContext';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
 import { KoshLogo, LotusMark, Rangoli } from '../common/KoshLogo';
+import { ActiveIndicator } from '../common/Animate';
 import type { ServiceRequestItem } from '../../types/banking';
 
 interface SidebarProps {
@@ -97,6 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onRouteChange, is
                 return (
                   <a key={item.id} href={`#${item.id}`} className={`k-side-item ${active ? 'active' : ''}`}
                     aria-current={active ? 'page' : undefined} onClick={e => { e.preventDefault(); go(item.id); }}>
+                    {active && <ActiveIndicator id="side-active" className="k-side-indicator" />}
                     <Icon name={item.icon} />
                     <span>{t(item.title)}</span>
                     {item.id === 'requests' && openRequests > 0 && <span className="k-side-count">{openRequests}</span>}
@@ -110,7 +112,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onRouteChange, is
         <div className="k-side-foot">
           <div className="k-side-kavach">
             <LotusMark size={30} />
-            <div><strong>{t('Sentinel is on')}</strong><small>{t('Every payment is checked for you')}</small></div>
+            {isAdmin ? <div><strong>{t('Changes are audited')}</strong><small>{t('Every approval and switch is recorded')}</small></div>
+              : isOfficer ? <div><strong>{t('Four-eyes is on')}</strong><small>{t('Every decision is recorded')}</small></div>
+                : <div><strong>{t('Sentinel is on')}</strong><small>{t('Every payment is checked for you')}</small></div>}
           </div>
           <button id="logoutBtn" type="button" className="k-side-logout" onClick={logout}>
             {t('Sign out')} <Icon name="logout" />

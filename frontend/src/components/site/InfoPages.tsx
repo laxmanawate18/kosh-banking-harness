@@ -3,34 +3,25 @@ import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
 import { LotusMark } from '../common/KoshLogo';
 import type { Product } from '../../types/products';
+import { ActiveIndicator, Reveal, Stagger, motion, pageMotion } from '../common/Animate';
+import { PageHero } from './SiteChrome';
 
 type Ask = (prompt: string) => void;
 
-const PageHero: React.FC<{ title: string; intro: string }> = ({ title, intro }) => {
-  const { t } = useI18n();
-  return (
-    <div className="k-page-hero">
-      <div className="k-crumbs"><a href="#/">{t('Home')}</a><Icon name="chevron-right" /><span>{title}</span></div>
-      <h1>{title}</h1>
-      <p>{intro}</p>
-    </div>
-  );
-};
-
-const Table: React.FC<{ caption: string; head: string[]; rows: string[][]; numCols?: number[] }> = ({ caption, head, rows, numCols = [] }) => (
-  <div className="k-table-wrap">
+const Table: React.FC<{ caption: string; head: string[]; rows: string[][]; numCols?: number[]; hot?: number }> = ({ caption, head, rows, numCols = [], hot }) => (
+  <Reveal className="k-table-wrap">
     <table className="k-table">
       <caption>{caption}</caption>
       <thead><tr>{head.map((h, i) => <th key={h} scope="col" className={numCols.includes(i) ? 'num' : ''}>{h}</th>)}</tr></thead>
       <tbody>
         {rows.map((r, ri) => (
-          <tr key={ri}>{r.map((c, i) => i === 0
+          <tr key={ri} className={ri === hot ? 'is-hot' : undefined}>{r.map((c, i) => i === 0
             ? <th key={i} scope="row">{c}</th>
             : <td key={i} className={numCols.includes(i) ? 'num' : ''}>{c}</td>)}</tr>
         ))}
       </tbody>
     </table>
-  </div>
+  </Reveal>
 );
 
 export const RatesPage: React.FC<{ products: Product[] }> = ({ products }) => {
@@ -38,8 +29,8 @@ export const RatesPage: React.FC<{ products: Product[] }> = ({ products }) => {
   const rate = (id: string, fallback: string) => products.find(p => p.id === id)?.headline_rate || fallback;
   return (
     <>
-      <PageHero title={t('Interest rates')} intro={t('Illustrative rates for the Kosh demo bank, effective 1 September 2026. Real banks publish rates like these and revise them when the RBI changes the repo rate.')} />
-      <section className="k-section k-tables" style={{ paddingTop: 28 }}>
+      <PageHero eyebrow={t('Bank with us')} title={t('Interest rates')} intro={t('Illustrative rates for the Kosh demo bank, effective 1 September 2026. Real banks publish rates like these and revise them when the RBI changes the repo rate.')} />
+      <section className="k-section k-tables">
         <Table
           caption={t('Savings accounts')}
           head={[t('Account'), t('Balance'), t('Rate per year')]}
@@ -53,6 +44,7 @@ export const RatesPage: React.FC<{ products: Product[] }> = ({ products }) => {
           caption={t('Fixed deposits (below ₹3 crore)')}
           head={[t('Tenure'), t('General'), t('Senior citizens')]}
           numCols={[1, 2]}
+          hot={4}
           rows={[
             [t('7 to 45 days'), '3.50%', '4.00%'],
             [t('46 to 179 days'), '5.25%', '5.75%'],
@@ -65,14 +57,14 @@ export const RatesPage: React.FC<{ products: Product[] }> = ({ products }) => {
         />
         <Table
           caption={t('Loans')}
-          head={[t('Loan'), t('Starting rate per year'), t('Tenure')]}
-          numCols={[1]}
+          head={[t('Loan'), t('Tenure'), t('Starting rate per year')]}
+          numCols={[2]}
           rows={[
-            [t('Kosh Griha Green Home Loan'), rate('PROD-LOAN-HOME', '8.35% p.a.'), t('Up to 30 years')],
-            [t('Kosh Express Personal Loan'), rate('PROD-LOAN-EXPRESS', '10.99% p.a.'), t('1 to 5 years')],
+            [t('Kosh Griha Green Home Loan'), t('Up to 30 years'), rate('PROD-LOAN-HOME', '8.35% p.a.')],
+            [t('Kosh Express Personal Loan'), t('1 to 5 years'), rate('PROD-LOAN-EXPRESS', '10.99% p.a.')],
           ]}
         />
-        <div className="k-note"><Icon name="info" /><span>{t('Interest on savings is calculated on the daily balance and credited quarterly. TDS applies to deposit interest above the yearly limit unless you submit Form 15G or 15H.')}</span></div>
+        <Reveal className="k-note"><Icon name="info" /><span>{t('Interest on savings is calculated on the daily balance and credited quarterly. TDS applies to deposit interest above the yearly limit unless you submit Form 15G or 15H.')}</span></Reveal>
       </section>
     </>
   );
@@ -82,8 +74,8 @@ export const FeesPage: React.FC = () => {
   const { t } = useI18n();
   return (
     <>
-      <PageHero title={t('Fees and charges')} intro={t('Everything we charge, in one place. GST at 18% applies on top of these illustrative fees.')} />
-      <section className="k-section k-tables" style={{ paddingTop: 28 }}>
+      <PageHero eyebrow={t('Bank with us')} title={t('Fees and charges')} intro={t('Everything we charge, in one place. GST at 18% applies on top of these illustrative fees.')} />
+      <section className="k-section k-tables">
         <Table
           caption={t('Account and payments')}
           head={[t('Service'), t('Charge')]}
@@ -124,34 +116,51 @@ export const FeesPage: React.FC = () => {
   );
 };
 
+const BRANCHES = [
+  ['Mumbai Fort', 'Horniman Circle, Fort, Mumbai 400001'],
+  ['Mumbai Andheri', 'Andheri Kurla Road, Andheri East, Mumbai 400069'],
+  ['Mumbai Bandra', 'Hill Road, Bandra West, Mumbai 400050'],
+];
+
 export const HelpPage: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   const { t } = useI18n();
+  const contacts: [string, string, string, string][] = [
+    ['headset', '1800 210 5674', 'tel:18002105674', t('24×7 customer care, toll free (demo number)')],
+    ['mail', 'care@kosh.bank', 'mailto:care@kosh.bank', t('Replies within one working day (demo address)')],
+    ['phone', '1930', 'tel:1930', t('National cyber crime helpline for fraud. Also cybercrime.gov.in')],
+  ];
   return (
     <>
-      <PageHero title={t('Help and grievances')} intro={t('Reach us any time. If a complaint is not resolved, you can escalate step by step, up to the RBI Ombudsman.')} />
-      <section className="k-section" style={{ paddingTop: 28 }}>
-        <div className="k-contact-grid">
-          <div className="k-card"><Icon name="headset" /><strong>1800 210 5674</strong><span>{t('24×7 customer care, toll free (demo number)')}</span></div>
-          <div className="k-card"><Icon name="mail" /><strong>care@kosh.bank</strong><span>{t('Replies within one working day (demo address)')}</span></div>
-          <div className="k-card"><Icon name="phone" /><strong>1930</strong><span>{t('National cyber crime helpline for fraud. Also cybercrime.gov.in')}</span></div>
-        </div>
-        <h2 style={{ fontSize: 28, margin: '0 0 20px' }}>{t('How to raise a complaint')}</h2>
-        <ol className="k-ladder">
-          <li><h3>{t('Talk to us')}</h3><p>{t('Call, email, visit a branch or ask Mitra. Most issues are fixed on the first contact.')}</p></li>
-          <li><h3>{t('Grievance Redressal Officer')}</h3><p>{t('Not happy with the answer? Write to grievance@kosh.bank. We reply within 7 working days.')}</p></li>
-          <li><h3>{t('Principal Nodal Officer')}</h3><p>{t('Still unresolved after 14 days? Escalate to nodal.officer@kosh.bank.')}</p></li>
-          <li><h3>{t('RBI Integrated Ombudsman')}</h3><p>{t('If we do not resolve it within 30 days, or you disagree with our reply, file a free complaint at cms.rbi.org.in or call 14448.')}</p></li>
-        </ol>
-        <div className="k-hero-actions" style={{ marginTop: 18 }}>
-          <button type="button" className="k-btn primary" onClick={() => onAsk(t('I want to raise a complaint.'))}>{t('Raise it with Mitra')}</button>
-          <a className="k-btn outline" href="#/faqs">{t('Read FAQs')}</a>
-        </div>
-        <h2 style={{ fontSize: 28, margin: '48px 0 16px' }}>{t('Branches')}</h2>
-        <ul className="k-list k-card pad" style={{ maxWidth: 720 }}>
-          {[['Mumbai Fort', 'Horniman Circle, Fort, Mumbai 400001'], ['Mumbai Andheri', 'Andheri Kurla Road, Andheri East, Mumbai 400069'], ['Mumbai Bandra', 'Hill Road, Bandra West, Mumbai 400050']].map(([name, addr]) => (
-            <li key={name}><span><strong>{name}</strong><small>{addr}</small></span><span className="k-pill">{t('Mon to Sat, 10 to 4')}</span></li>
+      <PageHero eyebrow={t('Help')} title={t('Help and grievances')} intro={t('Reach us any time. If a complaint is not resolved, you can escalate step by step, up to the RBI Ombudsman.')} />
+      <section className="k-section">
+        <Stagger className="k-contact-grid">
+          {contacts.map(([icon, label, href, note]) => (
+            <Stagger.Item as="a" key={href} className="k-card" href={href}>
+              <Icon name={icon} /><strong>{label}</strong><span>{note}</span>
+            </Stagger.Item>
           ))}
-        </ul>
+        </Stagger>
+        <Reveal className="k-page-block">
+          <h2 className="k-page-h2">{t('How to raise a complaint')}</h2>
+          <ol className="k-ladder">
+            <li><h3>{t('Talk to us')}</h3><p>{t('Call, email, visit a branch or ask Mitra. Most issues are fixed on the first contact.')}</p></li>
+            <li><h3>{t('Grievance Redressal Officer')}</h3><p>{t('Not happy with the answer? Write to grievance@kosh.bank. We reply within 7 working days.')}</p></li>
+            <li><h3>{t('Principal Nodal Officer')}</h3><p>{t('Still unresolved after 14 days? Escalate to nodal.officer@kosh.bank.')}</p></li>
+            <li><h3>{t('RBI Integrated Ombudsman')}</h3><p>{t('If we do not resolve it within 30 days, or you disagree with our reply, file a free complaint at cms.rbi.org.in or call 14448.')}</p></li>
+          </ol>
+          <div className="k-hero-actions">
+            <button type="button" className="k-btn primary" onClick={() => onAsk(t('I want to raise a complaint.'))}>{t('Raise it with Mitra')}</button>
+            <a className="k-btn outline" href="#/faqs">{t('Read FAQs')}</a>
+          </div>
+        </Reveal>
+        <Reveal className="k-page-block">
+          <h2 className="k-page-h2">{t('Branches')}</h2>
+          <ul className="k-branches">
+            {BRANCHES.map(([name, addr]) => (
+              <li key={name} className="k-card"><Icon name="pin" /><strong>{name}</strong><span>{addr}</span><span className="k-pill">{t('Mon to Sat, 10 to 4')}</span></li>
+            ))}
+          </ul>
+        </Reveal>
       </section>
     </>
   );
@@ -182,10 +191,10 @@ export const FaqsPage: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   const { t } = useI18n();
   return (
     <>
-      <PageHero title={t('Frequently asked questions')} intro={t('Quick answers to what customers ask most. Ask Mitra for anything else.')} />
-      <section className="k-section" style={{ paddingTop: 12 }}>
+      <PageHero eyebrow={t('Help')} title={t('Frequently asked questions')} intro={t('Quick answers to what customers ask most. Ask Mitra for anything else.')} />
+      <section className="k-section">
         {FAQ_GROUPS.map(([group, items]) => (
-          <div key={group} className="k-faq-group">
+          <Reveal key={group} className="k-faq-group">
             <h2>{t(group)}</h2>
             <div className="k-faq">
               {items.map(([q, a]) => (
@@ -195,9 +204,15 @@ export const FaqsPage: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
                 </details>
               ))}
             </div>
-          </div>
+          </Reveal>
         ))}
-        <button type="button" className="k-btn primary" style={{ marginTop: 30 }} onClick={() => onAsk(t('I have a question about Kosh.'))}>{t('Ask Mitra')}</button>
+        <Reveal className="k-cta-card">
+          <div>
+            <h2>{t('Still have a question?')}</h2>
+            <p>{t('Mitra answers 24×7 in English, हिन्दी and मराठी')}</p>
+          </div>
+          <button type="button" className="k-btn primary lg" onClick={() => onAsk(t('I have a question about Kosh.'))}>{t('Ask Mitra')} <Icon name="arrow-right" /></button>
+        </Reveal>
       </section>
     </>
   );
@@ -248,30 +263,31 @@ export const SegmentsPage: React.FC<{ id?: string; onAsk: Ask }> = ({ id = 'seni
   const s = SEGMENTS[key];
   return (
     <>
-      <PageHero title={t('Banking for everyone')} intro={t('Accounts and services designed around where you are in life.')} />
-      <section className="k-section" style={{ paddingTop: 28 }}>
+      <PageHero eyebrow={t('Banking for everyone')} title={t(s.title)} intro={t(s.intro)} />
+      <section className="k-section">
         <nav className="k-tabs-row" aria-label={t('Banking for everyone')}>
           {Object.entries(SEGMENTS).map(([sid, seg]) => (
-            <a key={sid} href={`#/for/${sid}`} aria-current={sid === key ? 'page' : undefined}><Icon name={seg.icon} /> {t(seg.title)}</a>
+            <a key={sid} href={`#/for/${sid}`} aria-current={sid === key ? 'page' : undefined}>
+              {sid === key && <ActiveIndicator id="segment-tab" />}<Icon name={seg.icon} /> {t(seg.title)}
+            </a>
           ))}
         </nav>
-        <div className="k-segment k-page-enter" key={key}>
+        <motion.div className="k-segment" key={key} {...pageMotion}>
           <div>
-            <h2>{t(s.title)}</h2>
-            <p>{t(s.intro)}</p>
-            <ul className="k-benefits">
-              {s.benefits.map(b => <li key={b}><Icon name="check" />{t(b)}</li>)}
-            </ul>
+            <h2 className="k-page-h2">{t('What you get')}</h2>
+            <Stagger as="ul" className="k-benefits">
+              {s.benefits.map(b => <Stagger.Item as="li" key={b}><Icon name="check" />{t(b)}</Stagger.Item>)}
+            </Stagger>
             <div className="k-hero-actions">
-              <a className="k-btn accent" href={`#/products/${s.cat}`}>{t('See products')}</a>
+              <a className="k-btn primary" href={`#/products/${s.cat}`}>{t('See products')} <Icon name="arrow-right" /></a>
               <button type="button" className="k-btn outline" onClick={() => onAsk(t('Tell me about Kosh banking for {segment}.', { segment: t(s.title) }))}>{t('Ask Mitra')}</button>
             </div>
           </div>
           <aside>
-            <h3>{t('What you need')}</h3>
-            <ul>{s.docs.map(d => <li key={d}>{t(d)}</li>)}</ul>
+            <h2>{t('What you need')}</h2>
+            <ul className="k-dots">{s.docs.map(d => <li key={d}>{t(d)}</li>)}</ul>
           </aside>
-        </div>
+        </motion.div>
       </section>
     </>
   );
@@ -309,18 +325,18 @@ export const LearnPage: React.FC = () => {
   const { t } = useI18n();
   return (
     <>
-      <PageHero title={t('Safe banking guide')} intro={t('Short, practical guides to protect your money and make it grow.')} />
-      <section className="k-section" style={{ paddingTop: 28 }}>
-        <div className="k-articles">
+      <PageHero eyebrow={t('Help')} title={t('Safe banking guide')} intro={t('Short, practical guides to protect your money and make it grow.')} />
+      <section className="k-section">
+        <Stagger className="k-articles">
           {ARTICLES.map((a, i) => (
-            <article key={a.title} className={`k-article ${i === 0 ? 'lead' : ''}`}>
-              <span className={`k-pill ${a.tag === 'Scam alert' ? 'danger' : 'brand'}`}>{t(a.tag)}</span>
-              <h3>{t(a.title)}</h3>
+            <Stagger.Item as="article" key={a.title} className={`k-article ${i === 0 ? 'lead' : ''}`}>
+              <span className={`k-pill ${a.tag === 'Scam alert' ? 'danger' : 'brand'}`}>{a.tag === 'Scam alert' && <Icon name="alert" />}{t(a.tag)}</span>
+              <h2>{t(a.title)}</h2>
               <p>{t(a.summary)}</p>
-              <ul>{a.tips.map(tip => <li key={tip}>{t(tip)}</li>)}</ul>
-            </article>
+              <ul className="k-dots">{a.tips.map(tip => <li key={tip}>{t(tip)}</li>)}</ul>
+            </Stagger.Item>
           ))}
-        </div>
+        </Stagger>
       </section>
     </>
   );

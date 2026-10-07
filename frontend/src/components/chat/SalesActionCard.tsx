@@ -28,10 +28,9 @@ export const SalesActionCard: React.FC<SalesActionCardProps> = ({
         <div className="sac-next">
           <button
             onClick={() => onApplyProduct(nextAction.product_id!)}
-            className="button primary"
-            style={{ fontSize: '13px', padding: '6px 14px' }}
+            className="k-btn primary sm"
           >
-            {nextAction.label} <ArrowRight size={12} />
+            {nextAction.label} <ArrowRight size={16} aria-hidden="true" />
           </button>
         </div>
       )}

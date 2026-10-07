@@ -27,13 +27,6 @@ const magnetic = {
 export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({ onOpen, onLogin }) => {
   const { t } = useI18n();
 
-  // Marks the page so the floating "Ask Mitra" button takes the glass style.
-  useEffect(() => {
-    const root = document.documentElement;
-    root.dataset.hero = 'lux';
-    return () => { delete root.dataset.hero; };
-  }, []);
-
   return (
     <section className="kl-hero" aria-labelledby="hero-title">
       <div className="kl-grain" aria-hidden="true" />

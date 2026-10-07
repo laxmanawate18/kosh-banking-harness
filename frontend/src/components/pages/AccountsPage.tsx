@@ -3,6 +3,9 @@ import { useBanking } from '../../context/BankingContext';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
 import { Badge } from '../common/Badge';
+import { PageHeader } from '../common/PageHeader';
+import { AnimatedNumber, Stagger } from '../common/Animate';
+import { prefersReducedMotion } from '../common/motion';
 import { formatDate, formatMoney } from '../common/Formatters';
 import { ServiceRequestDialog, type ServiceSpec } from '../app/ServiceRequestDialog';
 import type { Transaction } from '../../types/banking';
@@ -24,6 +27,7 @@ const sinceFor = (period: string) => {
 };
 
 const amountOf = (x: Transaction) => x.amount_minor ?? x.amount_paise ?? 0;
+const money = (v: number) => formatMoney(Math.round(v));
 
 export const AccountsPage: React.FC<AccountsPageProps> = ({ onNavigate }) => {
   const { t } = useI18n();
@@ -106,34 +110,40 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({ onNavigate }) => {
     },
   ];
 
-  return (
-    <div className="k-app-page">
-      <header className="k-app-head">
-        <h1>{t('Accounts and statements')}</h1>
-        <p>{t('Balances, statements and account documents in one place.')}</p>
-      </header>
+  const showStatement = (id: string) => {
+    setAccountId(id);
+    document.getElementById('statement')?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+  };
 
-      <section className="k-acc-grid" aria-label={t('Your accounts')}>
-        {accounts.map(a => (
-          <article key={a.id} className="k-acc" aria-current={a.id === account?.id ? 'true' : undefined}
-            style={a.id === account?.id ? { borderColor: 'var(--brand)' } : undefined}>
-            <header>
-              <span className="k-acc-type">{t(a.type === 'CURRENT' ? 'Current' : 'Savings')}</span>
-              <Badge status={a.status}>{t(a.status === 'ACTIVE' ? 'Active' : a.status)}</Badge>
-            </header>
-            <h3>{a.name}</h3>
-            <span className="k-acc-no">{a.account_number_masked}{a.ifsc_code ? ` · IFSC ${a.ifsc_code}` : ''}</span>
-            <strong className="k-acc-bal">{formatMoney(a.available_balance_minor ?? 0)}</strong>
-            <button type="button" className="k-link" onClick={() => setAccountId(a.id)}>{t('View statement')} <Icon name="arrow-right" /></button>
-          </article>
-        ))}
-      </section>
+  return (
+    <>
+      <PageHeader title={t('Accounts and statements')} subtitle={t('Balances, statements and account documents in one place.')} />
+      <div className="k-page-stack">
+      <Stagger as="section" className="k-acc-grid" aria-label={t('Your accounts')}>
+        {accounts.map(a => {
+          const current = a.id === account?.id;
+          return (
+            <Stagger.Item as="article" key={a.id} className={`k-acc ${current ? 'c-acc-current' : ''}`}>
+              <header>
+                <span className="k-acc-type">{t(a.type === 'CURRENT' ? 'Current' : 'Savings')}</span>
+                <Badge status={a.status} />
+              </header>
+              <h3>{a.name}</h3>
+              <span className="k-acc-no">{a.account_number_masked}{a.ifsc_code ? ` · IFSC ${a.ifsc_code}` : ''}</span>
+              <strong className="k-acc-bal"><AnimatedNumber value={a.available_balance_minor ?? 0} format={money} /></strong>
+              {current
+                ? <span className="c-acc-showing"><Icon name="check" />{t('Statement shown below')}</span>
+                : <button type="button" className="k-link" onClick={() => showStatement(a.id)}>{t('View statement')} <Icon name="arrow-right" /></button>}
+            </Stagger.Item>
+          );
+        })}
+      </Stagger>
 
       <section className="k-panel" id="statement">
         <header className="k-panel-head">
           <div><h2>{t('Statement')}</h2><p>{account?.name} · {account?.account_number_masked}</p></div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <select aria-label={t('Period')} value={period} onChange={e => setPeriod(e.target.value)} style={{ minHeight: 40, width: 'auto' }}>
+          <div className="c-statement-tools">
+            <select aria-label={t('Period')} value={period} onChange={e => setPeriod(e.target.value)}>
               {PERIODS.map(([v, l]) => <option key={v} value={v}>{t(l)}</option>)}
             </select>
             <button type="button" className="k-btn outline sm" onClick={downloadCsv} disabled={!rows.length}><Icon name="download" />CSV</button>
@@ -142,39 +152,42 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({ onNavigate }) => {
         </header>
         {rows.length ? (
           <div className="table-scroll">
-            <table className="table">
+            <table className="table c-stmt-table">
               <thead><tr><th>{t('Date')}</th><th>{t('Description')}</th><th className="amount">{t('Amount')}</th></tr></thead>
               <tbody>
                 {rows.map(x => (
                   <tr key={x.id}>
-                    <td className="muted">{formatDate(x.created_at)}</td>
+                    <td className="muted date-col">{formatDate(x.created_at)}</td>
                     <td>{x.description}</td>
-                    <td className={`amount ${amountOf(x) > 0 ? 'credit' : ''}`}>{formatMoney(amountOf(x))}</td>
+                    <td className={`amount ${amountOf(x) > 0 ? 'credit' : ''}`}>{amountOf(x) > 0 ? '+ ' : ''}{formatMoney(amountOf(x))}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <div className="k-empty"><Icon name="file" /><strong>{t('No transactions in this period')}</strong><small>{t('Try a longer period.')}</small></div>
+          <div className="empty"><Icon name="file" /><h3>{t('No transactions in this period')}</h3><p>{t('Try a longer period.')}</p></div>
         )}
       </section>
 
       <section aria-labelledby="docs-title">
-        <h2 id="docs-title" style={{ fontSize: 22, margin: '6px 0 14px' }}>{t('Documents and account services')}</h2>
-        <div className="k-quick-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+        <div className="c-section-head">
+          <h2 id="docs-title">{t('Documents and account services')}</h2>
+          <button type="button" className="k-link" onClick={() => onNavigate?.('services')}>{t('All banking services')} <Icon name="arrow-right" /></button>
+        </div>
+        <Stagger className="c-tile-grid">
           {services.map(s => (
-            <button key={s.title} type="button" className="k-quick-tile" onClick={() => setSpec(s.spec)}>
+            <Stagger.Item as="button" key={s.title} type="button" className="k-quick-tile" whileTap={{ scale: 0.98 }} onClick={() => setSpec(s.spec)}>
               <Icon name={s.icon} />
               <span><strong>{s.title}</strong><small>{s.body}</small></span>
               <Icon name="arrow-right" className="icon k-go" />
-            </button>
+            </Stagger.Item>
           ))}
-        </div>
-        <p style={{ marginTop: 14 }}><button type="button" className="k-link" onClick={() => onNavigate?.('services')}>{t('All banking services')} <Icon name="arrow-right" /></button></p>
+        </Stagger>
       </section>
+      </div>
 
       <ServiceRequestDialog spec={spec} onClose={() => setSpec(null)} />
-    </div>
+    </>
   );
 };

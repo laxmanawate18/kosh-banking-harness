@@ -1,5 +1,6 @@
 import { LotusMark } from '../common/KoshLogo';
 import React, { useEffect, useRef } from 'react';
+import { ThumbsDown, ThumbsUp } from 'lucide-react';
 import { post } from '../../services/api';
 import type { ChatMessage } from '../../types/chat';
 import { SalesActionCard } from './SalesActionCard';
@@ -28,7 +29,7 @@ interface ChatMessageListProps {
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages, onSuggestedQuery: sendMessage, onOpenWorkflow: openWorkflow, onStartWorkflow: startWorkflowById, onApplyProduct, id }) => {
   const { t } = useI18n();
-  const { setActiveChallenge } = useBanking();
+  const { setActiveChallenge, overview } = useBanking();
   const { user } = useAuth();
   const { isConnected, isStreaming } = useChat();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -49,7 +50,10 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages, onSu
     [t('Understand deposit options'), t('Explain your fixed deposit options and terms.')],
     [t('Find a credit card'), t('Help me choose a credit card based on my needs.')],
   ] : [
-    [t('Complete KYC'), t('I would like to complete my pending KYC verification.')],
+    // Only suggest KYC when it is actually due; otherwise suggest something useful instead.
+    ['NOT_DONE', 'PENDING_RE_KYC'].includes(overview?.kyc?.status || overview?.customer?.kyc?.status || '')
+      ? [t('Complete KYC'), t('I would like to complete my pending KYC verification.')]
+      : [t('Grow my savings'), t('Which fixed deposit suits me?')],
     [t('Balances and spending'), t('Show my accounts and recent spending.')],
     [t('Card security'), t('Show my security alerts.')],
   ];
@@ -172,8 +176,8 @@ const FeedbackButtons: React.FC<{ index: number }> = ({ index }) => {
   if (sent) return <span className="ai-feedback-done" role="status">{t('Thanks for the feedback')}</span>;
   return (
     <span className="ai-feedback" role="group" aria-label={t('Was this helpful?')}>
-      <button type="button" onClick={() => rate(1)} aria-label={t('Helpful')} title={t('Helpful')}>👍</button>
-      <button type="button" onClick={() => rate(-1)} aria-label={t('Not helpful')} title={t('Not helpful')}>👎</button>
+      <button type="button" onClick={() => rate(1)} aria-label={t('Helpful')} title={t('Helpful')}><ThumbsUp size={16} aria-hidden="true" /></button>
+      <button type="button" onClick={() => rate(-1)} aria-label={t('Not helpful')} title={t('Not helpful')}><ThumbsDown size={16} aria-hidden="true" /></button>
     </span>
   );
 };

@@ -9,6 +9,8 @@ import { PaymentChallengeModal } from './components/overview/PaymentChallengeMod
 import { LotusMark } from './components/common/KoshLogo';
 import { OverviewPage } from './components/overview/OverviewPage';
 import { NotFound } from './components/site/InfoPages';
+import { MotionProvider } from './components/common/Animate';
+import { LotusLoader } from './components/common/LotusLoader';
 
 // Route-level code splitting: each page (and the heavy workflow dialog) loads on first visit.
 const named = <K extends string>(loader: () => Promise<Record<K, React.ComponentType<any>>>, key: K) =>
@@ -57,7 +59,7 @@ const routeFromHash = (role: string): string => {
 
 const PageLoading: React.FC = () => {
   const { t } = useI18n();
-  return <div className="k-loading"><LotusMark size={48} className="k-spin-slow" /><span>{t('Loading…')}</span></div>;
+  return <LotusLoader label={t('Loading…')} size={52} />;
 };
 
 const AuthenticatedWorkspace: React.FC = () => {
@@ -127,7 +129,7 @@ const MainAppRouter: React.FC = () => {
   const { setIsOpen } = useChat();
 
   if (isLoading) {
-    return <div className="k-loading full"><LotusMark size={64} className="k-spin-slow" /><span>{t('Opening your Kosh securely…')}</span></div>;
+    return <LotusLoader full label={t('Opening your Kosh securely…')} size={76} />;
   }
 
   if (!isAuthenticated) {
@@ -145,6 +147,7 @@ const MainAppRouter: React.FC = () => {
 
 export default function App() {
   return (
+    <MotionProvider>
     <AuthProvider>
       <BankingProvider>
         <ChatProvider>
@@ -152,5 +155,6 @@ export default function App() {
         </ChatProvider>
       </BankingProvider>
     </AuthProvider>
+    </MotionProvider>
   );
 }

@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useI18n } from '../../i18n';
 import { post } from '../../services/api';
+import { Icon } from '../common/Icon';
+import { motion, pageMotion } from '../common/Animate';
+import { PageHero } from './SiteChrome';
 
 interface ApplicationStatus {
   reference: string;
@@ -10,6 +13,8 @@ interface ApplicationStatus {
   submitted_at: string;
   updated_at: string;
 }
+
+const TONE: Record<ApplicationStatus['status'], string> = { UNDER_REVIEW: 'warn', APPROVED: 'ok', NOT_APPROVED: 'danger', WITHDRAWN: '' };
 
 const LABEL: Record<ApplicationStatus['status'], string> = {
   UNDER_REVIEW: 'Under review',
@@ -42,35 +47,34 @@ export const TrackApplicationPage: React.FC<{ reference?: string; onAsk: (prompt
 
   return (
     <>
-      <div className="k-page-hero">
-        <div className="k-crumbs"><a href="#/">{t('Home')}</a><span>{t('Track application')}</span></div>
-        <h1>{t('Track application')}</h1>
-        <p>{t('Enter your application reference and the mobile number you applied with.')}</p>
-      </div>
-      <section className="k-section" style={{ paddingTop: 28, maxWidth: 560 }}>
-        <form onSubmit={submit} className="k-card" style={{ display: 'grid', gap: 14, padding: 24 }}>
-          <label>{t('Application reference')}
-            <input value={reference} onChange={e => setReference(e.target.value.toUpperCase())} placeholder="SAV-APP-1A2B3C" required
-              maxLength={20} style={{ display: 'block', width: '100%', marginTop: 6 }} />
-          </label>
-          <label>{t('Mobile number')}
-            <input value={mobile} onChange={e => setMobile(e.target.value)} placeholder="+91 98765 43210" required inputMode="tel"
-              maxLength={20} style={{ display: 'block', width: '100%', marginTop: 6 }} />
-          </label>
-          <button className="k-btn" type="submit" disabled={busy}>{busy ? t('Checking…') : t('Check status')}</button>
-          {error && <p role="alert" style={{ color: '#ff9b91', margin: 0 }}>{error}</p>}
-        </form>
-        {result && (
-          <article className="k-card" aria-live="polite" style={{ marginTop: 18, padding: 24 }}>
-            <h2 style={{ marginTop: 0 }}>{t(LABEL[result.status])}</h2>
-            <p><strong>{result.product}</strong> · {result.reference}</p>
-            <p>{t('Submitted')}: {date(result.submitted_at)} · {t('Last update')}: {date(result.updated_at)}</p>
-            <p>{result.next_step}</p>
-          </article>
-        )}
-        <p style={{ marginTop: 18 }}>
-          <a href="#/" onClick={e => { e.preventDefault(); onAsk(t('What is the status of my application?')); }}>{t('Or ask Mitra')}</a>
-        </p>
+      <PageHero eyebrow={t('Help')} title={t('Track application')} intro={t('Enter your application reference and the mobile number you applied with.')} />
+      <section className="k-section k-track">
+        <div>
+          <form onSubmit={submit} className="k-card k-track-form">
+            <label>{t('Application reference')}
+              <input value={reference} onChange={e => setReference(e.target.value.toUpperCase())} placeholder="SAV-APP-1A2B3C" required maxLength={20} />
+            </label>
+            <label>{t('Mobile number')}
+              <input value={mobile} onChange={e => setMobile(e.target.value)} placeholder="+91 98765 43210" required inputMode="tel" maxLength={20} />
+            </label>
+            <button className="k-btn primary lg wide" type="submit" disabled={busy}>{busy ? t('Checking…') : t('Check status')}</button>
+            {error && <p role="alert" className="k-form-error"><Icon name="alert" />{error}</p>}
+          </form>
+          {result && (
+            <motion.article className="k-card k-track-result" aria-live="polite" {...pageMotion}>
+              <span className={`k-pill ${TONE[result.status]}`}>{t(LABEL[result.status])}</span>
+              <h2>{result.product}</h2>
+              <p className="k-track-ref">{result.reference}</p>
+              <p>{t('Submitted')}: {date(result.submitted_at)} · {t('Last update')}: {date(result.updated_at)}</p>
+              <p>{result.next_step}</p>
+            </motion.article>
+          )}
+        </div>
+        <aside className="k-track-help">
+          <h2>{t('Where is my reference?')}</h2>
+          <p>{t('It is shown on the confirmation screen right after you apply, for example SAV-APP-1A2B3C.')}</p>
+          <a className="kl-link" href="#/" onClick={e => { e.preventDefault(); onAsk(t('What is the status of my application?')); }}>{t('Or ask Mitra')} <Icon name="arrow-right" /></a>
+        </aside>
       </section>
     </>
   );

@@ -12,6 +12,7 @@ import { CalculatorsPage } from '../site/Calculators';
 import { TrackApplicationPage } from '../site/TrackApplication';
 import { RatesPage, FeesPage, HelpPage, FaqsPage, SegmentsPage, LearnPage, NotFound } from '../site/InfoPages';
 import type { Product, ProductCategory } from '../../types/products';
+import { motion, pageMotion } from '../common/Animate';
 
 export const AuthScreen: React.FC = () => {
   const { t } = useI18n();
@@ -77,7 +78,7 @@ export const AuthScreen: React.FC = () => {
     <div className={`k-site ${route[0] ? '' : 'is-lux'}`}>
       <UtilityBar />
       <SiteHeader route={route} onLogin={openLogin} />
-      <main id="main" tabIndex={-1} key={route[0] || 'home'} className="k-page-enter" style={{ outline: 'none' }}>{page}</main>
+      <motion.main id="main" tabIndex={-1} key={route[0] || 'home'} style={{ outline: 'none' }} {...pageMotion}>{page}</motion.main>
       <SiteFooter onAsk={askMitra} />
 
       <dialog ref={loginRef} className="k-login" aria-labelledby="login-title"

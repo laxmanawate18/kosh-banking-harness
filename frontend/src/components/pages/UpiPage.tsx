@@ -3,7 +3,9 @@ import { renderSVG } from 'uqr';
 import { useBanking } from '../../context/BankingContext';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
-import { RecentTransactions } from '../overview/RecentTransactions';
+import { PageHeader } from '../common/PageHeader';
+import { RecentTransactions, TransactionDetailModal } from '../overview/RecentTransactions';
+import type { Transaction } from '../../types/banking';
 import { parseUpi } from '../../upi';
 import { useStepUp, StepUpField } from '../app/StepUp';
 
@@ -25,6 +27,7 @@ export const UpiPage: React.FC<UpiPageProps> = ({ onNavigate, onSendMoney }) => 
   const [target, setTarget] = useState<{ pa: string; pn: string; am?: string } | null>(null);
   const [manual, setManual] = useState({ pa: '', pn: '' });
   const [busy, setBusy] = useState(false);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const step = useStepUp();
 
@@ -76,11 +79,9 @@ export const UpiPage: React.FC<UpiPageProps> = ({ onNavigate, onSendMoney }) => 
   };
 
   return (
-    <div className="k-app-page">
-      <header className="k-app-head">
-        <h1>{t('UPI')}</h1>
-        <p>{t('Receive money with your QR code, or scan any UPI QR to pay. Sentinel checks every payment.')}</p>
-      </header>
+    <>
+      <PageHeader title={t('UPI')} subtitle={t('Receive money with your QR code, or scan any UPI QR to pay. Sentinel checks every payment.')} />
+      <div className="k-page-stack">
 
       <div className="k-two">
         <section className="k-panel">
@@ -88,7 +89,7 @@ export const UpiPage: React.FC<UpiPageProps> = ({ onNavigate, onSendMoney }) => 
           <div className="k-panel-body">
             <div className="k-upi-id">
               <span>{upiId}</span>
-              <span style={{ display: 'flex', gap: 6 }}>
+              <span className="c-upi-actions">
                 <button type="button" className="k-btn sm outline" onClick={copy}><Icon name={copied ? 'check' : 'copy'} />{copied ? t('Copied') : t('Copy')}</button>
                 {'share' in navigator && <button type="button" className="k-btn sm outline" onClick={share}><Icon name="share" />{t('Share')}</button>}
               </span>
@@ -108,7 +109,7 @@ export const UpiPage: React.FC<UpiPageProps> = ({ onNavigate, onSendMoney }) => 
             {scanning ? (
               <div className="k-scan">
                 <video ref={videoRef} muted playsInline aria-label={t('Camera preview')} />
-                <button type="button" className="k-btn outline wide" style={{ marginTop: 12 }} onClick={() => setScanning(false)}>{t('Cancel')}</button>
+                <button type="button" className="k-btn outline wide c-mt" onClick={() => setScanning(false)}>{t('Cancel')}</button>
               </div>
             ) : target ? (
               <div>
@@ -121,7 +122,7 @@ export const UpiPage: React.FC<UpiPageProps> = ({ onNavigate, onSendMoney }) => 
             ) : (
               <>
                 {canScan && <button type="button" className="k-btn accent wide lg" onClick={() => { setScanError(''); setScanning(true); }}><Icon name="scan" />{t('Scan QR code')}</button>}
-                <form onSubmit={e => { e.preventDefault(); payTarget({ pa: manual.pa.trim(), pn: manual.pn.trim() || manual.pa.split('@')[0] }); }} style={{ marginTop: canScan ? 20 : 0 }}>
+                <form className={canScan ? 'c-mt' : undefined} onSubmit={e => { e.preventDefault(); payTarget({ pa: manual.pa.trim(), pn: manual.pn.trim() || manual.pa.split('@')[0] }); }}>
                   <label className="k-field">
                     {t('Or enter a UPI ID')}
                     <input value={manual.pa} onChange={e => setManual(m => ({ ...m, pa: e.target.value }))} placeholder="name@bank" pattern="^[\w.\-]{2,256}@[a-zA-Z][\w.\-]{1,63}$" required />
@@ -130,7 +131,7 @@ export const UpiPage: React.FC<UpiPageProps> = ({ onNavigate, onSendMoney }) => 
                     {t('Payee name')}
                     <input value={manual.pn} onChange={e => setManual(m => ({ ...m, pn: e.target.value }))} />
                   </label>
-                  <button type="submit" className="k-btn primary wide" disabled={busy}>{t('Continue to pay')}</button>
+                  <button type="submit" className={`k-btn wide ${canScan ? 'outline' : 'primary'}`} disabled={busy}>{t('Continue to pay')}</button>
                 </form>
               </>
             )}
@@ -139,7 +140,7 @@ export const UpiPage: React.FC<UpiPageProps> = ({ onNavigate, onSendMoney }) => 
               <button type="submit" className="k-btn primary wide" disabled={busy}>{t('Verify and continue')}</button>
             </form>}
             {scanError && <div className="form-error" role="alert">{scanError}</div>}
-            <div className="k-note warn" style={{ marginTop: 16 }}>
+            <div className="k-note warn c-mt">
               <Icon name="alert" />
               <span>{t('You never enter your UPI PIN to receive money. New payees can receive up to ₹25,000 in their first 24 hours.')}</span>
             </div>
@@ -152,8 +153,10 @@ export const UpiPage: React.FC<UpiPageProps> = ({ onNavigate, onSendMoney }) => 
           <div><h2>{t('UPI activity')}</h2><p>{t('Daily UPI limit ₹1,00,000')}</p></div>
           <button type="button" className="k-link" onClick={() => onNavigate('transactions')}>{t('All transactions')} <Icon name="arrow-right" /></button>
         </header>
-        <RecentTransactions transactions={upiTx} compact />
+        <RecentTransactions transactions={upiTx} compact onSelectTransaction={setSelectedTx} />
       </section>
-    </div>
+      </div>
+      {selectedTx && <TransactionDetailModal tx={selectedTx} onClose={() => setSelectedTx(null)} />}
+    </>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
-import { KoshLogo } from '../common/KoshLogo';
+import { KoshLogo, Rangoli } from '../common/KoshLogo';
 import { LanguageSwitch, DisplayControls } from '../common/Preferences';
 import { prefersReducedMotion } from '../common/motion';
 
@@ -90,6 +90,34 @@ const DisplayControlsCompact: React.FC = () => {
   );
 };
 
+/** Inner-page hero in the Home language: breadcrumb, gold-thread eyebrow, serif headline whose last word is the accent. */
+export const PageHero: React.FC<{ eyebrow: string; title: string; intro: string; trail?: [string, string][] }> = ({ eyebrow, title, intro, trail = [] }) => {
+  const { t } = useI18n();
+  const cut = title.lastIndexOf(' ') + 1;
+  return (
+    <div className="k-page-hero">
+      <Rangoli className="k-page-hero-art" rings={18} />
+      <div className="k-page-hero-inner">
+        <nav className="k-crumbs" aria-label={t('Breadcrumb')}>
+          {[['Home', '#/'], ...trail].map(([label, href]) => (
+            <React.Fragment key={href}><a href={href}>{t(label)}</a><Icon name="chevron-right" /></React.Fragment>
+          ))}
+          <span aria-current="page">{title}</span>
+        </nav>
+        <span className="kl-eyebrow"><i />{eyebrow}</span>
+        <h1>{title.slice(0, cut)}<em>{title.slice(cut)}</em></h1>
+        <p>{intro}</p>
+      </div>
+    </div>
+  );
+};
+
+/** Pages without their own nav item light up the closest one. */
+const NAV_ALIAS: Record<string, string> = {
+  '#/products': '#/products/savings', '#/products/deposits': '#/products/savings', '#/products/wealth': '#/products/savings',
+  '#/fees': '#/rates', '#/faqs': '#/help', '#/learn': '#/help', '#/track': '#/help',
+};
+
 const NAV: [string, string][] = [
   ['Accounts', '#/products/savings'],
   ['Cards', '#/products/cards'],
@@ -104,6 +132,7 @@ export const SiteHeader: React.FC<{ route: string[]; onLogin: () => void }> = ({
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const current = '#/' + route.join('/');
+  const section = NAV_ALIAS[route[0] === 'products' ? current : '#/' + route[0]] || current;
 
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 8);
@@ -119,7 +148,7 @@ export const SiteHeader: React.FC<{ route: string[]; onLogin: () => void }> = ({
         <a href="#/" aria-label={t('Kosh home')}><KoshLogo size={38} tagline /></a>
         <nav className={`k-nav ${open ? 'open' : ''}`} aria-label={t('Primary')}>
           {NAV.map(([label, href]) => (
-            <a key={href} href={href} aria-current={current.startsWith(href) ? 'page' : undefined}>{t(label)}</a>
+            <a key={href} href={href} aria-current={section.startsWith(href) ? 'page' : undefined}>{t(label)}</a>
           ))}
           <a className="k-nav-extra" href="#/products/savings">{t('Open an account')}</a>
         </nav>

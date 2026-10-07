@@ -2,7 +2,8 @@ import React from 'react';
 import { useBanking } from '../../context/BankingContext';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
-import { formatDate, formatMoney } from '../common/Formatters';
+import { formatDate, formatMoney, humanizeCode } from '../common/Formatters';
+import { serviceLabel } from './serviceCatalogue';
 
 type Note = { id: string; tone: 'warn' | 'danger' | 'ok' | ''; icon: string; title: string; body: string; route: string };
 
@@ -29,7 +30,7 @@ export function useNotifications(): Note[] {
   }
   for (const r of overview.requests || []) {
     const open = OPEN.includes(r.status);
-    notes.push({ id: r.id, tone: open ? '' : 'ok', icon: open ? 'clock' : 'check', title: r.service_name || r.request_type || t('Service request'), body: open ? t('In progress') : t('Updated: {status}', { status: r.status.replace(/_/g, ' ').toLowerCase() }), route: 'requests' });
+    notes.push({ id: r.id, tone: open ? '' : 'ok', icon: open ? 'clock' : 'check', title: serviceLabel(t, r.service_id, r.service_name || r.request_type), body: open ? t('In progress') : t('Updated: {status}', { status: humanizeCode(r.status).toLowerCase() }), route: 'requests' });
   }
   return notes;
 }

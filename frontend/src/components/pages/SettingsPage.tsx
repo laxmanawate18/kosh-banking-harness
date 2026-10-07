@@ -4,7 +4,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useBanking } from '../../context/BankingContext';
 import { Badge } from '../common/Badge';
 import { Icon } from '../common/Icon';
-import { apiGet, apiPost, apiPatch, apiDelete } from '../../services/api';
+import { PageHeader } from '../common/PageHeader';
+import { AnimatePresence, motion } from '../common/Animate';
+import { ServiceRequestDialog, type ServiceSpec } from '../app/ServiceRequestDialog';
+import { apiPost, apiPatch, apiDelete } from '../../services/api';
 import { useI18n } from '../../i18n';
 
 interface SettingsPageProps {
@@ -13,309 +16,190 @@ interface SettingsPageProps {
   onBookAppointment?: () => void;
 }
 
-export const SettingsPage: React.FC<SettingsPageProps> = ({
-  onOpenService,
-  onStartKyc,
-  onBookAppointment,
-}) => {
+type Prefs = { email_updates: boolean; payment_alerts: boolean; monthly_statement: boolean; whatsapp_updates: boolean; marketing_offers: boolean; offers_paused_until?: string };
+
+const initials = (name?: string) => (name || 'K').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+const future = (iso?: string) => !!iso && new Date(iso).getTime() > Date.now();
+/** A masked number ("•••• 9812") is shown as is; anything else from the record ("UNVERIFIED", empty) means no number on file. */
+const masked = (v?: string) => (v && v.includes('•') ? v : '');
+
+export const SettingsPage: React.FC<SettingsPageProps> = ({ onStartKyc }) => {
   const { auth, user, setConsent } = useAuth();
   const { overview, profile, kyc, refreshOverview } = useBanking();
   const { t } = useI18n();
-
-  const [preferences, setPreferences] = useState({
-    email_updates: true,
-    payment_alerts: true,
-    monthly_statement: true,
-    whatsapp_updates: false,
-    marketing_offers: false,
-  });
-  const [prefStatus, setPrefStatus] = useState<string | null>(null);
+  const [prefs, setPrefs] = useState<Prefs>({ email_updates: true, payment_alerts: true, monthly_statement: true, whatsapp_updates: false, marketing_offers: false });
+  const [saved, setSaved] = useState(prefs);
+  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [spec, setSpec] = useState<ServiceSpec | null>(null);
   const savedPreferences = (overview as any)?.preferences;
   useEffect(() => {
-    if (savedPreferences && typeof savedPreferences === 'object') setPreferences(p => ({ ...p, ...savedPreferences }));
+    if (savedPreferences && typeof savedPreferences === 'object') {
+      setPrefs(p => ({ ...p, ...savedPreferences }));
+      setSaved(p => ({ ...p, ...savedPreferences }));
+    }
   }, [savedPreferences]);
+  const dirty = JSON.stringify(prefs) !== JSON.stringify(saved);
 
-  const c = profile || overview?.customer || (user as any) || {
-    display_name: 'Ananya Sharma',
-    full_name: 'Ananya Sharma',
-    tier: 'Platinum',
-    member_since: '2022-01-01',
-    email: 'ananya.sharma@example.com',
-    phone_masked: '+91 98••• ••210',
-    city: 'Mumbai',
-  };
-
-  const customerKyc = kyc || overview?.kyc || c.kyc || {
-    status: 'VERIFIED',
-    due_date: '2027-03-31',
-    risk_category: 'LOW',
-    pan_masked: '••••••123F',
-    aadhaar_masked: '•••• •••• 9812',
-  };
-
+  const c: any = profile || overview?.customer || user || {};
+  const k: any = kyc || overview?.kyc || c.kyc || {};
+  const kycStatus: string = k.status || 'UNKNOWN';
+  const needsKyc = kycStatus === 'NOT_DONE' || kycStatus === 'PENDING_RE_KYC';
   const hasConsent = auth?.consent != null ? Boolean(auth.consent) : Boolean((user as any)?.consent ?? true);
+  const lastVerified = k.last_verified_date || k.last_verified_at || k.verification?.completed_at;
 
-  const initials = (name?: string) => {
-    return (name || 'A S')
-      .split(' ')
-      .map((part) => part[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
-  };
+  const flash = (s: { ok: boolean; text: string }) => { setStatus(s); setTimeout(() => setStatus(null), 3500); };
 
-  const dateOr = (dateStr?: string) => (dateStr ? formatDate(dateStr) : '31 Mar 2027');
-
-  const handlePreferencesSubmit = async (e: React.FormEvent) => {
+  const savePrefs = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await apiPatch('/api/portal/preferences', preferences);
-      setPrefStatus(t('Preferences saved.'));
-      setTimeout(() => setPrefStatus(null), 3000);
+      await apiPatch('/api/portal/preferences', prefs);
+      setSaved(prefs);
+      flash({ ok: true, text: t('Preferences saved.') });
     } catch (err: any) {
-      setPrefStatus(err.message || t('Could not save your preferences. Please try again.'));
+      flash({ ok: false, text: err.message || t('Could not save your preferences. Please try again.') });
     }
   };
 
   const toggleConsent = async () => {
-    const nextConsent = !hasConsent;
     try {
-      if (nextConsent) {
-        await apiPost('/api/consent', { accepted: true });
-      } else {
-        await apiDelete('/api/consent');
-      }
-      setConsent(nextConsent);
+      if (hasConsent) await apiDelete('/api/consent');
+      else await apiPost('/api/consent', { accepted: true });
+      setConsent(!hasConsent);
       refreshOverview();
     } catch (err: any) {
-      setPrefStatus(err.message || t('Could not update consent. Please try again.'));
+      flash({ ok: false, text: err.message || t('Could not update consent. Please try again.') });
     }
   };
 
+  const contactSpec: ServiceSpec = {
+    serviceId: 'P1-11', title: t('Update email or mobile'), subtitle: t('A bank officer confirms the change before we use the new details.'),
+    fields: [
+      { name: 'email', label: t('Email address'), type: 'email' },
+      { name: 'mobile', label: t('Mobile number'), type: 'tel', help: t('Ten digits, without +91.') },
+    ],
+    initial: { email: c.email || '' },
+    hideAccount: true,
+    details: d => `Update contact details: email ${d.email}, mobile ${d.mobile}`,
+  };
+  const branchSpec: ServiceSpec = {
+    serviceId: 'P1-23', title: t('Book a branch visit'), subtitle: t('The branch confirms your slot by SMS.'),
+    fields: [
+      { name: 'branch', label: t('Branch'), type: 'select', options: [['Mumbai Fort', 'Mumbai Fort'], ['Mumbai Andheri', 'Mumbai Andheri'], ['Mumbai Bandra', 'Mumbai Bandra']] },
+      { name: 'preferred_date', label: t('Preferred date'), type: 'date' },
+      { name: 'preferred_window', label: t('Preferred time'), type: 'select', options: [['10:00–11:00', '10–11 am'], ['11:00–12:00', '11 am–12 pm'], ['14:00–15:00', '2–3 pm'], ['15:00–16:00', '3–4 pm']] },
+    ],
+    details: d => `Branch visit at ${d.branch} on ${d.preferred_date}, ${d.preferred_window}`,
+    submitLabel: t('Request this slot'),
+    hideAccount: true,
+  };
+
+  const toggles: [keyof Prefs, string, string, string][] = [
+    ['email_updates', 'requests', t('Service request updates'), t('Status changes and decisions.')],
+    ['payment_alerts', 'payments', t('Payment notifications'), t('Transfers and bill payment confirmations.')],
+    ['monthly_statement', 'file', t('Monthly statement'), t('A regular summary of your accounts.')],
+    ['whatsapp_updates', 'phone', t('WhatsApp alerts'), t('Also receive SMS alerts on WhatsApp.')],
+    ['marketing_offers', 'gift', t('Personalised offers'),
+      t('Let Kosh use your balances, salary credits and spending to suggest products. Separate from your banking consent; off unless you turn it on.')],
+  ];
+
   return (
     <>
-      <header className="page-heading">
-        <div>
-          <h1>{t('Make yourself at home.')}</h1>
-          <p>{t('Your personal details, preferences and account security.')}</p>
-        </div>
-      </header>
+      <PageHeader title={t('Profile and settings')} subtitle={t('Your personal details, preferences and account security.')} />
 
-      <div className="split-grid">
-        <section className="panel">
-          <div className="settings-group">
-            <div className="merchant-cell">
-              <span className="avatar">{initials(c.display_name || c.full_name)}</span>
+      <div className="c-split">
+        <div className="k-page-stack">
+          <section className="k-panel">
+            <header className="k-panel-head c-profile-head">
+              <span className="k-avatar" aria-hidden="true">{initials(c.display_name || c.full_name)}</span>
               <div>
-                <h2>{c.display_name || c.full_name || 'Ananya Sharma'}</h2>
-                <p>
-                  {t('{tier} banking · Customer since {year}', {
-                    tier: c.tier || 'Platinum',
-                    year: new Date(c.member_since || '2022-01-01').getFullYear(),
-                  })}
-                </p>
+                <h2>{c.display_name || c.full_name}</h2>
+                <p>{t('{tier} banking · Customer since {year}', { tier: c.tier || 'Kosh', year: c.member_since ? new Date(c.member_since).getFullYear() : '—' })}</p>
               </div>
+            </header>
+            <div className="k-panel-body">
+              <div className="info-row"><span>{t('Email')}</span><strong>{c.email || '—'}</strong></div>
+              <div className="info-row"><span>{t('Mobile')}</span><strong>{c.phone_masked || c.phone || '—'}</strong></div>
+              <div className="info-row"><span>{t('City')}</span><strong>{c.city || '—'}</strong></div>
+              <button type="button" className="k-btn outline c-mt" onClick={() => setSpec(contactSpec)}><Icon name="phone" />{t('Update email or mobile')}</button>
             </div>
+          </section>
 
-            <div className="info-row">
-              <span>{t('Email')}</span>
-              <strong>{c.email || 'ananya.sharma@example.com'}</strong>
-            </div>
-            <div className="info-row">
-              <span>{t('Mobile')}</span>
-              <strong>{c.phone_masked || c.phone || '+91 98••• ••210'}</strong>
-            </div>
-            <div className="info-row">
-              <span>{t('City')}</span>
-              <strong>{c.city || 'Mumbai'}</strong>
-            </div>
-
-            <div className="dialog-footer">
-              <button
-                type="button"
-                className="button"
-                onClick={() => onOpenService?.('P1-11')}
-              >
-                {t('Request contact update')}
-              </button>
-            </div>
-          </div>
-
-          <div className="settings-group">
-            <div className="panel-head">
-              <h2>{t('KYC compliance profile')}</h2>
-              <Badge variant={customerKyc.status === 'VERIFIED' ? 'success' : 'warning'}>
-                {customerKyc.status || 'VERIFIED'}
-              </Badge>
-            </div>
-
-            <div className="info-row">
-              <span>{t('Regulatory status')}</span>
-              <strong>{(customerKyc.status || 'VERIFIED').replaceAll('_', ' ').toLowerCase()}</strong>
-            </div>
-            <div className="info-row">
-              <span>{t('Periodic due date')}</span>
-              <strong>{dateOr(customerKyc.due_date)}</strong>
-            </div>
-            <div className="info-row">
-              <span>{t('Risk classification')}</span>
-              <strong>{customerKyc.risk_category || 'LOW'}</strong>
-            </div>
-            <div className="info-row">
-              <span>{t('Registered PAN')}</span>
-              <strong>{customerKyc.pan_masked || '••••••••••'}</strong>
-            </div>
-            <div className="info-row">
-              <span>{t('Registered Aadhaar')}</span>
-              <strong>{customerKyc.aadhaar_masked || '•••• •••• ••••'}</strong>
-            </div>
-
-            <div className="dialog-footer">
-              {customerKyc.status === 'NOT_DONE' ? (
-                <button
-                  type="button"
-                  className="button primary"
-                  onClick={() => onStartKyc?.()}
-                >
-                  {t('Complete initial KYC with Mitra')} <Icon name="arrow-right" />
+          <section className="k-panel">
+            <header className="k-panel-head">
+              <div><h2>{t('KYC')}</h2><p>{t('Your identity check with the bank')}</p></div>
+              <Badge status={kycStatus} />
+            </header>
+            <div className="k-panel-body">
+              {lastVerified && <div className="info-row"><span>{t('Last verified')}</span><strong>{formatDate(lastVerified)}</strong></div>}
+              {future(k.due_date) && <div className="info-row"><span>{t('Next re-KYC due')}</span><strong>{formatDate(k.due_date)}</strong></div>}
+              <div className="info-row"><span>{t('PAN')}</span><strong>{masked(k.pan_masked) || t('Not on file')}</strong></div>
+              <div className="info-row"><span>{t('Aadhaar')}</span><strong className={masked(k.aadhaar_masked) ? '' : 'c-soft'}>{masked(k.aadhaar_masked) || t('Not linked')}</strong></div>
+              {needsKyc ? (
+                <button type="button" className="k-btn primary c-mt" onClick={() => onStartKyc?.()}>
+                  {kycStatus === 'NOT_DONE' ? t('Complete initial KYC with Mitra') : t('Complete KYC with Mitra')} <Icon name="arrow-right" />
                 </button>
-              ) : customerKyc.status === 'PENDING_RE_KYC' ? (
-                <button
-                  type="button"
-                  className="button primary"
-                  onClick={() => onStartKyc?.()}
-                >
-                  {t('Complete KYC with Mitra')} <Icon name="arrow-right" />
-                </button>
-              ) : (
-                <Badge variant="neutral">{t('KYC compliant')}</Badge>
+              ) : kycStatus === 'VERIFIED' && (
+                <p className="c-paid"><Icon name="check" />{t('Your KYC is up to date. Nothing to do.')}</p>
               )}
             </div>
-          </div>
-
-          <form id="preferencesForm" className="settings-group" onSubmit={handlePreferencesSubmit}>
-            <h3>{t('Notification preferences')}</h3>
-            <p>{t('Choose which updates you would like to receive.')}</p>
-
-            <label className="check-row">
-              <span>
-                <strong>{t('Service request updates')}</strong>
-                <small style={{ display: 'block' }}>{t('Status changes and decisions.')}</small>
-              </span>
-              <input
-                type="checkbox"
-                name="email_updates"
-                checked={preferences.email_updates}
-                onChange={(e) =>
-                  setPreferences((p) => ({ ...p, email_updates: e.target.checked }))
-                }
-              />
-            </label>
-
-            <label className="check-row">
-              <span>
-                <strong>{t('Payment notifications')}</strong>
-                <small style={{ display: 'block' }}>{t('Transfers and bill payment confirmations.')}</small>
-              </span>
-              <input
-                type="checkbox"
-                name="payment_alerts"
-                checked={preferences.payment_alerts}
-                onChange={(e) =>
-                  setPreferences((p) => ({ ...p, payment_alerts: e.target.checked }))
-                }
-              />
-            </label>
-
-            <label className="check-row">
-              <span>
-                <strong>{t('Monthly statement')}</strong>
-                <small style={{ display: 'block' }}>{t('A regular summary of your accounts.')}</small>
-              </span>
-              <input
-                type="checkbox"
-                name="monthly_statement"
-                checked={preferences.monthly_statement}
-                onChange={(e) =>
-                  setPreferences((p) => ({ ...p, monthly_statement: e.target.checked }))
-                }
-              />
-            </label>
-            <label className="check-row">
-              <span>
-                <strong>{t('WhatsApp alerts')}</strong>
-                <small style={{ display: 'block' }}>{t('Also receive SMS alerts on WhatsApp.')}</small>
-              </span>
-              <input
-                type="checkbox"
-                name="whatsapp_updates"
-                checked={preferences.whatsapp_updates}
-                onChange={(e) =>
-                  setPreferences((p) => ({ ...p, whatsapp_updates: e.target.checked }))
-                }
-              />
-            </label>
-            <label className="check-row">
-              <span>
-                <strong>{t('Personalised offers')}</strong>
-                <small style={{ display: 'block' }}>{t('Let Kosh use your balances, salary credits and spending to suggest products. Separate from your banking consent; off by default.')}</small>
-              </span>
-              <input
-                type="checkbox"
-                name="marketing_offers"
-                checked={preferences.marketing_offers}
-                onChange={(e) =>
-                  setPreferences((p) => ({ ...p, marketing_offers: e.target.checked }))
-                }
-              />
-            </label>
-
-            <p className="form-hint">
-              {t('Preferences are saved here. Delivery requires a connected notification provider.')}
-            </p>
-            {prefStatus && <p className="form-hint" style={{ color: 'var(--ok)', fontWeight: 600 }}>{prefStatus}</p>}
-            <button className="button primary" type="submit">
-              {t('Save preferences')}
-            </button>
-          </form>
-        </section>
-
-        <div className="stack">
-          <section className="panel panel-pad">
-            <div className="section-heading">
-              <h2>{t('Digital banking consent')}</h2>
-            </div>
-            <Badge variant={hasConsent ? 'success' : 'danger'}>
-              {hasConsent ? t('Active') : t('Revoked')}
-            </Badge>
-            <p className="form-hint" style={{ marginTop: '8px' }}>
-              {t('You control whether Mitra can prepare actions and service requests for you.')}
-            </p>
-            <button
-              type="button"
-              className="button"
-              onClick={toggleConsent}
-            >
-              {hasConsent ? t('Withdraw permission') : t('Restore permission')}
-            </button>
           </section>
 
-          <section className="tip-panel">
+          <form className="k-panel" onSubmit={savePrefs}>
+            <header className="k-panel-head"><div><h2>{t('Notification preferences')}</h2><p>{t('Choose which updates you would like to receive.')}</p></div></header>
+            <div className="k-panel-body">
+              {toggles.map(([key, icon, title, sub]) => (
+                <label key={key} className="k-toggle-row">
+                  <div>
+                    <Icon name={icon} />
+                    <div>
+                      <strong>{title}</strong>
+                      <small>{sub}</small>
+                      {key === 'marketing_offers' && prefs.marketing_offers && future(prefs.offers_paused_until) &&
+                        <small className="c-paused">{t('Offer suggestions are paused until {date}.', { date: formatDate(prefs.offers_paused_until!) })}</small>}
+                    </div>
+                  </div>
+                  <input type="checkbox" className="k-switch" name={key} checked={Boolean(prefs[key])} onChange={e => setPrefs(p => ({ ...p, [key]: e.target.checked }))} />
+                </label>
+              ))}
+              <p className="form-hint">{t('Preferences are saved here. Delivery requires a connected notification provider.')}</p>
+              <div className="c-save-row">
+                <button className="k-btn primary" type="submit" disabled={!dirty}>{dirty ? t('Save preferences') : t('All changes saved')}</button>
+                <AnimatePresence>
+                  {status && (
+                    <motion.span key={status.text} role="status" className={status.ok ? 'c-saved' : 'form-error'} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
+                      {status.ok && <Icon name="check" />}{status.text}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div className="k-page-stack">
+          <section className="k-panel">
+            <header className="k-panel-head">
+              <div><h2>{t('Digital banking consent')}</h2></div>
+              <Badge variant={hasConsent ? 'success' : 'danger'}>{hasConsent ? t('Active') : t('Revoked')}</Badge>
+            </header>
+            <div className="k-panel-body">
+              <p className="c-body">{t('You control whether Mitra can prepare actions and service requests for you.')}</p>
+              <button type="button" className="k-btn outline" onClick={toggleConsent}>{hasConsent ? t('Withdraw permission') : t('Restore permission')}</button>
+            </div>
+          </section>
+
+          <aside className="k-kavach-tip">
             <Icon name="help" />
             <div>
-              <h3>{t('Need a hand?')}</h3>
+              <strong>{t('Need a hand?')}</strong>
               <p>{t('Arrange an appointment with your branch or raise a support request.')}</p>
-              <button
-                type="button"
-                className="text-button"
-                onClick={() => onBookAppointment?.()}
-              >
-                {t('Book a branch visit')} <Icon name="arrow-right" />
-              </button>
+              <button type="button" className="k-link c-mt" onClick={() => setSpec(branchSpec)}>{t('Book a branch visit')} <Icon name="arrow-right" /></button>
             </div>
-          </section>
+          </aside>
         </div>
       </div>
+
+      <ServiceRequestDialog spec={spec} onClose={() => setSpec(null)} />
     </>
   );
 };

@@ -1238,5 +1238,69 @@
   "Freeze it instantly from Cards, or ask Mitra. To unfreeze, raise a request and the bank confirms it within minutes.": {
     "hi": "कार्ड सेक्शन से तुरंत फ़्रीज़ करें या मित्र से कहें। अनफ़्रीज़ के लिए अनुरोध करें, बैंक कुछ मिनटों में पुष्टि करता है।",
     "mr": "कार्ड विभागातून लगेच फ्रीझ करा किंवा मित्रला सांगा. अनफ्रीझसाठी विनंती करा, बँक काही मिनिटांत पुष्टी करते."
+  },
+  "Breadcrumb": {
+    "hi": "ब्रेडक्रंब",
+    "mr": "ब्रेडक्रंब"
+  },
+  "Plan ahead": {
+    "hi": "आगे की योजना",
+    "mr": "पुढचे नियोजन"
+  },
+  "What you get": {
+    "hi": "आपको क्या मिलता है",
+    "mr": "तुम्हाला काय मिळते"
+  },
+  "Still have a question?": {
+    "hi": "अब भी कोई सवाल है?",
+    "mr": "अजूनही प्रश्न आहे?"
+  },
+  "Where is my reference?": {
+    "hi": "मेरा संदर्भ नंबर कहाँ है?",
+    "mr": "माझा संदर्भ क्रमांक कुठे आहे?"
+  },
+  "It is shown on the confirmation screen right after you apply, for example SAV-APP-1A2B3C.": {
+    "hi": "आवेदन करते ही पुष्टि स्क्रीन पर दिखता है, जैसे SAV-APP-1A2B3C।",
+    "mr": "अर्ज करताच पुष्टी स्क्रीनवर दिसतो, उदाहरणार्थ SAV-APP-1A2B3C."
+  },
+  "1 product. Illustrative rates, eligibility applies.": {
+    "hi": "1 उत्पाद। दरें उदाहरण के लिए हैं, पात्रता लागू।",
+    "mr": "1 उत्पादन. दर उदाहरणादाखल आहेत, पात्रता लागू."
+  },
+  "All products": {
+    "hi": "सभी उत्पाद",
+    "mr": "सर्व उत्पादने"
+  },
+  "Home and personal loans": {
+    "hi": "होम और पर्सनल लोन",
+    "mr": "गृह आणि वैयक्तिक कर्ज"
+  },
+  "Investments": {
+    "hi": "निवेश",
+    "mr": "गुंतवणूक"
+  },
+  "Compare every Kosh account, card, deposit and loan in one place.": {
+    "hi": "कोष के हर खाते, कार्ड, डिपॉज़िट और लोन की तुलना एक ही जगह करें।",
+    "mr": "कोषची सर्व खाती, कार्ड, ठेवी आणि कर्जे एकाच ठिकाणी तुलना करा."
+  },
+  "Zero-balance accounts you can open in minutes, with interest on every rupee.": {
+    "hi": "ज़ीरो-बैलेंस खाते जो मिनटों में खुलते हैं, हर रुपये पर ब्याज के साथ।",
+    "mr": "काही मिनिटांत उघडणारी शून्य-शिल्लक खाती, प्रत्येक रुपयावर व्याजासह."
+  },
+  "Clear fees, instant card controls and rewards you can actually use.": {
+    "hi": "साफ़ शुल्क, तुरंत कार्ड नियंत्रण और ऐसे रिवॉर्ड जो सच में काम आएँ।",
+    "mr": "स्पष्ट शुल्क, त्वरित कार्ड नियंत्रण आणि खरोखर वापरता येणारे रिवॉर्ड."
+  },
+  "Lock in a fixed rate for a fixed term. Senior citizens earn 0.50% more.": {
+    "hi": "तय अवधि के लिए तय दर पक्की करें। वरिष्ठ नागरिकों को 0.50% अधिक मिलता है।",
+    "mr": "ठरावीक मुदतीसाठी ठरावीक दर निश्चित करा. ज्येष्ठ नागरिकांना 0.50% जास्त मिळते."
+  },
+  "Transparent rates and an EMI you can plan before you apply.": {
+    "hi": "पारदर्शी दरें और ऐसी EMI जिसकी योजना आप आवेदन से पहले बना सकें।",
+    "mr": "पारदर्शक दर आणि अर्ज करण्यापूर्वीच नियोजन करता येणारा EMI."
+  },
+  "Demat and portfolio tools linked to your Kosh account.": {
+    "hi": "आपके कोष खाते से जुड़े डीमैट और पोर्टफ़ोलियो टूल।",
+    "mr": "तुमच्या कोष खात्याशी जोडलेली डीमॅट आणि पोर्टफोलिओ साधने."
   }
 }

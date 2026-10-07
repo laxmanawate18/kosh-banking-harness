@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, type PointerEvent } from 'react';
+import { motion, useReducedMotion, useSpring, useTransform } from 'framer-motion';
 import { LotusMark, Rangoli } from './KoshLogo';
 import { Icon } from './Icon';
-import { tilt } from './motion';
 import { useI18n } from '../../i18n';
 
 interface Card3DProps {
@@ -12,10 +12,17 @@ interface Card3DProps {
   variant?: 'indigo' | 'saffron' | 'peacock';
   frozen?: boolean;
   float?: boolean;
-  /** Pointer tilt is decorative: marketing pages only, never on banking data screens. */
+  /** Tilt toward the pointer (fine pointers only). */
   interactive?: boolean;
+  /** Show "Tap the card to see the back" under the card. */
+  hint?: boolean;
 }
 
+const TILT = 9;                                          // degrees at the card's edge
+const FLIP = { stiffness: 120, damping: 16, mass: 1.1 };  // a weighted, physical flip
+const LEAN = { stiffness: 220, damping: 22 };
+
+/** The debit card in 3D: tap to flip (spring physics), leans toward the cursor. With reduced motion it crossfades. */
 export const Card3D: React.FC<Card3DProps> = ({
   holder = 'AARAV SHARMA',
   number = '•••• •••• •••• 4821',
@@ -25,39 +32,67 @@ export const Card3D: React.FC<Card3DProps> = ({
   frozen = false,
   float = false,
   interactive = false,
+  hint = false,
 }) => {
   const { t } = useI18n();
+  const reduce = useReducedMotion();
   const [flipped, setFlipped] = useState(false);
+
+  const flip = useSpring(0, FLIP);
+  const leanX = useSpring(0, LEAN);
+  const leanY = useSpring(0, LEAN);
+  useEffect(() => { flip.set(flipped ? 180 : 0); }, [flipped, flip]);
+  const rotateY = useTransform([flip, leanY], ([f, y]: number[]) => f + y);
+
+  const lean = (e: PointerEvent<HTMLDivElement>) => {
+    if (!interactive || reduce || e.pointerType !== 'mouse') return;
+    const r = e.currentTarget.getBoundingClientRect();
+    leanY.set(((e.clientX - r.left) / r.width - 0.5) * TILT * 2);
+    leanX.set((0.5 - (e.clientY - r.top) / r.height) * TILT * 2);
+  };
+  const settle = () => { leanX.set(0); leanY.set(0); };
+
   return (
-    <div className={`k-card3d-wrap ${float ? 'floating' : ''}`} {...(interactive ? tilt(12) : {})}>
-      <button
-        type="button"
-        className={`k-card3d ${variant} ${flipped ? 'flipped' : ''} ${frozen ? 'frozen' : ''}`}
-        onClick={() => setFlipped(f => !f)}
-        aria-pressed={flipped}
-        aria-label={t('{label}, {number}. Press to flip the card.', { label, number })}
-      >
-        <span className="k-card-face front">
-          <Rangoli className="k-card-motif" rings={10} />
-          <span className="k-card-row">
-            <span className="k-card-brand"><LotusMark size={28} /> kosh</span>
-            <span className="k-card-label">{label}</span>
+    <div className="k-card3d-holder">
+      <div className={`k-card3d-wrap ${float ? 'floating' : ''}`} onPointerMove={lean} onPointerLeave={settle}>
+        <motion.button
+          type="button"
+          className={`k-card3d k-card3d-motion ${variant} ${flipped ? 'flipped' : ''} ${frozen ? 'frozen' : ''} ${reduce ? 'reduced' : ''}`}
+          style={reduce ? undefined : { rotateX: leanX, rotateY, rotateZ: -3 }}
+          whileTap={reduce ? undefined : { scale: 0.98 }}
+          onClick={() => setFlipped(f => !f)}
+          aria-pressed={flipped}
+          aria-label={t('{label}, {number}. Press to flip the card.', { label, number })}
+        >
+          <span className="k-card-face front">
+            <Rangoli className="k-card-motif" rings={10} />
+            <span className="k-card-row">
+              <span className="k-card-brand"><LotusMark size={28} /> kosh</span>
+              <span className="k-card-label">{label}</span>
+            </span>
+            <span className="k-card-chip" />
+            <span className="k-card-number">{number}</span>
+            <span className="k-card-row bottom">
+              <span><small>{t('Card holder')}</small>{holder}</span>
+              <span><small>{t('Valid thru')}</small>{expiry}</span>
+              <span className="k-card-network">RuPay</span>
+            </span>
+            {frozen && <span className="k-card-frozen"><Icon name="freeze" />{t('Frozen by you')}</span>}
+            <span className="k-card-sheen" aria-hidden="true" />
           </span>
-          <span className="k-card-chip" />
-          <span className="k-card-number">{number}</span>
-          <span className="k-card-row bottom">
-            <span><small>{t('Card holder')}</small>{holder}</span>
-            <span><small>{t('Valid thru')}</small>{expiry}</span>
-            <span className="k-card-network">RuPay</span>
+          <span className="k-card-face back">
+            <span className="k-card-strip" />
+            <span className="k-card-cvv"><small>CVV</small>•••</span>
+            <span className="k-card-note">{t('Kosh will never ask for your card PIN, CVV or OTP. Report fraud on 1930.')}</span>
+            <span className="k-card-back-foot"><LotusMark size={22} /> {t('Tap to turn the card over')}</span>
           </span>
-          {frozen && <span className="k-card-frozen"><Icon name="freeze" />{t('Frozen by you')}</span>}
-        </span>
-        <span className="k-card-face back">
-          <span className="k-card-strip" />
-          <span className="k-card-cvv"><small>CVV</small>•••</span>
-          <span className="k-card-note">{t('Kosh will never ask for your card PIN, CVV or OTP. Report fraud on 1930.')}</span>
-        </span>
-      </button>
+        </motion.button>
+      </div>
+      {hint && (
+        <p className="k-card3d-hint" aria-hidden="true">
+          <Icon name="undo" /> {flipped ? t('Tap the card to see the front') : t('Tap the card to see the back')}
+        </p>
+      )}
     </div>
   );
 };

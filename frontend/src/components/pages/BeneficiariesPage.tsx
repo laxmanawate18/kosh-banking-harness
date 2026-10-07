@@ -3,6 +3,8 @@ import { useBanking } from '../../context/BankingContext';
 import { useI18n } from '../../i18n';
 import { Modal } from '../common/Modal';
 import { Icon } from '../common/Icon';
+import { PageHeader } from '../common/PageHeader';
+import { Stagger } from '../common/Animate';
 import { formatDate, formatDateTime } from '../common/Formatters';
 import { useStepUp, StepUpField } from '../app/StepUp';
 
@@ -50,30 +52,25 @@ export const BeneficiariesPage: React.FC<BeneficiariesPageProps> = ({ onNavigate
   };
 
   return (
-    <div className="k-app-page">
-      <header className="k-app-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
-        <div>
-          <h1>{t('Payees')}</h1>
-          <p>{t('People you pay often. New payees have a 24-hour cooling period for your safety.')}</p>
-        </div>
-        <button type="button" className="k-btn primary" onClick={() => setOpen(true)}><Icon name="beneficiaries" />{t('Add payee')}</button>
-      </header>
+    <>
+      <PageHeader title={t('Payees')} subtitle={t('People you pay often. New payees have a 24-hour cooling period for your safety.')}
+        actions={<button type="button" className="k-btn primary" onClick={() => setOpen(true)}><Icon name="beneficiaries" />{t('Add payee')}</button>} />
 
       {people.length === 0 ? (
         <div className="k-card k-empty">
           <Icon name="users" />
           <strong>{t('No payees yet')}</strong>
           <small>{t('Add someone you pay often to send money in two taps.')}</small>
-          <button type="button" className="k-btn primary" style={{ marginTop: 10 }} onClick={() => setOpen(true)}>{t('Add payee')}</button>
+          <button type="button" className="k-btn outline c-mt" onClick={() => setOpen(true)}>{t('Add payee')}</button>
         </div>
       ) : (
-        <div className="k-acc-grid">
+        <Stagger className="k-acc-grid">
           {people.map((b: any) => {
             const blocked = b.risk_status === 'BLOCKED_MULE';
             const display = b.display_name || b.name || t('Payee');
             const cooling = coolingEndsAt(b.created_at);
             return (
-              <article key={b.id} className="k-acc">
+              <Stagger.Item as="article" key={b.id} className="k-acc">
                 <header>
                   <span className="k-avatar" aria-hidden="true">{initials(display)}</span>
                   {blocked
@@ -84,21 +81,21 @@ export const BeneficiariesPage: React.FC<BeneficiariesPageProps> = ({ onNavigate
                 </header>
                 <h3>{display}</h3>
                 <span className="k-acc-no">{b.upi_id || b.destination_masked || b.account_number_masked}</span>
-                <small className="muted" style={{ marginTop: 6 }}>
+                <small className="c-payee-note">
                   {cooling
                     ? t('Up to ₹25,000 until {time}', { time: formatDateTime(cooling.toISOString()) })
                     : t('Added {date}', { date: formatDate(b.created_at) || t('earlier') })}
                 </small>
                 {blocked
-                  ? <p className="form-error" style={{ marginTop: 10 }}>{t('Payments to this destination are blocked by Sentinel.')}</p>
-                  : <button type="button" className="k-btn outline sm" style={{ marginTop: 14, alignSelf: 'flex-start' }}
+                  ? <p className="form-error c-mt">{t('Payments to this destination are blocked by Sentinel.')}</p>
+                  : <button type="button" className="k-btn outline sm c-payee-send"
                       onClick={() => (onSendMoney ? onSendMoney(b.id) : onNavigate?.('payments'))}>
                       <Icon name="payments" />{t('Send money')}
                     </button>}
-              </article>
+              </Stagger.Item>
             );
           })}
-        </div>
+        </Stagger>
       )}
 
       {open && (
@@ -122,6 +119,6 @@ export const BeneficiariesPage: React.FC<BeneficiariesPageProps> = ({ onNavigate
           </form>
         </Modal>
       )}
-    </div>
+    </>
   );
 };

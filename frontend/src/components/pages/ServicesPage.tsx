@@ -1,257 +1,105 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Icon } from '../common/Icon';
-import { Badge } from '../common/Badge';
+import { PageHeader } from '../common/PageHeader';
+import { FilterTabs } from '../common/FilterTabs';
+import { Stagger } from '../common/Animate';
+import { humanizeCode } from '../common/Formatters';
+import { CATALOGUE, SECTIONS, type Info, type Section } from '../app/serviceCatalogue';
 import { apiGet } from '../../services/api';
 import { useChat } from '../../context/ChatContext';
 import { useBanking } from '../../context/BankingContext';
 import { useI18n } from '../../i18n';
 
-interface ServiceItem {
-  id: string;
-  name: string;
-  auth_level?: string;
-  mode?: string;
-  phase?: string;
-}
+interface ServiceItem { id: string; name: string; mode?: string }
 
-type T = (key: string) => string;
-
-const serviceCopy = (t: T): Record<string, string> => ({
-  'P1-04': t('Order a cheque book for your selected account.'),
-  'P1-05': t('Submit a stop-payment request for a cheque.'),
-  'P1-08': t('Request a replacement for a lost or damaged card.'),
-  'P1-11': t('Keep your contact information current.'),
-  'P1-12': t('Update your registered residential address.'),
-  'P1-14': t('Add or change your account nominee.'),
-  'P1-19': t('Apply to open a fixed deposit.'),
-  'P1-20': t('Apply for a recurring monthly deposit.'),
-  'P1-23': t('Choose a branch, date and preferred time.'),
-  'P2-14': t('Raise a concern for review by your banking team.'),
-});
-
-const defaultServices: ServiceItem[] = [
-  { id: 'P1-01', name: 'Balance enquiry', auth_level: 'L1', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-02', name: 'Mini statement', auth_level: 'L1', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-03', name: 'Account statement request', auth_level: 'L2', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-04', name: 'Cheque book request', auth_level: 'L2', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-05', name: 'Stop cheque', auth_level: 'L2', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-06', name: 'Cheque status enquiry', auth_level: 'L1', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-07', name: 'Debit card block', auth_level: 'L2', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-08', name: 'Debit card reissue', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P1' },
-  { id: 'P1-09', name: 'Debit card PIN regeneration', auth_level: 'L3', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-10', name: 'Card transaction controls', auth_level: 'L2', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-11', name: 'Contact detail update', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P1' },
-  { id: 'P1-12', name: 'Address update', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P1' },
-  { id: 'P1-13', name: 'Nominee enquiry', auth_level: 'L2', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-14', name: 'Nominee update', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P1' },
-  { id: 'P1-15', name: 'PAN update', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P1' },
-  { id: 'P1-16', name: 'KYC status enquiry', auth_level: 'L2', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-17', name: 'KYC document submission', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P1' },
-  { id: 'P1-18', name: 'Fixed deposit enquiry', auth_level: 'L1', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-19', name: 'Fixed deposit opening', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P1' },
-  { id: 'P1-20', name: 'Recurring deposit opening', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P1' },
-  { id: 'P1-21', name: 'TDS certificate request', auth_level: 'L2', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-22', name: 'Interest certificate request', auth_level: 'L2', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-23', name: 'Branch appointment', auth_level: 'L1', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P1-24', name: 'Service request status', auth_level: 'L1', mode: 'AUTONOMOUS', phase: 'P1' },
-  { id: 'P2-01', name: 'Account closure', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-  { id: 'P2-02', name: 'Joint holder addition', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-  { id: 'P2-03', name: 'Joint holder removal', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-  { id: 'P2-04', name: 'Mode of operation change', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-  { id: 'P2-05', name: 'Signature update', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-  { id: 'P2-06', name: 'Inoperative account activation', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-  { id: 'P2-07', name: 'Minor-to-major conversion', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-  { id: 'P2-08', name: 'Deceased claim initiation', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-  { id: 'P2-09', name: 'Lien removal request', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-  { id: 'P2-10', name: 'Standing instruction setup', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-  { id: 'P2-11', name: 'Standing instruction cancellation', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-  { id: 'P2-12', name: 'Safe deposit locker enquiry', auth_level: 'L2', mode: 'AUTONOMOUS', phase: 'P2' },
-  { id: 'P2-13', name: 'Safe deposit locker request', auth_level: 'L3', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-  { id: 'P2-14', name: 'Complex grievance escalation', auth_level: 'L2', mode: 'HUMAN_APPROVAL', phase: 'P2' },
-];
-
-const aiWorkflows = (t: T) => [
-  {
-    id: 'account_opening',
-    name: t('Open a new savings account'),
-    description: t('Open a savings account with automated CBS entry after officer verification.'),
-    level: 'L3',
-    note: t('Identity check before submission'),
-    prompt: 'I want to open a new savings account with automated CBS entry.',
-  },
-  {
-    id: 'kyc',
-    name: t('Periodic KYC verification'),
-    description: t('Submit Aadhaar, passport or PAN card for automated compliance verification.'),
-    level: 'L3',
-    note: t('Identity check before submission'),
-    prompt: 'I would like to complete my pending KYC verification.',
-  },
-  {
-    id: 'address_update',
-    name: t('Address change'),
-    description: t('Provide a utility bill or rental agreement to update your residential address.'),
-    level: 'L3',
-    note: t('Identity check before submission'),
-    prompt: 'I want to update my registered residential address.',
-  },
-  {
-    id: 'deposit',
-    name: t('Fixed deposit booking'),
-    description: t('Guided deposit application with custom tenure and interest payouts.'),
-    level: 'L3',
-    note: t('Review before submission'),
-    prompt: 'I want to apply to open a new Fixed Deposit.',
-  },
-  {
-    id: 'cheque_book',
-    name: t('Cheque book dispatch'),
-    description: t('Order a 25 or 50 leaf CTS-compliant cheque book for home delivery.'),
-    level: 'L2',
-    note: t('Review before submission'),
-    prompt: 'I would like to request a new cheque book.',
-  },
-  {
-    id: 'statement',
-    name: t('Account statement download'),
-    description: t('Select an account and dates for an immediate statement download.'),
-    level: 'L2',
-    note: t('Immediate CSV download'),
-    prompt: 'Please generate my recent account statement.',
-  },
-];
-
+// Shown before the catalogue loads (and if it cannot).
+const DEFAULT_IDS = ['P1-01', 'P1-02', 'P1-03', 'P1-04', 'P1-05', 'P1-06', 'P1-07', 'P1-08', 'P1-09', 'P1-10', 'P1-11', 'P1-12', 'P1-13',
+  'P1-14', 'P1-15', 'P1-16', 'P1-17', 'P1-18', 'P1-19', 'P1-20', 'P1-21', 'P1-22', 'P1-23', 'P1-24', 'P2-01', 'P2-02', 'P2-03', 'P2-04',
+  'P2-05', 'P2-06', 'P2-07', 'P2-08', 'P2-09', 'P2-10', 'P2-11', 'P2-12', 'P2-13', 'P2-14'].map(id => ({ id, name: id }));
 
 interface ServicesPageProps {
   onOpenService?: (serviceId: string) => void;
   onStartWorkflow?: (workflowId: string) => void;
 }
 
-export const ServicesPage: React.FC<ServicesPageProps> = ({
-  onOpenService,
-  onStartWorkflow,
-}) => {
-  const [filter, setFilter] = useState<'all' | 'AI' | 'P1' | 'P2'>('all');
-  const [services, setServices] = useState<ServiceItem[]>(defaultServices);
-  const { sendMessage } = useChat();
+export const ServicesPage: React.FC<ServicesPageProps> = ({ onOpenService }) => {
   const { t } = useI18n();
+  const { sendMessage } = useChat();
+  const { startWorkflowById } = useBanking();
+  const [services, setServices] = useState<ServiceItem[]>(DEFAULT_IDS);
+  const [section, setSection] = useState<'all' | Section>('all');
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     apiGet<{ services: ServiceItem[] }>('/api/services')
-      .then((res) => {
-        if (res?.services && res.services.length > 0) {
-          setServices(res.services);
-        }
-      })
+      .then(res => { if (res?.services?.length) setServices(res.services); })
       .catch(() => {});
   }, []);
 
-  const filteredServices = services.filter((s) => filter === 'all' || s.phase === filter);
+  const catalogue = CATALOGUE(t);
+  const q = query.trim().toLowerCase();
+  const items = services
+    .map(s => ({ ...s, ...(catalogue[s.id] || { section: 'help' as Section, icon: 'services', title: humanizeCode(s.name), body: t('Mitra takes your details and tracks the request for you.') }) }))
+    .filter(s => !q || `${s.title} ${s.body} ${s.name}`.toLowerCase().includes(q));
+  const sections = SECTIONS(t).filter(([id]) => items.some(s => s.section === id));
+  const visible = section === 'all' ? sections : sections.filter(([id]) => id === section);
 
-  const getIconName = (s: ServiceItem) => {
-    if (s.id === 'P1-23') return 'calendar';
-    const lower = s.name.toLowerCase();
-    if (lower.includes('card')) return 'cards';
-    if (lower.includes('deposit')) return 'deposits';
-    return 'requests';
-  };
-
-  const { startWorkflowById } = useBanking();
-
-  const handleStartWorkflow = (wf: { id: string }) => {
-    startWorkflowById(wf.id);
-  };
-
-
-  const handleStartService = (s: ServiceItem) => {
-    if (onOpenService) {
-      onOpenService(s.id);
-    }
-    setTimeout(() => {
-      sendMessage(`I would like to request: ${s.name}`);
-    }, 200);
+  const ask = (s: ServiceItem & Info) => {
+    onOpenService?.(s.id);
+    setTimeout(() => sendMessage(t('I would like to: {service}', { service: s.title })), 200);
   };
 
   return (
     <>
-      <header className="page-heading">
-        <div>
-          <h1>{t('A branch, wherever you are.')}</h1>
-          <p>{t('Everyday account services and specialist support.')}</p>
+      <PageHeader title={t('Services')} subtitle={t('Everyday banking requests, without a branch visit.')} />
+      <div className="k-page-stack">
+        <div className="c-services-tools">
+          <label className="c-search">
+            <Icon name="search" />
+            <input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder={t('Search services, for example “cheque”')} aria-label={t('Search services')} />
+          </label>
+          <FilterTabs label={t('Service groups')} name="services" value={section} onChange={id => setSection(id as typeof section)} tabs={[
+            { id: 'all', label: t('All'), count: items.length },
+            ...SECTIONS(t).map(([id, label]) => ({ id, label, count: items.filter(s => s.section === id).length })),
+          ]} />
         </div>
-      </header>
 
-      <div className="filters">
-        {[
-          ['all', t('All services')],
-          ['AI', t('Mitra')],
-          ['P1', t('Everyday banking')],
-          ['P2', t('Specialist support')],
-        ].map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            className={`filter ${filter === id ? 'active' : ''}`}
-            onClick={() => setFilter(id as any)}
-          >
-            {label}
-          </button>
+        <p className="c-legend">
+          <span className="c-tag guided"><Icon name="sparkles" />{t('Guided form')}</span>
+          {t('Mitra fills the form from your documents; you check it before it is sent.')}
+        </p>
+
+        {visible.length === 0 && (
+          <div className="k-card empty"><Icon name="search" /><h3>{t('No services match “{q}”', { q: query })}</h3><p>{t('Try another word, or ask Mitra.')}</p></div>
+        )}
+
+        {visible.map(([id, label]) => (
+          <section key={`${id}-${section}`} aria-labelledby={`svc-${id}`}>
+            <div className="c-section-head"><h2 id={`svc-${id}`}>{label}</h2></div>
+            <Stagger className="c-tile-grid">
+              {items.filter(s => s.section === id).map(s => {
+                const inner = (
+                  <>
+                    <span className="quick-icon"><Icon name={s.icon} /></span>
+                    <span className="c-tile-text">
+                      <strong>{s.title}</strong>
+                      <small>{s.body}</small>
+                      {s.workflow
+                        ? <span className="c-tag guided"><Icon name="sparkles" />{t('Guided form')}</span>
+                        : s.route ? null : <span className="c-tag"><Icon name="ai-banker" />{t('With Mitra')}</span>}
+                    </span>
+                    <Icon name="arrow-right" className="icon k-go" />
+                  </>
+                );
+                return s.route
+                  ? <Stagger.Item as="a" key={s.id} href={`#${s.route}`} className="k-quick-tile c-service" whileTap={{ scale: 0.98 }}>{inner}</Stagger.Item>
+                  : <Stagger.Item as="button" key={s.id} type="button" className="k-quick-tile c-service" whileTap={{ scale: 0.98 }}
+                      onClick={() => (s.workflow ? startWorkflowById(s.workflow) : ask(s))}>{inner}</Stagger.Item>;
+              })}
+            </Stagger>
+          </section>
         ))}
       </div>
-
-      {filter === 'AI' ? (
-        <>
-          <p className="form-hint" style={{ marginBottom: '14px' }}>
-            {t('Document-assisted forms and guided services. Mitra prepares the details. You review and authorize the request.')}
-          </p>
-          <div className="three-grid">
-            {aiWorkflows(t).map((wf) => (
-              <article key={wf.id} className="service-tile">
-                <Badge variant="neutral">{t('Mitra')}</Badge>
-                <h3>{wf.name}</h3>
-                <p>{wf.description}</p>
-                <footer>
-                  <span className="wf-service-note" style={{ fontSize: '13px', color: 'var(--muted)' }}>{wf.note}</span>
-                  <button
-                    type="button"
-                    className="text-button"
-                    onClick={() => handleStartWorkflow(wf)}
-                  >
-                    {t('Get started')} <Icon name="arrow-right" />
-                  </button>
-                </footer>
-              </article>
-            ))}
-          </div>
-        </>
-      ) : (
-        <div className="three-grid">
-          {filteredServices.map((s) => (
-            <article key={s.id} className="service-tile">
-              <span className="quick-icon">
-                <Icon name={getIconName(s)} />
-              </span>
-              <h3>{s.name}</h3>
-              <p>
-                {serviceCopy(t)[s.id] ||
-                  t('Submit your details and track your request through digital banking.')}
-              </p>
-              <footer>
-                <Badge variant="neutral">
-                  {s.mode === 'HUMAN_APPROVAL' ? t('Officer review') : t('Banking service')}
-                </Badge>
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() => handleStartService(s)}
-                >
-                  {t('Get started')} <Icon name="arrow-right" />
-                </button>
-              </footer>
-            </article>
-          ))}
-        </div>
-      )}
     </>
   );
 };

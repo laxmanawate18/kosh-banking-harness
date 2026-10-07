@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useBanking } from '../../context/BankingContext';
 import { Icon } from '../common/Icon';
-import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { PageHeader } from '../common/PageHeader';
+import { AnimatePresence, Stagger, motion } from '../common/Animate';
+import { RequestCard, RequestDetailModal } from './RequestsPage';
 import { submitServiceRequest } from '../../services/banking';
 import { fdMaturity, formatRupees, rdMaturity } from '../common/Formatters';
 import { useI18n } from '../../i18n';
@@ -13,11 +15,7 @@ interface DepositsPageProps {
   onViewRequest?: (requestId: string) => void;
 }
 
-export const DepositsPage: React.FC<DepositsPageProps> = ({
-  onNavigate,
-  onOpenService,
-  onViewRequest,
-}) => {
+export const DepositsPage: React.FC<DepositsPageProps> = () => {
   const { overview, refreshOverview } = useBanking();
   const { t } = useI18n();
   const [modalType, setModalType] = useState<'FD' | 'RD' | null>(null);
@@ -80,111 +78,66 @@ export const DepositsPage: React.FC<DepositsPageProps> = ({
     }
   };
 
+  const open = (type: 'FD' | 'RD') => {
+    setFormError('');
+    setModalType(type);
+    setAmount(type === 'FD' ? '50000' : '5000');
+    setTenureMonths('12');
+  };
+
+  const products = [
+    { type: 'FD' as const, icon: 'deposits', title: t('Fixed deposit'), rate: t('Up to {rate}% p.a.', { rate: '7.25' }),
+      body: t('Set aside a lump sum for 6 to 36 months. The rate is fixed when the bank confirms your deposit.'), cta: t('Open a fixed deposit') },
+    { type: 'RD' as const, icon: 'calendar', title: t('Recurring deposit'), rate: t('Up to {rate}% p.a.', { rate: '6.85' }),
+      body: t('Save a fixed amount every month and build the habit. Choose a term from 6 to 36 months.'), cta: t('Open a recurring deposit') },
+  ];
+
   return (
     <>
-      <header className="page-heading">
-        <div>
-          <h1>{t('Make room for your future.')}</h1>
-          <p>{t('Plan a deposit and send an application to your banking team.')}</p>
-        </div>
-      </header>
+      <PageHeader title={t('Deposits')} subtitle={t('Plan a deposit and send an application to your banking team.')} />
+      <div className="k-page-stack">
+        <AnimatePresence>
+          {successMsg && (
+            <motion.div className="k-note c-note-ok" role="status" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <Icon name="check" /><span>{successMsg}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {successMsg && (
-        <div className="badge success" style={{ padding: '8px 14px', marginBottom: '14px', display: 'inline-flex' }}>
-          <Icon name="check" /> {successMsg}
-        </div>
-      )}
-
-      <div className="two-grid">
-        <article className="service-tile">
-          <span className="quick-icon">
-            <Icon name="deposits" />
-          </span>
-          <h2>{t('Fixed deposit')}</h2>
-          <p>
-            {t('Set aside a lump sum for a term that suits your plans. Earn up to 7.25% p.a. guaranteed returns with officer rate confirmation before booking.')}
-          </p>
-          <button
-            type="button"
-            className="button primary"
-            onClick={() => {
-              setModalType('FD');
-              setAmount('50000');
-              setTenureMonths('12');
-            }}
-          >
-            {t('Apply for fixed deposit')}
-          </button>
-        </article>
-
-        <article className="service-tile">
-          <span className="quick-icon">
-            <Icon name="calendar" />
-          </span>
-          <h2>{t('Recurring deposit')}</h2>
-          <p>
-            {t('Build a disciplined savings habit with a fixed monthly contribution. Earn up to 6.85% p.a. returns with flexible tenure options.')}
-          </p>
-          <button
-            type="button"
-            className="button"
-            onClick={() => {
-              setModalType('RD');
-              setAmount('5000');
-              setTenureMonths('12');
-            }}
-          >
-            {t('Apply for recurring deposit')}
-          </button>
-        </article>
-      </div>
-
-      <div className="section-heading" style={{ marginTop: '20px' }}>
-        <h2>{t('Your deposit applications')}</h2>
-      </div>
-
-      {reqs.length ? (
-        <div className="request-list">
-          {reqs.map((r: any) => (
-            <article key={r.id} className="request-card">
+        <Stagger className="c-product-grid">
+          {products.map((p, i) => (
+            <Stagger.Item as="article" key={p.type} className="k-panel c-product">
+              <span className="quick-icon"><Icon name={p.icon} /></span>
               <div>
-                <h3>{r.service_name || r.request_type || t('Deposit application')}</h3>
-                <p>
-                  {r.id} · {new Date(r.created_at || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </p>
+                <h2>{p.title}</h2>
+                <span className="c-rate">{p.rate}</span>
               </div>
-              <div className="request-actions">
-                <Badge status={r.status || 'PENDING_APPROVAL'}>
-                  {r.status || 'PENDING_APPROVAL'}
-                </Badge>
-                <button
-                  type="button"
-                  className="button"
-                  onClick={() => setSelectedRequest(r)}
-                >
-                  {t('View details')}
-                </button>
-              </div>
-            </article>
+              <p>{p.body}</p>
+              <button type="button" className={`k-btn ${i === 0 ? 'primary' : 'outline'}`} onClick={() => open(p.type)}>{p.cta} <Icon name="arrow-right" /></button>
+            </Stagger.Item>
           ))}
-        </div>
-      ) : (
-        <div className="empty">
-          <Icon name="requests" />
-          <h3>{t('Nothing to track just yet')}</h3>
-          <p>{t('New requests and their progress will appear here.')}</p>
-          <button
-            type="button"
-            className="button"
-            onClick={() => onNavigate?.('services')}
-          >
-            {t('Explore services')}
-          </button>
-        </div>
-      )}
+        </Stagger>
 
-      <div className="content-note" style={{ marginTop: '20px' }}>
-        {t('Submitting an application does not immediately debit your account. Rate confirmation and booking require bank officer review.')}
+        <section aria-labelledby="dep-apps">
+          <div className="c-section-head"><h2 id="dep-apps">{t('Your deposit applications')}</h2></div>
+          {reqs.length ? (
+            <Stagger className="request-list">
+              {reqs.map((r: any) => <RequestCard key={r.id} request={r} onOpen={setSelectedRequest} />)}
+            </Stagger>
+          ) : (
+            <div className="k-card empty">
+              <Icon name="deposits" />
+              <h3>{t('No deposits yet')}</h3>
+              <p>{t('Open a fixed or recurring deposit and you can follow its progress here.')}</p>
+              <button type="button" className="k-btn outline" onClick={() => open('FD')}>{t('Open a deposit')}</button>
+            </div>
+          )}
+        </section>
+
+        <div className="k-note">
+          <Icon name="info" />
+          <span>{t('Submitting an application does not immediately debit your account. Rate confirmation and booking require bank officer review.')}</span>
+        </div>
       </div>
 
       {/* Deposit Application Modal */}
@@ -195,8 +148,8 @@ export const DepositsPage: React.FC<DepositsPageProps> = ({
           title={modalType === 'FD' ? t('Apply for fixed deposit') : t('Apply for recurring deposit')}
           subtitle={t('Review deposit tenure, interest rate and maturity estimate.')}
         >
-          <form onSubmit={handleApplyDeposit} className="payment-form">
-            <label>
+          <form onSubmit={handleApplyDeposit}>
+            <label className="k-field">
               {t('From account')}
               <select
                 value={selectedAccId}
@@ -210,7 +163,7 @@ export const DepositsPage: React.FC<DepositsPageProps> = ({
               </select>
             </label>
 
-            <label>
+            <label className="k-field">
               {modalType === 'FD' ? t('Deposit amount (₹)') : t('Monthly contribution (₹)')}
               <input
                 type="number"
@@ -223,7 +176,7 @@ export const DepositsPage: React.FC<DepositsPageProps> = ({
               />
             </label>
 
-            <label>
+            <label className="k-field">
               {t('Tenure')}
               <select
                 value={tenureMonths}
@@ -235,7 +188,7 @@ export const DepositsPage: React.FC<DepositsPageProps> = ({
               </select>
             </label>
 
-            <label>
+            <label className="k-field">
               {t('Interest payout')}
               <select
                 value={payoutOption}
@@ -247,65 +200,22 @@ export const DepositsPage: React.FC<DepositsPageProps> = ({
               </select>
             </label>
 
-            <div style={{ background: 'var(--surface-2)', padding: '12px 14px', borderRadius: '8px', margin: '14px 0', border: '1px solid var(--line)' }}>
+            <div className="c-maturity">
               <div className="info-row"><span>{t('Interest rate')}</span><strong>{t('{rate}% p.a.', { rate: interestRate })}</strong></div>
-              <div className="info-row"><span>{t('Estimated maturity value')}</span><strong style={{ color: 'var(--ok)', fontSize: '14px' }}>{formatRupees(estimatedMaturity)}</strong></div>
+              <div className="info-row"><span>{t('Estimated maturity value')}</span><strong className="c-maturity-value">{formatRupees(estimatedMaturity)}</strong></div>
             </div>
 
             {formError && <div className="form-error" role="alert">{formError}</div>}
 
-            <div className="dialog-footer">
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => setModalType(null)}
-                disabled={isSubmitting}
-              >
-                {t('Cancel')}
-              </button>
-              <button
-                type="submit"
-                className="button primary"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? t('Submitting…') : t('Submit application')}
-              </button>
+            <div className="k-dialog-actions">
+              <button type="button" className="k-btn outline" onClick={() => setModalType(null)} disabled={isSubmitting}>{t('Cancel')}</button>
+              <button type="submit" className="k-btn primary" disabled={isSubmitting}>{isSubmitting ? t('Submitting…') : t('Submit application')}</button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* Request Details Modal */}
-      {selectedRequest && (
-        <Modal
-          isOpen={true}
-          onClose={() => setSelectedRequest(null)}
-          title={t('Deposit application details')}
-          subtitle={t('Reference {id}', { id: selectedRequest.id })}
-        >
-          <div className="info-row">
-            <span>{t('Service')}</span>
-            <strong>{selectedRequest.service_name || selectedRequest.request_type || t('Deposit application')}</strong>
-          </div>
-          <div className="info-row">
-            <span>{t('Status')}</span>
-            <Badge status={selectedRequest.status}>{selectedRequest.status}</Badge>
-          </div>
-          <div className="info-row">
-            <span>{t('Submitted on')}</span>
-            <strong>{new Date(selectedRequest.created_at || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</strong>
-          </div>
-          <div className="dialog-footer" style={{ marginTop: '20px' }}>
-            <button
-              type="button"
-              className="button primary wide"
-              onClick={() => setSelectedRequest(null)}
-            >
-              {t('Done')}
-            </button>
-          </div>
-        </Modal>
-      )}
+      {selectedRequest && <RequestDetailModal request={selectedRequest} onClose={() => setSelectedRequest(null)} />}
     </>
   );
 };

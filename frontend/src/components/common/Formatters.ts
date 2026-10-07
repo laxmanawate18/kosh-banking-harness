@@ -68,3 +68,11 @@ export function formatDateTime(isoString: string): string {
   }
 }
 
+
+/** A system code as words a person can read: "P2P_TRANSFER" -> "P2P transfer", "ELECTRICITY" -> "Electricity". */
+export function humanizeCode(code: string | null | undefined): string {
+  if (!code) return '';
+  const words = String(code).replace(/[_-]+/g, ' ').trim().toLowerCase();
+  const fixed = words.replace(/\b(upi|kyc|pan|emi|fd|rd|atm|neft|imps|rtgs|ifsc|p2p|otp|id|pin|cvv|nri|gst|tds)\b/g, w => w.toUpperCase());
+  return fixed.charAt(0).toUpperCase() + fixed.slice(1);
+}

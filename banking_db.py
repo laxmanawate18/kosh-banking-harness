@@ -199,7 +199,7 @@ class BankingDatabase:
         """Officer kill switches: channels where Mitra is paused and tools that are blocked. One primary-key read."""
         with self.runtime.sessions() as session:
             row = session.get(BankDocumentRecord, ("harness_controls", "current"))
-            return dict(row.data) if row else {}
+            return {"disabled_channels": [], "disabled_tools": [], **(dict(row.data) if row else {})}
 
     def set_controls(self, *, disabled_channels: List[str], disabled_tools: List[str], reason: str, officer_user_id: str) -> Dict[str, Any]:
         controls = {"disabled_channels": sorted(set(disabled_channels)), "disabled_tools": sorted(set(disabled_tools)),

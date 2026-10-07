@@ -427,11 +427,12 @@ export const InstantOnboardingModal: React.FC<InstantOnboardingModalProps> = ({
   );
 };
 
+/** The label wraps its control, so screen readers announce it and a tap on the text focuses the field. */
 const Field: React.FC<{ label: React.ReactNode; loan?: boolean; children: React.ReactNode }> = ({ label, loan, children }) => (
-  <div className={loan ? 'iob-field loan' : 'iob-field'}>
-    <label>{label}</label>
+  <label className={loan ? 'iob-field loan' : 'iob-field'}>
+    <span className="iob-label">{label}</span>
     {children}
-  </div>
+  </label>
 );
 
 interface ResultViewProps {
