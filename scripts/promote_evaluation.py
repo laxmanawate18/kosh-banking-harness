@@ -7,7 +7,7 @@
 The prompt version is a hash of everything that shapes Mitra's and the copilot's replies, so a run on that version is valid
 for the same version anywhere. Refuses unless: this checkout produces that version, the local run passes the release
 gate, and production has registered that version (i.e. the same code is deployed). It never approves: the AI owner
-approves in the production officer console after reviewing the copied run.
+approves in the production Admin Panel (Approvals) after reviewing the copied run.
 
 Target database: CLOUD_SQL_DATABASE_URL (from .env, as scripts/sync_db.py uses) or --target.
 """
@@ -69,12 +69,12 @@ def promote(source_url: str, target_url: str, version: str, apply: bool) -> int:
         print(f"Run {run['at']}: {run['passed']}/{run['total']} ({run['pass_rate']}%), release gate passed.")
         print(f"Target {record_id}: active={row.active}, approval={summary.get('approval') or 'none'}")
         if not apply:
-            print("Dry run. Re-run with --apply to copy it; then approve in the production officer console.")
+            print("Dry run. Re-run with --apply to copy it; then approve it in the production Admin Panel (Approvals).")
             return 0
         summary["evaluations"] = (summary.get("evaluations") or [])[-9:] + [promoted]
         row.evaluation_summary = summary
         session.commit()
-    print(f"Copied. Approve {record_id} in Operations → Mitra quality → Prompt versions.")
+    print(f"Copied. Approve {record_id} in the Admin Panel → Approvals (sign in as the admin).")
     return 0
 
 
