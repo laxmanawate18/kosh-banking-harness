@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 /* Mitra voice: dictation into the message box, and replies read aloud.
-   The clip is recorded and transcribed by Kosh's server (Cloud Speech-to-Text in India) when the customer stops, so
+   The clip is recorded and transcribed by Kosh's server (Cloud Speech-to-Text) when the customer stops, so
    their voice goes only to the bank's own cloud project. The browser's built-in recognition, which sends audio to the
    browser vendor, is used only where recording is not available. */
 

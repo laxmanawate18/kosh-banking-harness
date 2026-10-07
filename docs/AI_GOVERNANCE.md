@@ -104,7 +104,7 @@ How it is enforced:
 3. **Safety net.** Every payload bound for a model is checked for this customer's real identifiers and for full PAN and card-number shapes; anything found is replaced and an `LLM_BOUNDARY_WITHHELD` audit event is recorded.
 4. **No details in chat.** Visitors apply in the website's secure form (Mitra only opens it); KYC documents are read by the bank's own parser, and Mitra learns only which details were found.
 5. **The system prompt** carries the first name and KYC status only: no customer id, full name, lead amounts or notes.
-6. **Voice** uses Cloud Speech-to-Text (in `asia-south1`) and Cloud Text-to-Speech, not a generative model.
+6. **Voice** uses Cloud Speech-to-Text (`chirp_2` in `asia-southeast1`, Singapore: Mumbai no longer serves a model for English, Hindi and Marathi; set `KOSH_SPEECH_LOCATION`/`KOSH_SPEECH_MODEL` to move back when it does) and Cloud Text-to-Speech, not a generative model.
 7. **Logs** record why a reply was replaced and its length, never its text.
 
 Known limits: the main model is served from Vertex AI's `global` endpoint unless `GOOGLE_CLOUD_LOCATION` pins a region

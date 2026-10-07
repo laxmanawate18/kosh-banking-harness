@@ -78,7 +78,7 @@ class VoiceRouteTests(unittest.TestCase):
             text = asyncio.run(voice.transcribe(b"opus", "audio/webm", "hi"))
             asyncio.run(voice.synthesize("आपका बैलेंस ₹1,22,570.00 है।"))
         self.assertEqual(text, "मेरा बैलेंस दिखाओ")
-        self.assertIn("asia-south1-speech.googleapis.com/v2/", calls[0][0])
+        self.assertIn("asia-southeast1-speech.googleapis.com/v2/", calls[0][0])
         self.assertEqual(calls[0][1]["config"]["languageCodes"], ["hi-IN"])
         self.assertTrue(calls[1][0].startswith("https://texttospeech.googleapis.com/"))
         self.assertEqual(calls[1][1]["voice"]["languageCode"], "hi-IN")

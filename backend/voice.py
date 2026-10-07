@@ -19,9 +19,11 @@ MAX_AUDIO_BYTES = 2_000_000  # ~60 s of Opus/AAC speech
 MAX_SPEECH_CHARS = 2500      # one chat reply; longer text is trimmed at a sentence boundary
 AUDIO_TYPES = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav", "audio/x-m4a", "audio/aac", "audio/aiff"}
 LANGUAGES = {"en": "en-IN", "hi": "hi-IN", "mr": "mr-IN"}
-# Speech-to-Text v2 runs in a region; asia-south1 (Mumbai) keeps Indian customers' audio in India.
-SPEECH_LOCATION = os.getenv("KOSH_SPEECH_LOCATION", "asia-south1")
-SPEECH_MODEL = os.getenv("KOSH_SPEECH_MODEL", "short")
+# Speech-to-Text v2 runs in a region. Mumbai (asia-south1) no longer serves a model for en-IN/hi-IN/mr-IN (checked
+# 2026-10-07: short, long, chirp_2, chirp_3 and telephony all refused), so the nearest region that does is used:
+# Singapore with chirp_2. Switch back with these two settings when Mumbai offers one.
+SPEECH_LOCATION = os.getenv("KOSH_SPEECH_LOCATION", "asia-southeast1")
+SPEECH_MODEL = os.getenv("KOSH_SPEECH_MODEL", "chirp_2")
 STREAM_RATE = 24000  # LINEAR16 sample rate requested from Text-to-Speech (16-bit mono)
 _MARATHI = re.compile(r"(आहे|आहेत|नाही|तुमच|माझ|करा|झाले|मिळेल|साठी)")
 
