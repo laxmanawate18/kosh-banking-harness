@@ -247,7 +247,8 @@ def main() -> int:
                     time.sleep(10)
     print(f"""    Mitra and the copilot answer "paused" until prompt version {version} is approved in production:
       venv/bin/python scripts/promote_evaluation.py --version {version} --apply
-      then approve it in Operations -> Mitra quality -> Prompt versions
+      then sign in as the admin (password: gcloud secrets versions access latest --secret=kosh-admin-password)
+      and approve it in the Admin Panel -> Approvals; then approve the processes in Admin Panel -> Business ontology
     Optional: scripts/register_agent.sh (outside agents), scripts/cloud_armor.sh (once the quota is raised)""")
     if not args.apply:
         print("\nDry run. Nothing was changed. Re-run with --apply.")
