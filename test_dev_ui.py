@@ -260,14 +260,17 @@ class SentinelAppTests(unittest.TestCase):
         self.assertEqual(summary_aarav["total_available_minor"], 41000000)
         self.assertEqual({b["display_name"] for b in summary_aarav["beneficiaries"]}, {"Tata Power Mumbai", "Home Rent", "Vikram", "Fast Cash Services"})
 
-        # 3. Verify Agent Config System Instructions include customer context
+        # 3. Each agent is set up for its own customer only, with the first name and nothing more (LLM boundary:
+        # no surname, no customer id, and nothing of the other customer).
         config_sudhir = create_agent_config("sess-sudhir", session_context={"customer_id": "CUST-1002"})
-        self.assertIn("Sudhir Jaiswal", config_sudhir.system_instructions)
-        self.assertIn("CUST-1002", config_sudhir.system_instructions)
+        self.assertIn("Sudhir", config_sudhir.system_instructions)
+        for absent in ("Jaiswal", "CUST-1002", "Aarav", "CUST-1001"):
+            self.assertNotIn(absent, config_sudhir.system_instructions)
 
         config_aarav = create_agent_config("sess-aarav", session_context={"customer_id": "CUST-1001"})
-        self.assertIn("Aarav Mehta", config_aarav.system_instructions)
-        self.assertIn("CUST-1001", config_aarav.system_instructions)
+        self.assertIn("Aarav", config_aarav.system_instructions)
+        for absent in ("Mehta", "CUST-1001", "Sudhir", "CUST-1002"):
+            self.assertNotIn(absent, config_aarav.system_instructions)
 
     def test_kyc_compliance_workflow_and_officer_approval(self):
         from workflow_test_support import submit_kyc, VERIFICATION
