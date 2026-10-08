@@ -3,17 +3,14 @@ import { ArrowUp, Mic, Square } from 'lucide-react';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
 import { useI18n } from '../../i18n';
-import { canDictate, DICTATION_LANGS, stopSpeaking, useDictation, type DictationLang } from './voice';
-
-const SITE_TO_DICTATION: Record<string, DictationLang> = { en: 'en-IN', hi: 'hi-IN', mr: 'mr-IN' };
+import { canDictate, stopSpeaking, useDictation } from './voice';
 
 export function ChatComposer({ idPrefix = 'drawer' }: { idPrefix?: string }) {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const { sendMessage, isStreaming, isConnected } = useChat();
   const { user } = useAuth();
   const [prompt, setPrompt] = useState('');
   const [voiceError, setVoiceError] = useState('');
-  const [voiceLang, setVoiceLang] = useState<DictationLang>(SITE_TO_DICTATION[lang] || 'en-IN');
   const spoken = useRef(false); // the current text came (partly) from the mic → Mitra answers aloud
   const box = useRef<HTMLTextAreaElement>(null);
   const dictation = useDictation(
@@ -35,17 +32,13 @@ export function ChatComposer({ idPrefix = 'drawer' }: { idPrefix?: string }) {
     }
   };
 
-  const listen = (language = voiceLang) => {
+  const listen = () => {
     setVoiceError('');
     stopSpeaking();
-    void dictation.start(prompt, language);
+    void dictation.start(prompt, 'en-IN');
     box.current?.focus();
   };
   const toggleMic = () => (dictation.listening ? dictation.stop() : listen());
-  const switchLang = (l: DictationLang) => {
-    setVoiceLang(l);
-    if (dictation.listening) { dictation.stop(); setTimeout(() => listen(l), 150); }
-  };
 
   const busy = dictation.listening || dictation.transcribing;
   const placeholder = dictation.listening ? t('Listening… speak now')
@@ -71,16 +64,9 @@ export function ChatComposer({ idPrefix = 'drawer' }: { idPrefix?: string }) {
     {voiceError ? <p className="ai-composer-note ai-voice-error" role="alert">{voiceError}</p>
       : busy ? (
         <p className="ai-composer-note ai-voice-status" role="status">
-          <i className="ai-voice-dot" />{dictation.transcribing ? t('Writing down what you said…') : t('Listening in')}
-          {!dictation.transcribing && (
-            <span className="ai-voice-langs" role="group" aria-label={t('Voice language')}>
-              {DICTATION_LANGS.map(([code, label]) => (
-                <button key={code} type="button" aria-pressed={voiceLang === code} onClick={() => switchLang(code)}>{label}</button>
-              ))}
-            </span>
-          )}
+          <i className="ai-voice-dot" />{dictation.transcribing ? t('Writing down what you said…') : t('Listening')}
         </p>
-      ) : <p className="ai-composer-note">{user?.role === 'CUSTOMER' ? t('Upload documents through the KYC or address workflow.') : t('Type, or tap the mic and speak in English, हिन्दी or मराठी.')}</p>}
+      ) : <p className="ai-composer-note">{user?.role === 'CUSTOMER' ? t('Upload documents through the KYC or address workflow.') : t('Type, or tap the mic and speak.')}</p>}
     <p className="ai-composer-note ai-disclosure">{t('Mitra is Kosh’s AI assistant and can make mistakes; check important details in official terms. Chats are kept for 90 days. Never share your OTP or PIN.')}</p>
   </div>;
 }

@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from 'react';
    browser vendor, is used only where recording is not available. */
 
 export type DictationLang = 'en-IN' | 'hi-IN' | 'mr-IN';
-export const DICTATION_LANGS: [DictationLang, string][] = [['en-IN', 'EN'], ['hi-IN', 'हिं'], ['mr-IN', 'मरा']];
 
 type Recognition = {
   lang: string; interimResults: boolean; continuous: boolean;

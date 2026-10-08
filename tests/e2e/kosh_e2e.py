@@ -280,15 +280,10 @@ def stage_a(b, R):
     R.check("A02", area, "Public pages (Accounts, Cards, Loans, Rates, Calculators, Help) render",
             not bad, "; ".join(bad) or "; ".join(page_notes))
 
-    lang = []
-    for code in ("hi", "mr"):
-        pg.goto(APP + "/", wait_until="networkidle")
-        pg.locator(f"button[lang='{code}']").first.click(); pg.wait_for_timeout(1200)
-        lang.append((code, devanagari(text_of(pg))))
-        shot(R, pg, f"A03_lang_{code}")
-    pg.locator("button[lang='en-IN']").first.click(); pg.wait_for_timeout(800)
-    R.check("A03", area, "Language switch to Hindi and Marathi translates the page",
-            all(n > 300 for _, n in lang), f"devanagari chars: {lang}")
+    pg.goto(APP + "/", wait_until="networkidle")
+    switches, script = pg.locator("button[lang]").count(), devanagari(text_of(pg))
+    R.check("A03", area, "The site is English-only: no language switch, no Hindi or Marathi copy (the कोष logo aside)",
+            switches == 0 and script < 20, f"language buttons: {switches}, devanagari chars: {script}")
 
     hits = {k: v for k, v in brand_hits.items() if v}
     R.check("A04", area, "No 'Sentinel' product naming on public pages", not hits, hits or "none found")

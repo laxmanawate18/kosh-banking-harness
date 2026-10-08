@@ -227,7 +227,7 @@ export const FaqsPage: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
         <Reveal className="k-cta-card">
           <div>
             <h2>{t('Still have a question?')}</h2>
-            <p>{t('Mitra answers 24×7 in English, हिन्दी and मराठी')}</p>
+            <p>{t('Mitra answers 24×7 in English, Hindi and Marathi')}</p>
           </div>
           <button type="button" className="k-btn primary lg" onClick={() => onAsk(t('I have a question about Kosh.'))}>{t('Ask Mitra')} <Icon name="arrow-right" /></button>
         </Reveal>

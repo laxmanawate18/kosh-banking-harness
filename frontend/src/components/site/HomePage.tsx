@@ -1,5 +1,6 @@
-import React from 'react';
-import { CardRing, Editorial, LuxHero, Rewards, SafetyStatement, UpgradeRail } from './Lux';
+import React, { useRef } from 'react';
+import { Editorial, LuxHero, Rewards, SafetyStatement, UpgradeRail } from './Lux';
+import { CardFan, Dust, FinaleCard, GoldenThread, Torch, TravelingCard } from './Journey';
 import { DoorFinale, Manifesto, Stats } from './Story';
 
 interface HomeProps {
@@ -10,17 +11,24 @@ interface HomeProps {
 /** One idea per screen. Catalogue, rates and calculators live on their own pages. */
 export const HomePage: React.FC<HomeProps> = ({ onLogin, onAsk }) => {
   const openAccount = () => { window.location.hash = '#/products/savings'; };
+  const root = useRef<HTMLDivElement>(null);
   return (
     <>
-      <LuxHero onOpen={openAccount} onLogin={onLogin} />
-      <Manifesto />
-      <CardRing />
-      <UpgradeRail onAsk={onAsk} />
-      <Editorial />
-      <Rewards />
-      <SafetyStatement />
-      <Stats />
-      <DoorFinale onOpen={openAccount} onAsk={onAsk} />
+      <div ref={root} className="kj-home">
+        <LuxHero onOpen={openAccount} onLogin={onLogin} />
+        <Manifesto />
+        <CardFan />
+        <UpgradeRail onAsk={onAsk} />
+        <Editorial />
+        <Rewards />
+        <SafetyStatement />
+        <Stats />
+        <DoorFinale onOpen={openAccount} onAsk={onAsk}><FinaleCard /></DoorFinale>
+        <GoldenThread root={root} />
+      </div>
+      <TravelingCard />
+      <Torch />
+      <Dust />
     </>
   );
 };

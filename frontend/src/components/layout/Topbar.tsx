@@ -12,11 +12,9 @@ interface TopbarProps {
   onNavigate?: (route: string) => void;
 }
 
-const greeting = (): [string, string] => {
+const greeting = () => {
   const h = new Date().getHours();
-  if (h < 12) return ['सुप्रभात', 'Good morning'];
-  if (h < 17) return ['नमस्ते', 'Good afternoon'];
-  return ['शुभ संध्या', 'Good evening'];
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 };
 
 const initials = (name?: string) => {
@@ -25,9 +23,9 @@ const initials = (name?: string) => {
 };
 
 export const Topbar: React.FC<TopbarProps> = ({ activeRouteLabel, onOpenMobileMenu, onOpenSearch, onNavigate }) => {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const { user } = useAuth();
-  const [hi, en] = greeting();
+
   const isOfficer = user?.role === 'OFFICER';
   const isAdmin = user?.role === 'ADMIN';
 
@@ -38,7 +36,7 @@ export const Topbar: React.FC<TopbarProps> = ({ activeRouteLabel, onOpenMobileMe
           <Icon name="menu" />
         </button>
         <div className="k-top-title">
-          <small>{lang === 'en' ? <><b lang="hi">{hi}</b> · {en}</> : <b>{t(en)}</b>}</small>
+          <small>{t(greeting())}</small>
           <strong id="pageCrumb">{activeRouteLabel}</strong>
         </div>
       </div>

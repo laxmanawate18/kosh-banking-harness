@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
-  animate, motion, useInView, useMotionTemplate, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform,
-  type AnimationPlaybackControls, type Variants,
+  animate, motion, useInView, useMotionTemplate, useMotionValue, useReducedMotion, useSpring, useTransform,
+  type AnimationPlaybackControls, type MotionStyle, type MotionValue, type Variants,
 } from 'framer-motion';
 import { LotusMark, Rangoli } from '../common/KoshLogo';
 import { Icon } from '../common/Icon';
 import { EASE } from '../common/Animate';
 import { useI18n } from '../../i18n';
+import '../../home.css';
 
 /*
  * "Forged in light": the home hero's metal card.
@@ -14,11 +15,12 @@ import { useI18n } from '../../i18n';
  *    together with a spring, throwing gold shockwaves and sparks.
  * 2. Then it lives: a real slab with a gold edge, foil and hologram that shift with the angle, two particle orbits
  *    passing behind it, and a Sentinel scan beam every few seconds.
- * 3. It leans toward the cursor, spins when flung (settling on a face), flips on tap and turns as the page scrolls.
+ * 3. It leans toward the cursor, spins when flung (settling on a face) and flips on tap. Scrolling lifts it into the
+ *    home journey (Journey.tsx), which flies it down the page.
  * Decorative only (aria-hidden, nothing focusable). Reduced motion: the finished card, still.
  */
 
-type Phase = 'gather' | 'exploded' | 'forged';
+export type Phase = 'gather' | 'exploded' | 'forged';
 type Layer = { key: string; tag: string; far: number; burst: number; rest: number };
 type Vars = CSSProperties & Record<`--${string}`, string | number>;
 
@@ -91,6 +93,70 @@ const Orbits: React.FC<{ side: 'back' | 'front'; lit: boolean }> = ({ side, lit 
   );
 };
 
+
+export type CardVariant = 'platinum' | 'vajra' | 'neo';
+const CARDS: Record<CardVariant, { kind: string; last4: string; network: string }> = {
+  platinum: { kind: 'Platinum metal', last4: '4821', network: 'RuPay' },
+  vajra: { kind: 'Vajra metal credit', last4: '7306', network: 'RuPay' },
+  neo: { kind: 'Neo cashback credit', last4: '1958', network: 'RuPay' },
+};
+
+/**
+ * The metal card itself: a slab of stacked layers with a gold edge and a back. HeroCard forges it; the home journey
+ * (Journey.tsx) flies it down the page, fans it out with its siblings and brings it back in the finale.
+ * Without motion values it renders a still, finished card.
+ */
+export const MetalCard: React.FC<{
+  variant?: CardVariant; style?: MotionStyle; className?: string; phase?: Phase; k?: number; reduce?: boolean;
+  foilPos?: MotionValue<string> | string; holoHue?: MotionValue<string> | string; glare?: MotionValue<string> | string;
+}> = ({ variant = 'platinum', style, className = '', phase = 'forged', k = 1, reduce = true,
+  foilPos = '50% 40%', holoHue = 'none', glare = 'radial-gradient(circle at 30% 18%, rgb(255 255 255 / .16), transparent 46%)' }) => {
+  const { t } = useI18n();
+  const card = CARDS[variant];
+  const start = reduce || phase === 'forged' ? 'forged' : 'gather';
+  return (
+    <motion.div className={`kh-card kh-v-${variant} ${phase === 'forged' ? 'is-forged' : ''} ${className}`} style={style}>
+      {EDGE.map((z, i) => <span key={i} className="kh-edge" style={{ transform: `translateZ(${z}px)` }} />)}
+      <div className="kh-back">
+        <span className="kh-strip" />
+        <span className="kh-sign"><em>Aarav Sharma</em><b>CVV •••</b></span>
+        <span className="kh-note">{t('Kosh will never ask for your card PIN, CVV or OTP. Report fraud on 1930.')}</span>
+        <span className="kh-back-foot"><LotusMark size={22} /> kosh</span>
+      </div>
+
+      {STACK.map((l, i) => (
+        <motion.div key={l.key} className={`kh-layer kh-${l.key}`} custom={{ ...l, i, k }} variants={layer}
+          initial={start} animate={phase}>
+          <span className="kh-tag">{t(l.tag)}</span>
+          {l.key === 'plate' && <span className="kh-brush" />}
+          {l.key === 'pattern' && <span className="kh-clip"><Rangoli className="kh-rangoli" rings={14} /><Rangoli className="kh-rangoli small" rings={10} /></span>}
+          {l.key === 'foil' && <>
+            <motion.span className="kh-foil" style={{ backgroundPosition: foilPos }} />
+            <motion.span className="kh-holo" style={{ filter: holoHue }}><LotusMark size={30} /></motion.span>
+          </>}
+          {l.key === 'type' && <>
+            <span className="kh-row"><span className="kh-brand"><LotusMark size={26} /> kosh</span><span className="kh-kind">{t(card.kind)}</span></span>
+            <span className="kh-number">5241&nbsp; ••••&nbsp; ••••&nbsp; {card.last4}</span>
+            <span className="kh-row bottom">
+              <span><small>{t('Card holder')}</small>AARAV SHARMA</span>
+              <span><small>{t('Valid thru')}</small>08/31</span>
+              <span className="kh-network">{card.network}</span>
+            </span>
+          </>}
+          {l.key === 'chip' && <><span className="kh-chip" /><span className="kh-wave"><Icon name="contactless" /></span></>}
+          {l.key === 'gloss' && <span className="kh-clip">
+            <motion.span className="kh-glare" style={{ background: glare }} />
+            <span className="kh-scan" />
+            <span className="kh-stamp"><Icon name="shield" />{t('Checked by Sentinel')}</span>
+            {phase === 'forged' && !reduce && <motion.span className="kh-flash" initial={{ opacity: 0 }} animate={{ opacity: [0, 0.85, 0] }}
+              transition={{ duration: 0.7, delay: 0.1, times: [0, 0.15, 1] }} />}
+          </span>}
+        </motion.div>
+      ))}
+    </motion.div>
+  );
+};
+
 export const HeroCard: React.FC = () => {
   const { t } = useI18n();
   const reduce = useReducedMotion();
@@ -111,16 +177,14 @@ export const HeroCard: React.FC = () => {
     return () => timers.forEach(window.clearTimeout);
   }, [reduce]);
 
-  // Rotation = pointer lean + fling spin + idle sway + scroll turn.
+  // Rotation = pointer lean + fling spin + idle sway. Scrolling hands the card to the journey (Journey.tsx).
   const tiltX = useSpring(0, { stiffness: 170, damping: 18 });
   const tiltY = useSpring(0, { stiffness: 170, damping: 18 });
   const spinY = useMotionValue(0);
   const idleX = useMotionValue(0);
   const idleY = useMotionValue(0);
-  const { scrollY } = useScroll();
-  const scrollTurn = useTransform(scrollY, [0, 800], [0, reduce ? 0 : 150]);
   const rotateX = useTransform([tiltX, idleX], ([a, b]: number[]) => a + b);
-  const rotateY = useTransform([tiltY, spinY, idleY, scrollTurn], ([a, b, c, d]: number[]) => a + b + c + d);
+  const rotateY = useTransform([tiltY, spinY, idleY], ([a, b, c]: number[]) => a + b + c);
 
   // Light: foil and hologram follow the angle; the glare follows the pointer.
   const foilPos = useTransform([rotateY, rotateX], ([y, x]: number[]) =>
@@ -176,45 +240,7 @@ export const HeroCard: React.FC = () => {
         onTap={() => { if (live && !panned.current) settle((Math.round(spinY.get() / 180) + 1) * 180); }}>
         <motion.div className="kh-world" variants={pose} initial={reduce ? 'forged' : 'gather'} animate={phase}>
           <div className="kh-float">
-            <motion.div className="kh-card" style={{ rotateX, rotateY }}>
-              {EDGE.map((z, i) => <span key={i} className="kh-edge" style={{ transform: `translateZ(${z}px)` }} />)}
-              <div className="kh-back">
-                <span className="kh-strip" />
-                <span className="kh-sign"><em>Aarav Sharma</em><b>CVV •••</b></span>
-                <span className="kh-note">{t('Kosh will never ask for your card PIN, CVV or OTP. Report fraud on 1930.')}</span>
-                <span className="kh-back-foot"><LotusMark size={22} /> kosh</span>
-              </div>
-
-              {STACK.map((l, i) => (
-                <motion.div key={l.key} className={`kh-layer kh-${l.key}`} custom={{ ...l, i, k }} variants={layer}
-                  initial={reduce ? 'forged' : 'gather'} animate={phase}>
-                  <span className="kh-tag">{t(l.tag)}</span>
-                  {l.key === 'plate' && <span className="kh-brush" />}
-                  {l.key === 'pattern' && <span className="kh-clip"><Rangoli className="kh-rangoli" rings={14} /><Rangoli className="kh-rangoli small" rings={10} /></span>}
-                  {l.key === 'foil' && <>
-                    <motion.span className="kh-foil" style={{ backgroundPosition: foilPos }} />
-                    <motion.span className="kh-holo" style={{ filter: holoHue }}><LotusMark size={30} /></motion.span>
-                  </>}
-                  {l.key === 'type' && <>
-                    <span className="kh-row"><span className="kh-brand"><LotusMark size={26} /> kosh</span><span className="kh-kind">{t('Platinum metal')}</span></span>
-                    <span className="kh-number">5241&nbsp; ••••&nbsp; ••••&nbsp; 4821</span>
-                    <span className="kh-row bottom">
-                      <span><small>{t('Card holder')}</small>AARAV SHARMA</span>
-                      <span><small>{t('Valid thru')}</small>08/31</span>
-                      <span className="kh-network">RuPay</span>
-                    </span>
-                  </>}
-                  {l.key === 'chip' && <><span className="kh-chip" /><span className="kh-wave"><Icon name="contactless" /></span></>}
-                  {l.key === 'gloss' && <span className="kh-clip">
-                    <motion.span className="kh-glare" style={{ background: glare }} />
-                    <span className="kh-scan" />
-                    <span className="kh-stamp"><Icon name="shield" />{t('Checked by Sentinel')}</span>
-                    {phase === 'forged' && !reduce && <motion.span className="kh-flash" initial={{ opacity: 0 }} animate={{ opacity: [0, 0.85, 0] }}
-                      transition={{ duration: 0.7, delay: 0.1, times: [0, 0.15, 1] }} />}
-                  </span>}
-                </motion.div>
-              ))}
-            </motion.div>
+            <MetalCard style={{ rotateX, rotateY }} phase={phase} k={k} reduce={!!reduce} foilPos={foilPos} holoHue={holoHue} glare={glare} />
           </div>
         </motion.div>
       </motion.div>

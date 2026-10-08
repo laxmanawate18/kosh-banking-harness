@@ -13,7 +13,6 @@ import './customer.css'
 import './staff.css'
 import './site.css'
 import App from './App.tsx'
-import { LanguageProvider } from './i18n'
 import { applyPrefs, loadPrefs } from './prefs'
 import { festivalFor } from './festival'
 
@@ -23,8 +22,6 @@ if (festival) document.documentElement.dataset.festival = festival
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <LanguageProvider>
       <App />
-    </LanguageProvider>
   </StrictMode>,
 )

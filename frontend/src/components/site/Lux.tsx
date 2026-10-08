@@ -5,10 +5,11 @@ import { Card3D } from '../common/Card3D';
 import { HeroCard } from './HeroCard';
 import { FeatureIcon, type FeatureIconName } from '../common/FeatureIcon';
 import { LotusMark, Rangoli } from '../common/KoshLogo';
-import { prefersReducedMotion } from '../common/motion';
+import { prefersReducedMotion, tilt } from '../common/motion';
 import { rich, useScrollProgress, WordReveal } from './Story';
+import { CoinOrbit, ForceField } from './LuxDecor';
 import { DUR, EASE, SPRING, motion } from '../common/Animate';
-import { useInView, useReducedMotion, type Variants } from 'framer-motion';
+import { useInView, useMotionValue, useReducedMotion, useScroll, useTransform, type Variants } from 'framer-motion';
 import '../../lux.css';
 
 type Vars = React.CSSProperties & Record<`--${string}`, string | number>;
@@ -36,7 +37,7 @@ export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({
       <Rangoli className="kl-hero-rangoli" rings={22} />
       <div className="kl-hero-inner">
         <div className="kl-hero-copy">
-          <span className="kl-eyebrow"><span lang="hi">नमस्ते</span><i />{t('Private-grade banking for every Indian')}</span>
+          <span className="kl-eyebrow"><i />{t('Private-grade banking for every Indian')}</span>
           <h1 id="hero-title">
             <span className="kl-line" style={{ '--d': 0 } as Vars}>{t('Bharosa,')}</span>
             <em className="kl-line" style={{ '--d': 1 } as Vars}>{t('har kadam.')}</em>
@@ -54,7 +55,7 @@ export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({
       <ul className="kl-trustline" aria-label={t('Why bank with Kosh')}>
         <li>{t('Demo bank — no real deposits or money')}</li>
         <li>{t('Sentinel checks every payment')}</li>
-        <li>{t('Mitra answers 24×7 in English, हिन्दी and मराठी')}</li>
+        <li>{t('Mitra answers 24×7 in English, Hindi and Marathi')}</li>
       </ul>
       <span className="kl-scroll-cue" aria-hidden="true"><i /></span>
     </section>
@@ -93,6 +94,9 @@ const TILES: Tile[] = [
   { icon: 'building', kicker: 'Loans', title: 'home loans, approved in minutes', href: '#/products/loans', art: 'loans', glow: '#d4a24c' },
 ];
 
+/* Each tile's art is drawn in its finished pose. On the pinned desktop rail the tiles off centre rest in a "before" pose
+   and the centred one plays into the finished pose (lux.css, .is-centre): the QR is scanned and paid, the bill stamped,
+   Mitra's chat types in, the card catches a sheen, the icons play. */
 const TileArt: React.FC<{ art: Tile['art'] }> = ({ art }) => {
   const { t } = useI18n();
   if (art === 'card') {
@@ -106,12 +110,23 @@ const TileArt: React.FC<{ art: Tile['art'] }> = ({ art }) => {
     return (
       <span className="kl-art-phone">
         <span className="kl-art-notch" />
-        {art === 'qr' && <span className="kl-art-qr"><span /><em>₹1,240</em><small>{t('Paid in 0.8 seconds')}</small></span>}
-        {art === 'bill' && <span className="kl-art-bill"><small>BESCOM</small><em>₹3,450</em><span className="kl-art-pill">{t('Autopay on')}</span><small>{t('Due 20 Sept')}</small></span>}
+        {art === 'qr' && (
+          <span className="kl-art-qr">
+            <span><i className="kl-art-beam" /><i className="kl-art-ok"><Icon name="check" /></i></span>
+            <em>₹1,240</em><small>{t('Paid in 0.8 seconds')}</small>
+          </span>
+        )}
+        {art === 'bill' && (
+          <span className="kl-art-bill">
+            <small>BESCOM</small><em>₹3,450</em><span className="kl-art-pill">{t('Autopay on')}</span><small>{t('Due 20 Sept')}</small>
+            <b className="kl-art-stamp">{t('Paid')}</b>
+          </span>
+        )}
         {art === 'chat' && (
           <span className="kl-art-chat">
             <span className="me">Mera balance kitna hai?</span>
-            <span className="bot">₹4,10,000 · दोन खाती</span>
+            <span className="typing"><i /><i /><i /></span>
+            <span className="bot">₹4,10,000 across 2 accounts</span>
             <span className="me">FD kholni hai</span>
           </span>
         )}
@@ -121,31 +136,79 @@ const TileArt: React.FC<{ art: Tile['art'] }> = ({ art }) => {
   return <span className="kl-art-icon"><FeatureIcon name={art} variant="bare" size={150} /></span>;
 };
 
+const DRUM = 1.6;  // drum radius in half-screen widths: tiles at the screen edge turn about 36°
+
 export const UpgradeRail: React.FC<{ onAsk: (prompt: string) => void }> = ({ onAsk }) => {
   const { t } = useI18n();
   const track = useRef<HTMLDivElement>(null);
+  const tiles = useRef<(HTMLElement | null)[]>([]);
+  const geo = useRef({ mid: [] as number[], half: 0, step: 1, shift: 0, p: 0 });
   const [shift, setShift] = useState(0);
-  const ref = useScrollProgress<HTMLElement>('pin');
+  const [centre, setCentre] = useState(-1);
+  const picked = useRef(-1);
 
-  // Pinned on wide screens: vertical scroll moves the rail sideways. Phones get a native swipe rail.
+  // Pinned rail: each tile rides a curved drum. Its turn, depth and scale follow its distance from the screen centre,
+  // written straight to the DOM every scroll frame (no React render); only the centred tile's index goes to state.
+  const curve = (p: number) => {
+    const g = geo.current;
+    g.p = p;
+    if (!g.shift) return;
+    const R = g.half * DRUM;
+    let best = -1, bestX = Infinity;
+    g.mid.forEach((m, i) => {
+      const el = tiles.current[i];
+      if (!el) return;
+      const x = m - p * g.shift - g.half;  // px from the screen centre
+      const a = Math.max(-1.3, Math.min(1.3, x / R));
+      const near = Math.max(0, 1 - Math.abs(x) / g.step);
+      el.style.transform = `translate3d(${(R * Math.sin(a) - x).toFixed(1)}px,0,${(R * (Math.cos(a) - 1)).toFixed(1)}px) rotateY(${a.toFixed(4)}rad) scale(${(1 + 0.07 * near).toFixed(4)})`;
+      el.style.setProperty('--shade', Math.min(0.55, Math.abs(a) * 0.62).toFixed(3));
+      el.style.setProperty('--lit', near.toFixed(3));
+      if (Math.abs(x) < bestX) { bestX = Math.abs(x); best = i; }
+    });
+    if (best !== picked.current) { picked.current = best; setCentre(best); }
+  };
+  const ref = useScrollProgress<HTMLElement>('pin', curve);
+  const live = useInView(ref, { margin: '-15% 0px' });
+
+  // Pinned on wide screens: vertical scroll moves the rail sideways, from the first tile centred to the last.
+  // Smaller screens and reduced motion get a flat native swipe rail with every tile's art finished.
   useEffect(() => {
     const measure = () => {
       const el = track.current;
+      const ts = tiles.current.filter((x): x is HTMLElement => !!x);
+      if (!el || ts.length < 2) return;
       const wide = window.matchMedia('(min-width: 901px)').matches && !prefersReducedMotion();
-      setShift(el && wide ? Math.max(0, el.scrollWidth - el.clientWidth) : 0);
+      const g = geo.current;
+      g.mid = tiles.current.map(x => (x ? x.offsetLeft + x.offsetWidth / 2 : 0));
+      g.half = el.clientWidth / 2;
+      g.step = ts[1].offsetLeft - ts[0].offsetLeft;
+      g.shift = wide ? g.mid[g.mid.length - 1] - g.mid[0] : 0;
+      setShift(g.shift);
+      if (g.shift) curve(g.p);
+      else ts.forEach(x => { x.style.transform = ''; x.style.removeProperty('--shade'); x.style.removeProperty('--lit'); });
     };
     measure();
     const ro = new ResizeObserver(measure);
     if (track.current) ro.observe(track.current);
     return () => ro.disconnect();
-  }, []);
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps -- curve only reads refs
+
+  // Keyboard: a focused tile is brought to the centre by scrolling the page (the sticky stage never scrolls sideways).
+  const focusTile = (i: number) => {
+    const g = geo.current, sec = ref.current;
+    if (!g.shift || !sec) return;
+    sec.querySelector<HTMLElement>('.kl-upgrade-stick')?.scrollTo(0, 0);
+    const top = sec.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({ top: top + ((g.mid[i] - g.mid[0]) / g.shift) * (sec.offsetHeight - window.innerHeight) });
+  };
 
   return (
     <section ref={ref} className={`kl-upgrade ${shift ? 'is-pinned' : ''}`} style={shift ? { height: `calc(100svh + ${shift}px)` } : undefined} aria-labelledby="upgrade-title">
       <div className="kl-upgrade-stick">
         <h2 id="upgrade-title">{rich(t('upgrade your money. *bit by bit.*'))}</h2>
         <div ref={track} className="kl-upgrade-track" style={{ '--shift': shift } as Vars}>
-          {TILES.map(tile => {
+          {TILES.map((tile, i) => {
             const body = (
               <>
                 <span className="kl-tile-kicker"><Icon name={tile.icon} />{t(tile.kicker)}</span>
@@ -154,10 +217,15 @@ export const UpgradeRail: React.FC<{ onAsk: (prompt: string) => void }> = ({ onA
                 <span className="kl-tile-art" aria-hidden="true"><TileArt art={tile.art} /></span>
               </>
             );
-            const style = { '--glow': tile.glow } as Vars;
+            const props = {
+              ref: (el: HTMLElement | null) => { tiles.current[i] = el; },
+              className: `kl-tile fi-host ${shift && live && i === centre ? 'is-centre' : ''}`,
+              style: { '--glow': tile.glow } as Vars,
+              onFocus: () => focusTile(i),
+            };
             return tile.ask
-              ? <button key={tile.kicker} type="button" className="kl-tile fi-host" style={style} onClick={() => onAsk(t(tile.ask!))}>{body}</button>
-              : <a key={tile.kicker} href={tile.href} className="kl-tile fi-host" style={style}>{body}</a>;
+              ? <button key={tile.kicker} type="button" {...props} onClick={() => onAsk(t(tile.ask!))}>{body}</button>
+              : <a key={tile.kicker} href={tile.href} {...props}>{body}</a>;
           })}
         </div>
       </div>
@@ -172,6 +240,7 @@ export const Rewards: React.FC = () => {
   return (
     <section className="kl-rewards" aria-labelledby="rewards-title">
       <div className="kl-rewards-stage" aria-hidden="true"><Rangoli rings={18} /></div>
+      <CoinOrbit />
       <div className="kl-rewards-copy">
         <h2 id="rewards-title">{rich(t('rewards that *find* you.'))}</h2>
         <p>{t('Cashback on UPI, points on every card swipe and members-only offers from brands you love. No coupons to chase.')}</p>
@@ -219,12 +288,15 @@ export const SentinelDemo: React.FC = () => {
     <figure ref={ref} className="kl-scan" aria-labelledby="scan-title">
       <figcaption id="scan-title" className="kl-eyebrow">{t('How Sentinel checks a payment — example')}</figcaption>
       <motion.div key={run} className="kl-scan-body" initial={reduce ? false : 'hidden'} animate={reduce || seen ? 'show' : 'hidden'}>
-        <div className="kl-scan-pay">
-          <small>{t('Sample payment')}</small>
-          <strong>₹2,400</strong>
-          <span>{t('To')} Asha Traders</span>
-          <span className="kl-scan-upi">asha.traders@kosh</span>
-          {!reduce && <motion.i className="kl-scan-beam" variants={beam} aria-hidden="true" />}
+        <div className="kl-shield">
+          <div className="kl-scan-pay">
+            <small>{t('Sample payment')}</small>
+            <strong>₹2,400</strong>
+            <span>{t('To')} Asha Traders</span>
+            <span className="kl-scan-upi">asha.traders@kosh</span>
+            {!reduce && <motion.i className="kl-scan-beam" variants={beam} aria-hidden="true" />}
+          </div>
+          <ForceField on={seen} />
         </div>
         <motion.ol variants={checks}>
           {CHECKS.map(c => (
@@ -252,9 +324,110 @@ const STORIES = [
   { img: 'dukaan', alt: 'A shopkeeper on a phone call at his kirana store', kicker: 'Small business', title: 'Your dukaan, *digital*.', line: 'UPI QR, a current account and quick working capital for your shop.', href: '#/for/business' },
 ];
 
+/* ------------------------------------------------------------------ jharokha arch geometry (Editorial) */
+
+/**
+ * A jharokha opening in px: a rectangle under a cusped ogee arch. `open` 0 is a narrow lancet slit, 1 the full window.
+ * Returns the closed outline (for clip-path) and its two halves drawn from the sill centre up to the apex (for the gold line).
+ */
+function jharokha(w: number, h: number, open = 1, inset = 0) {
+  const cx = w / 2, top = inset, bottom = h - inset;
+  const full = w / 2 - inset;
+  const hw = Math.max(5, full * (0.035 + 0.965 * open));
+  const A = Math.min(w * 0.3, h * 0.36, 280) - inset * 0.5;  // apex to springline
+  const lobes = Math.max(3, Math.min(6, Math.round((full * 0.9 + A) / 70)));
+  // Left side, as offsets from the centre line: springline L → shoulder S (convex, cut into lobes), then an ogee tip.
+  const L = [-hw, top + A], c1 = [-hw, top + A * 0.42], c2 = [-hw * 0.6, top + A * 0.24], S = [-hw * 0.2, top + A * 0.2];
+  const o1 = [-hw * 0.05, top + A * 0.2], o2 = [0, top + A * 0.1];
+  const bez = (t: number) => [0, 1].map(k => {
+    const u = 1 - t;
+    return u * u * u * L[k] + 3 * u * u * t * c1[k] + 3 * u * t * t * c2[k] + t * t * t * S[k];
+  });
+  const pts = Array.from({ length: lobes + 1 }, (_, j) => bez(j / lobes));
+  const f = (n: number) => n.toFixed(1);
+  const X = (dx: number, side: number) => f(cx + side * dx);
+  const arc = (a: number[], b: number[], side: number, sweep: number) => {
+    const r = Math.hypot(b[0] - a[0], b[1] - a[1]) * 0.64;
+    return `A${f(r)} ${f(r)} 0 0 ${sweep} ${X(b[0], side)} ${f(b[1])}`;
+  };
+  // side -1 = left, 1 = right; both start at the sill centre and climb to the apex.
+  const half = (side: number) => {
+    const sweep = side < 0 ? 0 : 1;
+    const lobesUp = pts.slice(1).map((p, j) => arc(pts[j], p, side, sweep)).join('');
+    return `M${f(cx)} ${f(bottom)}H${X(L[0], side)}V${f(L[1])}${lobesUp}C${X(o1[0], side)} ${f(o1[1])} ${X(o2[0], side)} ${f(o2[1])} ${f(cx)} ${f(top)}`;
+  };
+  // Closed outline: left half up, then the right half walked back down (reversed curve, flipped arcs).
+  const down = [...pts].reverse();
+  const lobesDown = down.slice(1).map((p, j) => arc(down[j], p, 1, 0)).join('');
+  const clip = `${half(-1)}C${X(o2[0], 1)} ${f(o2[1])} ${X(o1[0], 1)} ${f(o1[1])} ${X(S[0], 1)} ${f(S[1])}${lobesDown}V${f(bottom)}Z`;
+  return { clip, left: half(-1), right: half(1) };
+}
+
+type Story = (typeof STORIES)[number];
+
+/**
+ * A photo story seen through a jharokha. As it scrolls in, the arched window unfolds from a slit, a gold outline draws
+ * itself up both sides to the apex, and the photo drifts at its own depth inside. On a mouse it leans with a glint.
+ * Reduced motion: the open window, still.
+ */
+const StoryCard: React.FC<{ s: Story }> = ({ s }) => {
+  const { t } = useI18n();
+  const reduce = useReducedMotion();
+  const ref = useRef<HTMLAnchorElement>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const w = useMotionValue(0), h = useMotionValue(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const box = { w: el.offsetWidth, h: el.offsetHeight };
+      w.set(box.w); h.set(box.h); setSize(box);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [w, h]);
+  const { scrollYProgress: opening } = useScroll({ target: ref, offset: ['start 0.96', 'start 0.26'] });
+  const { scrollYProgress: passing } = useScroll({ target: ref, offset: ['start end', 'end start'] });
+  const open = useTransform(opening, v => (reduce ? 1 : v * v * (3 - 2 * v)));
+  const clipPath = useTransform([open, w, h], ([k, W, H]: number[]) => (W ? `path("${jharokha(W, H, k).clip}")` : 'none'));
+  const draw = useTransform(open, [0.08, 0.96], [0, 1]);
+  const copy = useTransform(open, [0.55, 1], [0, 1]);
+  const drift = useTransform(passing, [0, 1], reduce ? ['0%', '0%'] : ['-6%', '6%']);
+  const lines = size.w ? [jharokha(size.w, size.h), jharokha(size.w, size.h, 1, 11)] : [];
+  const lean = tilt(3.5);
+  return (
+    <a ref={ref} href={s.href} className="kl-story"
+      onPointerMove={e => {
+        lean.onPointerMove(e);
+        const r = e.currentTarget.getBoundingClientRect();
+        e.currentTarget.style.setProperty('--gx', `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
+        e.currentTarget.style.setProperty('--gy', `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
+      }}
+      onPointerLeave={lean.onPointerLeave}>
+      <motion.span className="kl-window" style={{ clipPath }}>
+        <motion.span className="kl-photo" style={{ y: drift }}>
+          <img src={`/img/people/${s.img}-800.webp`} srcSet={`/img/people/${s.img}-800.webp 800w, /img/people/${s.img}-1600.webp 1600w`}
+            sizes="(max-width: 900px) 100vw, 60vw" alt={t(s.alt)} loading="lazy" decoding="async" />
+        </motion.span>
+        <span className="kl-glint" aria-hidden="true" />
+      </motion.span>
+      {lines.length > 0 && (
+        <svg className="kl-arch-line" viewBox={`0 0 ${size.w} ${size.h}`} aria-hidden="true">
+          {lines.flatMap((l, j) => [l.left, l.right].map((d, k) => <motion.path key={`${j}${k}`} d={d} className={j ? 'inner' : undefined} style={{ pathLength: draw }} />))}
+        </svg>
+      )}
+      <motion.span className="kl-story-copy" style={{ opacity: copy }}>
+        <small>{t(s.kicker)}</small>
+        <strong>{rich(t(s.title))}</strong>
+        <span>{t(s.line)}</span>
+        <span className="kl-story-go">{t('Explore')} <Icon name="arrow-right" /></span>
+      </motion.span>
+    </a>
+  );
+};
+
 export const Editorial: React.FC = () => {
   const { t } = useI18n();
-  const ref = useScrollProgress<HTMLDivElement>('view');
   return (
     <section className="kl-editorial" aria-labelledby="editorial-title">
       <div className="kl-editorial-head">
@@ -262,21 +435,8 @@ export const Editorial: React.FC = () => {
         <h2 id="editorial-title">{rich(t('real lives. *real* banking.'))}</h2>
         <p>{t('From a first salary to a family milestone, a harvest or a busy shop, Kosh fits the life you already live.')}</p>
       </div>
-      <div ref={ref} className="kl-stories">
-        {STORIES.map((s, i) => (
-          <a key={s.img} href={s.href} className="kl-story" style={{ '--i': i } as Vars}>
-            <span className="kl-photo">
-              <img src={`/img/people/${s.img}-800.webp`} srcSet={`/img/people/${s.img}-800.webp 800w, /img/people/${s.img}-1600.webp 1600w`}
-                sizes="(max-width: 900px) 100vw, 60vw" alt={t(s.alt)} loading="lazy" decoding="async" />
-            </span>
-            <span className="kl-story-copy">
-              <small>{t(s.kicker)}</small>
-              <strong>{rich(t(s.title))}</strong>
-              <span>{t(s.line)}</span>
-              <span className="kl-story-go">{t('Explore')} <Icon name="arrow-right" /></span>
-            </span>
-          </a>
-        ))}
+      <div className="kl-stories">
+        {STORIES.map(s => <StoryCard key={s.img} s={s} />)}
       </div>
     </section>
   );

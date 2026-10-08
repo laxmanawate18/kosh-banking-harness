@@ -1,10 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
 import { FeatureIcon, type FeatureIconName } from '../common/FeatureIcon';
 import { LotusMark, Rangoli } from '../common/KoshLogo';
-import { prefersReducedMotion } from '../common/motion';
-import { motion, useScroll } from 'framer-motion';
+import { motion, useInView, useReducedMotion, useScroll, useTransform } from 'framer-motion';
+import { DoorCarvings, FlapBoard, Glyph, Motes, TempleDoor } from './StoryArt';
 import '../../story.css';
 
 type Vars = React.CSSProperties & Record<`--${string}`, string | number>;
@@ -47,87 +47,91 @@ export function useScrollProgress<T extends HTMLElement>(mode: 'pin' | 'view' = 
 export const rich = (text: string) =>
   text.split(/(\*[^*]+\*)/).map((part, i) => (part.startsWith('*') ? <em key={i}>{part.slice(1, -1)}</em> : part));
 
-/** CRED-style paragraph: each word lights up as you scroll past it. "*…*" marks accent phrases. */
-export const WordReveal: React.FC<{ text: string; className?: string }> = ({ text, className = '' }) => {
-  const ref = useScrollProgress<HTMLParagraphElement>('view');
+/**
+ * CRED-style paragraph: each word lights up as you scroll past it. "*…*" marks accent phrases.
+ * `glyphs` (optional): one decorative mark per accent phrase, placed after it from the start (no reflow) and switched
+ * to .on once the phrase is lit; CSS plays the moment.
+ */
+export const WordReveal: React.FC<{ text: string; className?: string; glyphs?: React.ReactNode[] }> = ({ text, className = '', glyphs }) => {
+  const reduce = useReducedMotion();
+  const [lit, setLit] = useState(0);
   let hot = false;
   const words = text.split(/\s+/).filter(Boolean).map(raw => {
     const starts = raw.startsWith('*');
     if (starts) hot = true;
-    const word = { text: raw.replace(/\*/g, ''), hot };
-    if (/\*[^\p{L}\p{N}]*$/u.test(raw) && (!starts || raw.length > 1)) hot = false;
+    const word = { text: raw.replace(/\*/g, ''), hot, end: false };
+    if (/\*[^\p{L}\p{N}]*$/u.test(raw) && (!starts || raw.length > 1)) { hot = false; word.end = true; }
     return word;
   });
+  const ends = glyphs ? words.flatMap((w, i) => (w.end ? [i] : [])) : [];
+  const ref = useScrollProgress<HTMLParagraphElement>('view', glyphs && (p => setLit(ends.filter(i => p * (words.length + 6) - i >= 0.9).length)));
   return (
     <p ref={ref} className={`ks-reveal ${className}`} style={{ '--n': words.length } as Vars}>
-      {words.map((w, i) => (
-        <React.Fragment key={i}>
-          <span className={w.hot ? 'ks-w hot' : 'ks-w'} style={{ '--i': i } as Vars}>{w.text}</span>{' '}
-        </React.Fragment>
-      ))}
+      {words.map((w, i) => {
+        const k = ends.indexOf(i), g = glyphs?.[k];
+        return (
+          <React.Fragment key={i}>
+            <span className={w.hot ? 'ks-w hot' : 'ks-w'} style={{ '--i': i } as Vars}>{w.text}</span>
+            {g ? <>{'\u00a0'}<span className={reduce || k < lit ? 'ks-glyph on' : 'ks-glyph'} aria-hidden="true">{g}</span>{' '}</> : ' '}
+          </React.Fragment>
+        );
+      })}
     </p>
   );
 };
 
+const GLYPHS = [0, 1, 2, 3, 4, 5].map(n => <Glyph key={n} n={n} />);
+
+/** The promise: glyphs bloom beside the accent words; the rangoli below is a floor that turns as you scroll. */
 export const Manifesto: React.FC = () => {
   const { t } = useI18n();
+  const reduce = useReducedMotion();
+  const ref = useRef<HTMLElement>(null);
+  const inView = useInView(ref);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] });
+  const turn = useTransform(scrollYProgress, [0, 1], reduce ? [0, 0] : [-40, 50]);
   return (
-    <section className="ks-manifesto" aria-label={t('Our promise')}>
-      <Rangoli className="ks-manifesto-rangoli" />
+    <section ref={ref} className={`ks-manifesto${inView ? '' : ' ks-idle'}`} aria-label={t('Our promise')}>
+      <div className="ks-floor" aria-hidden="true">
+        <motion.div className="ks-floor-plane" style={{ rotateX: 66, rotateZ: turn }}>
+          <Rangoli className="ks-floor-art" rings={18} />
+          <Rangoli className="ks-floor-art inner" rings={12} />
+        </motion.div>
+      </div>
       <div className="ks-manifesto-inner">
         <span className="k-eyebrow">{t('Not just a bank')}</span>
-        <WordReveal text={t('The story of Kosh begins with *bharosa*. We believe every Indian deserves a bank that speaks *their language*, protects *every rupee* and never hides the fine print. Zero balance. Zero jargon. *Mitra* by your side, *Sentinel* at your gate. This is banking that feels like *home*.')} />
+        <WordReveal glyphs={GLYPHS} text={t('The story of Kosh begins with *bharosa*. We believe every Indian deserves a bank that speaks *their language*, protects *every rupee* and never hides the fine print. Zero balance. Zero jargon. *Mitra* by your side, *Sentinel* at your gate. This is banking that feels like *home*.')} />
       </div>
     </section>
   );
 };
 
-/* ------------------------------------------------------------------ counters */
-
-const Counter: React.FC<{ to: number; decimals?: number; prefix?: string; suffix?: string }> = ({ to, decimals = 0, prefix = '', suffix = '' }) => {
-  const ref = useRef<HTMLSpanElement>(null);
-  const fmt = (v: number) => prefix + v.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + suffix;
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || prefersReducedMotion()) return;
-    el.textContent = fmt(0);
-    let raf = 0;
-    const io = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting) return;
-      io.disconnect();
-      const start = performance.now();
-      const tick = (now: number) => {
-        const k = Math.min(1, (now - start) / 1400);
-        el.textContent = fmt(to * (1 - Math.pow(1 - k, 4)));
-        if (k < 1) raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
-    }, { threshold: 0.6 });
-    io.observe(el);
-    return () => { io.disconnect(); cancelAnimationFrame(raf); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [to]);
-  return <span ref={ref} aria-hidden="true">{fmt(to)}</span>;
-};
+/* ------------------------------------------------------------------ departure board */
 
 const STATS: { to: number; decimals?: number; prefix?: string; suffix?: string; label: string }[] = [
   { to: 5, prefix: '₹', suffix: 'L', label: 'Deposits insured by DICGC, per depositor' },
   { to: 8.1, decimals: 2, suffix: '%', label: 'FD interest for 444 days (illustrative)' },
   { to: 0, prefix: '₹', label: 'To open an account. No minimum balance.' },
-  { to: 3, label: 'Languages Mitra speaks: English, हिन्दी, मराठी' },
+  { to: 3, label: 'Languages Mitra speaks: English, Hindi, Marathi' },
 ];
+const figure = (s: typeof STATS[number]) =>
+  (s.prefix ?? '') + s.to.toLocaleString('en-IN', { minimumFractionDigits: s.decimals ?? 0, maximumFractionDigits: s.decimals ?? 0 }) + (s.suffix ?? '');
 
+/** The figures arrive like a split-flap departure board, digit by digit and stat by stat. */
 export const Stats: React.FC = () => {
   const { t } = useI18n();
+  const still = !!useReducedMotion();
+  const board = useRef<HTMLDListElement>(null);
+  const run = useInView(board, { once: true, amount: 0.45 });
   return (
     <section className="ks-stats" aria-labelledby="stats-title">
       <div className="ks-stats-inner">
         <h2 id="stats-title" className="reveal">{rich(t('the numbers *speak* for us.'))}</h2>
-        <dl>
-          {STATS.map(s => (
+        <dl ref={board}>
+          {STATS.map((s, i) => (
             <div key={s.label} className="reveal">
               <dt>{t(s.label)}</dt>
-              <dd aria-label={`${s.prefix || ''}${s.to}${s.suffix || ''}`}><Counter {...s} /></dd>
+              <dd aria-label={`${s.prefix || ''}${s.to}${s.suffix || ''}`}><FlapBoard text={figure(s)} run={run} still={still} delay={i * 300} /></dd>
             </div>
           ))}
         </dl>
@@ -170,17 +174,21 @@ export const Leaflet: React.FC = () => {
   );
 };
 
-/* ------------------------------------------------------------------ door-of-light finale */
+/* ------------------------------------------------------------------ temple-door finale */
 
-export const DoorFinale: React.FC<{ onOpen: () => void; onAsk: (prompt: string) => void }> = ({ onOpen, onAsk }) => {
+/** Pinned: carved temple doors swing open on their hinges with the scroll, light fans out and the lotus rises. */
+export const DoorFinale: React.FC<{ onOpen: () => void; onAsk: (prompt: string) => void; children?: React.ReactNode }> = ({ onOpen, onAsk, children }) => {
   const { t } = useI18n();
   const ref = useScrollProgress<HTMLElement>('pin');
+  const inView = useInView(ref);
   return (
-    <section ref={ref} className="ks-finale" aria-labelledby="finale-title">
+    <section ref={ref} className={`ks-finale${inView ? '' : ' ks-idle'}`} aria-labelledby="finale-title">
       <div className="ks-finale-stick">
         <div className="ks-light" aria-hidden="true" />
+        {children /* the journey's card returns here (Journey.tsx) */}
+        <div className="ks-rays" aria-hidden="true" />
         <div className="ks-finale-copy">
-          <LotusMark size={56} />
+          <span className="ks-lotus" aria-hidden="true"><i /><LotusMark size={56} /></span>
           <h2 id="finale-title">{rich(t('Bharosa, *har kadam.*'))}</h2>
           <p>{t('Open a zero-balance Kosh account in about five minutes. No branch visit, no paperwork.')}</p>
           <div className="k-hero-actions">
@@ -188,8 +196,10 @@ export const DoorFinale: React.FC<{ onOpen: () => void; onAsk: (prompt: string) 
             <button type="button" className="k-btn on-band lg" onClick={() => onAsk(t('Namaste Mitra! What can you help me with?'))}>{t('Ask Mitra')}</button>
           </div>
         </div>
-        <div className="ks-door left" aria-hidden="true"><Rangoli className="ks-door-art" /></div>
-        <div className="ks-door right" aria-hidden="true"><Rangoli className="ks-door-art" /></div>
+        <DoorCarvings />
+        <TempleDoor side="left" />
+        <TempleDoor side="right" />
+        <Motes />
       </div>
     </section>
   );

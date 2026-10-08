@@ -36,7 +36,7 @@ const timeline = (r: ApplicationStatus): Step[] => {
 
 /** Public page: an applicant checks status with the reference and the mobile number used to apply. */
 export const TrackApplicationPage: React.FC<{ reference?: string; onAsk: (prompt: string) => void }> = ({ reference: initial = '', onAsk }) => {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const [reference, setReference] = useState(decodeURIComponent(initial).toUpperCase());
   const [mobile, setMobile] = useState('');
   const [result, setResult] = useState<ApplicationStatus | null>(null);
@@ -54,7 +54,7 @@ export const TrackApplicationPage: React.FC<{ reference?: string; onAsk: (prompt
       setBusy(false);
     }
   };
-  const date = (iso: string) => new Date(iso).toLocaleDateString(lang === 'en' ? 'en-IN' : `${lang}-IN`, { day: 'numeric', month: 'short', year: 'numeric' });
+  const date = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
     <>

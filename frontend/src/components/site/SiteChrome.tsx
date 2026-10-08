@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
 import { KoshLogo, Rangoli } from '../common/KoshLogo';
-import { LanguageSwitch, DisplayControls } from '../common/Preferences';
+import { DisplayControls } from '../common/Preferences';
 import { prefersReducedMotion } from '../common/motion';
 
 /** Public pages live under #/…; anything else (or empty) is the home page. */
@@ -67,7 +67,6 @@ export const UtilityBar: React.FC = () => {
         </div>
         <div className="k-utility-tools">
           <DisplayControlsCompact />
-          <LanguageSwitch compact />
         </div>
       </div>
     </div>
@@ -231,7 +230,7 @@ export const SiteFooter: React.FC<{ onAsk: (q: string) => void }> = ({ onAsk }) 
       </div>
       <div className="k-footer-base">
         <span>© {new Date().getFullYear()} Kosh · {t('A product demo, not a bank')}</span>
-        <span lang="hi">भरोसा, हर कदम।</span>
+        <span>{t('Bharosa, har kadam.')}</span>
       </div>
     </footer>
   );
