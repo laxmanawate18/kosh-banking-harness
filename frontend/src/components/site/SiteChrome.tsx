@@ -232,6 +232,8 @@ export const SiteFooter: React.FC<{ onAsk: (q: string) => void }> = ({ onAsk }) 
         <span>© {new Date().getFullYear()} Kosh · {t('A product demo, not a bank')}</span>
         <span>{t('Bharosa, har kadam.')}</span>
       </div>
+      {/* The Kosh seal in the bottom-left corner, opposite Ask Mitra; on Home the golden thread ties off around it. */}
+      <a href="#/" className="k-footer-seal" aria-label={t('Kosh home')}><KoshLogo size={44} tone="light" /></a>
     </footer>
   );
 };

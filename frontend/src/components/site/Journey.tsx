@@ -11,8 +11,8 @@ import '../../home.css';
  * - TravelingCard: scrolling lifts the forged hero card, flies it down the right margin past the manifesto, and lands it
  *   in the card section, where CardFan spreads it into a hand with its siblings. FinaleCard brings it back in the light
  *   behind the temple doors.
- * - GoldenThread: a gold line that draws itself down the page with the scroll, beading at every section, ending at the
- *   footer lotus. Torch: a cursor light that reveals rangoli hidden in the dark. Dust: three parallax layers of gold.
+ * - GoldenThread: a gold line that draws itself down the page with the scroll, beading at every section, running down the
+ *   left margin to the very bottom and tying off around the Kosh seal in the bottom-left corner. Torch: a cursor light that reveals rangoli hidden in the dark. Dust: three parallax layers of gold.
  * All decorative (aria-hidden). Reduced motion or narrow screens: cards sit in their sections, the thread is drawn in
  * full, nothing follows the cursor or the scroll.
  */
@@ -191,11 +191,18 @@ export const GoldenThread: React.FC<{ root: RefObject<HTMLElement | null> }> = (
       d += ` L ${x} ${yb - 80} C ${x} ${yb}, ${nx} ${yb}, ${nx} ${yb + 80}`;
       x = nx;
     });
-    const logo = document.querySelector('.k-footer .k-logo svg');
-    if (logo && !narrow) {  // tie off around the footer lotus
-      const l = rel(logo.getBoundingClientRect()), lx = l.x + l.w / 2, ly = l.y + l.h / 2, lr = l.w / 2 + 12;
-      const last = sections[sections.length - 1];
-      d += ` C ${x} ${last.y + last.h + 40}, ${lx + lr * 2} ${ly - lr * 2}, ${lx + lr} ${ly} A ${lr} ${lr} 0 1 1 ${lx + lr - 0.1} ${ly - 0.1}`;
+    const seal = document.querySelector('.k-footer-seal svg'), footer = document.querySelector('.k-footer');
+    if (seal && footer) {
+      // Down to the very bottom of the page: cross to the left margin in the seam above the footer, run down past it and
+      // tie off around the seal's lotus, arriving at its top so the ring never reaches the "kosh" wordmark beside it.
+      const l = rel(seal.getBoundingClientRect()), lx = l.x + l.w / 2, ly = l.y + l.h / 2, lr = l.w / 2 + 4;
+      const yb = rel(footer.getBoundingClientRect()).y;
+      if (x !== m) {
+        d += ` C ${x} ${yb}, ${m} ${yb}, ${m} ${yb + 80}`;
+        x = m;
+      }
+      d += ` L ${x} ${ly - lr - 46} C ${x} ${ly - lr - 10}, ${lx} ${ly - lr - 22}, ${lx} ${ly - lr}`
+        + ` A ${lr} ${lr} 0 1 1 ${lx} ${ly + lr} A ${lr} ${lr} 0 1 1 ${lx} ${ly - lr}`;
     }
     setShape({ d, beads, h: Math.ceil(base.height) });
   });
@@ -205,7 +212,11 @@ export const GoldenThread: React.FC<{ root: RefObject<HTMLElement | null> }> = (
     if (!list.length || !line.current || !glow.current) return;
     let len = L, at = list[list.length - 1];
     if (!reduce) {
-      const tip = sy + window.innerHeight * 0.66 - top.current;
+      // The tip leads 2/3 down the screen; over the last 60% of a screen of scrolling it runs on to the page's very bottom,
+      // so the knot around the seal is complete when the reader arrives there.
+      const vh = window.innerHeight, rest = document.documentElement.scrollHeight - vh - sy;
+      const end = Math.min(1, Math.max(0, 1 - rest / (vh * 0.6)));
+      const tip = sy + vh * (0.66 + 0.34 * end) - top.current;
       let lo = 0, hi = list.length - 1;
       while (lo < hi) { const mid = (lo + hi) >> 1; if (list[mid].reach < tip) lo = mid + 1; else hi = mid; }
       at = list[Math.max(0, lo - 1)];

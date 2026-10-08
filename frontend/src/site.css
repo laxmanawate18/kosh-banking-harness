@@ -188,7 +188,12 @@
 .k-bars-axis { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--muted); }
 
 /* ---------------------------------------------------------------- footer: two link columns on phones, room for Ask Mitra at the end */
-.k-footer-base { padding-bottom: 84px; }
+.k-footer-base { padding-bottom: 104px; }
+/* The Kosh seal mirrors Ask Mitra: same 44px lotus, same distance from its corner (fab: 22px + 7px padding). The wide gap
+   keeps the golden thread's ring around the lotus clear of the wordmark. */
+.k-footer { position: relative; }
+.k-footer-seal { position: absolute; left: 29px; bottom: 29px; z-index: 4; text-decoration: none; }
+.k-footer-seal .k-logo { gap: 20px; }
 @media (max-width: 760px) {
   .k-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 20px; }
   .k-footer-grid > div:first-child { grid-column: 1 / -1; }
