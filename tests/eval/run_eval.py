@@ -3,6 +3,8 @@
   venv/bin/python tests/eval/run_eval.py                       # local stack on 127.0.0.1:8019
   venv/bin/python tests/eval/run_eval.py --only jailbreak,competitor
   venv/bin/python tests/eval/run_eval.py --record              # also store the result on the running prompt version
+  venv/bin/python tests/eval/run_eval.py --retry .local/eval-results/<run>.json --record
+                                                               # re-run only that run's failures (e.g. model timeouts), merge, score
 
 Cases with "channel": "customer" run signed in as the demo customer (--customer), in a fresh chat each; cases with
 "channel": "officer" ask the officer copilot as --officer.
@@ -147,12 +149,22 @@ async def main() -> int:
     ap.add_argument("--backup", default="", metavar="MODEL",
                     help="this run evaluated the backup model (app started with MITRA_FORCE_BACKUP=1); recorded as its clearance")
     ap.add_argument("--db", default=f"sqlite+pysqlite:///{ROOT / '.local' / 'e2e.sqlite3'}", help="the app's database (customer session, --record)")
+    ap.add_argument("--retry", default="", metavar="RESULTS_JSON",
+                    help="re-run only the failed cases of this results file (and their whole fairness group); the merged run "
+                         "is scored and recorded with the retried case ids listed")
     ap.add_argument("--customer", default="aarav", help="demo customer the signed-in cases run as")
     ap.add_argument("--officer", default="officer.mumbai", help="officer the copilot cases run as")
     args = ap.parse_args()
     cases = json.loads((ROOT / "tests/eval/cases.json").read_text())["cases"]
     if args.only:
         cases = [c for c in cases if c["category"] in set(args.only.split(","))]
+    previous: list = []
+    if args.retry:  # same prompt version, same cases: only the failures run again; every other result is kept as it was
+        previous = json.loads(pathlib.Path(args.retry).read_text())["results"]
+        failed = {r["id"] for r in previous if not r["passed"]}
+        groups = {r["group"] for r in previous if r["id"] in failed and r.get("group")}
+        cases = [c for c in cases if c["id"] in failed or (c.get("group") and c.get("group") in groups)]
+        print(f"retrying {len(cases)} case(s): {', '.join(c['id'] for c in cases)}", flush=True)
     gate = asyncio.Semaphore(args.concurrency)
     async def guarded(case):
         async with gate:
@@ -164,6 +176,10 @@ async def main() -> int:
             return result
 
     results = await asyncio.gather(*(guarded(c) for c in cases))
+    retried = [r["id"] for r in results] if args.retry else []
+    if args.retry:
+        fresh = {r["id"]: r for r in results}
+        results = [fresh.get(r["id"], r) for r in previous]
     groups: dict = {}
     for r in results:
         if r["group"]:
@@ -186,6 +202,8 @@ async def main() -> int:
                "pass_rate": round(100 * passed / max(1, len(results)), 1),
                "by_category": {k: f"{a}/{b}" for k, (a, b) in sorted(by_cat.items())}, "fairness": {g: v["passed"] for g, v in fairness.items()},
                "median_seconds": sorted(r["seconds"] for r in results)[len(results) // 2] if results else 0}
+    if args.retry:
+        summary.update(retried=retried, retried_from=pathlib.Path(args.retry).name)
     out = ROOT / ".local/eval-results" / (datetime.now().strftime("%Y%m%d-%H%M%S") + ".json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"summary": summary, "fairness": fairness, "results": results}, ensure_ascii=False, indent=1))
@@ -204,7 +222,8 @@ async def main() -> int:
         # share the app's settings or code.
         running = next((v["id"] for v in registry(db) if v["active"]), None)
         ok = running and update_registry(db, running, evaluation={k: summary[k] for k in (
-            "at", "passed", "total", "pass_rate", "by_category", "fairness", "gate_failures")}, backup_model=args.backup or None)
+            "at", "passed", "total", "pass_rate", "by_category", "fairness", "gate_failures", "retried", "retried_from")
+            if k in summary}, backup_model=args.backup or None)
         print(f"recorded on {running}" + (f" as the evaluation of backup model {args.backup}" if args.backup else "")
               if ok else "no running prompt version registered (start the app first)")
     return 1 if failures else 0

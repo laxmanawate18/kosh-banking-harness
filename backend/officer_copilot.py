@@ -26,7 +26,7 @@ from persistence import ServiceRequestRecord, utc_dt
 CHANNEL = "officer"
 INSTRUCTIONS_PATH = REGISTRY_PATH.parent / "agents" / "officer_copilot.md"
 SCOPES = ["officer.read", "officer.draft"]
-TURN_SECONDS = 60
+TURN_SECONDS = 90  # Gemini can take ~60 s on a tool-using officer question; customer chat keeps its own limit
 
 
 def instructions() -> str:
@@ -39,7 +39,8 @@ def instructions_version() -> str:
 
 def build_officer_tools(db, request_service, officer_user_id: str) -> List[Callable[..., Dict[str, Any]]]:
     def list_pending_requests(status: str = "", limit: int = 20) -> dict:
-        """Service requests waiting for an officer decision, newest first."""
+        """Service requests waiting for an officer decision, newest first. Leave status empty for every open request, or
+        pass exactly one of: PENDING_APPROVAL, ESCALATED, MORE_INFO_REQUIRED, RPA_FAILED."""
         statuses = [status] if status else ["PENDING_APPROVAL", "ESCALATED", "MORE_INFO_REQUIRED", "RPA_FAILED"]
         with db.runtime.sessions() as session:
             rows = session.scalars(select(ServiceRequestRecord).where(ServiceRequestRecord.status.in_(statuses))
