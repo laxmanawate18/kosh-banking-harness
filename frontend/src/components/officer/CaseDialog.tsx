@@ -12,7 +12,7 @@ import { Tag, errorText } from './StaffKit';
 
 export const DECIDE_STATUSES = ['PENDING_APPROVAL', 'ESCALATED', 'MORE_INFO_REQUIRED', 'RPA_FAILED'];
 
-const fieldLabels: Record<string, string> = {
+export const fieldLabels: Record<string, string> = {
   full_name: 'Applicant name', date_of_birth: 'Date of birth', pan_number: 'PAN', pan_masked: 'PAN',
   mobile: 'Mobile', email: 'Email', identity_document: 'Identity document',
   document_last4: 'Document ending', address: 'Residential address', city: 'City',
@@ -31,7 +31,7 @@ const rpaStepLabels: Record<string, string> = {
   'AO-010': 'Submit the maker entry',
 };
 
-const KYC_CHECKS = [
+export const KYC_CHECKS = [
   { id: 'document_authenticity', label: 'Document authenticity', description: 'Official valid document and issuer verified independently' },
   { id: 'pan_or_form60', label: 'PAN or Form 60', description: 'Tax identifier checked against the issuer’s records' },
   { id: 'identity_match', label: 'Identity and photo match', description: 'Photo and details compared with the proof' },
@@ -42,7 +42,7 @@ const ALL_CHECKS = KYC_CHECKS.map(c => c.id);
 const terminalRpa = new Set(['COMPLETED', 'FAILED']);
 const LEVEL: Record<string, string> = { L1: 'Level 1 · basic sign-in', L2: 'Level 2 · signed in', L3: 'Level 3 · signed in and verified' };
 
-function displayValue(key: string, value: unknown) {
+export function displayValue(key: string, value: unknown) {
   if (value === null || value === undefined || value === '') return '—';
   if (key === 'initial_deposit') return formatRupees(Number(value));
   if (key === 'initial_deposit_minor') return formatRupees(Number(value) / 100);
@@ -64,7 +64,7 @@ function parseSignal(item: unknown) {
  * The case opens as a drawer: from the right on desktop, a sheet from the bottom on phones. Native modal <dialog>, so focus
  * stays inside and Esc closes; on close, focus returns to the button that opened it. Render it inside <AnimatePresence>.
  */
-const Drawer: React.FC<{ title: string; subtitle: string; onClose: () => void; children: ReactNode }> = ({ title, subtitle, onClose, children }) => {
+export const Drawer: React.FC<{ title: string; subtitle: string; onClose: () => void; children: ReactNode }> = ({ title, subtitle, onClose, children }) => {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [off] = useState(() => (window.matchMedia('(max-width: 720px)').matches ? { y: '100%' } : { x: '100%' }));

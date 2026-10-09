@@ -47,6 +47,12 @@ export const Badge: React.FC<BadgeProps> = ({ children, variant, status }) => {
     NOT_DONE: t('Not done'),
     PENDING_RE_KYC: t('Re-KYC pending'),
     UNKNOWN: t('Unknown'),
+    QUEUED_FOR_CBS: t('Queued for core banking'),
+    RPA_EXECUTING: t('Robot at work'),
+    CBS_MAKER_DONE: t('Waiting for core checker'),
+    CBS_AUTHORISED: t('Authorised in core'),
+    CBS_REJECTED: t('Refused by core'),
+    OPENED: t('Opened'),
   };
   // Codes ("PENDING_APPROVAL") become words; text that is already words ("In Kosh") is shown as written.
   const label = (text: string) => labels[text] ?? (/^[A-Z0-9_]+$/.test(text) ? humanizeCode(text === 'BLOCKED_MULE' ? 'BLOCKED' : text) : text);
@@ -55,13 +61,13 @@ export const Badge: React.FC<BadgeProps> = ({ children, variant, status }) => {
   // One status -> tone map for customers, officers and the admin. Unknown statuses are neutral, never "success".
   const TONES: Record<Tone, string[]> = {
     danger: ['DENY', 'DENIED', 'REJECTED', 'BLOCKED_MULE', 'BLOCKED', 'LOCKED', 'FAILED', 'OVERDUE', 'NOT_DONE', 'ERROR', 'BROKEN',
-      'RPA_FAILED', 'UNREACHABLE', 'HIGH', 'CRITICAL'],
+      'RPA_FAILED', 'CBS_REJECTED', 'UNREACHABLE', 'HIGH', 'CRITICAL'],
     warning: ['PENDING_APPROVAL', 'MORE_INFO_REQUIRED', 'ESCALATED', 'CHALLENGE', 'CHALLENGE_REQUIRED', 'FROZEN', 'DUE', 'IN_REVIEW',
       'PENDING', 'PENDING_RE_KYC', 'OPEN', 'IN_PROGRESS', 'SANDBOX', 'MEDIUM', 'WARNING', 'NOT_CLEARED', 'PARTIAL'],
-    info: ['NEW', 'QUALIFIED', 'APPLIED', 'CONTACTED', 'CONFIGURED', 'QUEUED_FOR_CBS', 'RPA_EXECUTING', 'SUBMITTED', 'SUBMITTED_FOR_REVIEW',
+    info: ['NEW', 'QUALIFIED', 'APPLIED', 'CONTACTED', 'CONFIGURED', 'QUEUED_FOR_CBS', 'RPA_EXECUTING', 'CBS_MAKER_DONE', 'CBS_AUTHORISED', 'SUBMITTED', 'SUBMITTED_FOR_REVIEW',
       'RUNNING', 'SHOWN', 'CLICKED'],
     success: ['ACTIVE', 'VERIFIED', 'COMPLETED', 'APPROVED', 'EXECUTED', 'SUCCESS', 'PAID', 'CONVERTED', 'CONNECTED', 'ON', 'PASSES',
-      'INTACT', 'CLEARED', 'IMPLEMENTED', 'RESOLVED', 'LOW', 'SETTLED', 'POSTED'],
+      'INTACT', 'CLEARED', 'IMPLEMENTED', 'RESOLVED', 'LOW', 'SETTLED', 'POSTED', 'OPENED'],
     neutral: [],
   };
   // An explicit variant always wins; otherwise derive the tone from the status code.

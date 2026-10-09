@@ -13,6 +13,7 @@ import { useToast } from '../common/Toast';
 import { AnimatePresence, motion } from '../common/Animate';
 import { OfficerCopilot } from './OfficerCopilot';
 import { CaseDialog, DECIDE_STATUSES } from './CaseDialog';
+import { ApplicationDialog } from './ApplicationDialog';
 import { LeadsPage } from './LeadsPage';
 import { Attention, Empty, Kpi, Paged, Panel, Tag, rowMotion, errorText } from './StaffKit';
 
@@ -290,7 +291,38 @@ const CustomersPanel: React.FC<{ customers: any[] | null; reload: () => Promise<
 };
 
 /* ---------------- Review queue ---------------- */
-type View = 'requests' | 'care' | 'customers';
+type View = 'requests' | 'care' | 'customers' | 'applications';
+type AppView = 'review' | 'core' | 'done';
+const TRACK: Record<string, string> = { NEW_TO_BANK: 'New to bank', EXISTING_CUSTOMER: 'Existing customer' };
+
+/** Account applications (savings and FD): to review, with the robot in the core, or finished. */
+const ApplicationsPanel: React.FC<{ data: any; tab: AppView; setTab: (t: AppView) => void; onOpen: (ref: string) => void }> = (
+  { data, tab, setTab, onOpen }) => {
+  const rows: any[] = data?.applications || [];
+  return (
+    <Panel title="Account opening" count={rows.length}
+      sub="Savings accounts and fixed deposits. Approve and the robot keys it into the legacy core; reject and the applicant sees your reason."
+      actions={<FilterTabs name="applications" label="Filter account applications" value={tab} onChange={v => setTab(v as AppView)} tabs={[
+        { id: 'review', label: 'Needs you', count: data?.counts?.review ?? 0 }, { id: 'core', label: 'In the core', count: data?.counts?.core ?? 0 },
+        { id: 'done', label: 'Finished', count: data?.counts?.done ?? 0 }]} />}>
+      {!data ? <SkeletonRows rows={3} /> : rows.length ? (
+        <Paged rows={rows} reset={tab}>{shown => (
+          <div className="table-scroll"><table className="table st-cards st-sticky">
+            <thead><tr><th>Applicant</th><th>Product</th><th>Submitted</th><th>Status</th><th><span className="sr-only">Action</span></th></tr></thead>
+            <tbody><AnimatePresence initial={false}>{shown.map((a, i) => (
+              <motion.tr key={a.reference} {...rowMotion(i)}>
+                <td data-label="Applicant"><strong>{a.applicant || '—'}</strong><span className="st-sub">{a.reference} · {TRACK[a.track]}</span></td>
+                <td data-label="Product">{a.product}<span className="st-sub">{a.kind === 'FD' ? 'Fixed deposit' : a.kyc_required ? 'Savings · KYC first' : 'Savings'}</span></td>
+                <td data-label="Submitted">{formatDateTime(a.created_at)}</td>
+                <td data-label="Status"><Badge status={a.status} />{a.last_error && <span className="st-sub st-robot-fail">{a.last_error}</span>}</td>
+                <td><button type="button" className="k-btn outline sm" onClick={() => onOpen(a.reference)}>
+                  {a.status === 'SUBMITTED' ? 'Review' : ['RPA_FAILED', 'CBS_REJECTED'].includes(a.status) ? 'Resolve' : 'Open'}</button></td>
+              </motion.tr>))}</AnimatePresence></tbody>
+          </table></div>)}</Paged>
+      ) : <Empty title="Nothing here">{tab === 'review' ? 'New savings and FD applications appear here for your decision.' : 'No applications in this list.'}</Empty>}
+    </Panel>
+  );
+};
 
 /** Refresh button: the arrows turn while it loads. */
 const RefreshButton: React.FC<{ busy: boolean; onClick: () => void }> = ({ busy, onClick }) => (
@@ -312,21 +344,27 @@ const QueuePage: React.FC = () => {
   const [seen, setSeen] = useState<Set<string> | null>(null);  // ids on screen since the first load
   const [fresh, setFresh] = useState<Set<string>>(() => new Set());  // arrived later: glow once, "New" until handled
   const [arrived, setArrived] = useState('');
+  const [appTab, setAppTab] = useState<AppView>('review');
+  const [applications, setApplications] = useState<any>(null);
+  const [openApp, setOpenApp] = useState<string | null>(null);
   const inFlight = useRef(false);
 
   // A failed refresh keeps what is on screen; only a first load that fails shows an empty list.
   const loadCare = useCallback(() => get<{ cases: CareCase[] }>('/api/officer/care-cases').then(r => setCare(r.cases)).catch(() => setCare(c => c ?? [])), []);
   const loadCustomers = useCallback(() => fetchOfficerCustomers().then(r => setCustomers(r.customers || [])).catch(() => setCustomers(c => c ?? [])), []);
   const loadLeads = useCallback(() => fetchOfficerLeads().then(r => setLeads(r.leads || [])).catch(() => setLeads(l => l ?? [])), []);
+  const loadApplications = useCallback(() => get<any>(`/api/officer/applications?view=${appTab}`).then(setApplications)
+    .catch(() => setApplications((a: any) => a ?? { applications: [], counts: {} })), [appTab]);
   useEffect(() => { loadCare(); loadCustomers(); loadLeads(); }, [loadCare, loadCustomers, loadLeads]);
+  useEffect(() => { loadApplications(); }, [loadApplications]);
   /** One refresh at a time: a tick that finds one still running is skipped. */
   const refresh = useCallback(async (manual = false) => {
     if (inFlight.current) return;
     inFlight.current = true;
     if (manual) setBusy(true);
-    try { await Promise.all([refreshOverview(), loadCare(), loadLeads(), manual && loadCustomers()]); }
+    try { await Promise.all([refreshOverview(), loadCare(), loadLeads(), loadApplications(), manual && loadCustomers()]); }
     finally { inFlight.current = false; if (manual) setBusy(false); }
-  }, [refreshOverview, loadCare, loadLeads, loadCustomers]);
+  }, [refreshOverview, loadCare, loadLeads, loadCustomers, loadApplications]);
   // The queue stays live: every 30 seconds while this tab is on screen.
   useEffect(() => {
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 30_000);
@@ -344,7 +382,8 @@ const QueuePage: React.FC = () => {
   const rows = filter === 'decide' ? toDecide : filter === 'cbs' ? cbs : filter === 'ESCALATED' ? open.filter(r => r.status === 'ESCALATED') : open;
   const view: View = picked ?? (open.length || !careOpenList.length ? 'requests' : 'care');
   const show = (v: View, f?: string) => { setView(v); if (f && v === 'requests') setFilter(f); if (f && v === 'care') setCareFilter(f); };
-  const waiting = toDecide.length + apps.length + overdue.length;
+  const appsToReview = applications?.counts?.review ?? 0;
+  const waiting = toDecide.length + apps.length + overdue.length + appsToReview;
   const loaded = care && leads;
 
   // New arrivals: compared with what was on screen, during render (no effect needed).
@@ -374,6 +413,7 @@ const QueuePage: React.FC = () => {
           <span className="st-attention-list">
             {toDecide.length > 0 && <button type="button" className="k-link" onClick={() => show('requests', 'decide')}>{plural(toDecide.length, 'service request')} to decide</button>}
             {overdue.length > 0 && <button type="button" className="k-link" onClick={() => show('care', 'overdue')}>{plural(overdue.length, 'care case')} past the due time</button>}
+            {appsToReview > 0 && <button type="button" className="k-link" onClick={() => { setAppTab('review'); show('applications'); }}>{plural(appsToReview, 'account opening')} to decide</button>}
             {apps.length > 0 && <a className="k-link" href="#leads">{plural(apps.length, 'account application')} to approve in AI sales leads</a>}
           </span>
         </Attention>
@@ -388,6 +428,9 @@ const QueuePage: React.FC = () => {
         <Kpi group="ops" label="Core banking entry" value={cbs.length} tone={cbsFailed.length ? 'danger' : undefined}
           caption={cbsFailed.length ? `${cbsFailed.length} failed; retry from the case` : 'Accounts the robot is entering in CBS'}
           onClick={() => show('requests', 'cbs')} pressed={view === 'requests' && filter === 'cbs'} />
+        <Kpi group="ops" label="Account opening" value={applications ? appsToReview : null} tone="warn"
+          caption={`${applications?.counts?.core ?? 0} with the robot in the core`}
+          onClick={() => { setAppTab('review'); show('applications'); }} pressed={view === 'applications'} />
         <Kpi group="ops" label="Customers" value={customers ? customers.length : null}
           caption={pendingDeletion ? `${pendingDeletion} deletion request${pendingDeletion > 1 ? 's' : ''} with the admin` : 'With a Kosh sign-in'}
           onClick={() => show('customers')} pressed={view === 'customers'} />
@@ -406,11 +449,13 @@ const QueuePage: React.FC = () => {
             </Panel>)}
           {view === 'care' && <CarePanel cases={care} reload={loadCare} filter={careFilter} setFilter={setCareFilter} fresh={fresh} seen={handled} />}
           {view === 'customers' && <CustomersPanel customers={customers} reload={loadCustomers} />}
+          {view === 'applications' && <ApplicationsPanel data={applications} tab={appTab} setTab={setAppTab} onOpen={setOpenApp} />}
         </motion.div>
       </AnimatePresence>
 
       <OfficerCopilot requestId={openCase?.id} />
       <AnimatePresence>{openCase && <CaseDialog key={openCase.id} request={openCase} onClose={() => setOpenCase(null)} />}</AnimatePresence>
+      <AnimatePresence>{openApp && <ApplicationDialog key={openApp} reference={openApp} onClose={() => setOpenApp(null)} onChanged={loadApplications} />}</AnimatePresence>
     </div>
   );
 };

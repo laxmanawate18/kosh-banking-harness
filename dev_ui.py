@@ -328,6 +328,8 @@ app.include_router(make_workflow_router(workflow_service, require_customer, requ
     active_consent, require_officer, limiter))
 from backend.ekyc import make_ekyc_router
 app.include_router(make_ekyc_router(db, require_customer, require_customer_csrf, limiter))
+from backend.account_application_routes import make_account_application_router
+app.include_router(make_account_application_router(account_applications, db, require_officer, require_csrf))
 
 
 @app.websocket("/ws/chat")
