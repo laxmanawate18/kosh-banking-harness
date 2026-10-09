@@ -404,6 +404,31 @@ class ChatFeedbackRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt, index=True)
 
 
+class AccountApplicationRecord(Base):
+    """One application to open a savings account or a fixed deposit, from a new-to-bank applicant or an existing customer,
+    from submission through officer review and core-banking entry to the opened account (account_applications.py)."""
+
+    __tablename__ = "account_applications"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)             # the reference the applicant sees, SAV-APP-…
+    product_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    kind: Mapped[str] = mapped_column(String(12), nullable=False, index=True)  # SAVINGS | FD
+    track: Mapped[str] = mapped_column(String(20), nullable=False)             # NEW_TO_BANK | EXISTING_CUSTOMER
+    customer_id: Mapped[str | None] = mapped_column(String(80), index=True)    # set for existing customers, and once opened
+    user_id: Mapped[str | None] = mapped_column(String(80))
+    mobile_token: Mapped[str] = mapped_column(String(64), nullable=False, index=True)  # keyed hash: status lookup, duplicates
+    status: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+    payload_sealed: Mapped[str] = mapped_column(Text, nullable=False)          # the form, encrypted at rest
+    documents: Mapped[list[dict[str, Any]]] = mapped_column(JSON_DOCUMENT, nullable=False, default=list)
+    decision: Mapped[dict[str, Any] | None] = mapped_column(JSON_DOCUMENT)     # officer, action, customer-facing reason
+    kyc_verification: Mapped[dict[str, Any] | None] = mapped_column(JSON_DOCUMENT)
+    cbs: Mapped[dict[str, Any]] = mapped_column(JSON_DOCUMENT, nullable=False, default=dict)   # what the core returned
+    rpa: Mapped[dict[str, Any]] = mapped_column(JSON_DOCUMENT, nullable=False, default=dict)   # attempts, last error
+    history: Mapped[list[dict[str, Any]]] = mapped_column(JSON_DOCUMENT, nullable=False, default=list)
+    reapplied_from: Mapped[str | None] = mapped_column(String(40))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt, index=True)
+
+
 # ---- Banking state, one typed table per entity (see banking_store.py) --------------------------------------
 # Typed columns carry the fields the bank queries, indexes and reports on; `data` keeps the complete record so
 # the domain code reads back exactly what it wrote. banking_state (id=1) remains the lock and version row.
