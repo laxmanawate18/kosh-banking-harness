@@ -15,7 +15,7 @@ reads: [obj.account, obj.product, obj.customer]
 writes: [obj.term_deposit, obj.transaction, obj.journal_entry]
 kosh_status: partial
 kosh_channels: [customer]
-kosh_tools: [start_banking_workflow]
+kosh_tools: [open_application_form, check_funds, start_banking_workflow]
 kosh_skills: [deposit]
 kosh_care: []
 kosh_services: [P1-18, P1-19, P1-20]

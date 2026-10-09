@@ -1414,3 +1414,18 @@ ol.mdr-list { list-style-type: decimal; }
 .k-skel-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
 .k-skel-lines { flex: 1; display: grid; gap: 8px; }
 .k-search-head input::-webkit-search-cancel-button { appearance: none; }  /* the panel has its own close button */
+
+/* Account opening forms (savings and fixed deposit) */
+.k-app-form { display: grid; gap: 14px; }
+.k-app-form .k-field { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
+.k-app-form .k-field input, .k-app-form .k-field select { font: inherit; font-weight: 400; padding: 10px 12px; border-radius: var(--r); border: 1px solid var(--line, #cfd2d8); background: var(--surface); color: var(--ink); }
+.k-app-form .k-field small { font-weight: 400; color: var(--ink-2); }
+.k-app-review { display: grid; gap: 8px; margin: 0; }
+.k-app-review div { display: grid; grid-template-columns: 140px 1fr; gap: 12px; }
+.k-app-review dt { color: var(--ink-2); }
+.k-app-review dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.k-check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+.k-check input { margin-top: 3px; }
+.k-app-done { display: grid; gap: 10px; justify-items: start; }
+.k-app-done > .icon { width: 36px; height: 36px; color: var(--ok); }
+.k-app-done h3 { margin: 0; }

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { AccountApplication } from '../applications/AccountApplication';
+import type { Product } from '../../types/products';
 import { useBanking } from '../../context/BankingContext';
 import { Icon } from '../common/Icon';
 import { Modal } from '../common/Modal';
@@ -77,6 +79,7 @@ export const DepositsPage: React.FC<DepositsPageProps> = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [formError, setFormError] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [fdProduct, setFdProduct] = useState<Product | null>(null);
 
   const accounts = overview?.accounts || [];
   const deposits = accounts.filter(a => a.type === 'FIXED_DEPOSIT' || a.type === 'RECURRING_DEPOSIT') as Deposit[];
@@ -130,6 +133,12 @@ export const DepositsPage: React.FC<DepositsPageProps> = () => {
   };
 
   const open = (type: 'FD' | 'RD') => {
+    if (type === 'FD') {  // a fixed deposit is booked in the core by the robot, through the account-opening pipeline
+      fetch('/api/products?category=deposits').then(r => r.json())
+        .then(({ products }) => setFdProduct(products.find((p: Product) => p.id === 'PROD-FD-SMART') || products[0] || null))
+        .catch(() => setFormError(t('The deposit form could not be opened. Please try again.')));
+      return;
+    }
     setFormError('');
     setModalType(type);
     setAmount(type === 'FD' ? '50000' : '5000');
@@ -137,7 +146,7 @@ export const DepositsPage: React.FC<DepositsPageProps> = () => {
   };
 
   const products = [
-    { type: 'FD' as const, icon: 'deposits', title: t('Fixed deposit'), rate: t('Up to {rate}% p.a.', { rate: '7.25' }),
+    { type: 'FD' as const, icon: 'deposits', title: t('Fixed deposit'), rate: t('{rate}% p.a.', { rate: '8.10' }),  // the published Kosh Vriddhi Smart FD rate
       body: t('Set aside a lump sum for 6 to 36 months. The rate is fixed when the bank confirms your deposit.'), cta: t('Open a fixed deposit') },
     { type: 'RD' as const, icon: 'calendar', title: t('Recurring deposit'), rate: t('Up to {rate}% p.a.', { rate: '6.85' }),
       body: t('Save a fixed amount every month and build the habit. Choose a term from 6 to 36 months.'), cta: t('Open a recurring deposit') },
@@ -209,7 +218,7 @@ export const DepositsPage: React.FC<DepositsPageProps> = () => {
 
         <div className="k-note">
           <Icon name="info" />
-          <span>{t('Submitting an application does not immediately debit your account. Rate confirmation and booking require bank officer review.')}</span>
+          <span>{t('A fixed deposit is booked in core banking within a minute of verifying your identity, and the amount moves from the savings account you choose. A recurring deposit request is reviewed by the bank first.')}</span>
         </div>
       </div>
 
@@ -289,6 +298,7 @@ export const DepositsPage: React.FC<DepositsPageProps> = () => {
       )}
 
       {selectedRequest && <RequestDetailModal request={selectedRequest} onClose={() => setSelectedRequest(null)} />}
+      {fdProduct && <AccountApplication product={fdProduct} onClose={() => { setFdProduct(null); refreshOverview(); }} />}
     </>
   );
 };

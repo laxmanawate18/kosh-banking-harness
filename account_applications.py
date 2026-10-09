@@ -31,7 +31,7 @@ from typing import Any, Callable, Optional
 
 from sqlalchemy import select
 
-from persistence import AccountApplicationRecord, UserRecord, utc_dt
+from persistence import AccountApplicationRecord, ApplicationDocumentRecord, UserRecord, utc_dt
 
 KINDS = {"savings": "SAVINGS", "deposits": "FD"}           # product category -> application kind
 PREFIX = {"SAVINGS": "SAV-APP", "FD": "FD-APP"}
@@ -94,7 +94,7 @@ class AccountApplicationService:
     # ---- submission ------------------------------------------------------------------------------------------
     def submit(self, *, product_id: str, mobile: str, payload: dict[str, Any], customer_id: Optional[str] = None,
                user_id: Optional[str] = None, documents: Optional[list[dict[str, Any]]] = None,
-               reapplied_from: Optional[str] = None) -> dict[str, Any]:
+               reapplied_from: Optional[str] = None, findings: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
         """Record a completed application form. Savings goes to officer review; an FD for a verified customer is queued
         for the core at once. `payload` holds the form fields; it is encrypted at rest."""
         from product_service import get_product_by_id
@@ -119,7 +119,9 @@ class AccountApplicationService:
             row = AccountApplicationRecord(
                 id=f"{PREFIX[kind]}-{uuid.uuid4().hex[:8].upper()}", product_id=product_id, kind=kind, track=track,
                 customer_id=customer_id, user_id=user_id, mobile_token=token, status=status, payload_sealed=_seal(payload),
-                documents=documents or [], cbs={}, rpa={"attempts": 0}, history=[], reapplied_from=reapplied_from,
+                documents=[{k: v for k, v in d.items() if k not in {"content_sealed", "extracted_sealed", "mime_type", "sha256",
+                                                                     "size_bytes"}} for d in documents or []],
+                cbs={}, rpa={"attempts": 0}, history=[], reapplied_from=reapplied_from, findings=findings or [],
                 created_at=now, updated_at=now)
             self._log(session, row, None, "SUBMITTED", by=user_id or "applicant", actor="customer" if customer_id else "visitor",
                       note="Application submitted")
@@ -127,6 +129,12 @@ class AccountApplicationService:
                 self._log(session, row, "SUBMITTED", "QUEUED_FOR_CBS", by="system", actor="system",
                           note="Fixed deposit for a KYC-verified customer: no officer review")
             session.add(row)
+            for document in documents or []:  # the files themselves, encrypted, in their own table
+                session.add(ApplicationDocumentRecord(
+                    id=document["id"], application_ref=row.id, document_type=document["document_type"],
+                    mime_type=document["mime_type"], sha256=document["sha256"], size_bytes=document["size_bytes"],
+                    content_sealed=document["content_sealed"], extracted_sealed=document["extracted_sealed"],
+                    scan_status=document["scan_status"], created_at=now))
             reference = row.id
         if status == "QUEUED_FOR_CBS":
             self._queued(reference)
@@ -278,11 +286,13 @@ class AccountApplicationService:
             row = session.get(AccountApplicationRecord, reference)
             return self._dict(row, with_payload) if row else None
 
-    def find(self, statuses: Optional[list[str]] = None, limit: int = 100) -> list[dict[str, Any]]:
+    def find(self, statuses: Optional[list[str]] = None, limit: int = 100, customer_id: Optional[str] = None) -> list[dict[str, Any]]:
         with self.runtime.sessions() as session:
             query = select(AccountApplicationRecord).order_by(AccountApplicationRecord.updated_at.desc()).limit(limit)
             if statuses:
                 query = query.where(AccountApplicationRecord.status.in_(statuses))
+            if customer_id:
+                query = query.where(AccountApplicationRecord.customer_id == customer_id)
             return [self._dict(row, False) for row in session.scalars(query)]
 
     def payload(self, reference: str) -> dict[str, Any]:
@@ -344,12 +354,21 @@ class AccountApplicationService:
             "actor": actor, "approval_request_id": row.id, "approver_id": by if actor == "officer" else None,
             "summary": f"{row.id} {source or 'NEW'} -> {target}", "details": {"kind": row.kind, "track": row.track, "note": note}})
 
+    def document(self, reference: str, document_id: str) -> tuple[bytes, str, str]:
+        """(file, mime type, document type) of one uploaded document, decrypted, for the reviewing officer."""
+        from document_processing import cipher
+        with self.runtime.sessions() as session:
+            row = session.get(ApplicationDocumentRecord, document_id)
+            if not row or row.application_ref != reference:
+                raise KeyError("Document not found")
+            return cipher().decrypt(row.content_sealed.encode()), row.mime_type, row.document_type
+
     @staticmethod
     def _dict(row: AccountApplicationRecord, with_payload: bool) -> dict[str, Any]:
         data = {"reference": row.id, "product_id": row.product_id, "kind": row.kind, "track": row.track,
                 "customer_id": row.customer_id, "user_id": row.user_id, "status": row.status, "documents": row.documents,
                 "decision": row.decision, "kyc_verification": row.kyc_verification, "cbs": row.cbs, "rpa": row.rpa,
-                "history": row.history, "reapplied_from": row.reapplied_from,
+                "history": row.history, "reapplied_from": row.reapplied_from, "findings": row.findings or [],
                 "created_at": row.created_at.isoformat(), "updated_at": row.updated_at.isoformat()}
         if with_payload:
             data["payload"] = _unseal(row.payload_sealed)
@@ -358,6 +377,111 @@ class AccountApplicationService:
 
 def _mask(number: Optional[str]) -> Optional[str]:
     return f"•••• {str(number)[-4:]}" if number else None
+
+
+# ---- the savings form and its documents ----------------------------------------------------------------------------
+STATES = ["Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana",
+          "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+          "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+          "Uttar Pradesh", "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands", "Chandigarh",
+          "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry"]
+RELATIONSHIPS = ["SPOUSE", "FATHER", "MOTHER", "SON", "DAUGHTER", "BROTHER", "SISTER", "OTHER"]
+ADDRESS_PROOFS = {"AADHAAR", "PASSPORT", "VOTER_ID", "DRIVING_LICENSE"}
+# The legacy core's screens take only these characters; checking here means the robot never fails on them later.
+_FORM_RULES = {
+    "full_name": (r"[A-Za-z][A-Za-z .']{1,99}", "Enter your full name as on your PAN card (letters only)."),
+    "date_of_birth": (r"\d{4}-\d{2}-\d{2}", "Enter your date of birth."),
+    "mobile": (r"[6-9]\d{9}", "Enter a 10-digit Indian mobile number."),
+    "email": (r"[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}", "Enter a valid email address."),
+    "pan_number": (r"[A-Z]{5}\d{4}[A-Z]", "Enter a valid PAN, for example ABCDE1234F."),
+    "address": (r"[A-Za-z0-9 ,./#-]{5,200}", "Enter your address (letters, numbers and , . / # - only)."),
+    "city": (r"[A-Za-z .]{2,50}", "Enter your city."),
+    "pincode": (r"[1-9]\d{5}", "Enter a valid 6-digit PIN code."),
+    "document_last4": (r"\d{4}", "Enter the last 4 digits of your Aadhaar."),
+}
+
+
+def clean_savings_form(fields: dict[str, Any]) -> dict[str, Any]:
+    """The applicant's savings form, normalised and checked. Raises ApplicationError naming the first problem."""
+    from datetime import date
+    form = {key: " ".join(str(fields.get(key) or "").split()) for key in (*_FORM_RULES, "state", "nominee_name",
+                                                                         "nominee_relationship")}
+    form["pan_number"], form["email"] = form["pan_number"].upper(), form["email"].lower()
+    form["mobile"] = re.sub(r"\D", "", form["mobile"])[-10:]
+    for key, (pattern, message) in _FORM_RULES.items():
+        if not re.fullmatch(pattern, form[key]):
+            raise ApplicationError(message)
+    try:
+        born = date.fromisoformat(form["date_of_birth"])
+    except ValueError as exc:
+        raise ApplicationError("Enter your date of birth.") from exc
+    today = date.today()
+    age = today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+    if not 18 <= age <= 100:
+        raise ApplicationError("You must be 18 or older to open an account online.")
+    if form["state"] not in STATES:
+        raise ApplicationError("Choose your state.")
+    if form["nominee_name"]:
+        if not re.fullmatch(_FORM_RULES["full_name"][0], form["nominee_name"]) or form["nominee_relationship"] not in RELATIONSHIPS:
+            raise ApplicationError("Enter the nominee's name and choose their relationship to you.")
+    else:
+        form["nominee_name"], form["nominee_relationship"] = "", ""
+    if fields.get("declarations_accepted") is not True:
+        raise ApplicationError("Confirm the declarations to continue.")
+    return {**form, "declarations_accepted": True}
+
+
+def read_documents(documents: list[dict[str, Any]], form: dict[str, Any], scanner=None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Validate, OCR and compare each upload with the form. Returns (documents to store, findings for the officer).
+    KYC first: a PAN card and one address proof are required. Findings never contain a full identifier."""
+    import hashlib as _hashlib
+    from document_processing import CloudDocumentScanner, basic_fields, cipher, validate_file
+    types = [str(d.get("document_type", "")).upper() for d in documents]
+    if len(documents) > 3 or "PAN" not in types or not ADDRESS_PROOFS & set(types):
+        raise ApplicationError("Upload your PAN card and one address proof (Aadhaar, passport, voter ID or driving licence).")
+    scanner = scanner or CloudDocumentScanner()
+    stored, findings = [], []
+    for upload, kind in zip(documents, types):
+        if kind != "PAN" and kind not in ADDRESS_PROOFS:
+            raise ApplicationError("Upload only a PAN card and an address proof.")
+        try:
+            raw, mime, pages = validate_file(str(upload.get("content_base64", "")), str(upload.get("mime_type", "")))
+        except ValueError as exc:
+            raise ApplicationError(f"{kind.replace('_', ' ').title()}: {exc}") from exc
+        try:
+            scan = scanner.scan(raw, mime, pages)
+        except Exception:  # OCR unavailable: the officer checks the document by eye
+            scan = {"status": "SCAN_UNAVAILABLE", "text": ""}
+        found = basic_fields(scan.get("text", ""), kind)
+        stored.append({"id": f"ADOC-{uuid.uuid4().hex[:16].upper()}", "document_type": kind, "mime_type": mime,
+                       "sha256": _hashlib.sha256(raw).hexdigest(), "size_bytes": len(raw),
+                       "content_sealed": cipher().encrypt(raw).decode(), "extracted_sealed": _seal(found),
+                       "scan_status": scan.get("status", "SCAN_UNAVAILABLE"), "fields_found": sorted(k for k, v in found.items() if v)})
+        findings += _compare(kind, found, form, scan.get("status"))
+    return stored, findings
+
+
+def _compare(kind: str, found: dict[str, Any], form: dict[str, Any], scan_status: Optional[str]) -> list[dict[str, Any]]:
+    label = "PAN card" if kind == "PAN" else kind.replace("_", " ").title()
+    if scan_status != "TEXT_EXTRACTED":
+        return [{"code": f"{kind}_UNREADABLE", "status": "OFFICER_REVIEW",
+                 "message": f"{label}: the bank's OCR could not read it; check the document yourself."}]
+    checks = []
+
+    def check(code: str, ok: bool, what: str, missing: bool = False) -> None:
+        checks.append({"code": code, "status": "PASS" if ok else "OFFICER_REVIEW",
+                       "message": f"{label}: {what} {'matches the form' if ok else 'not found on the document' if missing else 'differs from the form'}."})
+    if kind == "PAN":
+        check("PAN_NUMBER", found.get("pan_number") == form["pan_number"], "PAN", "pan_number" not in found)
+        if found.get("full_name"):
+            check("PAN_NAME", found["full_name"].upper() == form["full_name"].upper(), "name")
+    if found.get("date_of_birth"):
+        check(f"{kind}_DOB", found["date_of_birth"] == form["date_of_birth"], "date of birth")
+    if kind in ADDRESS_PROOFS:
+        check(f"{kind}_PINCODE", found.get("pincode") == form["pincode"], "PIN code", "pincode" not in found)
+        if kind == "AADHAAR" and found.get("document_last4"):
+            check("AADHAAR_LAST4", found["document_last4"] == form["document_last4"], "Aadhaar last 4 digits")
+    return checks
 
 
 # ---- Kosh mirrors what the core created ----------------------------------------------------------------------------

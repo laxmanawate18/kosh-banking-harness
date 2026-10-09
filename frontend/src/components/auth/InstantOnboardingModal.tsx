@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Product, ProductApplyResponse, CrossSellOffer } from '../../types/products';
 import { applyForProduct, fetchProducts } from '../../services/products';
 import { Modal } from '../common/Modal';
+import { AccountApplication } from '../applications/AccountApplication';
 import { monthlyEmi } from '../common/Formatters';
 import { EASE, motion } from '../common/Animate';
 import { useReducedMotion } from 'framer-motion';
@@ -56,6 +57,11 @@ export const InstantOnboardingModal: React.FC<InstantOnboardingModalProps> = ({
 
   const product = currentProduct;
   if (!product) return null;
+  // Savings accounts and fixed deposits go through the account-opening pipeline (KYC, officer review, the core banking
+  // robot); cards and loans keep this form.
+  if (product.category === 'savings' || product.category === 'deposits') {
+    return isOpen ? <AccountApplication product={product} onClose={onClose} /> : null;
+  }
 
   const category = (product.category || '').toLowerCase();
   const isCard = category === 'cards';

@@ -1,8 +1,12 @@
 ---
 name: deposit-application
-description: Fixed/recurring deposit applications with amount, tenure and maturity instructions.
+description: Booking a fixed deposit for a signed-in customer through the secure form; recurring deposits through the request form.
 ---
 # Deposit applications
-## Workflow
-Open start_banking_workflow("deposit"). Collect funding account, fixed/recurring type, exact INR amount, tenure and maturity instruction using the form. For recurring deposits clarify that the amount is the monthly contribution. Do not invent rates, guaranteed returns, eligibility or premature withdrawal terms. The form review and fresh verification create P1-19/P1-20 for bank review. No deposit is booked and no funds are debited by this skill. Bank-confirmed product terms and a separate authorized booking are required for fulfillment.
+## Fixed deposit
+Call open_application_form("PROD-FD-SMART"). It shows a card; the customer taps "Open the secure form" and chooses the funding savings account, amount, tenure and maturity instruction there, then verifies their identity. Never collect or repeat the amount or account details in chat. For "can I afford it", use check_funds.
 
+A KYC-verified customer's fixed deposit needs no officer review: Kosh's robot books it in the bank's core banking system within a minute, the core's checker authorises it, and the amount moves from the chosen savings account into the deposit. Quote only the published rate from the catalogue; never promise returns beyond it or invent premature-withdrawal terms.
+
+## Recurring deposit
+Open start_banking_workflow("deposit"). The amount is the monthly contribution. This creates a request for bank review; nothing is debited by this skill.

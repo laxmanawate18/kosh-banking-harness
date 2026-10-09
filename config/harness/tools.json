@@ -994,6 +994,31 @@
         },
         "consent": "none",
         "model_view": "public"
+      },
+      "open_application_form": {
+        "description": "Show a card that opens the secure form for another savings account or a fixed deposit",
+        "effect": "read",
+        "risk": "low",
+        "approval": "none",
+        "scopes": [
+          "banking.read"
+        ],
+        "args": {
+          "product_id": {
+            "type": "string",
+            "pattern": "^(?i:PROD-[A-Z0-9-]{1,40})$",
+            "required": true
+          }
+        },
+        "consent": "none",
+        "model_view": {
+          "fields": [
+            "ok",
+            "error",
+            "form_for",
+            "instruction"
+          ]
+        }
       }
     },
     "visitor": {

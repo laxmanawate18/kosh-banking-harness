@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { AccountApplication } from '../applications/AccountApplication';
+import type { Product } from '../../types/products';
 import { formatMoney } from '../common/Formatters';
 import type { ChatPresentation } from '../../types/chat';
 import { useAuth } from '../../context/AuthContext';
@@ -329,6 +331,8 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
   }
 
   // 14. Cross-Sell / Pre-Approved Financial Recommendation Card
+  if (type === 'OPEN_APPLICATION') return <OpenApplicationCard productId={pres.product_id} title={pres.title} category={pres.category} />;
+
   if (type === 'APPLICATION_SUBMITTED') {
     return (
       <article className="chat-result">
@@ -427,4 +431,32 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
   }
 
   return null;
+};
+
+
+/** Mitra offers the secure form; the customer opens it here. Details are entered in the form, never in chat. */
+const OpenApplicationCard: React.FC<{ productId?: string; title?: string; category?: string }> = ({ productId, title, category }) => {
+  const [product, setProduct] = useState<Product | null>(null);
+  const [error, setError] = useState('');
+  const open = async () => {
+    setError('');
+    try {
+      const { products } = await fetch('/api/products').then(r => r.json());
+      const found = products.find((p: Product) => p.id === productId);
+      if (!found) throw new Error('missing');
+      setProduct(found);
+    } catch {
+      setError('The form could not be opened. Please try again.');
+    }
+  };
+  return (
+    <article className="chat-result">
+      <h3>{title}</h3>
+      <p className="cr-note">{category === 'deposits' ? 'Choose the account, amount and tenure in the secure form, then verify your identity.'
+        : 'Request the account in the secure form, then verify your identity. A Kosh officer reviews it.'}</p>
+      <button type="button" className="k-btn primary sm" onClick={open}><Icon name="lock" /> Open the secure form</button>
+      {error && <p className="cr-note" role="alert">{error}</p>}
+      {product && <AccountApplication product={product} onClose={() => setProduct(null)} />}
+    </article>
+  );
 };

@@ -288,9 +288,9 @@ def _record_application(db, auth_service, req: ProductApplyRequest) -> dict:
 _bound: dict = {}
 
 
-def bind(db, auth_service) -> None:
+def bind(db, auth_service, account_applications=None) -> None:
     """Register the live services so Mitra's chat tools submit through the same path as the website form."""
-    _bound.update(db=db, auth_service=auth_service)
+    _bound.update(db=db, auth_service=auth_service, account_applications=account_applications)
 
 
 def submit_bound(req: ProductApplyRequest) -> dict:
@@ -342,4 +342,5 @@ def application_status(db, reference: str, mobile: str) -> dict | None:
 def bound_status(reference: str, mobile: str) -> dict | None:
     if not _bound:
         return None
-    return application_status(_bound["db"], reference, mobile)
+    accounts = _bound.get("account_applications")  # savings and FD applications (SAV-APP-…, FD-APP-…) first
+    return (accounts.applicant_status(reference, mobile) if accounts else None) or application_status(_bound["db"], reference, mobile)

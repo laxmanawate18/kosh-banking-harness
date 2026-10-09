@@ -16,9 +16,9 @@ from auth_service import AuthService
 from product_service import get_all_products
 
 
-def make_public_router(db, auth_service: AuthService, limiter):
+def make_public_router(db, auth_service: AuthService, limiter, applications=None):
     router = APIRouter()
-    bind_applications(db, auth_service)
+    bind_applications(db, auth_service, applications)
 
     @router.post("/api/chat/feedback")
     @limiter.limit("30/minute")
@@ -85,7 +85,9 @@ def make_public_router(db, auth_service: AuthService, limiter):
     async def track_application(req: ApplicationStatusRequest, request: Request, response: Response):
         """Applicant status by reference + the mobile number used to apply (no sign-in needed)."""
         del request, response
-        status = application_status(db, req.reference, req.mobile)
+        # Savings and FD applications (SAV-APP-…, FD-APP-…) first; then card and loan applications.
+        status = (applications.applicant_status(req.reference, req.mobile) if applications else None) \
+            or application_status(db, req.reference, req.mobile)
         if not status:
             raise HTTPException(404, "No application matches that reference and mobile number.")
         return status

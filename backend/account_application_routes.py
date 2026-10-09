@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from account_applications import KYC_CHECKS, ApplicationError
@@ -69,11 +69,24 @@ def make_account_application_router(service, db, require_officer, require_csrf) 
                         summary=f"Officer opened application {application['reference']}")
         worker = getattr(service, "worker", None)
         return {**summary(application), "payload": service.payload(application["reference"]),
-                "documents": application["documents"], "decision": application["decision"],
+                "documents": application["documents"], "findings": application.get("findings", []), "decision": application["decision"],
                 "kyc_verification": application["kyc_verification"], "cbs": application["cbs"],
                 "history": application["history"], "events": (application.get("rpa") or {}).get("events", []),
                 "screenshot": worker.latest_screenshot.get(application["reference"]) if worker else None,
                 "robot_running": bool(worker), "kyc_checks": sorted(KYC_CHECKS)}
+
+    @router.get("/{reference}/documents/{document_id}")
+    async def document(reference: str, document_id: str, context=Depends(require_officer)):
+        """One uploaded KYC document, for the officer to check by eye. Every view is audited."""
+        application = found(reference)
+        try:
+            content, mime, kind = service.document(application["reference"], document_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Document not found") from exc
+        db.append_audit("APPLICATION_DOCUMENT_VIEWED", actor="officer", approver_id=context.user_id,
+                        approval_request_id=application["reference"], summary=f"Officer viewed the {kind} of {application['reference']}")
+        return Response(content, media_type=mime, headers={"Cache-Control": "no-store", "Content-Disposition": "inline",
+                                                           "X-Content-Type-Options": "nosniff"})
 
     @router.get("/{reference}/robot")
     async def robot(reference: str, context=Depends(require_officer)):

@@ -1165,6 +1165,20 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
 
     from knowledge_service import query_bank_knowledge
 
+    def open_application_form(product_id: str) -> dict:
+        """Show the customer a card that opens the secure form to open another savings account or book a fixed deposit.
+        Details are entered in that form, never in chat. Only for Kosh savings accounts and the fixed deposit."""
+        from product_service import get_product_by_id
+        signed_in()
+        product = get_product_by_id(product_id)
+        if not product or product.get("category") not in {"savings", "deposits"}:
+            return {"ok": False, "error": "Only savings accounts and the fixed deposit open through this form. Use search_public_products."}
+        return {"ok": True, "form_for": product["title"],
+                "instruction": "Tell the customer to tap 'Open the secure form' on the card below. Never ask for or repeat "
+                               "amounts, account numbers or personal details in chat; the form handles them, with identity verification.",
+                "presentation": {"type": "OPEN_APPLICATION", "product_id": product["id"], "title": product["title"],
+                                 "category": product["category"]}}
+
     # Arithmetic on the customer's money happens here, on the server: the model only ever sees placeholders for figures.
     def check_funds(amount_minor: int, account_id: str = "") -> dict:
         """Whether an account (the primary one if none is given) has at least this amount available, in integer paise.
@@ -1194,6 +1208,7 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
                 "received_minor": sum(int(t["amount_minor"]) for t in txns if (t.get("amount_minor") or 0) > 0)}
 
     return [repeat_safe(tool) for tool in (
+        open_application_form,
         check_funds,
         summarise_spending,
         get_customer_summary,

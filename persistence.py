@@ -425,8 +425,25 @@ class AccountApplicationRecord(Base):
     rpa: Mapped[dict[str, Any]] = mapped_column(JSON_DOCUMENT, nullable=False, default=dict)   # attempts, last error
     history: Mapped[list[dict[str, Any]]] = mapped_column(JSON_DOCUMENT, nullable=False, default=list)
     reapplied_from: Mapped[str | None] = mapped_column(String(40))
+    findings: Mapped[list[dict[str, Any]]] = mapped_column(JSON_DOCUMENT, nullable=False, default=list)  # automatic document checks
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt, index=True)
+
+
+class ApplicationDocumentRecord(Base):
+    """A KYC document uploaded with an account application. The file and what OCR read from it are encrypted at rest."""
+
+    __tablename__ = "application_documents"
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    application_ref: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    document_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    content_sealed: Mapped[str] = mapped_column(Text, nullable=False)
+    extracted_sealed: Mapped[str] = mapped_column(Text, nullable=False)
+    scan_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
 
 
 # ---- Banking state, one typed table per entity (see banking_store.py) --------------------------------------
@@ -601,6 +618,9 @@ class DatabaseRuntime:
                 conn.exec_driver_sql(
                     "CREATE UNIQUE INDEX IF NOT EXISTS ix_app_users_auth_subject ON app_users(auth_subject)"
                 )
+                application_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(account_applications)")}
+                if application_columns and "findings" not in application_columns:
+                    conn.exec_driver_sql("ALTER TABLE account_applications ADD COLUMN findings JSON NOT NULL DEFAULT '[]'")
                 turn_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(mitra_turns)")}
                 for column in ("input_tokens", "output_tokens"):
                     if turn_columns and column not in turn_columns:

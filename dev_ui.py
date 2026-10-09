@@ -169,7 +169,7 @@ def start_account_opening() -> None:
             print(f"Account opening: re-queued {len(requeued)} application(s) for the core")
     except Exception as exc:
         print(f"Account opening robot is OFF: {exc}")
-app.include_router(make_public_router(db, auth_service, limiter))
+app.include_router(make_public_router(db, auth_service, limiter, account_applications))
 
 _CANONICAL = urllib.parse.urlsplit(os.getenv("SENTINEL_PUBLIC_URL", ""))
 
@@ -330,6 +330,9 @@ from backend.ekyc import make_ekyc_router
 app.include_router(make_ekyc_router(db, require_customer, require_customer_csrf, limiter))
 from backend.account_application_routes import make_account_application_router
 app.include_router(make_account_application_router(account_applications, db, require_officer, require_csrf))
+from backend.applicant_routes import make_applicant_router
+app.include_router(make_applicant_router(account_applications, db, auth_service, limiter, require_customer,
+                                         require_customer_csrf, active_consent))
 
 
 @app.websocket("/ws/chat")

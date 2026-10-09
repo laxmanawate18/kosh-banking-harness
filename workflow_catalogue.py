@@ -97,8 +97,11 @@ def workflow_summary_prompt() -> str:
         "Available Interactive Banking Workflows (call start_banking_workflow(skill_id) or start_account_opening() to display form):"
     ]
     for key, wf in sorted(WORKFLOWS.items()):
-        if key == "account_opening":
-            lines.append(f'- "{key}": {wf["name"]} — {wf["description"]} (invoke with start_account_opening())')
+        if key == "account_opening":  # another savings account: the secure form, not a workflow
+            lines.append(f'- "{key}": {wf["name"]} — call open_application_form(product_id) to show the secure form')
+        elif key == "deposit":
+            lines.append(f'- "{key}": fixed deposit — call open_application_form("PROD-FD-SMART"); '
+                         'recurring deposit — start_banking_workflow("deposit")')
         else:
             lines.append(f'- "{key}": {wf["name"]} — {wf["description"]} (invoke with start_banking_workflow("{key}"))')
     return "\n".join(lines)
