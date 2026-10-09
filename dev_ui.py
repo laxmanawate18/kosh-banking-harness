@@ -39,6 +39,7 @@ from service_requests import ServiceRequestService
 from banking_workflows import WorkflowService, make_workflow_router
 from rpa.cbs_mock_server import cbs_router
 from rpa.job_dispatcher import get_job_queue
+from account_applications import AccountApplicationService, link_existing_customers
 from backend.mcp_gateway import mount as mount_mcp_gateway
 
 
@@ -60,6 +61,7 @@ async def lifespan(application: FastAPI):
             print(f"RPA: re-queued {len(requeued)} approved request(s) after restart")
     except Exception as exc:
         print(f"RPA requeue notice: {exc}")
+    start_account_opening()
     from backend import mitra_ops
     try:
         mitra_ops.set_current_version(mitra_ops.register_prompt_version(db, DEFAULT_MODEL)["version"])
@@ -145,6 +147,28 @@ mcp_gateway = mount_mcp_gateway(app, oauth_service, public_url=os.getenv("SENTIN
 
 request_service = ServiceRequestService(db)
 workflow_service = WorkflowService(db)
+account_applications = AccountApplicationService(db)
+
+
+def start_account_opening() -> None:
+    """The legacy core (127.0.0.1 only) and the robot that keys approved applications into it. In production the core
+    needs its own database (LEGACY_CBS_DATABASE_URL); without it the robot stays off and approved applications wait,
+    visibly queued, instead of the app failing to start."""
+    try:
+        linked = link_existing_customers(db)
+        if linked:
+            print(f"Account opening: linked {linked} existing record(s) to their core identifiers")
+        from legacy_cbs import server as legacy_core
+        from rpa.account_worker import AccountRobotWorker
+        worker = AccountRobotWorker(account_applications, db, legacy_core.start_in_background())
+        account_applications.on_queued = worker.enqueue
+        account_applications.worker = worker
+        worker.start()
+        requeued = account_applications.requeue_stale()
+        if requeued:
+            print(f"Account opening: re-queued {len(requeued)} application(s) for the core")
+    except Exception as exc:
+        print(f"Account opening robot is OFF: {exc}")
 app.include_router(make_public_router(db, auth_service, limiter))
 
 _CANONICAL = urllib.parse.urlsplit(os.getenv("SENTINEL_PUBLIC_URL", ""))

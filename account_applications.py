@@ -236,6 +236,14 @@ class AccountApplicationService:
             self._move(session, row, target, by="RPA", actor="rpa", note=str(error)[:200])
         return self.get(reference)
 
+    def note_progress(self, reference: str, event: dict[str, Any]) -> None:
+        """One robot progress event (no screenshot), kept on the application for the officer; the last 40 are kept."""
+        with self.db._lock, self.runtime.sessions.begin() as session:
+            row = self._locked(session, reference, missing_ok=True)
+            if row:
+                events = [*((row.rpa or {}).get("events") or []), {**event, "at": utc_dt().isoformat()}][-40:]
+                row.rpa = {**(row.rpa or {}), "events": events}
+
     def _robot_step(self, reference: str, target: str, cbs: dict[str, Any], note: str) -> dict[str, Any]:
         with self.db._lock, self.runtime.sessions.begin() as session:
             row = self._locked(session, reference)
@@ -350,3 +358,114 @@ class AccountApplicationService:
 
 def _mask(number: Optional[str]) -> Optional[str]:
     return f"•••• {str(number)[-4:]}" if number else None
+
+
+# ---- Kosh mirrors what the core created ----------------------------------------------------------------------------
+def mirror_opened(db, application: dict[str, Any], payload: dict[str, Any], core: dict[str, Any]) -> str:
+    """Record in Kosh what the legacy core opened, keyed on the application reference so it never happens twice.
+    Returns the Kosh customer id. A new customer arrives KYC-verified: the officer verified KYC before approving."""
+    from product_service import get_product_by_id
+    reference, now = application["reference"], utc_dt().isoformat()
+    product = get_product_by_id(application["product_id"]) or {}
+
+    def mutate(state: dict[str, Any]) -> str:
+        accounts, customers = state.setdefault("accounts", {}), state.setdefault("customers", {})
+        done = next((a for a in accounts.values() if a.get("source_application") == reference), None)
+        if done:
+            return done["customer_id"]
+        customer_id = application.get("customer_id") or _new_customer(state, application, payload, core, now)
+        customer = customers[customer_id]
+        customer.setdefault("cif_number", core["cif_number"])
+        account_id = f"ACC-{'FD' if application['kind'] == 'FD' else 'SAV'}-{uuid.uuid4().hex[:6].upper()}"
+        number = core.get("fd_number") or core["account_number"]
+        account = {"id": account_id, "customer_id": customer_id, "account_number": number, "cbs_account_number": number,
+                   "account_number_masked": f"•••• {number[-4:]}", "name": product.get("title", "Kosh account"),
+                   "currency": "INR", "status": "ACTIVE", "source_application": reference, "created_at": now}
+        if application["kind"] == "FD":
+            _book_deposit(state, account, payload, reference, now)
+        else:
+            primary = not any(a.get("customer_id") == customer_id for a in accounts.values())
+            account.update(type="SAVINGS", balance_minor=0, available_balance_minor=0, is_primary=primary)
+        accounts[account_id] = account
+        delegation = next((d for d in state.get("delegations", {}).values() if d.get("customer_id") == customer_id), None)
+        if delegation is not None and account["type"] == "SAVINGS":
+            delegation["allowed_accounts"] = sorted({*delegation.get("allowed_accounts", []), account_id})
+        state.setdefault("audit_events", []).append({
+            "id": f"AUD-{uuid.uuid4().hex}", "event_type": "ACCOUNT_MIRRORED_FROM_CORE", "customer_id": customer_id,
+            "actor": "system", "approval_request_id": reference, "created_at": now,
+            "summary": f"{reference}: {account['type']} {account['account_number_masked']} opened in the core, mirrored in Kosh",
+            "details": {"cif": core["cif_number"], "checker_reference": core.get("checker_reference")}})
+        return customer_id
+
+    return db.transaction(mutate)
+
+
+def _new_customer(state: dict[str, Any], application: dict[str, Any], payload: dict[str, Any], core: dict[str, Any],
+                  now: str) -> str:
+    customers = state.setdefault("customers", {})
+    taken = [int(c.split("-")[1]) for c in customers if c.startswith("CUST-") and c.split("-")[1].isdigit()]
+    customer_id = f"CUST-{max(taken + [1002]) + 1}"
+    name = " ".join(str(payload["full_name"]).split())
+    mobile = "+91" + str(payload["mobile"])[-10:]
+    pan = str(payload["pan_number"]).upper()
+    verification = application.get("kyc_verification") or {}
+    customers[customer_id] = {
+        "id": customer_id, "cif_number": core["cif_number"], "first_name": name.split()[0].title(), "full_name": name.title(),
+        "display_name": name.title(), "phone_number": mobile, "phone_masked": "+91 ••••• " + mobile[-5:],
+        "email": str(payload.get("email") or ""), "city": str(payload.get("city") or "").title(), "status": "ACTIVE",
+        "tier": "Personal", "member_since": now[:10], "normal_transfer_minor": 800000, "primary_device_id": f"DEVICE-{customer_id}",
+        "kyc": {"status": "VERIFIED", "kyc_type": "INITIAL_KYC", "full_name": name.title(),
+                "date_of_birth": str(payload.get("date_of_birth") or ""), "pan_masked": "••••••" + pan[-4:],
+                "aadhaar_masked": ("•••• •••• " + str(payload["document_last4"])) if payload.get("document_last4") else "UNVERIFIED",
+                "address": str(payload.get("address") or ""), "city": str(payload.get("city") or ""),
+                "state": str(payload.get("state") or ""), "pincode": str(payload.get("pincode") or ""),
+                "risk_category": "LOW", "due_date": f"{int(now[:4]) + 10}{now[4:10]}", "last_verified_date": now[:10],
+                "verification_reference": verification.get("reference"), "pending_requirements": [], "account_restrictions": []}}
+    state.setdefault("devices", {})[f"DEVICE-{customer_id}"] = {
+        "id": f"DEVICE-{customer_id}", "customer_id": customer_id, "status": "NEW", "first_seen_at": now, "label": "New customer device"}
+    state.setdefault("delegations", {})[f"DLG-{customer_id}"] = {
+        "id": f"DLG-{customer_id}", "customer_id": customer_id, "agent_id": "banking-agent-v1", "status": "ACTIVE",
+        "allowed_actions": ["READ_ACCOUNTS", "READ_TRANSACTIONS", "READ_BILLS", "READ_ALERTS", "PAY_BILL", "TRANSFER", "FREEZE_CARD"],
+        "allowed_accounts": [], "max_autonomous_bill_minor": 500000, "max_daily_minor": 20000000, "expires_at": "2027-12-31T23:59:59Z"}
+    return customer_id
+
+
+def _book_deposit(state: dict[str, Any], account: dict[str, Any], payload: dict[str, Any], reference: str, now: str) -> None:
+    """The deposit's money moves inside Kosh's ledger: debit the funding account, open the deposit with that balance."""
+    amount = int(payload["amount_minor"])
+    funding = state["accounts"].get(str(payload["funding_account_id"]).upper())
+    if not funding or funding.get("customer_id") != account["customer_id"]:
+        raise ApplicationError("The funding account is not this customer's.")
+    if int(funding.get("available_balance_minor") or 0) < amount:
+        # ponytail: checked at submission; a balance hold placed at submission (later step) makes this unreachable
+        raise ApplicationError("The funding account no longer has enough available balance for the deposit.")
+    funding["balance_minor"] = int(funding.get("balance_minor") or 0) - amount
+    funding["available_balance_minor"] = int(funding.get("available_balance_minor") or 0) - amount
+    account.update(type="FIXED_DEPOSIT", balance_minor=amount, available_balance_minor=amount, is_primary=False,
+                   tenure_months=int(payload["tenure_months"]), rate_percent=8.10, funding_account_id=funding["id"],
+                   maturity_instruction=str(payload.get("maturity_instruction") or "RENEW_PRINCIPAL_INTEREST"))
+    for account_id, amount_minor, description in ((funding["id"], -amount, f"Fixed deposit {account['account_number_masked']} booked"),
+                                                  (account["id"], amount, "Deposit opened")):
+        state.setdefault("transactions", []).append({
+            "id": f"TXN-{uuid.uuid4().hex[:12].upper()}", "customer_id": account["customer_id"], "account_id": account_id,
+            "created_at": now, "description": description, "category": "FIXED_DEPOSIT", "amount_minor": amount_minor,
+            "currency": "INR", "status": "COMPLETED", "reference": reference})
+
+
+def link_existing_customers(db) -> int:
+    """Copy the core identifiers (CIF, core account numbers) of the bank's existing customers from the seed onto live
+    records that predate them. Idempotent; returns how many records were linked."""
+    seed, live = db._seed(), db.snapshot()
+    missing = [("customers", key, "cif_number", item["cif_number"]) for key, item in seed.get("customers", {}).items()
+               if item.get("cif_number") and key in live.get("customers", {}) and not live["customers"][key].get("cif_number")]
+    missing += [("accounts", key, "cbs_account_number", item["cbs_account_number"]) for key, item in seed.get("accounts", {}).items()
+                if item.get("cbs_account_number") and key in live.get("accounts", {})
+                and not live["accounts"][key].get("cbs_account_number")]
+    if not missing:
+        return 0
+
+    def mutate(state: dict[str, Any]) -> int:
+        for collection, key, field, value in missing:
+            state[collection][key][field] = value
+        return len(missing)
+    return db.transaction(mutate)

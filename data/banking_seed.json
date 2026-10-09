@@ -39,7 +39,7 @@
   },
   "customers": {
     "CUST-1001": {
-      "id": "CUST-1001",
+      "id": "CUST-1001", "cif_number": "CIF0001001",
       "first_name": "Aarav",
       "last_name": "Mehta",
       "display_name": "Aarav Mehta",
@@ -76,7 +76,7 @@
       }
     },
     "CUST-1002": {
-      "id": "CUST-1002",
+      "id": "CUST-1002", "cif_number": "CIF0001002",
       "first_name": "Sudhir",
       "last_name": "Jaiswal",
       "display_name": "Sudhir Jaiswal",
@@ -110,27 +110,27 @@
     "ACC-SAL-001": {
       "id": "ACC-SAL-001", "customer_id": "CUST-1001", "name": "Salary Account",
       "type": "SAVINGS", "balance_minor": 12500000, "available_balance_minor": 12500000,
-      "currency": "INR", "status": "ACTIVE", "account_number_masked": "•••• 4821", "is_primary": true
+      "currency": "INR", "status": "ACTIVE", "account_number_masked": "•••• 4821", "cbs_account_number": "109200004821", "is_primary": true
     },
     "ACC-SAV-002": {
       "id": "ACC-SAV-002", "customer_id": "CUST-1001", "name": "Rent Reserve",
       "type": "SAVINGS", "balance_minor": 28500000, "available_balance_minor": 28500000,
-      "currency": "INR", "status": "ACTIVE", "account_number_masked": "•••• 7704", "is_primary": false
+      "currency": "INR", "status": "ACTIVE", "account_number_masked": "•••• 7704", "cbs_account_number": "109200007704", "is_primary": false
     },
     "ACC-SAL-102": {
       "id": "ACC-SAL-102", "customer_id": "CUST-1002", "name": "Priority Salary Account",
       "type": "SAVINGS", "balance_minor": 48500000, "available_balance_minor": 48500000,
-      "currency": "INR", "status": "ACTIVE", "account_number_masked": "•••• 4797", "is_primary": true
+      "currency": "INR", "status": "ACTIVE", "account_number_masked": "•••• 4797", "cbs_account_number": "109200004797", "is_primary": true
     },
     "ACC-SAV-103": {
       "id": "ACC-SAV-103", "customer_id": "CUST-1002", "name": "Global Tech Advantage",
       "type": "SAVINGS", "balance_minor": 92000000, "available_balance_minor": 92000000,
-      "currency": "INR", "status": "ACTIVE", "account_number_masked": "•••• 8820", "is_primary": false
+      "currency": "INR", "status": "ACTIVE", "account_number_masked": "•••• 8820", "cbs_account_number": "109200008820", "is_primary": false
     },
     "ACC-FD-104": {
       "id": "ACC-FD-104", "customer_id": "CUST-1002", "name": "High Yield Term Deposit",
       "type": "FIXED_DEPOSIT", "balance_minor": 150000000, "available_balance_minor": 150000000,
-      "currency": "INR", "status": "ACTIVE", "account_number_masked": "•••• 1042", "is_primary": false
+      "currency": "INR", "status": "ACTIVE", "account_number_masked": "•••• 1042", "cbs_account_number": "FD0000001042", "is_primary": false
     }
   },
   "cards": {
