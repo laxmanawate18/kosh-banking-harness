@@ -171,7 +171,7 @@ def main() -> int:
     version = prompt_version()
     print(f"    commit {commit}, image tag {tag}, prompt version {version}")
     if not args.skip_tests:
-        run(str(ROOT / "venv/bin/python"), "-m", "pytest", "-q", "--ignore=tests/e2e", "--ignore=tests/eval", "-p", "no:cacheprovider", capture=False)
+        run(sys.executable, "-m", "pytest", "-q", "--ignore=tests/e2e", "--ignore=tests/eval", "-p", "no:cacheprovider", capture=False)
         run("npm", "--prefix", str(ROOT / "auth-server"), "test", capture=False)
         run("npx", "--prefix", str(ROOT / "frontend"), "tsc", "-p", str(ROOT / "frontend"), "--noEmit", capture=False)
 
