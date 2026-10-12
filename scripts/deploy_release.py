@@ -23,6 +23,7 @@ import base64
 import json
 import os
 import secrets
+import shutil
 import ssl
 import subprocess
 import sys
@@ -76,7 +77,12 @@ REMOVED = {APP: {"DEMO_OTP", "SMTP_HOST", "SMTP_PORT", "SMTP_USE_TLS", "SMTP_USE
 
 
 def run(*args: str, capture: bool = True, stdin: str | None = None) -> str:
-    result = subprocess.run(args, input=stdin, text=True, capture_output=capture, check=False)
+    cmd = list(args)
+    if cmd:
+        resolved = shutil.which(cmd[0])
+        if resolved:
+            cmd[0] = resolved
+    result = subprocess.run(cmd, input=stdin, text=True, capture_output=capture, check=False)
     if result.returncode != 0:
         raise SystemExit(f"Failed: {' '.join(args[:4])} ...\n{(result.stderr or '').strip()[-800:]}")
     return (result.stdout or "").strip()
