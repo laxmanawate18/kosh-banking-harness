@@ -113,7 +113,8 @@ def split_env(env: list[dict], service: str) -> tuple[dict[str, str], dict[str, 
 
 
 def secret_exists(name: str) -> bool:
-    return subprocess.run(["gcloud", "secrets", "describe", name, f"--project={PROJECT}"], capture_output=True).returncode == 0
+    bin_name = shutil.which("gcloud") or "gcloud"
+    return subprocess.run([bin_name, "secrets", "describe", name, f"--project={PROJECT}"], capture_output=True).returncode == 0
 
 
 def ensure_secret(name: str, value: str, account: str) -> str:
