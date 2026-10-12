@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import os
-from asyncio import timeout as async_timeout
+try:
+    from asyncio import timeout as async_timeout
+except ImportError:
+    from async_timeout import timeout as async_timeout
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse

@@ -236,8 +236,9 @@ def _real_args(data: types.ToolCall, trusted_context: Dict[str, Any]) -> Dict[st
 class SecureToolGateHook(hooks.PreToolCallDecideHook):
     """Restrict agents to the registered banking and sales tool contract with auth gating."""
 
-    def __init__(self, trusted_context: Optional[Dict[str, Any]] = None):
+    def __init__(self, trusted_context: Optional[Dict[str, Any]] = None, enforce_scoping: bool = False):
         self.trusted_context = trusted_context if trusted_context is not None else {"customer_id": None}  # fail closed
+        self.enforce_scoping = enforce_scoping or bool(self.trusted_context.get("enforce_ontology_scoping"))
 
     async def run(self, context: hooks.HookContext, data: types.ToolCall) -> types.HookResult:
         del context
@@ -258,6 +259,18 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
         spec = harness.tool_spec("customer", name)
         if spec is None:
             return types.HookResult(allow=False, message="Sentinel denied an unregistered capability.")
+
+        # Dynamic Tool Scoping Enforcement:
+        process_id = self.trusted_context.get("process_id")
+        effect = spec.get("effect")
+        outside = ontology.outside_process(process_id, name, effect)
+        if (self.enforce_scoping or self.trusted_context.get("enforce_ontology_scoping") or db.get_controls().get("enforce_ontology_scoping")) and outside:
+            allowed_tools = ontology.scoped_tool_names(process_id) or []
+            return types.HookResult(
+                allow=False,
+                message=f"ONTOLOGY_TOOL_DENIED: Action '{name}' is not permitted under process '{process_id}'. Allowed tools: {', '.join(sorted(allowed_tools))}"
+            )
+
         problem = harness.check_call("customer", name, args, self.trusted_context.get("scopes"))
         if problem:
             return types.HookResult(allow=False, message=f"Sentinel denied the call: {problem}.")
@@ -404,6 +417,7 @@ def create_agent_config(
     session_context: Optional[Dict[str, Any]] = None,
     visitor: bool = False,
     model: Optional[str] = None,
+    process_id: Optional[str] = None,
 ) -> LocalAgentConfig:
     """Create a fixed-model Antigravity configuration for one isolated chat session."""
     context = session_context if session_context is not None else (
@@ -464,6 +478,10 @@ def create_agent_config(
             if name not in seen_names:
                 seen_names.add(name)
                 deduped_tools.append(t)
+        # Dynamic tool scoping: prune to ontology-permitted tools when a process is active
+        active_proc = process_id or (context.get("process_id") if context else None)
+        if active_proc:
+            deduped_tools = ontology.filter_tools_by_process(deduped_tools, active_proc)
         tools = guarded_tools(deduped_tools, "customer", vault)
         configured_hooks = [SecureToolGateHook(context), SessionPostToolCallHook(session_id, context.get("customer_id"))]
         active_leads = db.get_active_leads_for_customer(customer_id)

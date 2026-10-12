@@ -175,7 +175,7 @@ class BankingDatabase:
         previous_hash = previous.integrity_hash if previous and previous.integrity_hash else "0" * 64
         session.add(AuditEventRecord(
             **fields, previous_hash=previous_hash, integrity_hash=self._audit_hmac(previous_hash, fields),
-            created_at=datetime.fromisoformat(event["created_at"]) if event.get("created_at") else utc_dt(),
+            created_at=datetime.fromisoformat(event["created_at"].replace("Z", "+00:00")) if event.get("created_at") else utc_dt(),
         ))
 
     def verify_audit_chain(self) -> Dict[str, Any]:

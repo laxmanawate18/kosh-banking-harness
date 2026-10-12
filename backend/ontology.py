@@ -28,7 +28,7 @@ import time
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent / "config" / "ontology"
 HANDOVER_TOOLS = frozenset({"register_complaint", "request_callback"})
@@ -325,3 +325,385 @@ def outside_process(process_id: Optional[str], tool: str, effect: Optional[str])
     harness, consent, Sentinel and Kavach regardless (ponytail: monitor first; enforce once the audit shows few such calls)."""
     return (process_id in load() and effect in {"write", "money"} and tool not in HANDOVER_TOOLS
             and tool not in load()[process_id].tools)
+
+
+SAFE_AMBIENT_TOOLS = frozenset({
+    "get_customer_summary",
+    "get_transaction_history",
+    "query_bank_knowledge",
+    "search_public_products",
+    "get_public_product_details",
+    "compare_public_products",
+    "get_product_disclosures",
+    "register_complaint",
+    "request_callback",
+})
+
+
+def scoped_tool_names(process_id: Optional[str]) -> Optional[frozenset[str]]:
+    """Return the set of allowed tool names for a process under the ontology.
+    If process_id is None or unknown, returns None (all tools allowed).
+    If process_id is valid, returns the process's kosh_tools union safe ambient tools and handovers."""
+    if not process_id:
+        return None
+    processes = load()
+    if process_id not in processes:
+        return None
+    p = processes[process_id]
+    return frozenset(p.tools | SAFE_AMBIENT_TOOLS | HANDOVER_TOOLS)
+
+
+def filter_tools_by_process(tools: List[Any], process_id: Optional[str]) -> List[Any]:
+    """Prune a list of tools to only those permitted by the active ontology process (least privilege).
+    If process_id is None, returns the original tools list unchanged."""
+    allowed = scoped_tool_names(process_id)
+    if allowed is None:
+        return tools
+    pruned = []
+    for t in tools:
+        name = getattr(t, "__name__", None) or getattr(t, "name", None) or type(t).__name__
+        if name in allowed:
+            pruned.append(t)
+    return pruned
+
+
+def _humanize_id(identifier: str) -> str:
+    cleaned = identifier
+    for prefix in ("proc.", "act.", "obj.", "actor.", "evt.", "pol."):
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[len(prefix):]
+            break
+    if "#s" in cleaned:
+        cleaned = cleaned.split("#s", 1)[-1].split(":", 1)[-1]
+    return cleaned.replace("_", " ").title()
+
+
+@lru_cache(maxsize=1)
+def edges() -> List[Dict[str, str]]:
+    """Parse edges from config/ontology/edges.md."""
+    path = ROOT / "edges.md"
+    if not path.exists():
+        return []
+    result = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("| `"):
+            parts = [c.strip().strip("`") for c in line.strip().strip("|").split("|")]
+            if len(parts) >= 3:
+                result.append({"source": parts[0], "relation": parts[1], "target": parts[2]})
+    return result
+
+
+def graph(process_id: Optional[str] = None) -> Dict[str, Any]:
+    """Generates node-link graph data for visualization in the admin console.
+    If process_id is provided, returns the focused subgraph for that process."""
+    all_edges = edges()
+    procs = load()
+
+    if process_id and process_id in procs:
+        p = procs[process_id]
+        relevant_node_ids: Set[str] = {process_id}
+        for act in p.activities:
+            relevant_node_ids.add(act)
+        for tool in p.tools:
+            relevant_node_ids.add(f"tool:{tool}")
+        for table in p.tables:
+            relevant_node_ids.add(f"table:{table}")
+        for care in p.care:
+            relevant_node_ids.add(f"care:{care}")
+
+        step_prefix = f"{process_id}#"
+        for e in all_edges:
+            s, t = e["source"], e["target"]
+            if s == process_id or s.startswith(step_prefix):
+                relevant_node_ids.add(s)
+                relevant_node_ids.add(t)
+            elif t == process_id:
+                relevant_node_ids.add(s)
+
+        filtered_edges = []
+        for e in all_edges:
+            if e["source"] in relevant_node_ids and e["target"] in relevant_node_ids:
+                filtered_edges.append(e)
+
+        for tool in p.tools:
+            filtered_edges.append({"source": process_id, "relation": "HAS_TOOL", "target": f"tool:{tool}"})
+        for table in p.tables:
+            filtered_edges.append({"source": process_id, "relation": "TOUCHES_TABLE", "target": f"table:{table}"})
+
+        nodes = []
+        for nid in sorted(relevant_node_ids):
+            node_type = "unknown"
+            domain = p.domain
+            label = _humanize_id(nid)
+            kosh_status = None
+            if nid == process_id:
+                node_type = "process"
+                label = p.name
+                kosh_status = p.kosh_status
+            elif nid.startswith("proc.") and "#s" not in nid:
+                node_type = "process"
+                target_p = procs.get(nid)
+                label = target_p.name if target_p else nid
+                kosh_status = target_p.kosh_status if target_p else None
+            elif nid.startswith("act."):
+                node_type = "activity"
+            elif nid.startswith("obj."):
+                node_type = "object"
+            elif nid.startswith("actor."):
+                node_type = "actor"
+            elif nid.startswith("evt."):
+                node_type = "event"
+            elif nid.startswith("pol."):
+                node_type = "policy"
+            elif "#s" in nid:
+                node_type = "step"
+                label = nid.split(":", 1)[-1] if ":" in nid else nid
+            elif nid.startswith("tool:"):
+                node_type = "tool"
+                label = nid[5:].replace("_", " ")
+            elif nid.startswith("table:"):
+                node_type = "table"
+                label = nid[6:]
+            elif nid.startswith("care:"):
+                node_type = "care"
+                label = nid[5:].replace("_", " ")
+
+            nodes.append({
+                "id": nid,
+                "label": label,
+                "type": node_type,
+                "domain": domain,
+                "kosh_status": kosh_status,
+            })
+
+        return {
+            "focused_process": process_id,
+            "nodes": nodes,
+            "edges": filtered_edges,
+            "stats": {
+                "total_nodes": len(nodes),
+                "total_edges": len(filtered_edges),
+                "activities_count": len([n for n in nodes if n["type"] == "activity"]),
+                "tools_count": len([n for n in nodes if n["type"] == "tool"]),
+                "policies_count": len([n for n in nodes if n["type"] == "policy"]),
+            }
+        }
+
+    # Global overview graph
+    nodes = []
+    node_set: Set[str] = set()
+    for pid, p in procs.items():
+        nodes.append({
+            "id": pid,
+            "label": p.name,
+            "type": "process",
+            "domain": p.domain,
+            "kosh_status": p.kosh_status,
+            "channels": sorted(p.channels),
+            "tools_count": len(p.tools),
+        })
+        node_set.add(pid)
+
+    core_policies = ["pol.agent_guardrails", "pol.approval_matrix", "pol.consent_privacy", "pol.authentication_assurance", "pol.audit_evidence"]
+    for pol in core_policies:
+        nodes.append({"id": pol, "label": _humanize_id(pol), "type": "policy", "domain": "governance", "kosh_status": "implemented"})
+        node_set.add(pol)
+
+    high_level_edges = []
+    for e in all_edges:
+        if e["source"] in node_set and e["target"] in node_set:
+            high_level_edges.append(e)
+
+    return {
+        "focused_process": None,
+        "nodes": nodes,
+        "edges": high_level_edges,
+        "stats": {
+            "total_nodes": len(nodes),
+            "total_edges": len(high_level_edges),
+            "total_raw_edges": len(all_edges),
+            "processes_count": len(procs),
+            "implemented_count": len([p for p in procs.values() if p.kosh_status == "implemented"]),
+            "partial_count": len([p for p in procs.values() if p.kosh_status == "partial"]),
+            "not_implemented_count": len([p for p in procs.values() if p.kosh_status == "not_implemented"]),
+        }
+    }
+
+
+STATE_MACHINES: Dict[str, Dict[str, Any]] = {
+    "obj.account": {
+        "name": "Account Lifecycle",
+        "states": ["OPEN", "ACTIVE", "FROZEN", "DORMANT", "CLOSED"],
+        "initial": "ACTIVE",
+        "terminal": ["CLOSED"],
+        "transitions": {
+            "OPEN": ["ACTIVE", "FROZEN", "DORMANT", "CLOSED"],
+            "ACTIVE": ["OPEN", "FROZEN", "DORMANT", "CLOSED"],
+            "FROZEN": ["OPEN", "ACTIVE", "CLOSED"],
+            "DORMANT": ["OPEN", "ACTIVE", "CLOSED"],
+            "CLOSED": [],
+        },
+        "description": "Lifecycle state of customer deposit and savings accounts.",
+    },
+    "obj.card": {
+        "name": "Card Lifecycle",
+        "states": ["ACTIVE", "FROZEN", "HOTLISTED", "BLOCKED", "TEMPORARILY_BLOCKED", "PERMANENTLY_BLOCKED", "CANCELLED"],
+        "initial": "ACTIVE",
+        "terminal": ["CANCELLED", "PERMANENTLY_BLOCKED"],
+        "transitions": {
+            "ACTIVE": ["FROZEN", "HOTLISTED", "BLOCKED", "TEMPORARILY_BLOCKED", "PERMANENTLY_BLOCKED"],
+            "FROZEN": ["ACTIVE", "HOTLISTED", "CANCELLED", "PERMANENTLY_BLOCKED"],
+            "TEMPORARILY_BLOCKED": ["ACTIVE", "HOTLISTED", "CANCELLED", "PERMANENTLY_BLOCKED"],
+            "HOTLISTED": ["CANCELLED", "PERMANENTLY_BLOCKED"],
+            "BLOCKED": ["ACTIVE", "CANCELLED", "PERMANENTLY_BLOCKED"],
+            "PERMANENTLY_BLOCKED": [],
+            "CANCELLED": [],
+        },
+        "description": "Lifecycle of debit and credit cards, including protective fraud freeze.",
+    },
+    "obj.payment_intent": {
+        "name": "Payment Intent Execution",
+        "states": ["CREATED", "PROPOSED", "CHALLENGED", "CHALLENGE_REQUIRED", "AUTHORISED", "APPROVED", "POSTING", "EXECUTING", "COMPLETED", "EXECUTED", "DENIED", "EXPIRED", "FAILED", "REVERSED"],
+        "initial": "CREATED",
+        "terminal": ["COMPLETED", "EXECUTED", "DENIED", "EXPIRED", "FAILED", "REVERSED"],
+        "transitions": {
+            "CREATED": ["PROPOSED", "CHALLENGED", "CHALLENGE_REQUIRED", "AUTHORISED", "APPROVED", "POSTING", "DENIED", "FAILED"],
+            "PROPOSED": ["CHALLENGED", "CHALLENGE_REQUIRED", "AUTHORISED", "APPROVED", "POSTING", "DENIED", "FAILED"],
+            "CHALLENGED": ["AUTHORISED", "APPROVED", "DENIED", "EXPIRED", "FAILED"],
+            "CHALLENGE_REQUIRED": ["AUTHORISED", "APPROVED", "DENIED", "EXPIRED", "FAILED"],
+            "AUTHORISED": ["POSTING", "EXECUTING", "EXECUTED", "DENIED", "FAILED"],
+            "APPROVED": ["POSTING", "EXECUTING", "EXECUTED", "DENIED", "FAILED"],
+            "POSTING": ["EXECUTING", "EXECUTED", "COMPLETED", "FAILED"],
+            "EXECUTING": ["COMPLETED", "EXECUTED", "DENIED", "FAILED"],
+            "COMPLETED": ["REVERSED"],
+            "EXECUTED": ["REVERSED"],
+            "DENIED": [],
+            "EXPIRED": [],
+            "FAILED": [],
+            "REVERSED": [],
+        },
+        "description": "Payment authorization state through Sentinel scoring and Kavach step-up MFA.",
+    },
+    "obj.account_application": {
+        "name": "Account Application Pipeline",
+        "states": ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "IN_REVIEW", "APPROVED", "QUEUED_FOR_CBS", "RPA_EXECUTING", "CBS_MAKER_DONE", "CBS_AUTHORISED", "MAKER_DONE", "CHECKER_DONE", "OPENED", "REJECTED"],
+        "initial": "DRAFT",
+        "terminal": ["OPENED", "REJECTED"],
+        "transitions": {
+            "DRAFT": ["SUBMITTED"],
+            "SUBMITTED": ["UNDER_REVIEW", "IN_REVIEW", "QUEUED_FOR_CBS", "REJECTED"],
+            "UNDER_REVIEW": ["APPROVED", "QUEUED_FOR_CBS", "REJECTED"],
+            "IN_REVIEW": ["APPROVED", "QUEUED_FOR_CBS", "REJECTED"],
+            "APPROVED": ["MAKER_DONE", "QUEUED_FOR_CBS", "REJECTED"],
+            "QUEUED_FOR_CBS": ["RPA_EXECUTING", "REJECTED"],
+            "RPA_EXECUTING": ["CBS_MAKER_DONE", "QUEUED_FOR_CBS", "REJECTED"],
+            "CBS_MAKER_DONE": ["CBS_AUTHORISED", "REJECTED"],
+            "CBS_AUTHORISED": ["OPENED"],
+            "MAKER_DONE": ["CHECKER_DONE", "REJECTED"],
+            "CHECKER_DONE": ["OPENED", "REJECTED"],
+            "OPENED": [],
+            "REJECTED": [],
+        },
+        "description": "Four-eyes maker/checker onboarding pipeline from initial applicant KYC to CBS account opening.",
+    },
+}
+
+
+def validate_transition(entity: str, from_state: str, to_state: str) -> Tuple[bool, str]:
+    """Validates an entity state transition against the formal ontology state machine."""
+    sm = STATE_MACHINES.get(entity)
+    if not sm:
+        return False, f"Unknown entity state machine: {entity}"
+    f_state = (from_state or "").strip().upper()
+    t_state = (to_state or "").strip().upper()
+    if f_state not in sm["states"]:
+        return False, f"Invalid source state '{from_state}' for {entity}"
+    if t_state not in sm["states"]:
+        return False, f"Invalid target state '{to_state}' for {entity}"
+    allowed_targets = sm["transitions"].get(f_state, [])
+    if t_state not in allowed_targets:
+        return False, f"Illegal state transition for {entity}: cannot transition from '{f_state}' to '{t_state}'. Allowed: {allowed_targets or 'None (terminal)'}"
+    return True, f"Valid transition from {f_state} to {t_state}"
+
+
+def get_state_machines() -> Dict[str, Any]:
+    """Return all formalized entity state machines."""
+    return STATE_MACHINES
+
+
+def ontology_parameters() -> List[Dict[str, Any]]:
+    """Return the 10 governed ontology parameters with values and bound status."""
+    from backend import harness
+    pol = harness.policy().get("ontology_parameters", {})
+    defs = [
+        {"id": "PARAM_AGENT_PAYMENT_LIMIT", "name": "Agent Payment Limit", "unit": "INR", "owner": "Payments head",
+         "description": "Highest payment an agent may complete alone (Mitra: ₹0, always needs Kavach step-up)", "enforced_in": "Sentinel & Kavach"},
+        {"id": "PARAM_CONCESSION_LIMIT", "name": "Concession Limit", "unit": "paise", "owner": "Retail head",
+         "description": "Largest fee or rate concession an agent may offer without officer sign-off", "enforced_in": "Offers & Service Desk"},
+        {"id": "PARAM_NEW_PAYEE_COOLING_HOURS", "name": "New Payee Cooling-off Hours", "unit": "hours", "owner": "Fraud head",
+         "description": "Cooling-off duration for new payees before high-value transfers are permitted", "enforced_in": "Sentinel"},
+        {"id": "PARAM_NEW_PAYEE_LIMIT", "name": "New Payee Limit", "unit": "paise", "owner": "Fraud head",
+         "description": "Reduced transfer ceiling during cooling-off window", "enforced_in": "Sentinel"},
+        {"id": "PARAM_STEP_UP_MAX_FAILURES", "name": "Step-up Max Failures", "unit": "attempts", "owner": "Security head",
+         "description": "Failed Kavach challenges before step-up lockout", "enforced_in": "Kavach"},
+        {"id": "PARAM_STEP_UP_LOCK_MINUTES", "name": "Step-up Lockout Minutes", "unit": "minutes", "owner": "Security head",
+         "description": "Lock duration after step-up failure threshold", "enforced_in": "Kavach & Applications"},
+        {"id": "PARAM_CONTACT_HOURS", "name": "Permitted Contact Hours", "unit": "IST window", "owner": "Collections head",
+         "description": "Permitted window for automated reminders and notifications", "enforced_in": "Notifications"},
+        {"id": "PARAM_MAX_CONTACT_ATTEMPTS", "name": "Max Contact Attempts", "unit": "attempts", "owner": "Collections head",
+         "description": "Maximum outreach attempts before escalation to human care", "enforced_in": "Care Queue"},
+        {"id": "PARAM_APPLICATION_EXPIRY_DAYS", "name": "Application Expiry Days", "unit": "days", "owner": "Retail head",
+         "description": "Days before an unsubmitted/abandoned application expires", "enforced_in": "Account Applications"},
+        {"id": "PARAM_DISPUTE_TAT_DAYS", "name": "Dispute TAT Days", "unit": "days", "owner": "Operations head",
+         "description": "Dispute turnaround time under applicable RBI ombudsman rules", "enforced_in": "Care Queue"},
+    ]
+    result = []
+    for d in defs:
+        val = pol.get(d["id"])
+        result.append({**d, "value": val, "is_set": val is not None})
+    return result
+
+
+def simulate(prompt: str, channel: str = "customer", *, care_intents: Tuple[str, ...] = (),
+             workflow: Optional[str] = None, service: Optional[str] = None,
+             family: Optional[str] = None, skill: Optional[str] = None,
+             previous: Optional[str] = None) -> Dict[str, Any]:
+    """Test-bench routing simulator: returns detailed breakdown of matching decision."""
+    pid, rule = route(prompt, channel, care=care_intents, workflow=workflow, service=service,
+                      family=family, skill=skill, previous=previous)
+    rule_explanations = {
+        "care": f"Matched care safety intent ({', '.join(care_intents)})",
+        "workflow": f"Matched active user workflow form ({workflow})",
+        "service": f"Matched officer open service case ({service})",
+        "intent": f"Matched Sentinel transaction intent family ({family})",
+        "trigger": f"Matched process trigger keywords in message for {pid}" if pid else "Matched process trigger keywords in message",
+        "skill": f"Matched catalog skill keyword ({skill})",
+        "general": "Identified as general enquiry (e.g. balance or rates), scoped with no process guide",
+        "carried": f"Carried forward from previous conversation turn ({previous})",
+        "unmatched": "No deterministic rule matched; fallback to classifier or general guidance",
+    }
+    explanation = rule_explanations.get(rule, f"Matched via {rule}")
+    procs = load()
+    p = procs.get(pid) if pid else None
+    gov_policies = []
+    if p:
+        gov_policies = [e["target"] for e in edges() if e["source"] == pid and e["relation"] == "GOVERNED_BY"]
+        if not gov_policies:
+            gov_policies = ["pol.agent_guardrails", "pol.approval_matrix", "pol.audit_evidence"]
+
+    return {
+        "prompt": prompt,
+        "channel": channel,
+        "matched_process_id": pid,
+        "rule_matched": rule,
+        "rule_explanation": explanation,
+        "process_name": p.name if p else None,
+        "domain": p.domain if p else None,
+        "kosh_status": p.kosh_status if p else None,
+        "allowed_tools": sorted(p.tools) if p else [],
+        "activities": list(p.activities) if p else [],
+        "tables": list(p.tables) if p else [],
+        "governing_policies": sorted(gov_policies),
+        "usable_in_production": usable(pid) if pid else False,
+        "model_view_preview": view(pid) if (pid and usable(pid)) else "",
+    }

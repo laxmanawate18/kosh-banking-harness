@@ -372,3 +372,46 @@ td:not(.num) > .st-bar-cell { flex-direction: row-reverse; justify-content: flex
   .st-chain.checking span { animation: st-scan 1.2s ease-in-out infinite; animation-delay: calc(var(--i) * 80ms); }
 }
 @keyframes st-scan { 50% { border-color: var(--accent); } }
+
+/* ---------- Ontology Visualizer, Mapping, Simulator & State Machine Explorer ---------- */
+.ont-subnav { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.ont-subnav button { padding: 6px 14px; border-radius: 999px; font: 600 13.5px var(--k-sans); border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer; transition: all 150ms ease; }
+.ont-subnav button:hover { border-color: var(--line-strong); color: var(--ink); }
+.ont-subnav button.active { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+.ont-mapping-view { padding: 20px; display: grid; gap: 20px; }
+.ont-selector-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.ont-selector-bar select { padding: 8px 14px; border-radius: var(--r-field); border: 1px solid var(--line-strong); background: var(--surface); font: 500 14px var(--k-sans); color: var(--ink); min-width: 280px; }
+
+.ont-swimlanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; align-items: start; }
+.ont-lane { display: flex; flex-direction: column; gap: 10px; background: var(--surface-2); padding: 14px; border-radius: var(--r); border: 1px solid var(--line); }
+.ont-lane-title { font: 700 13px/1.3 var(--k-sans); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); display: flex; justify-content: space-between; align-items: center; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.ont-node-card { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: var(--r-field); background: var(--surface); border: 1px solid var(--line); box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: transform 120ms ease, border-color 150ms ease; }
+.ont-node-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+.ont-node-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ont-node-title { font: 600 14px/1.35 var(--k-sans); color: var(--ink); }
+.ont-node-sub { font-size: 12px; color: var(--muted); font-family: var(--k-mono); }
+.ont-edge-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 6px; border-radius: 4px; background: var(--tint); color: var(--brand); font-weight: 600; width: fit-content; }
+
+.ont-sim-box { display: grid; gap: 18px; padding: 20px; }
+.ont-sim-input-wrap { display: grid; gap: 10px; }
+.ont-sim-presets { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ont-sim-presets span { font-size: 13px; color: var(--muted); font-weight: 600; }
+.ont-sim-preset-btn { font-size: 12.5px; padding: 3px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; color: var(--ink-2); transition: border-color 140ms ease; }
+.ont-sim-preset-btn:hover { border-color: var(--accent); color: var(--ink); }
+
+.ont-sim-result { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); padding: 18px; display: grid; gap: 14px; }
+.ont-sim-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.ont-sim-process { font: 700 20px/1.2 var(--k-display); color: var(--ink); }
+.ont-sim-explanation { padding: 10px 14px; border-radius: var(--r-field); background: var(--surface-2); font-size: 14px; color: var(--ink-2); border-left: 3px solid var(--accent); }
+.ont-sim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.ont-sim-card { padding: 12px; border-radius: var(--r-field); border: 1px solid var(--line); background: var(--surface-2); display: flex; flex-direction: column; gap: 6px; }
+.ont-sim-card strong { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+
+.ont-sm-container { display: grid; gap: 20px; padding: 20px; }
+.ont-sm-card { border: 1px solid var(--line); border-radius: var(--r); padding: 18px; background: var(--surface); display: grid; gap: 14px; }
+.ont-sm-head { display: flex; justify-content: space-between; align-items: center; }
+.ont-sm-states { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ont-sm-transition-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.ont-sm-transition-table th, .ont-sm-transition-table td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; }
+.ont-sm-transition-table th { background: var(--surface-2); color: var(--muted); font-size: 12px; text-transform: uppercase; }

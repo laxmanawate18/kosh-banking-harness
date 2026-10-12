@@ -85,6 +85,11 @@ class MockCoreBanking:
             journal = data.setdefault("core_postings", {})
             card = data["cards"][card_id]
             if idempotency_key not in journal:
+                from backend import ontology
+                curr_status = card.get("status", "ACTIVE")
+                valid, err = ontology.validate_transition("obj.card", curr_status, status)
+                if not valid:
+                    raise ValueError(f"ILLEGAL_CARD_STATE_TRANSITION: {err}")
                 card.update(status=status, frozen_reason=reason[:160], frozen_at=utc_now())
                 journal[idempotency_key] = {"core_reference": new_id("CARDREF"), "status": "POSTED", "posted_at": utc_now(),
                                             "card_id": card_id, "card_status": status, "amount_minor": 0}

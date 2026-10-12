@@ -236,5 +236,173 @@ class ChatTurn(unittest.TestCase):
         self.assertEqual(recorded, ["proc.dormancy_and_closure"])
 
 
+class OntologyMappingAndStateEngineTests(unittest.TestCase):
+    def test_graph_structure_and_focused_subgraph(self):
+        g = ontology.graph()
+        self.assertGreater(g["stats"]["total_nodes"], 20)
+        self.assertGreater(g["stats"]["total_raw_edges"], 500)
+        self.assertIsNone(g["focused_process"])
+
+        sub = ontology.graph("proc.account_opening")
+        self.assertEqual(sub["focused_process"], "proc.account_opening")
+        self.assertTrue(any(n["id"] == "proc.account_opening" for n in sub["nodes"]))
+        self.assertTrue(any(n["type"] == "activity" for n in sub["nodes"]))
+        self.assertTrue(any(n["type"] == "tool" for n in sub["nodes"]))
+        self.assertTrue(any(e["relation"] == "HAS_TOOL" for e in sub["edges"]))
+
+    def test_routing_simulator_diagnostics(self):
+        sim = ontology.simulate("please block my lost card", "customer")
+        self.assertEqual(sim["matched_process_id"], "proc.card_lifecycle")
+        self.assertEqual(sim["rule_matched"], "trigger")
+        self.assertIn("proc.card_lifecycle", sim["rule_explanation"])
+        self.assertIn("freeze_card", sim["allowed_tools"])
+        self.assertTrue(len(sim["governing_policies"]) > 0)
+
+        # Simulation with care intent
+        care_sim = ontology.simulate("I lost all my money to a scam", "customer", care_intents=("FRAUD",))
+        self.assertEqual(care_sim["matched_process_id"], "proc.fraud_and_dispute")
+        self.assertEqual(care_sim["rule_matched"], "care")
+
+    def test_state_machine_transition_validation(self):
+        # Valid account transitions
+        ok, msg = ontology.validate_transition("obj.account", "OPEN", "FROZEN")
+        self.assertTrue(ok)
+        ok, msg = ontology.validate_transition("obj.account", "FROZEN", "OPEN")
+        self.assertTrue(ok)
+
+        # Invalid account transition: cannot go from CLOSED to OPEN (terminal state)
+        ok, msg = ontology.validate_transition("obj.account", "CLOSED", "OPEN")
+        self.assertFalse(ok)
+        self.assertIn("cannot transition from 'CLOSED' to 'OPEN'", msg)
+
+        # Application transitions
+        ok, _ = ontology.validate_transition("obj.account_application", "SUBMITTED", "UNDER_REVIEW")
+        self.assertTrue(ok)
+        ok, _ = ontology.validate_transition("obj.account_application", "UNDER_REVIEW", "APPROVED")
+        self.assertTrue(ok)
+        ok, _ = ontology.validate_transition("obj.account_application", "APPROVED", "OPENED")
+        self.assertFalse(ok)  # Must go through maker / checker
+
+    def test_governed_ontology_parameters(self):
+        params = ontology.ontology_parameters()
+        self.assertEqual(len(params), 10)
+        param_ids = {p["id"] for p in params}
+        self.assertIn("PARAM_AGENT_PAYMENT_LIMIT", param_ids)
+        self.assertIn("PARAM_STEP_UP_MAX_FAILURES", param_ids)
+        self.assertIn("PARAM_NEW_PAYEE_COOLING_HOURS", param_ids)
+        for p in params:
+            self.assertTrue(p["is_set"])
+            self.assertIsNotNone(p["value"])
+
+    def test_runtime_card_state_machine_enforcement(self):
+        from core_banking import MockCoreBanking
+        from banking_tools import SecureBankingService
+        from sentinel import SentinelService
+        from banking_db import db as repo
+        core = MockCoreBanking(repo)
+        
+        # Seed a test card in terminal state
+        repo.transaction(lambda data: data["cards"].update({
+            "CARD-TERMINAL": {
+                "id": "CARD-TERMINAL", "customer_id": "CUST-1001", "account_id": "ACC-SAL-001",
+                "card_number_masked": "•••• 9999", "status": "CANCELLED", "type": "DEBIT"
+            }
+        }))
+        
+        # Core banking must reject transition from terminal state
+        with self.assertRaises(ValueError) as ctx:
+            core.set_card_status("CARD-TERMINAL", "ACTIVE", idempotency_key="key-test-terminal", reason="attempted unfreeze")
+        self.assertIn("ILLEGAL_CARD_STATE_TRANSITION", str(ctx.exception))
+
+        # SecureBankingService.freeze_card must reject transition from terminal state
+        service = SecureBankingService(repo, SentinelService(repo, "test-secret"))
+        ctx_session = {"customer_id": "CUST-1001", "session_id": "S-TEST", "device_id": "DEV-1"}
+        result = service.freeze_card(ctx_session, "CARD-TERMINAL", "freeze attempted on cancelled card")
+        self.assertFalse(result["success"])
+        self.assertEqual(result["status"], "DENIED")
+        self.assertIn("Card transition denied", result["error"])
+
+    def test_dynamic_tool_scoping_and_pruning(self):
+        from backend.agent_config import create_agent_config, SecureToolGateHook
+        from google.antigravity import types
+        
+        # Check scoped tool names
+        card_tools = ontology.scoped_tool_names("proc.card_lifecycle")
+        self.assertIsNotNone(card_tools)
+        self.assertIn("freeze_card", card_tools)
+        self.assertIn("get_security_alerts", card_tools)
+        self.assertIn("get_customer_summary", card_tools)      # safe ambient
+        self.assertNotIn("propose_transfer", card_tools)       # out of scope
+        self.assertNotIn("propose_bill_payment", card_tools)   # out of scope
+
+        pay_tools = ontology.scoped_tool_names("proc.payment_authorisation")
+        self.assertIsNotNone(pay_tools)
+        self.assertIn("propose_transfer", pay_tools)
+        self.assertIn("propose_bill_payment", pay_tools)
+        self.assertNotIn("freeze_card", pay_tools)
+
+        # Agent config created for proc.card_lifecycle omits transfer tools
+        config = create_agent_config(
+            session_id="S-SCOPED",
+            session_context={"customer_id": "CUST-1001", "process_id": "proc.card_lifecycle"},
+            process_id="proc.card_lifecycle"
+        )
+        tool_names = {getattr(t, "__name__", None) or getattr(t, "name", None) for t in config.tools}
+        self.assertIn("freeze_card", tool_names)
+        self.assertNotIn("propose_transfer", tool_names)
+
+        # Strict tool gate hook enforcement
+        gate_context = {
+            "session_id": "S-STRICT",
+            "customer_id": "CUST-1001",
+            "scopes": ["banking.read", "banking.propose"],
+            "process_id": "proc.card_lifecycle",
+            "enforce_ontology_scoping": True
+        }
+        gate = SecureToolGateHook(gate_context, enforce_scoping=True)
+        transfer_call = types.ToolCall(name="propose_transfer", args={"amount_minor": 1000})
+        res = gate.decide(transfer_call)
+        self.assertFalse(res.allow)
+        self.assertIn("ONTOLOGY_TOOL_DENIED", res.message)
+
+    def test_runtime_governed_policy_parameters_in_sentinel(self):
+        from datetime import datetime, timezone
+        from banking_tools import SecureBankingService
+        from sentinel import SentinelService, IntentResolver
+        from banking_db import db as repo
+        repo.update_kyc_status("CUST-1001", "VERIFIED")
+        service = SecureBankingService(repo, SentinelService(repo, "test-secret"))
+        resolver = IntentResolver(repo)
+
+        # 1. Transfer above agent payment limit (₹30,000 > ₹25,000 PARAM_AGENT_PAYMENT_LIMIT)
+        intent = resolver.resolve("Transfer ₹30,000 to Vikram", "S-PARAM", "t-param-1")
+        context = {
+            "session_id": "S-PARAM", "turn_id": intent["turn_id"], "intent": intent,
+            "customer_id": "CUST-1001", "device_id": "DEVICE-KNOWN-01"
+        }
+        res = service.propose_transfer(context, "BEN-VIKRAM", 3000000, "ACC-SAL-001")
+        decision = res.get("sentinel") or {}
+        self.assertIn("EXCEEDS_AGENT_PAYMENT_LIMIT", decision.get("reason_codes", []))
+
+        # 2. Transfer to newly added beneficiary in cooling-off period (₹15,000 > ₹10,000 limit)
+        now_iso = (datetime.now(timezone.utc)).isoformat().replace("+00:00", "Z")
+        repo.transaction(lambda data: data["beneficiaries"].update({
+            "BEN-NEW-TEST": {
+                "id": "BEN-NEW-TEST", "customer_id": "CUST-1001", "display_name": "New Contact",
+                "destination_masked": "•••• 1234", "kind": "PERSON", "relationship": "NEW",
+                "created_at": now_iso, "risk_status": "NORMAL"
+            }
+        }))
+        intent_cool = resolver.resolve("Transfer ₹15,000 to New Contact", "S-COOL", "t-cool-1")
+        context_cool = {
+            "session_id": "S-COOL", "turn_id": intent_cool["turn_id"], "intent": intent_cool,
+            "customer_id": "CUST-1001", "device_id": "DEVICE-KNOWN-01"
+        }
+        res_cool = service.propose_transfer(context_cool, "BEN-NEW-TEST", 1500000, "ACC-SAL-001")
+        decision_cool = res_cool.get("sentinel") or {}
+        self.assertIn("COOLING_OFF_PERIOD_ACTIVE", decision_cool.get("reason_codes", []))
+        self.assertIn("COOLING_OFF_LIMIT_EXCEEDED", decision_cool.get("reason_codes", []))
+
+
 if __name__ == "__main__":
     unittest.main()

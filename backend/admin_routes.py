@@ -69,6 +69,17 @@ def data_sources(db) -> list:
         ("Cloud SQL sync", "Database", "Copies local changes to Cloud SQL", "on" if env("ENABLE_CLOUD_SQL_SYNC", "").lower() == "true" else "off"),
         ("MCP gateway", "Outside AI agents", f"{channels.get('customer', 0)} customer tools, OAuth and the same gate as Mitra", "configured"),
     ]
+    try:
+        from backend import dlp_service
+        dlp_stat = dlp_service.dlp_status()
+        rows.append((
+            "Sensitive Data Protection (Cloud DLP)",
+            "Security & PII",
+            f"Indian Banking PII discovery & tokenization · {dlp_stat['status']}",
+            "connected" if dlp_stat["live_api_ready"] else "configured",
+        ))
+    except Exception:
+        pass
     return [dict(zip(("name", "kind", "detail", "status"), r)) for r in rows]
 
 
@@ -102,6 +113,25 @@ def make_admin_router(db, require_admin, require_csrf):
     async def admin_data_sources(context=Depends(require_admin)):
         return {"sources": await asyncio.to_thread(data_sources, db)}
 
+    @router.get("/dlp/status")
+    async def admin_dlp_status(context=Depends(require_admin)):
+        from backend import dlp_service
+        return dlp_service.dlp_status()
+
+    @router.post("/dlp/inspect")
+    async def admin_dlp_inspect(req: dict, context=Depends(require_admin)):
+        from backend import dlp_service
+        text = str(req.get("text") or "").strip()
+        findings = dlp_service.inspect_text(text)
+        deidentified, _ = dlp_service.deidentify_text(text)
+        return {
+            "text": text,
+            "deidentified": deidentified,
+            "findings": findings,
+            "total_findings": len(findings),
+            "engine": findings[0]["engine"] if findings else ("google_cloud_dlp" if dlp_service.is_dlp_available() else "local_regex_fallback"),
+        }
+
     @router.get("/ontology")
     async def admin_ontology(context=Depends(require_admin)):
         from backend.settings import PRODUCTION
@@ -122,6 +152,28 @@ def make_admin_router(db, require_admin, require_csrf):
                               "earlier_version_approved": any(k[0] == p.id for k in latest) and not current})
         return {"production": PRODUCTION, "version": ontology.version(),
                 "unrouted_turns_7d": used.get(None, 0), "processes": sorted(processes, key=lambda x: (x["domain"], x["name"]))}
+
+    @router.get("/ontology/graph")
+    async def admin_ontology_graph(process_id: Optional[str] = None, context=Depends(require_admin)):
+        return ontology.graph(process_id)
+
+    @router.post("/ontology/simulate")
+    async def admin_ontology_simulate(req: dict, context=Depends(require_admin)):
+        prompt = str(req.get("prompt") or "")
+        channel = str(req.get("channel") or "customer")
+        care = tuple(req.get("care") or ())
+        return ontology.simulate(prompt, channel, care_intents=care,
+                                 workflow=req.get("workflow"), service=req.get("service"),
+                                 family=req.get("family"), skill=req.get("skill"),
+                                 previous=req.get("previous"))
+
+    @router.get("/ontology/parameters")
+    async def admin_ontology_parameters(context=Depends(require_admin)):
+        return {"parameters": ontology.ontology_parameters()}
+
+    @router.get("/ontology/state-machines")
+    async def admin_ontology_state_machines(context=Depends(require_admin)):
+        return {"state_machines": ontology.get_state_machines()}
 
     @router.get("/ontology/{process_id}")
     async def admin_ontology_process(process_id: str, context=Depends(require_admin)):

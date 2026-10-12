@@ -172,3 +172,54 @@ def test_customer_opens_another_savings_account_only_with_kyc_done():
                             json={"action": "APPROVE", "reason": "Existing verified customer, nominee details checked"})
     assert approved.json()["status"] == "QUEUED_FOR_CBS"  # KYC already verified: no KYC checks needed
     assert not set(KYC_CHECKS) & set(approved.json().get("kyc_checks", []))
+
+
+def test_a_new_customer_activates_online_banking_once():
+    mobile, visitor = _mobile(), TestClient(dev_ui.app)
+    ref = _apply(visitor, mobile).json()["reference"]
+    officer, h = _officer()
+    officer.post(f"/api/officer/applications/{ref}/decision", headers=h, json={
+        "action": "APPROVE", "reason": "Documents and details verified", "kyc_checks": sorted(KYC_CHECKS),
+        "kyc_reference": "KYC-VER-20261009"})
+    svc, customer_id = dev_ui.account_applications, f"CUST-T{random.randint(10000, 99999)}"
+    svc.claim(ref)
+    svc.maker_done(ref, maker_reference="MKR-1", cif_number="CIF-9")
+    svc.authorised(ref, checker_reference="CHK-1", cif_number="CIF-9", account_number="1092009999")
+    svc.opened(ref, customer_id=customer_id)  # the user id is created here, with no password
+    status = visitor.post("/api/applications/status", json={"reference": ref, "mobile": mobile}).json()
+    user_id = status["user_id"]
+    assert user_id.startswith("riya") and status["online_banking_active"] is False
+    body = {"reference": ref, "user_id": user_id, "date_of_birth": "1994-08-14", "password": "Kosh-demo-2026"}
+    with patch("backend.session_routes._auth_server", return_value=True) as auth_server:
+        assert visitor.post("/api/applications/activate", json={**body, "password": "short"}).status_code == 422
+        assert visitor.post("/api/applications/activate", json={**body, "date_of_birth": "1990-01-01"}).status_code == 400
+        assert not auth_server.called
+        done = visitor.post("/api/applications/activate", json=body)
+        assert done.status_code == 200, done.text
+        sent = auth_server.call_args.args[1]
+        assert auth_server.call_args.args[0] == "provision-user"
+        assert sent["username"] == user_id and sent["sentinelUserId"] == customer_id and sent["phoneNumber"] == "+91" + mobile
+        dev_ui.limiter.reset()
+        assert "already active" in visitor.post("/api/applications/activate", json=body).json()["detail"]
+    assert visitor.post("/api/applications/status", json={"reference": ref, "mobile": mobile}).json()["online_banking_active"]
+
+
+def test_activation_locks_after_five_wrong_tries():
+    ref = _apply(TestClient(dev_ui.app), _mobile()).json()["reference"]
+    svc = dev_ui.account_applications
+    officer, h = _officer()
+    officer.post(f"/api/officer/applications/{ref}/decision", headers=h, json={
+        "action": "APPROVE", "reason": "Documents and details verified", "kyc_checks": sorted(KYC_CHECKS),
+        "kyc_reference": "KYC-VER-20261009"})
+    svc.claim(ref)
+    svc.maker_done(ref, maker_reference="MKR-2", cif_number="CIF-8")
+    svc.authorised(ref, checker_reference="CHK-2", cif_number="CIF-8", account_number="1092008888")
+    user_id = svc.opened(ref, customer_id=f"CUST-T{random.randint(10000, 99999)}")["activation"]["username"]
+    from account_applications import ApplicationError
+    for _ in range(4):
+        with pytest.raises(ApplicationError, match="do not match"):
+            svc.check_activation(ref, user_id, "2000-01-01")
+    with pytest.raises(ApplicationError, match="30 minutes"):
+        svc.check_activation(ref, user_id, "2000-01-01")
+    with pytest.raises(ApplicationError, match="30 minutes"):  # even with the right details, until the lock expires
+        svc.check_activation(ref, user_id, "1994-08-14")

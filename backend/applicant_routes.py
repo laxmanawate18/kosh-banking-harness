@@ -7,6 +7,7 @@ The applicant tracks the application by reference and mobile, sees a rejection r
 
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -28,6 +29,13 @@ class SavingsApplication(BaseModel):
 class Lookup(BaseModel):
     reference: str = Field(max_length=40)
     mobile: str = Field(max_length=20)
+
+
+class Activation(BaseModel):
+    reference: str = Field(max_length=40)
+    user_id: str = Field(max_length=120)
+    date_of_birth: str = Field(max_length=10)
+    password: str = Field(min_length=10, max_length=128)
 
 
 class CustomerSavings(BaseModel):
@@ -85,6 +93,24 @@ def make_applicant_router(service, db, auth_service, limiter, require_customer, 
         except ApplicationError as exc:
             raise HTTPException(404, "No rejected application matches that reference and mobile number.") from exc
         return {**found, "fields": {k: v for k, v in found["fields"].items() if k not in SENSITIVE}}
+
+    @router.post("/api/applications/activate")
+    @limiter.limit("5/minute")
+    async def activate(body: Activation, request: Request, response: Response):
+        """A new customer sets their password: user id, application reference and date of birth must match. Once only."""
+        del request, response
+        if not (re.search(r"[A-Za-z]", body.password) and re.search(r"\d", body.password)):
+            raise HTTPException(422, "Use at least 10 characters, with letters and numbers.")
+        try:
+            login = service.check_activation(body.reference, body.user_id, body.date_of_birth)
+        except ApplicationError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        from backend.session_routes import _auth_server
+        if not _auth_server("provision-user", {"name": login["full_name"], "username": login["username"], "password": body.password,
+                                               "sentinelUserId": login["customer_id"], "phoneNumber": login["mobile"]}):
+            raise HTTPException(502, "Online banking could not be activated just now. Try again in a few minutes.")
+        service.activated(login["reference"])
+        return {"user_id": login["username"], "message": "Online banking is active. Sign in with your user id and new password."}
 
     # ---- signed-in customers ----------------------------------------------------------------------------------
     def customer_mobile(customer_id: str) -> str:

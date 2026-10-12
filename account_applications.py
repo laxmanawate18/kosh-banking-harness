@@ -26,7 +26,7 @@ import hmac
 import json
 import re
 import uuid
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional
 
 from sqlalchemy import select
@@ -57,6 +57,7 @@ APPLICANT_STATUS = {
     "OPENED": ("OPENED", "Account opened", "Your account is open."),
 }
 SETTING_UP = ("APPROVED", "Approved, being set up", "Your application is approved and your account is being set up.")
+ACTIVATION_TRIES, ACTIVATION_LOCKOUT = 5, timedelta(minutes=30)
 
 
 class ApplicationError(ValueError):
@@ -86,10 +87,11 @@ def _aware(value):
 
 
 class AccountApplicationService:
-    def __init__(self, database, on_queued: Optional[Callable[[str], None]] = None) -> None:
+    def __init__(self, database, on_queued: Optional[Callable[[str], None]] = None, auth_service=None) -> None:
         self.db = database
         self.runtime = database.runtime
         self.on_queued = on_queued  # starts the core-banking robot for a reference (wired in by the app)
+        self.auth_service = auth_service  # creates a new customer's user id once the account is open
 
     # ---- submission ------------------------------------------------------------------------------------------
     def submit(self, *, product_id: str, mobile: str, payload: dict[str, Any], customer_id: Optional[str] = None,
@@ -228,12 +230,88 @@ class AccountApplicationService:
                                 "Checker authorised the entry in the core")
 
     def opened(self, reference: str, *, customer_id: str) -> dict[str, Any]:
-        """Kosh has mirrored what the core returned (customer, account or deposit): the application is complete."""
+        """Kosh has mirrored what the core returned (customer, account or deposit): the application is complete. A new
+        customer also gets a user id, with no password: they set one when they activate online banking."""
+        application = self.get(reference)
+        login = self._new_login(application, customer_id) if application["track"] == "NEW_TO_BANK" else {}
         with self.db._lock, self.runtime.sessions.begin() as session:
             row = self._locked(session, reference)
             row.customer_id = row.customer_id or customer_id
+            if login and not (row.activation or {}).get("username"):
+                row.activation = login
             self._move(session, row, "OPENED", by="system", actor="system", note="Mirrored in Kosh from the core")
         return self.get(reference)
+
+    def _new_login(self, application: dict[str, Any], customer_id: str) -> dict[str, Any]:
+        if (application.get("activation") or {}).get("username") or not self.auth_service:
+            return application.get("activation") or {}
+        from backend.session_routes import _free_username
+        payload = self.payload(application["reference"])
+        name = " ".join(str(payload["full_name"]).split()).title()
+        with self.runtime.sessions() as session:  # an earlier run that stopped may have created it already
+            user = session.scalar(select(UserRecord).where(UserRecord.customer_id == customer_id))
+            username = user.username if user else None
+        if not username:
+            username = _free_username(self.auth_service, name)
+            try:
+                self.auth_service.create_onboarded_profile(full_name=name, phone_number="+91" + str(payload["mobile"])[-10:],
+                                                           username=username, customer_id=customer_id)
+            except ValueError as exc:
+                raise ApplicationError(f"Opened in the core, but the user id could not be created: {exc}") from exc
+        return {"username": username, "failed": 0}
+
+    # ---- activating online banking (new customers) -----------------------------------------------------------
+    def check_activation(self, reference: str, username: str, date_of_birth: str) -> dict[str, Any]:
+        """User id, application reference and date of birth must all match. Five wrong tries lock activation for 30
+        minutes. Returns what the sign-in service needs to set the password."""
+        refused = "These details do not match an account waiting to be activated."
+        reference = (reference or "").strip().upper()
+        if not REFERENCE.fullmatch(reference):
+            raise ApplicationError(refused)
+        error, login = None, None
+        with self.db._lock, self.runtime.sessions.begin() as session:
+            row = self._locked(session, reference, missing_ok=True)
+            activation = dict(row.activation or {}) if row else {}
+            now = utc_dt()
+            if not row or row.status != "OPENED" or not activation.get("username"):
+                error = refused
+            elif activation.get("locked_until") and _aware(datetime.fromisoformat(activation["locked_until"].replace("Z", "+00:00"))) > now:
+                error = "Too many wrong attempts. Try again after 30 minutes."
+            else:
+                payload = _unseal(row.payload_sealed)
+                if not (hmac.compare_digest(activation["username"], (username or "").strip().lower())
+                        and hmac.compare_digest(str(payload.get("date_of_birth", "")), (date_of_birth or "").strip())):
+                    activation["failed"] = int(activation.get("failed", 0)) + 1
+                    error = refused
+                    if activation["failed"] >= ACTIVATION_TRIES:
+                        activation.update(failed=0, locked_until=(now + ACTIVATION_LOCKOUT).isoformat())
+                        error = "Too many wrong attempts. Try again after 30 minutes."
+                        self.db._persist_audit(session, {
+                            "id": f"AUD-{uuid.uuid4().hex}", "event_type": "ACCOUNT_ACTIVATION_LOCKED", "actor": "visitor",
+                            "customer_id": row.customer_id, "approval_request_id": row.id,
+                            "summary": f"{row.id}: online banking activation locked after {ACTIVATION_TRIES} wrong attempts",
+                            "details": {}})
+                    row.activation = activation
+                elif activation.get("activated_at"):
+                    error = "Online banking is already active. Sign in with your user id and password."
+                else:
+                    login = {"reference": row.id, "customer_id": row.customer_id, "username": activation["username"],
+                             "full_name": " ".join(str(payload["full_name"]).split()).title(),
+                             "mobile": "+91" + str(payload["mobile"])[-10:]}
+        if error:  # raised after the commit, so a wrong try is counted
+            raise ApplicationError(error)
+        return login
+
+    def activated(self, reference: str) -> None:
+        """The password is set: activation is done and cannot be used again (a forgotten password goes to the bank)."""
+        with self.db._lock, self.runtime.sessions.begin() as session:
+            row = self._locked(session, reference)
+            row.activation = {"username": (row.activation or {}).get("username"), "failed": 0,
+                              "activated_at": utc_dt().isoformat()}
+            self.db._persist_audit(session, {
+                "id": f"AUD-{uuid.uuid4().hex}", "event_type": "ACCOUNT_ONLINE_BANKING_ACTIVATED", "actor": "customer",
+                "customer_id": row.customer_id, "approval_request_id": row.id,
+                "summary": f"{row.id}: the new customer set their password and activated online banking", "details": {}})
 
     def failed(self, reference: str, *, error: str, refused_by_core: bool = False) -> dict[str, Any]:
         """The robot could not finish (RPA_FAILED), or the core refused the entry (CBS_REJECTED). An officer retries or rejects."""
@@ -321,6 +399,8 @@ class AccountApplicationService:
                 status.update(reason=(row.decision or {}).get("reason"), can_apply_again=True)
             if row.status == "OPENED":
                 status.update(account_number_masked=_mask((row.cbs or {}).get("account_number") or (row.cbs or {}).get("fd_number")))
+            if (row.activation or {}).get("username"):  # a new customer: their user id, and whether they have activated
+                status.update(user_id=row.activation["username"], online_banking_active=bool(row.activation.get("activated_at")))
             return status
 
     def prefill_for_reapply(self, reference: str, mobile: str) -> dict[str, Any]:
@@ -369,7 +449,7 @@ class AccountApplicationService:
                 "customer_id": row.customer_id, "user_id": row.user_id, "status": row.status, "documents": row.documents,
                 "decision": row.decision, "kyc_verification": row.kyc_verification, "cbs": row.cbs, "rpa": row.rpa,
                 "history": row.history, "reapplied_from": row.reapplied_from, "findings": row.findings or [],
-                "created_at": row.created_at.isoformat(), "updated_at": row.updated_at.isoformat()}
+                "activation": row.activation or {}, "created_at": row.created_at.isoformat(), "updated_at": row.updated_at.isoformat()}
         if with_payload:
             data["payload"] = _unseal(row.payload_sealed)
         return data

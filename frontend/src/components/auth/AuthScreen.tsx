@@ -85,7 +85,7 @@ export const AuthScreen: React.FC = () => {
       case 'for': return <SegmentsPage id={route[1]} onAsk={askMitra} />;
       case 'learn': return <LearnPage />;
       case 'calculators': return <CalculatorsPage tab={route[1]} onAsk={askMitra} />;
-      case 'track': return <TrackApplicationPage reference={route[1]} onAsk={askMitra} />;
+      case 'track': return <TrackApplicationPage reference={route[1]} onAsk={askMitra} onLogin={openLogin} />;
       default: return <NotFound />;
     }
   })();

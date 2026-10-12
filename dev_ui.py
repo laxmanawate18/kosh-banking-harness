@@ -147,7 +147,7 @@ mcp_gateway = mount_mcp_gateway(app, oauth_service, public_url=os.getenv("SENTIN
 
 request_service = ServiceRequestService(db)
 workflow_service = WorkflowService(db)
-account_applications = AccountApplicationService(db)
+account_applications = AccountApplicationService(db, auth_service=auth_service)
 
 
 def start_account_opening() -> None:

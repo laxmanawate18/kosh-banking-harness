@@ -141,7 +141,7 @@ export const DepositsPage: React.FC<DepositsPageProps> = () => {
     }
     setFormError('');
     setModalType(type);
-    setAmount(type === 'FD' ? '50000' : '5000');
+    setAmount('5000');
     setTenureMonths('12');
   };
 

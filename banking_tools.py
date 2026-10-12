@@ -418,6 +418,20 @@ class SecureBankingService:
                 "message": "Choose a known beneficiary before continuing.",
                 "presentation": {"type": "CLARIFICATION", "title": "Beneficiary needed"},
             }
+        # Governed ontology parameters check
+        onto_params = harness.policy().get("ontology_parameters", {})
+        cooling_hours = onto_params.get("PARAM_NEW_PAYEE_COOLING_HOURS", 24)
+        cooling_limit = onto_params.get("PARAM_NEW_PAYEE_COOLING_LIMIT_MINOR", 1000000)
+        if beneficiary.get("created_at"):
+            try:
+                b_created = datetime.fromisoformat(beneficiary["created_at"].replace("Z", "+00:00"))
+                if (datetime.now(timezone.utc) - b_created).total_seconds() < cooling_hours * 3600:
+                    session_context["new_payee_cooling_active"] = True
+                    if amount_minor > cooling_limit:
+                        session_context["cooling_off_limit_exceeded"] = True
+            except Exception:
+                pass
+
         action = {
             "action_type": "TRANSFER",
             "source_account_id": source_account_id.upper(),
@@ -640,6 +654,11 @@ class SecureBankingService:
         card = self.db.get_card(card_id)
         if not card or card.get("customer_id") != customer_id:
             return {"success": False, "error": "Card not found."}
+        from backend import ontology
+        curr_status = card.get("status", "ACTIVE")
+        valid, err_msg = ontology.validate_transition("obj.card", curr_status, "FROZEN")
+        if not valid:
+            return {"success": False, "status": "DENIED", "error": f"Card transition denied: {err_msg}"}
         action = {"action_type": "FREEZE_CARD", "card_id": card["id"], "amount_minor": 0}
         payment = self._create_payment_intent(session_context, action)
         decision = self.sentinel.evaluate(self._context(session_context, payment))

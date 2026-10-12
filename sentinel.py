@@ -264,6 +264,7 @@ class SentinelService:
         return total
 
     def evaluate(self, context: Dict[str, Any], *, persist: bool = True) -> Dict[str, Any]:
+        now = datetime.now(timezone.utc)
         action = context.get("action", {})
         intent = context.get("intent") or {}
         delegation = context.get("delegation") or {}
@@ -426,6 +427,29 @@ class SentinelService:
                 signal("NEW_BENEFICIARY")
             if beneficiary and beneficiary.get("relationship") == "TRUSTED":
                 signal("TRUSTED_PRIOR_BENEFICIARY")
+
+            # Check cooling-off period and limits from ontology parameters
+            onto_params = harness.policy().get("ontology_parameters", {})
+            cooling_hours = onto_params.get("PARAM_NEW_PAYEE_COOLING_HOURS", 24)
+            cooling_limit = onto_params.get("PARAM_NEW_PAYEE_COOLING_LIMIT_MINOR", 1000000)
+            agent_payment_limit = onto_params.get("PARAM_AGENT_PAYMENT_LIMIT", 2500000)
+            if beneficiary and beneficiary.get("created_at"):
+                try:
+                    b_dt = datetime.fromisoformat(beneficiary["created_at"].replace("Z", "+00:00"))
+                    if (now - b_dt).total_seconds() < cooling_hours * 3600:
+                        reasons.append("COOLING_OFF_PERIOD_ACTIVE")
+                        if "NEW_BENEFICIARY" not in reasons:
+                            signal("NEW_BENEFICIARY")
+                        if amount_minor > cooling_limit and "HIGH_VALUE_TRANSFER" not in reasons:
+                            signal("HIGH_VALUE_TRANSFER")
+                            reasons.append("COOLING_OFF_LIMIT_EXCEEDED")
+                except Exception:
+                    pass
+
+            if action_type == "TRANSFER" and amount_minor > agent_payment_limit:
+                if "AMOUNT_ABOVE_BASELINE" not in reasons:
+                    signal("AMOUNT_ABOVE_BASELINE")
+                reasons.append("EXCEEDS_AGENT_PAYMENT_LIMIT")
             customer = self.db.get_customer(context.get("customer_id", CUSTOMER_ID)) or {}
             normal = int(customer.get("normal_transfer_minor", policy["default_normal_transfer_minor"]))
             if action_type == "TRANSFER" and amount_minor > normal * policy["baseline_multiple"]:

@@ -16,8 +16,9 @@ def login(username):
     return client, {"X-CSRF-Token": csrf}
 
 
-ADMIN_PAGES = ("skills", "data-sources", "ontology", "ontology/proc.payment_authorisation", "usage", "quality", "controls",
-               "audit/verify", "approvals")
+ADMIN_PAGES = ("skills", "data-sources", "ontology", "ontology/proc.payment_authorisation",
+               "ontology/graph", "ontology/parameters", "ontology/state-machines",
+               "usage", "quality", "controls", "audit/verify", "approvals")
 
 
 class AdminPanelTests(unittest.TestCase):
@@ -63,6 +64,15 @@ class AdminPanelTests(unittest.TestCase):
         self.assertEqual(row["approval"]["by"], "USR-ADMIN-001")
         officer, oh = login("officer.mumbai")
         self.assertEqual(officer.post(f"/api/admin/ontology/{pid}/approve", headers=oh, json={"note": "I am not the admin"}).status_code, 403)
+
+    def test_ontology_simulate_endpoint(self):
+        res = self.admin.post("/api/admin/ontology/simulate", headers=self.ah,
+                              json={"prompt": "please block my lost card", "channel": "customer"})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["matched_process_id"], "proc.card_lifecycle")
+        self.assertEqual(data["rule_matched"], "trigger")
+        self.assertIn("freeze_card", data["allowed_tools"])
 
     def test_cost_needs_reviewed_rates_and_latency_comes_from_turns(self):
         mitra_ops.record_turn(dev_ui.db, session_id="S-COST", channel="CUSTOMER", language="en", outcome="ANSWERED", latency_ms=2500,

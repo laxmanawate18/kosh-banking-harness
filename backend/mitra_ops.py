@@ -35,13 +35,18 @@ _MOBILE = re.compile(r"(?<!\d)(?:\+?91[\s-]?)?[6-9]\d{5}(\d{4})(?!\d)")
 
 
 def mask_pii(text: str) -> str:
-    """Mask identifiers in stored chat text (the live conversation is unaffected)."""
+    """Mask identifiers in stored chat text (the live conversation is unaffected) using Cloud DLP."""
     if not text:
         return text
-    text = _PAN.sub(lambda m: "•••••" + m.group()[5:], text)
-    text = _CARD.sub(lambda m: "•••• " + m.group(1), text)
-    text = _AADHAAR.sub(lambda m: "•••• •••• " + m.group(1), text)
-    return _MOBILE.sub(lambda m: "••••••" + m.group(1), text)
+    try:
+        from backend.dlp_service import deidentify_text
+        sanitized, _ = deidentify_text(text)
+        return sanitized
+    except Exception:
+        text = _PAN.sub(lambda m: "•••••" + m.group()[5:], text)
+        text = _CARD.sub(lambda m: "•••• " + m.group(1), text)
+        text = _AADHAAR.sub(lambda m: "•••• •••• " + m.group(1), text)
+        return _MOBILE.sub(lambda m: "••••••" + m.group(1), text)
 
 
 def mask_deep(value: Any) -> Any:

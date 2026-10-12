@@ -426,6 +426,7 @@ class AccountApplicationRecord(Base):
     history: Mapped[list[dict[str, Any]]] = mapped_column(JSON_DOCUMENT, nullable=False, default=list)
     reapplied_from: Mapped[str | None] = mapped_column(String(40))
     findings: Mapped[list[dict[str, Any]]] = mapped_column(JSON_DOCUMENT, nullable=False, default=list)  # automatic document checks
+    activation: Mapped[dict[str, Any]] = mapped_column(JSON_DOCUMENT, nullable=False, default=dict)  # new customer's login
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_dt, index=True)
 
@@ -621,6 +622,8 @@ class DatabaseRuntime:
                 application_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(account_applications)")}
                 if application_columns and "findings" not in application_columns:
                     conn.exec_driver_sql("ALTER TABLE account_applications ADD COLUMN findings JSON NOT NULL DEFAULT '[]'")
+                if application_columns and "activation" not in application_columns:
+                    conn.exec_driver_sql("ALTER TABLE account_applications ADD COLUMN activation JSON NOT NULL DEFAULT '{}'")
                 turn_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(mitra_turns)")}
                 for column in ("input_tokens", "output_tokens"):
                     if turn_columns and column not in turn_columns:
@@ -655,6 +658,7 @@ class DatabaseRuntime:
                     conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_mitra_turns_process_id ON mitra_turns(process_id);")
                     conn.exec_driver_sql("ALTER TABLE oauth_grants ADD COLUMN IF NOT EXISTS provider_session_id VARCHAR(255);")
                     conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_oauth_grants_provider_session_id ON oauth_grants(provider_session_id);")
+                    conn.exec_driver_sql("ALTER TABLE account_applications ADD COLUMN IF NOT EXISTS activation JSONB NOT NULL DEFAULT '{}';")
                 except Exception:
                     pass
 

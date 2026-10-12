@@ -285,11 +285,490 @@ const ProcessDialog: React.FC<{ p: Process; close: () => void; done: () => void 
   );
 };
 
+/* ---------------- Ontology Mapping, Graph, Simulator & Governance ---------------- */
+type GraphNode = { id: string; label: string; type: string; domain?: string; kosh_status?: string | null; channels?: string[]; tools_count?: number };
+type GraphEdge = { source: string; relation: string; target: string };
+type OntologyGraph = {
+  focused_process: string | null;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  stats: {
+    total_nodes: number;
+    total_edges: number;
+    total_raw_edges?: number;
+    processes_count?: number;
+    activities_count?: number;
+    tools_count?: number;
+    policies_count?: number;
+    implemented_count?: number;
+  };
+};
+
+type SimulationResult = {
+  prompt: string;
+  channel: string;
+  matched_process_id: string | null;
+  rule_matched: string;
+  rule_explanation: string;
+  process_name: string | null;
+  domain: string | null;
+  kosh_status: string | null;
+  allowed_tools: string[];
+  activities: string[];
+  tables: string[];
+  governing_policies: string[];
+  usable_in_production: boolean;
+  model_view_preview: string;
+};
+
+type PolicyParameter = {
+  id: string;
+  name: string;
+  value: any;
+  unit: string;
+  owner: string;
+  description: string;
+  enforced_in: string;
+  is_set: boolean;
+};
+
+type StateMachine = {
+  name: string;
+  states: string[];
+  initial: string;
+  terminal: string[];
+  transitions: Record<string, string[]>;
+  description: string;
+};
+
+const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) => {
+  const [selectedProcess, setSelectedProcess] = useState<string>('proc.account_opening');
+  const [graphData, setGraphData] = useState<OntologyGraph | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    const url = selectedProcess ? `/api/admin/ontology/graph?process_id=${encodeURIComponent(selectedProcess)}` : '/api/admin/ontology/graph';
+    get<OntologyGraph>(url)
+      .then(d => { setGraphData(d); setError(null); })
+      .catch(e => setError(errorText(e, 'Failed to load ontology graph')))
+      .finally(() => setLoading(false));
+  }, [selectedProcess]);
+
+  const p = processes.find(x => x.id === selectedProcess);
+
+  const triggers = graphData?.nodes.filter(n => n.type === 'event' || n.type === 'care') || [];
+  const activities = graphData?.nodes.filter(n => n.type === 'activity' || n.type === 'step') || [];
+  const tools = graphData?.nodes.filter(n => n.type === 'tool') || [];
+  const tables = graphData?.nodes.filter(n => n.type === 'table') || [];
+  const policies = graphData?.nodes.filter(n => n.type === 'policy') || [];
+
+  return (
+    <div className="ont-mapping-view">
+      <div className="ont-selector-bar">
+        <label htmlFor="ont-process-picker"><strong>Focus Business Process:</strong></label>
+        <select id="ont-process-picker" value={selectedProcess} onChange={e => setSelectedProcess(e.target.value)}>
+          {processes.map(pr => (
+            <option key={pr.id} value={pr.id}>{pr.name} ({pr.id})</option>
+          ))}
+        </select>
+        {p && <Tag tone={IN_KOSH[p.kosh_status]?.[0]}>{IN_KOSH[p.kosh_status]?.[1] || humanizeCode(p.kosh_status)}</Tag>}
+      </div>
+
+      {graphData && (
+        <div className="st-kpis">
+          <Kpi label="Connected Nodes" value={graphData.stats.total_nodes} caption="In active process subgraph" />
+          <Kpi label="Mapped Relationships" value={graphData.stats.total_edges} caption="Typed graph edges" />
+          <Kpi label="Executable Tools" value={tools.length} caption={`${tools.length} authorized tools`} />
+          <Kpi label="Governing Policies" value={policies.length} caption="Guardrails and constraints" />
+        </div>
+      )}
+
+      {loading ? <SkeletonRows rows={4} /> : error ? <p className="form-error">{error}</p> : (
+        <>
+          <div className="ont-swimlanes">
+            {/* Lane 1: Triggers & Entry */}
+            <div className="ont-lane">
+              <div className="ont-lane-title">
+                <span>1. Triggers & Inputs</span>
+                <Tag tone="neutral">{triggers.length}</Tag>
+              </div>
+              {triggers.length ? triggers.map(t => (
+                <div key={t.id} className="ont-node-card">
+                  <div className="ont-node-head">
+                    <span className="ont-node-title">{t.label}</span>
+                    <Tag tone="info">Trigger</Tag>
+                  </div>
+                  <span className="ont-node-sub">{t.id}</span>
+                </div>
+              )) : (
+                <div className="ont-node-card">
+                  <span className="ont-node-title">Direct Intent Routing</span>
+                  <span className="ont-node-sub">Customer chat message</span>
+                </div>
+              )}
+            </div>
+
+            {/* Lane 2: Process Core */}
+            <div className="ont-lane">
+              <div className="ont-lane-title">
+                <span>2. Process Hub</span>
+                <Tag tone="success">Core</Tag>
+              </div>
+              {p && (
+                <div className="ont-node-card" style={{ borderColor: 'var(--accent)' }}>
+                  <div className="ont-node-head">
+                    <span className="ont-node-title">{p.name}</span>
+                    <ApprovalBadge p={p} />
+                  </div>
+                  <span className="ont-node-sub">{p.id}</span>
+                  <p style={{ fontSize: '12.5px', color: 'var(--ink-2)', margin: '4px 0' }}>Domain: {domainName(p.domain)}</p>
+                  <span className="ont-edge-tag">Channels: {p.channels.join(', ')}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Lane 3: Activities & Steps */}
+            <div className="ont-lane">
+              <div className="ont-lane-title">
+                <span>3. Activities & Steps</span>
+                <Tag tone="neutral">{activities.length}</Tag>
+              </div>
+              {activities.length ? activities.slice(0, 8).map(a => (
+                <div key={a.id} className="ont-node-card">
+                  <div className="ont-node-head">
+                    <span className="ont-node-title">{a.label}</span>
+                    <Tag tone="neutral">{a.type}</Tag>
+                  </div>
+                  <span className="ont-node-sub">{a.id}</span>
+                </div>
+              )) : <span className="muted" style={{ padding: '8px' }}>No separate activities</span>}
+            </div>
+
+            {/* Lane 4: Executable Tools & Tables */}
+            <div className="ont-lane">
+              <div className="ont-lane-title">
+                <span>4. Tools & Tables</span>
+                <Tag tone="warning">{tools.length + tables.length}</Tag>
+              </div>
+              {tools.map(tl => (
+                <div key={tl.id} className="ont-node-card">
+                  <div className="ont-node-head">
+                    <span className="ont-node-title">{tl.label}</span>
+                    <Tag tone="warning">Tool</Tag>
+                  </div>
+                  <span className="ont-node-sub">{tl.id}</span>
+                </div>
+              ))}
+              {tables.map(tb => (
+                <div key={tb.id} className="ont-node-card">
+                  <div className="ont-node-head">
+                    <span className="ont-node-title">{tb.label}</span>
+                    <Tag tone="info">DB Table</Tag>
+                  </div>
+                  <span className="ont-node-sub">{tb.id}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Lane 5: Governing Policies */}
+            <div className="ont-lane">
+              <div className="ont-lane-title">
+                <span>5. Governing Guardrails</span>
+                <Tag tone="danger">{policies.length}</Tag>
+              </div>
+              {policies.map(po => (
+                <div key={po.id} className="ont-node-card">
+                  <div className="ont-node-head">
+                    <span className="ont-node-title">{po.label}</span>
+                    <Tag tone="danger">Guardrail</Tag>
+                  </div>
+                  <span className="ont-node-sub">{po.id}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Semantic Triples Table */}
+          {graphData && graphData.edges.length > 0 && (
+            <Panel title="Semantic Triples & Edge Relationships" count={graphData.edges.length}
+              sub="Formal RDF/Graph edge mappings connecting this process to activities, tools, tables and policies.">
+              <div className="table-scroll"><table className="table st-cards">
+                <thead><tr><th>Subject (Source)</th><th>Predicate (Relation)</th><th>Object (Target)</th></tr></thead>
+                <tbody>{graphData.edges.slice(0, 15).map((e, idx) => (
+                  <tr key={idx}>
+                    <td><code>{e.source}</code></td>
+                    <td><Tag tone="info">{e.relation}</Tag></td>
+                    <td><code>{e.target}</code></td>
+                  </tr>
+                ))}</tbody>
+              </table></div>
+            </Panel>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+const OntologySimulatorView: React.FC = () => {
+  const [prompt, setPrompt] = useState('please block my lost card');
+  const [channel, setChannel] = useState('customer');
+  const [result, setResult] = useState<SimulationResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const presets = [
+    { label: 'Lost card', text: 'please block my lost card', ch: 'customer' },
+    { label: 'Send money', text: 'Transfer ₹5,000 to Vikram', ch: 'customer' },
+    { label: 'Apply Personal Loan', text: 'I want to apply for a personal loan', ch: 'visitor' },
+    { label: 'Fraud emergency', text: 'Someone took money from my account, I want to report fraud', ch: 'customer' },
+    { label: 'Account closure', text: 'Please close my account', ch: 'customer' },
+    { label: 'FD Enquiry', text: 'What is the interest rate on 1 year fixed deposit?', ch: 'customer' },
+  ];
+
+  const runSimulation = async (testPrompt?: string, testChannel?: string) => {
+    const pText = testPrompt !== undefined ? testPrompt : prompt;
+    const cVal = testChannel !== undefined ? testChannel : channel;
+    setBusy(true); setError(null);
+    try {
+      const res = await post<SimulationResult>('/api/admin/ontology/simulate', { prompt: pText, channel: cVal });
+      setResult(res);
+    } catch (e: any) {
+      setError(errorText(e, 'Simulation failed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => { runSimulation(); }, []);
+
+  return (
+    <div className="ont-sim-box">
+      <div className="ont-sim-input-wrap">
+        <label htmlFor="sim-prompt-input"><strong>Test User Utterance:</strong></label>
+        <textarea id="sim-prompt-input" rows={2} value={prompt} onChange={e => setPrompt(e.target.value)}
+          placeholder="Enter what a visitor, customer, or officer says..." className="form-input" style={{ width: '100%' }} />
+
+        <div className="ont-sim-presets">
+          <span>Quick Presets:</span>
+          {presets.map(ps => (
+            <button key={ps.label} type="button" className="ont-sim-preset-btn" onClick={() => {
+              setPrompt(ps.text);
+              setChannel(ps.ch);
+              runSimulation(ps.text, ps.ch);
+            }}>{ps.label}</button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '4px' }}>
+          <label style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <span>Channel:</span>
+            <select value={channel} onChange={e => setChannel(e.target.value)} className="form-input">
+              <option value="customer">Customer</option>
+              <option value="visitor">Visitor</option>
+              <option value="officer">Officer Copilot</option>
+            </select>
+          </label>
+          <button type="button" className="k-btn primary sm" disabled={busy} onClick={() => runSimulation()}>
+            {busy ? 'Simulating…' : 'Simulate Route'}
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="form-error">{error}</p>}
+
+      {result && (
+        <div className="ont-sim-result">
+          <div className="ont-sim-header">
+            <div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '4px' }}>
+                <span className="ont-sim-process">{result.process_name || 'General Guidance (No Process Matched)'}</span>
+                {result.matched_process_id && <Tag tone="info">{result.matched_process_id}</Tag>}
+                {result.kosh_status && <Tag tone={IN_KOSH[result.kosh_status]?.[0]}>{IN_KOSH[result.kosh_status]?.[1]}</Tag>}
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
+                Channel: <strong>{result.channel}</strong> · Domain: <strong>{domainName(result.domain || 'general')}</strong>
+              </div>
+            </div>
+            <Tag tone="success">Rule: {result.rule_matched.toUpperCase()}</Tag>
+          </div>
+
+          <div className="ont-sim-explanation">
+            <strong>Decision Rationale: </strong>{result.rule_explanation}
+          </div>
+
+          <div className="ont-sim-grid">
+            <div className="ont-sim-card">
+              <strong>Permitted Tools ({result.allowed_tools.length})</strong>
+              <Chips items={result.allowed_tools} format={humanizeCode} />
+            </div>
+            <div className="ont-sim-card">
+              <strong>Governing Policies ({result.governing_policies.length})</strong>
+              <Chips items={result.governing_policies} format={humanizeCode} />
+            </div>
+            <div className="ont-sim-card">
+              <strong>Database Tables ({result.tables.length})</strong>
+              <Chips items={result.tables} />
+            </div>
+            <div className="ont-sim-card">
+              <strong>Production Usability</strong>
+              <div>
+                <Tag tone={result.usable_in_production ? 'success' : 'warning'}>
+                  {result.usable_in_production ? 'Active in Production' : 'Unapproved / Fallback Mode'}
+                </Tag>
+              </div>
+            </div>
+          </div>
+
+          {result.model_view_preview && (
+            <details style={{ marginTop: '8px' }}>
+              <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--ink)' }}>
+                View Injected Process Guide Preview (What the LLM receives)
+              </summary>
+              <pre className="st-pre" tabIndex={0} style={{ marginTop: '8px', maxHeight: '240px' }}>
+                {result.model_view_preview}
+              </pre>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const OntologyGovernanceView: React.FC = () => {
+  const [paramsData, loadParams, pError] = useData<{ parameters: PolicyParameter[] }>('/api/admin/ontology/parameters');
+  const [smData, loadSm, sError] = useData<{ state_machines: Record<string, StateMachine> }>('/api/admin/ontology/state-machines');
+
+  const [testEntity, setTestEntity] = useState('obj.account');
+  const [fromState, setFromState] = useState('OPEN');
+  const [toState, setToState] = useState('FROZEN');
+  const [checkResult, setCheckResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const checkTransition = () => {
+    if (!smData?.state_machines) return;
+    const sm = smData.state_machines[testEntity];
+    if (!sm) { setCheckResult({ ok: false, msg: 'Unknown entity' }); return; }
+    const allowed = sm.transitions[fromState] || [];
+    if (allowed.includes(toState)) {
+      setCheckResult({ ok: true, msg: `Valid transition: ${testEntity} can transition from ${fromState} to ${toState}.` });
+    } else {
+      setCheckResult({ ok: false, msg: `Illegal transition: ${testEntity} cannot transition from ${fromState} to ${toState}. Allowed: [${allowed.join(', ') || 'None (terminal)'}].` });
+    }
+  };
+
+  return (
+    <div className="ont-sm-container">
+      {/* 10 Governed Policy Parameters */}
+      <Panel title="Governed Banking Policy Parameters" count={paramsData?.parameters.length || 0}
+        sub="The 10 formal policy parameters defined in config/ontology/policies/approval-matrix.md and bound to config/harness/policy.json.">
+        {pError && <p className="form-error">{pError}</p>}
+        {paramsData ? (
+          <div className="table-scroll"><table className="table st-cards">
+            <thead><tr><th>Parameter</th><th>Value</th><th>Unit</th><th>Owner</th><th>Enforced In</th><th>Description</th></tr></thead>
+            <tbody>{paramsData.parameters.map(p => (
+              <tr key={p.id}>
+                <td className="st-main"><code>{p.id}</code><span className="st-sub">{p.name}</span></td>
+                <td><strong>{String(p.value)}</strong></td>
+                <td><Tag tone="neutral">{p.unit}</Tag></td>
+                <td>{p.owner}</td>
+                <td><Tag tone="info">{p.enforced_in}</Tag></td>
+                <td className="st-wrap">{p.description}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        ) : <SkeletonRows rows={5} />}
+      </Panel>
+
+      {/* Entity State Machines & Transition Guardrail Sandbox */}
+      <Panel title="Formal Entity State Machines" count={smData ? Object.keys(smData.state_machines).length : 0}
+        sub="Strict state machines that prevent illegal entity transitions (e.g. executing payments without authorization, or reopening closed accounts).">
+        {sError && <p className="form-error">{sError}</p>}
+        {smData && (
+          <>
+            {/* Interactive Transition Test Bench */}
+            <div style={{ padding: '16px', background: 'var(--surface-2)', borderRadius: 'var(--r-field)', display: 'grid', gap: '10px', marginBottom: '16px' }}>
+              <strong>Symbolic Transition Validator Sandbox:</strong>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <select value={testEntity} onChange={e => {
+                  setTestEntity(e.target.value);
+                  const newSm = smData.state_machines[e.target.value];
+                  if (newSm) {
+                    setFromState(newSm.states[0] || '');
+                    setToState(newSm.states[1] || newSm.states[0] || '');
+                  }
+                  setCheckResult(null);
+                }} className="form-input">
+                  {Object.entries(smData.state_machines).map(([k, v]) => (
+                    <option key={k} value={k}>{v.name} ({k})</option>
+                  ))}
+                </select>
+                <span>From State:</span>
+                <select value={fromState} onChange={e => { setFromState(e.target.value); setCheckResult(null); }} className="form-input">
+                  {smData.state_machines[testEntity]?.states.map(st => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+                <span>To State:</span>
+                <select value={toState} onChange={e => { setToState(e.target.value); setCheckResult(null); }} className="form-input">
+                  {smData.state_machines[testEntity]?.states.map(st => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+                <button type="button" className="k-btn primary sm" onClick={checkTransition}>Check Transition</button>
+              </div>
+              {checkResult && (
+                <div style={{ padding: '8px 12px', borderRadius: '6px', background: checkResult.ok ? 'var(--ok-bg)' : 'var(--danger-bg)', color: checkResult.ok ? 'var(--ok)' : 'var(--danger)', fontWeight: 600, fontSize: '13.5px' }}>
+                  {checkResult.msg}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+              {Object.entries(smData.state_machines).map(([id, sm]) => (
+                <div key={id} className="ont-sm-card">
+                  <div className="ont-sm-head">
+                    <strong>{sm.name}</strong>
+                    <code>{id}</code>
+                  </div>
+                  <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>{sm.description}</p>
+                  <div>
+                    <div style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '4px' }}>Allowed States:</div>
+                    <div className="ont-sm-states">
+                      {sm.states.map(s => (
+                        <Tag key={s} tone={s === sm.initial ? 'info' : sm.terminal.includes(s) ? 'neutral' : 'success'}>
+                          {s} {s === sm.initial ? '(Initial)' : sm.terminal.includes(s) ? '(Terminal)' : ''}
+                        </Tag>
+                      ))}
+                    </div>
+                  </div>
+                  <table className="ont-sm-transition-table">
+                    <thead><tr><th>Current State</th><th>Allowed Transitions</th></tr></thead>
+                    <tbody>{Object.entries(sm.transitions).map(([f, tos]) => (
+                      <tr key={f}>
+                        <td><strong>{f}</strong></td>
+                        <td>{tos.length ? <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px' }}>{tos.map(t => <Tag key={t} tone="neutral">{t}</Tag>)}</span> : <span className="muted">None (Terminal)</span>}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </Panel>
+    </div>
+  );
+};
+
 const OntologyTab: React.FC = () => {
   const [data, load, error] = useData<OntologyList>('/api/admin/ontology');
+  const [subView, setSubView] = useState<'processes' | 'mapping' | 'simulator' | 'governance'>('processes');
   const [filter, setFilter] = useState('all');
   const [open, setOpen] = useState<Process | null>(null);
-  const head = <Head tab="admin-ontology" sub="The banking processes Mitra can follow. Review what the model reads, then approve it for production." />;
+  const head = <Head tab="admin-ontology" sub="The banking processes Mitra can follow. Review what the model reads, explore relationship mappings, and test routing." />;
   if (!data) return <>{head}<Loading error={error} retry={load} /></>;
   const by = (s: string) => data.processes.filter(p => approvalState(p) === s);
   const rows = filter === 'all' ? data.processes : by(filter);
@@ -297,37 +776,60 @@ const OntologyTab: React.FC = () => {
   return (
     <>
       {head}
-      <div className="st-kpis">
-        <Kpi label="Processes" value={data.processes.length} caption={`${data.processes.filter(p => p.kosh_status === 'implemented').length} fully in Kosh`} />
-        <Kpi label="Approved for production" value={by('approved').length} caption={`of ${data.processes.length} processes`} />
-        <Kpi label="Changed since approval" value={by('changed').length} tone="warn" caption={by('changed').length ? 'Needs a fresh approval' : 'No approved process changed'} />
-        <Kpi label="Turns with no process" value={data.unrouted_turns_7d} caption="Last 7 days; Mitra answered from general guidance" />
+      <div className="ont-subnav">
+        <button type="button" className={subView === 'processes' ? 'active' : ''} onClick={() => setSubView('processes')}>
+          Processes & Approvals ({data.processes.length})
+        </button>
+        <button type="button" className={subView === 'mapping' ? 'active' : ''} onClick={() => setSubView('mapping')}>
+          Mapping & Graph Visualizer
+        </button>
+        <button type="button" className={subView === 'simulator' ? 'active' : ''} onClick={() => setSubView('simulator')}>
+          Routing Simulator (Test Bench)
+        </button>
+        <button type="button" className={subView === 'governance' ? 'active' : ''} onClick={() => setSubView('governance')}>
+          Policy Parameters & State Machines
+        </button>
       </div>
-      <Panel title="Processes" count={rows.length}
-        sub={<>Ontology version <code>{data.version}</code> · {data.production
-          ? 'Production: only approved processes guide Mitra.' : 'Not production: every process may guide Mitra; approvals take effect in production.'}</>}
-        actions={<FilterTabs name="ontology" label="Filter processes by approval" value={filter} onChange={setFilter} tabs={[
-          { id: 'all', label: 'All', count: data.processes.length }, { id: 'none', label: 'Not approved', count: by('none').length },
-          { id: 'changed', label: 'Changed', count: by('changed').length }, { id: 'approved', label: 'Approved', count: by('approved').length }]} />}>
-        {rows.length ? <Paged rows={rows} reset={filter}>{shown => (
-          <div className="table-scroll"><table className="table st-cards st-sticky">
-            <thead><tr><th>Process</th><th>In Kosh</th><th>Channels</th><th className="num">Tools</th><th className="num">Turns (7 days)</th><th>Approval</th><th><span className="sr-only">Action</span></th></tr></thead>
-            <tbody><AnimatePresence initial={false}>{shown.map((p, i) => (
-              <motion.tr key={p.id} {...rowMotion(i % 20)}>
-                <td className="st-main"><strong>{p.name}</strong><span className="st-sub">{domainName(p.domain)}</span></td>
-                <td data-label="In Kosh"><Tag tone={IN_KOSH[p.kosh_status]?.[0]}>{IN_KOSH[p.kosh_status]?.[1] || humanizeCode(p.kosh_status)}</Tag></td>
-                <td data-label="Channels">{p.channels.map(channelName).join(', ') || '—'}</td>
-                <td data-label="Tools" className="num st-hide-sm">{p.tools.length}</td>
-                <td data-label="Turns (7 days)" className="num st-hide-sm"><Bar value={p.turns_7d} max={maxTurns}>{count(p.turns_7d)}</Bar></td>
-                <td className="st-status"><ApprovalBadge p={p} />{p.approval && <span className="st-sub">{p.approval.by} · {formatDate(p.approval.at)}</span>}</td>
-                <td className="st-act"><div className="row-actions">
-                  <button type="button" className={`k-btn sm ${approvalState(p) === 'approved' ? 'outline' : 'primary'}`} onClick={() => setOpen(p)}>Review</button>
-                </div></td>
-              </motion.tr>))}</AnimatePresence></tbody>
-          </table></div>)}</Paged>
-        : <Empty title="No process in this view" />}
-      </Panel>
-      {open && <ProcessDialog p={open} close={() => setOpen(null)} done={load} />}
+
+      {subView === 'processes' && (
+        <>
+          <div className="st-kpis">
+            <Kpi label="Processes" value={data.processes.length} caption={`${data.processes.filter(p => p.kosh_status === 'implemented').length} fully in Kosh`} />
+            <Kpi label="Approved for production" value={by('approved').length} caption={`of ${data.processes.length} processes`} />
+            <Kpi label="Changed since approval" value={by('changed').length} tone="warn" caption={by('changed').length ? 'Needs a fresh approval' : 'No approved process changed'} />
+            <Kpi label="Turns with no process" value={data.unrouted_turns_7d} caption="Last 7 days; Mitra answered from general guidance" />
+          </div>
+          <Panel title="Processes" count={rows.length}
+            sub={<>Ontology version <code>{data.version}</code> · {data.production
+              ? 'Production: only approved processes guide Mitra.' : 'Not production: every process may guide Mitra; approvals take effect in production.'}</>}
+            actions={<FilterTabs name="ontology" label="Filter processes by approval" value={filter} onChange={setFilter} tabs={[
+              { id: 'all', label: 'All', count: data.processes.length }, { id: 'none', label: 'Not approved', count: by('none').length },
+              { id: 'changed', label: 'Changed', count: by('changed').length }, { id: 'approved', label: 'Approved', count: by('approved').length }]} />}>
+            {rows.length ? <Paged rows={rows} reset={filter}>{shown => (
+              <div className="table-scroll"><table className="table st-cards st-sticky">
+                <thead><tr><th>Process</th><th>In Kosh</th><th>Channels</th><th className="num">Tools</th><th className="num">Turns (7 days)</th><th>Approval</th><th><span className="sr-only">Action</span></th></tr></thead>
+                <tbody><AnimatePresence initial={false}>{shown.map((p, i) => (
+                  <motion.tr key={p.id} {...rowMotion(i % 20)}>
+                    <td className="st-main"><strong>{p.name}</strong><span className="st-sub">{domainName(p.domain)}</span></td>
+                    <td data-label="In Kosh"><Tag tone={IN_KOSH[p.kosh_status]?.[0]}>{IN_KOSH[p.kosh_status]?.[1] || humanizeCode(p.kosh_status)}</Tag></td>
+                    <td data-label="Channels">{p.channels.map(channelName).join(', ') || '—'}</td>
+                    <td data-label="Tools" className="num st-hide-sm">{p.tools.length}</td>
+                    <td data-label="Turns (7 days)" className="num st-hide-sm"><Bar value={p.turns_7d} max={maxTurns}>{count(p.turns_7d)}</Bar></td>
+                    <td className="st-status"><ApprovalBadge p={p} />{p.approval && <span className="st-sub">{p.approval.by} · {formatDate(p.approval.at)}</span>}</td>
+                    <td className="st-act"><div className="row-actions">
+                      <button type="button" className={`k-btn sm ${approvalState(p) === 'approved' ? 'outline' : 'primary'}`} onClick={() => setOpen(p)}>Review</button>
+                    </div></td>
+                  </motion.tr>))}</AnimatePresence></tbody>
+              </table></div>)}</Paged>
+            : <Empty title="No process in this view" />}
+          </Panel>
+          {open && <ProcessDialog p={open} close={() => setOpen(null)} done={load} />}
+        </>
+      )}
+
+      {subView === 'mapping' && <OntologyMappingView processes={data.processes} />}
+      {subView === 'simulator' && <OntologySimulatorView />}
+      {subView === 'governance' && <OntologyGovernanceView />}
     </>
   );
 };
@@ -395,9 +897,218 @@ const SkillsTab: React.FC = () => {
   );
 };
 
-/* ---------------- Data sources ---------------- */
+/* ---------------- Data sources & Google Cloud DLP ---------------- */
 const SOURCE_STATUS: Record<string, 'success' | 'warning' | 'danger' | 'neutral' | 'info'> = {
   connected: 'success', configured: 'info', on: 'success', sandbox: 'warning', off: 'neutral', 'not configured': 'neutral', unreachable: 'danger' };
+
+type DlpStatus = {
+  status: string;
+  service: string;
+  project_id: string;
+  live_api_ready: boolean;
+  supported_infotypes: string[];
+  custom_infotypes: string[];
+  features: string[];
+};
+
+type DlpFinding = {
+  info_type: string;
+  likelihood: string;
+  quote?: string;
+  engine: string;
+};
+
+type DlpInspectResult = {
+  text: string;
+  deidentified: string;
+  findings: DlpFinding[];
+  total_findings: number;
+  engine: string;
+};
+
+const DlpInspectorPanel: React.FC = () => {
+  const [dlpStatus] = useData<DlpStatus>('/api/admin/dlp/status');
+  const [inputText, setInputText] = useState(
+    'Customer PAN ABCDE1234F requested transfer of ₹25,000 via UPI aarav@okhdfcbank to IFSC HDFC0001234. Contact mobile 9876543210 or email aarav@example.com.'
+  );
+  const [result, setResult] = useState<DlpInspectResult | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  const samples = [
+    {
+      label: 'Identity (PAN & Aadhaar)',
+      text: 'Customer PAN ABCDE1234F and Aadhaar 1234 5678 9012 verified for retail savings onboarding.',
+    },
+    {
+      label: 'UPI & IFSC Rails',
+      text: 'Send money to UPI priya@okaxis linked to IFSC SBIN0001234 with debit card 4111 1111 1111 1111.',
+    },
+    {
+      label: 'Contacts & Account',
+      text: 'Savings account 109200482112 registered to mobile 9820515974 and email aarav@example.com.',
+    },
+  ];
+
+  const handleScan = async () => {
+    if (!inputText.trim()) return;
+    setScanning(true);
+    setScanError(null);
+    try {
+      const res = await post<DlpInspectResult>('/api/admin/dlp/inspect', { text: inputText });
+      setResult(res);
+    } catch (err) {
+      setScanError(errorText(err, 'DLP inspection failed'));
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const isLive = dlpStatus?.live_api_ready;
+
+  return (
+    <Panel
+      title="Sensitive Data Protection (Google Cloud DLP)"
+      sub="Enterprise PII discovery, infoType classification, and reversible token vault for Indian banking rails"
+      actions={
+        <Tag tone={isLive ? 'success' : 'info'}>
+          {isLive ? 'Live Cloud DLP API Active' : 'Dual-Engine Fallback Active'}
+        </Tag>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        {dlpStatus && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--k-muted)' }}>Project:</span>
+            <code style={{ fontSize: '0.8125rem', padding: '0.125rem 0.375rem', background: 'var(--k-surface-alt)', borderRadius: '4px' }}>
+              {dlpStatus.project_id}
+            </code>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--k-muted)', marginLeft: '0.5rem' }}>Governed InfoTypes:</span>
+            {dlpStatus.supported_infotypes.concat(dlpStatus.custom_infotypes).map((it) => (
+              <Tag key={it} tone="neutral">{it}</Tag>
+            ))}
+          </div>
+        )}
+
+        <div className="k-field" style={{ margin: 0 }}>
+          <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Test Text for PII Inspection &amp; Redaction</span>
+            <div style={{ display: 'flex', gap: '0.375rem' }}>
+              {samples.map((s) => (
+                <button
+                  key={s.label}
+                  type="button"
+                  className="k-btn outline sm"
+                  style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}
+                  onClick={() => setInputText(s.text)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </label>
+          <textarea
+            rows={3}
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder="Type or paste text with Indian PAN, Aadhaar, Card, UPI, IFSC, or phone numbers..."
+            style={{ width: '100%', fontFamily: 'inherit' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            type="button"
+            className="k-btn primary sm"
+            disabled={scanning || !inputText.trim()}
+            onClick={handleScan}
+          >
+            {scanning ? 'Inspecting with Cloud DLP...' : 'Scan & De-identify Text'}
+          </button>
+          {scanError && <span style={{ color: 'var(--k-danger)', fontSize: '0.8125rem' }}>{scanError}</span>}
+        </div>
+
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
+              padding: '1rem',
+              background: 'var(--k-surface-alt)',
+              borderRadius: '8px',
+              border: '1px solid var(--k-border)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <strong>DLP Findings:</strong>
+                <Tag tone={result.total_findings > 0 ? 'warning' : 'success'}>
+                  {result.total_findings === 1 ? '1 sensitive entity' : `${result.total_findings} sensitive entities`}
+                </Tag>
+                <span style={{ fontSize: '0.75rem', color: 'var(--k-muted)' }}>
+                  (Engine: {result.engine})
+                </span>
+              </div>
+            </div>
+
+            {result.findings.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {result.findings.map((f, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.375rem',
+                      padding: '0.25rem 0.5rem',
+                      background: 'var(--k-card-bg)',
+                      border: '1px solid var(--k-border)',
+                      borderRadius: '4px',
+                      fontSize: '0.8125rem',
+                    }}
+                  >
+                    <Tag tone="danger">{f.info_type}</Tag>
+                    <code>{f.quote || 'entity'}</code>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--k-muted)' }}>{f.likelihood}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.8125rem', color: 'var(--k-muted)' }}>No sensitive PII discovered in sample text.</div>
+            )}
+
+            <div>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--k-muted)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                De-identified / Redacted Output (Sanitized for Storage &amp; Safety Net):
+              </div>
+              <pre
+                style={{
+                  margin: 0,
+                  padding: '0.75rem',
+                  background: 'var(--k-card-bg)',
+                  border: '1px solid var(--k-border)',
+                  borderRadius: '6px',
+                  fontFamily: 'monospace',
+                  fontSize: '0.875rem',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {result.deidentified}
+              </pre>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--k-muted)' }}>
+              Note: In live chat, Vault swaps these identifiers for reversible tokens ([PAN_1], [AADHAAR_1]) before reaching Gemini, and stored transcripts in Cloud SQL are permanently de-identified.
+            </div>
+          </motion.div>
+        )}
+      </div>
+    </Panel>
+  );
+};
 
 const SourcesTab: React.FC = () => {
   const [data, load, error] = useData<{ sources: { name: string; kind: string; detail: string; status: string }[] }>('/api/admin/data-sources');
@@ -407,6 +1118,7 @@ const SourcesTab: React.FC = () => {
   return (
     <>
       {head}
+      <DlpInspectorPanel />
       <Panel title="Connected systems" count={data.sources.length}
         sub={`${n(['connected', 'on'])} connected · ${n(['configured'])} configured · ${n(['sandbox'])} in sandbox · ${n(['off', 'not configured'])} off${n(['unreachable']) ? ` · ${n(['unreachable'])} unreachable` : ''}`}>
         <div className="table-scroll"><table className="table st-cards">

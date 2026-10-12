@@ -16,6 +16,8 @@ interface ApplicationStatus {
   reason?: string;            // why it was not approved (savings and FD applications)
   can_apply_again?: boolean;
   account_number_masked?: string;
+  user_id?: string;               // a new customer's online-banking user id, once the account is open
+  online_banking_active?: boolean;
   submitted_at: string;
   updated_at: string;
 }
@@ -45,8 +47,60 @@ const timeline = (r: ApplicationStatus): Step[] => {
     { label: LABEL[r.status], state: 'done', date: r.updated_at, icon: r.status === 'APPROVED' ? 'check' : 'close' }];
 };
 
+/** A new customer sets their password, once: user id, application reference and date of birth must match. */
+const ActivateOnlineBanking: React.FC<{ reference: string; userId: string; onLogin: () => void }> = ({ reference, userId, onLogin }) => {
+  const { t } = useI18n();
+  const [dob, setDob] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password !== confirm) { setError(t('The two passwords do not match.')); return; }
+    setBusy(true); setError('');
+    try {
+      await post('/api/applications/activate', { reference, user_id: userId, date_of_birth: dob, password });
+      setDone(true);
+    } catch (err: any) {
+      setError(err.message || t('Could not activate online banking. Please try again.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (done) return (
+    <div className="k-note ok"><Icon name="check" /><div>
+      <strong>{t('Online banking is active')}</strong>
+      <p>{t('Sign in with your user id')} <strong>{userId}</strong> {t('and your new password.')}</p>
+      <button type="button" className="k-btn primary" onClick={onLogin}>{t('Sign in')}</button>
+    </div></div>
+  );
+  return (
+    <form onSubmit={submit} className="k-track-form">
+      <h3>{t('Activate online banking')}</h3>
+      <p>{t('Your user id is')} <strong>{userId}</strong>. {t('Confirm your date of birth and choose a password.')}</p>
+      <label>{t('Date of birth')}
+        <input type="date" value={dob} onChange={e => setDob(e.target.value)} required />
+      </label>
+      <label>{t('New password')}
+        <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={10} maxLength={128}
+          autoComplete="new-password" aria-describedby="pw-rule" />
+        <small id="pw-rule">{t('At least 10 characters, with letters and numbers.')}</small>
+      </label>
+      <label>{t('Confirm password')}
+        <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required autoComplete="new-password" />
+      </label>
+      <button className="k-btn primary" type="submit" disabled={busy}>{busy ? t('Activating…') : t('Activate')}</button>
+      {error && <p role="alert" className="k-form-error"><Icon name="alert" />{error}</p>}
+    </form>
+  );
+};
+
 /** Public page: an applicant checks status with the reference and the mobile number used to apply. */
-export const TrackApplicationPage: React.FC<{ reference?: string; onAsk: (prompt: string) => void }> = ({ reference: initial = '', onAsk }) => {
+export const TrackApplicationPage: React.FC<{ reference?: string; onAsk: (prompt: string) => void; onLogin: () => void }> = ({ reference: initial = '', onAsk, onLogin }) => {
   const { t } = useI18n();
   const [reference, setReference] = useState(decodeURIComponent(initial).toUpperCase());
   const [mobile, setMobile] = useState('');
@@ -118,6 +172,9 @@ export const TrackApplicationPage: React.FC<{ reference?: string; onAsk: (prompt
               {result.account_number_masked && <p>{t('Account')} <strong>{result.account_number_masked}</strong></p>}
               <p>{result.next_step}</p>
               {result.can_apply_again && <button type="button" className="k-btn primary" onClick={applyAgain}>{t('Apply again')}</button>}
+              {result.user_id && (result.online_banking_active
+                ? <p>{t('Online banking is active. Sign in with your user id')} <strong>{result.user_id}</strong>.</p>
+                : <ActivateOnlineBanking reference={result.reference} userId={result.user_id} onLogin={onLogin} />)}
             </motion.article>
           )}
         </div>
