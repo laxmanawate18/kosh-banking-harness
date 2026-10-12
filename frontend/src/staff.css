@@ -415,3 +415,139 @@ td:not(.num) > .st-bar-cell { flex-direction: row-reverse; justify-content: flex
 .ont-sm-transition-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .ont-sm-transition-table th, .ont-sm-transition-table td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; }
 .ont-sm-transition-table th { background: var(--surface-2); color: var(--muted); font-size: 12px; text-transform: uppercase; }
+
+/* Explanatory Info Card & Legend */
+.ont-info-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--r);
+}
+.ont-info-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.ont-info-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--tint);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.ont-info-text strong {
+  display: block;
+  font-size: 15px;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.ont-info-text p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.ont-legend-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.ont-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.ont-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.ont-legend-chip.trigger .ont-legend-dot { background: #3b82f6; }
+.ont-legend-chip.core .ont-legend-dot { background: #10b981; }
+.ont-legend-chip.activity .ont-legend-dot { background: #8b5cf6; }
+.ont-legend-chip.tool .ont-legend-dot { background: #f59e0b; }
+.ont-legend-chip.guardrail .ont-legend-dot { background: #ef4444; }
+
+/* Interactive Node Card Hover & Selection */
+.ont-node-card {
+  cursor: pointer;
+  user-select: none;
+}
+.ont-node-card.selected {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px var(--accent-fill), 0 4px 12px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
+}
+.ont-inspector-box {
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  padding: 16px 20px;
+  display: grid;
+  gap: 10px;
+  animation: ontFadeIn 180ms ease forwards;
+}
+@keyframes ontFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ont-inspector-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ont-inspector-title {
+  font: 700 16px/1.25 var(--k-display);
+  color: var(--ink);
+}
+
+/* Simulator Flow Pipeline */
+.ont-sim-pipeline {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border-radius: var(--r-field);
+  border: 1px solid var(--line);
+}
+.ont-pipeline-step {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ont-pipeline-step small {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+}
+.ont-pipeline-step span {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.ont-pipeline-arrow {
+  color: var(--muted);
+  font-size: 16px;
+  padding: 0 4px;
+}

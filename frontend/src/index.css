@@ -49,13 +49,32 @@ body {
   min-height: 100dvh;
 }
 
-/* Hide scrollbar for Chrome{
-  display: none;
+/* Sleek, unobtrusive scrollbars for Windows browsers without arrow buttons */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
-
-/* Hide scrollbar for IE{
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(140, 140, 150, 0.25);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 140, 150, 0.45);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 140, 150, 0.25) transparent;
 }
 
 .phone-step-container {

@@ -287,6 +287,7 @@ const ProcessDialog: React.FC<{ p: Process; close: () => void; done: () => void 
 
 /* ---------------- Ontology Mapping, Graph, Simulator & Governance ---------------- */
 type GraphNode = { id: string; label: string; type: string; domain?: string; kosh_status?: string | null; channels?: string[]; tools_count?: number };
+type OntologyNode = GraphNode;
 type GraphEdge = { source: string; relation: string; target: string };
 type OntologyGraph = {
   focused_process: string | null;
@@ -346,26 +347,71 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
   const [graphData, setGraphData] = useState<OntologyGraph | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeNode, setActiveNode] = useState<OntologyNode | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
+  const loadGraph = () => {
     setLoading(true);
+    setError(null);
     const url = selectedProcess ? `/api/admin/ontology/graph?process_id=${encodeURIComponent(selectedProcess)}` : '/api/admin/ontology/graph';
     get<OntologyGraph>(url)
       .then(d => { setGraphData(d); setError(null); })
       .catch(e => setError(errorText(e, 'Failed to load ontology graph')))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadGraph();
+    setActiveNode(null);
   }, [selectedProcess]);
 
   const p = processes.find(x => x.id === selectedProcess);
+  const q = searchQuery.trim().toLowerCase();
 
-  const triggers = graphData?.nodes.filter(n => n.type === 'event' || n.type === 'care') || [];
-  const activities = graphData?.nodes.filter(n => n.type === 'activity' || n.type === 'step') || [];
-  const tools = graphData?.nodes.filter(n => n.type === 'tool') || [];
-  const tables = graphData?.nodes.filter(n => n.type === 'table') || [];
-  const policies = graphData?.nodes.filter(n => n.type === 'policy') || [];
+  const filterNodes = (nodes: OntologyNode[]) => {
+    if (!q) return nodes;
+    return nodes.filter(n => n.label.toLowerCase().includes(q) || n.id.toLowerCase().includes(q) || n.type.toLowerCase().includes(q));
+  };
+
+  const allTriggers = graphData?.nodes.filter(n => n.type === 'event' || n.type === 'care') || [];
+  const allActivities = graphData?.nodes.filter(n => n.type === 'activity' || n.type === 'step') || [];
+  const allTools = graphData?.nodes.filter(n => n.type === 'tool') || [];
+  const allTables = graphData?.nodes.filter(n => n.type === 'table') || [];
+  const allPolicies = graphData?.nodes.filter(n => n.type === 'policy') || [];
+
+  const triggers = filterNodes(allTriggers);
+  const activities = filterNodes(allActivities);
+  const tools = filterNodes(allTools);
+  const tables = filterNodes(allTables);
+  const policies = filterNodes(allPolicies);
+
+  const relatedEdges = useMemo(() => {
+    if (!activeNode || !graphData) return [];
+    return graphData.edges.filter(e => e.source === activeNode.id || e.target === activeNode.id);
+  }, [activeNode, graphData]);
 
   return (
     <div className="ont-mapping-view">
+      {/* Educational Guide Banner */}
+      <div className="ont-info-banner">
+        <div className="ont-info-header">
+          <div className="ont-info-icon"><Icon name="book" /></div>
+          <div className="ont-info-text">
+            <strong>How Mitra Uses Business Ontology:</strong>
+            <p>
+              The ontology graph provides formal deterministic guardrails for Mitra (the AI model). Mitra consults this graph to understand which business process applies to a customer inquiry, which APIs (tools) it is legally authorized to call, which database tables it may read, and which RBI/banking policies must govern the transaction.
+            </p>
+          </div>
+        </div>
+        <div className="ont-legend-chips">
+          <span className="ont-legend-chip trigger"><span className="ont-legend-dot" /> 1. Triggers & Intents</span>
+          <span className="ont-legend-chip core"><span className="ont-legend-dot" /> 2. Process Core</span>
+          <span className="ont-legend-chip activity"><span className="ont-legend-dot" /> 3. Activities & Steps</span>
+          <span className="ont-legend-chip tool"><span className="ont-legend-dot" /> 4. Authorized Tools & DB</span>
+          <span className="ont-legend-chip guardrail"><span className="ont-legend-dot" /> 5. Policy Guardrails</span>
+        </div>
+      </div>
+
       <div className="ont-selector-bar">
         <label htmlFor="ont-process-picker"><strong>Focus Business Process:</strong></label>
         <select id="ont-process-picker" value={selectedProcess} onChange={e => setSelectedProcess(e.target.value)}>
@@ -374,19 +420,74 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
           ))}
         </select>
         {p && <Tag tone={IN_KOSH[p.kosh_status]?.[0]}>{IN_KOSH[p.kosh_status]?.[1] || humanizeCode(p.kosh_status)}</Tag>}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search nodes in graph…"
+            className="form-input"
+            style={{ minWidth: '220px', padding: '6px 12px', fontSize: '13px' }}
+          />
+          <button type="button" className="k-btn outline sm" onClick={loadGraph} title="Reload graph">
+            <Icon name="timer" /> Refresh
+          </button>
+        </div>
       </div>
 
       {graphData && (
         <div className="st-kpis">
           <Kpi label="Connected Nodes" value={graphData.stats.total_nodes} caption="In active process subgraph" />
           <Kpi label="Mapped Relationships" value={graphData.stats.total_edges} caption="Typed graph edges" />
-          <Kpi label="Executable Tools" value={tools.length} caption={`${tools.length} authorized tools`} />
-          <Kpi label="Governing Policies" value={policies.length} caption="Guardrails and constraints" />
+          <Kpi label="Executable Tools" value={allTools.length} caption={`${allTools.length} authorized tools`} />
+          <Kpi label="Governing Policies" value={allPolicies.length} caption="Guardrails and constraints" />
         </div>
       )}
 
-      {loading ? <SkeletonRows rows={4} /> : error ? <p className="form-error">{error}</p> : (
+      {loading ? (
+        <SkeletonRows rows={4} />
+      ) : error ? (
+        <Attention
+          tone="danger"
+          title="Could not load ontology graph"
+          actions={<button type="button" className="k-btn outline sm" onClick={loadGraph}>Try again</button>}
+        >
+          {error}
+        </Attention>
+      ) : (
         <>
+          {/* Active Node Inspector Card */}
+          {activeNode && (
+            <div className="ont-inspector-box">
+              <div className="ont-inspector-head">
+                <div>
+                  <span className="ont-inspector-title">{activeNode.label}</span>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+                    <code>{activeNode.id}</code>
+                    <Tag tone="info">{activeNode.type.toUpperCase()}</Tag>
+                  </div>
+                </div>
+                <button type="button" className="k-btn outline sm" onClick={() => setActiveNode(null)}>Close Inspector</button>
+              </div>
+              {relatedEdges.length > 0 ? (
+                <div>
+                  <strong style={{ fontSize: '12.5px', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>
+                    Connected Graph Relationships ({relatedEdges.length}):
+                  </strong>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {relatedEdges.map((re, idx) => (
+                      <span key={idx} className="ont-edge-tag">
+                        {re.source === activeNode.id ? `➔ ${re.relation} ➔ ${re.target}` : `⬅ ${re.relation} ⬅ ${re.source}`}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <small className="muted">Directly connected to root process hub.</small>
+              )}
+            </div>
+          )}
+
           <div className="ont-swimlanes">
             {/* Lane 1: Triggers & Entry */}
             <div className="ont-lane">
@@ -395,7 +496,12 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
                 <Tag tone="neutral">{triggers.length}</Tag>
               </div>
               {triggers.length ? triggers.map(t => (
-                <div key={t.id} className="ont-node-card">
+                <div
+                  key={t.id}
+                  className={`ont-node-card ${activeNode?.id === t.id ? 'selected' : ''}`}
+                  onClick={() => setActiveNode(t)}
+                  title="Click to inspect this trigger"
+                >
                   <div className="ont-node-head">
                     <span className="ont-node-title">{t.label}</span>
                     <Tag tone="info">Trigger</Tag>
@@ -417,7 +523,12 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
                 <Tag tone="success">Core</Tag>
               </div>
               {p && (
-                <div className="ont-node-card" style={{ borderColor: 'var(--accent)' }}>
+                <div
+                  className={`ont-node-card ${activeNode?.id === p.id ? 'selected' : ''}`}
+                  style={{ borderColor: 'var(--accent)' }}
+                  onClick={() => setActiveNode({ id: p.id, label: p.name, type: 'process' })}
+                  title="Click to inspect process hub"
+                >
                   <div className="ont-node-head">
                     <span className="ont-node-title">{p.name}</span>
                     <ApprovalBadge p={p} />
@@ -435,8 +546,13 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
                 <span>3. Activities & Steps</span>
                 <Tag tone="neutral">{activities.length}</Tag>
               </div>
-              {activities.length ? activities.slice(0, 8).map(a => (
-                <div key={a.id} className="ont-node-card">
+              {activities.length ? activities.slice(0, 10).map(a => (
+                <div
+                  key={a.id}
+                  className={`ont-node-card ${activeNode?.id === a.id ? 'selected' : ''}`}
+                  onClick={() => setActiveNode(a)}
+                  title="Click to inspect this activity"
+                >
                   <div className="ont-node-head">
                     <span className="ont-node-title">{a.label}</span>
                     <Tag tone="neutral">{a.type}</Tag>
@@ -453,7 +569,12 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
                 <Tag tone="warning">{tools.length + tables.length}</Tag>
               </div>
               {tools.map(tl => (
-                <div key={tl.id} className="ont-node-card">
+                <div
+                  key={tl.id}
+                  className={`ont-node-card ${activeNode?.id === tl.id ? 'selected' : ''}`}
+                  onClick={() => setActiveNode(tl)}
+                  title="Click to inspect this tool"
+                >
                   <div className="ont-node-head">
                     <span className="ont-node-title">{tl.label}</span>
                     <Tag tone="warning">Tool</Tag>
@@ -462,7 +583,12 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
                 </div>
               ))}
               {tables.map(tb => (
-                <div key={tb.id} className="ont-node-card">
+                <div
+                  key={tb.id}
+                  className={`ont-node-card ${activeNode?.id === tb.id ? 'selected' : ''}`}
+                  onClick={() => setActiveNode(tb)}
+                  title="Click to inspect this database table"
+                >
                   <div className="ont-node-head">
                     <span className="ont-node-title">{tb.label}</span>
                     <Tag tone="info">DB Table</Tag>
@@ -479,7 +605,12 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
                 <Tag tone="danger">{policies.length}</Tag>
               </div>
               {policies.map(po => (
-                <div key={po.id} className="ont-node-card">
+                <div
+                  key={po.id}
+                  className={`ont-node-card ${activeNode?.id === po.id ? 'selected' : ''}`}
+                  onClick={() => setActiveNode(po)}
+                  title="Click to inspect this guardrail policy"
+                >
                   <div className="ont-node-head">
                     <span className="ont-node-title">{po.label}</span>
                     <Tag tone="danger">Guardrail</Tag>
@@ -520,12 +651,14 @@ const OntologySimulatorView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const presets = [
-    { label: 'Lost card', text: 'please block my lost card', ch: 'customer' },
-    { label: 'Send money', text: 'Transfer ₹5,000 to Vikram', ch: 'customer' },
-    { label: 'Apply Personal Loan', text: 'I want to apply for a personal loan', ch: 'visitor' },
-    { label: 'Fraud emergency', text: 'Someone took money from my account, I want to report fraud', ch: 'customer' },
-    { label: 'Account closure', text: 'Please close my account', ch: 'customer' },
-    { label: 'FD Enquiry', text: 'What is the interest rate on 1 year fixed deposit?', ch: 'customer' },
+    { label: 'Lost card', text: 'please block my lost card immediately', ch: 'customer' },
+    { label: 'Send UPI money', text: 'Transfer ₹5,000 to Vikram via UPI', ch: 'customer' },
+    { label: 'High-value RTGS', text: 'I want to transfer ₹15,00,000 to supplier via RTGS', ch: 'customer' },
+    { label: 'Apply Personal Loan', text: 'I want to apply for a personal loan of ₹3 Lakhs', ch: 'visitor' },
+    { label: 'Fraud emergency', text: 'Unauthorized transaction of ₹22,000 seen on my account', ch: 'customer' },
+    { label: 'Change mobile', text: 'Update my registered mobile number to 9876543210', ch: 'customer' },
+    { label: 'FD interest rate', text: 'What is the senior citizen interest rate on 1 year fixed deposit?', ch: 'customer' },
+    { label: 'Officer AML review', text: 'Review AML alert for transaction tx.99021 flagged suspicious', ch: 'officer' },
   ];
 
   const runSimulation = async (testPrompt?: string, testChannel?: string) => {
@@ -546,13 +679,32 @@ const OntologySimulatorView: React.FC = () => {
 
   return (
     <div className="ont-sim-box">
+      <div className="ont-info-banner">
+        <div className="ont-info-header">
+          <div className="ont-info-icon"><Icon name="sparkles" /></div>
+          <div className="ont-info-text">
+            <strong>Routing Simulator (Interactive Test Bench):</strong>
+            <p>
+              Simulate any user query or officer command in real time. This shows how Mitra's intent classifier matches the query to an ontology process, which tools are granted, which security policies govern execution, and what prompt instructions are injected into the LLM context.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="ont-sim-input-wrap">
         <label htmlFor="sim-prompt-input"><strong>Test User Utterance:</strong></label>
-        <textarea id="sim-prompt-input" rows={2} value={prompt} onChange={e => setPrompt(e.target.value)}
-          placeholder="Enter what a visitor, customer, or officer says..." className="form-input" style={{ width: '100%' }} />
+        <textarea
+          id="sim-prompt-input"
+          rows={2}
+          value={prompt}
+          onChange={e => setPrompt(e.target.value)}
+          placeholder="Enter what a visitor, customer, or officer says..."
+          className="form-input"
+          style={{ width: '100%' }}
+        />
 
         <div className="ont-sim-presets">
-          <span>Quick Presets:</span>
+          <span>Quick Banking Scenarios:</span>
           {presets.map(ps => (
             <button key={ps.label} type="button" className="ont-sim-preset-btn" onClick={() => {
               setPrompt(ps.text);
@@ -566,9 +718,9 @@ const OntologySimulatorView: React.FC = () => {
           <label style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             <span>Channel:</span>
             <select value={channel} onChange={e => setChannel(e.target.value)} className="form-input">
-              <option value="customer">Customer</option>
-              <option value="visitor">Visitor</option>
-              <option value="officer">Officer Copilot</option>
+              <option value="customer">Customer (Signed In)</option>
+              <option value="visitor">Visitor (Public Web)</option>
+              <option value="officer">Officer Copilot (Staff)</option>
             </select>
           </label>
           <button type="button" className="k-btn primary sm" disabled={busy} onClick={() => runSimulation()}>
@@ -577,10 +729,41 @@ const OntologySimulatorView: React.FC = () => {
         </div>
       </div>
 
-      {error && <p className="form-error">{error}</p>}
+      {error && (
+        <Attention
+          tone="danger"
+          title="Simulation failed"
+          actions={<button type="button" className="k-btn outline sm" onClick={() => runSimulation()}>Retry</button>}
+        >
+          {error}
+        </Attention>
+      )}
 
       {result && (
         <div className="ont-sim-result">
+          {/* Visual Step-by-Step Pipeline */}
+          <div className="ont-sim-pipeline">
+            <div className="ont-pipeline-step">
+              <small>1. User Input</small>
+              <span>{channelName(result.channel)} Channel</span>
+            </div>
+            <span className="ont-pipeline-arrow">➔</span>
+            <div className="ont-pipeline-step">
+              <small>2. Matched Process</small>
+              <span>{result.process_name || 'General Guidance'}</span>
+            </div>
+            <span className="ont-pipeline-arrow">➔</span>
+            <div className="ont-pipeline-step">
+              <small>3. Decision Gate</small>
+              <span>Rule: {result.rule_matched.toUpperCase()}</span>
+            </div>
+            <span className="ont-pipeline-arrow">➔</span>
+            <div className="ont-pipeline-step">
+              <small>4. Permitted Tools</small>
+              <span>{result.allowed_tools.length} Authorized</span>
+            </div>
+          </div>
+
           <div className="ont-sim-header">
             <div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '4px' }}>
@@ -625,7 +808,7 @@ const OntologySimulatorView: React.FC = () => {
           {result.model_view_preview && (
             <details style={{ marginTop: '8px' }}>
               <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--ink)' }}>
-                View Injected Process Guide Preview (What the LLM receives)
+                View Injected Process Guide Preview (What the LLM receives in system prompt)
               </summary>
               <pre className="st-pre" tabIndex={0} style={{ marginTop: '8px', maxHeight: '240px' }}>
                 {result.model_view_preview}

@@ -12,6 +12,7 @@ import os
 import urllib.request
 from collections import Counter
 from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
