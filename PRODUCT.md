@@ -28,10 +28,9 @@ The AI agent never completes a payment alone. Every money movement goes through 
 
 ## Capabilities and Constraints
 
-- Mitra answers in English, Hindi and Marathi, but the interface ships **English only** for now.
+- Mitra answers in English, Hindi and Marathi, but the interface is **English only**, by decision: no Hindi or Marathi interface translations will be added.
 - Money is integer paise. The audit log is hash-chained.
-- Customer sign-in is phone OTP; staff and admin use username and password. A demo OTP mode exists: registered demo numbers sign in with a fixed code that the sign-in page shows. Whether it stays on in the deployed demo is undecided.
-- Not decided: whether Hindi and Marathi interface translations will be restored.
+- Customer sign-in is phone OTP; staff and admin use username and password. A demo OTP mode exists: registered demo numbers sign in with a fixed code that the sign-in page shows. It stays on in the deployed demo, so reviewers can sign in as a customer without a real phone.
 
 ## Brand Commitments
 
@@ -54,4 +53,4 @@ The AI agent never completes a payment alone. Every money movement goes through 
 
 ## Accessibility & Inclusion
 
-No formal standard (such as WCAG AA) was confirmed. The existing work assumes keyboard use, visible focus and readable contrast, including on safety-critical controls such as the kill switches; treat that as the working bar until a standard is chosen. Indian number formatting (₹1,25,000) is used for money.
+The standard is **WCAG 2.2 Level AA**, for every page and role. That means text contrast of at least 4.5:1 (3:1 for large text), everything usable by keyboard alone with a visible focus indicator, labelled controls and status messages announced to screen readers, content that still works at 200% zoom, and touch targets large enough to hit. Safety-critical controls such as the kill switches must have a keyboard path as well as a pointer one. Indian number formatting (₹1,25,000) is used for money.

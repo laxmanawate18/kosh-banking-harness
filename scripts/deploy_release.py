@@ -73,6 +73,7 @@ NEW_KEYS = {  # required in production since this release; generated once: secre
     "kosh-admin-password": (AUTH, "AUTH_ADMIN_PASSWORD", lambda: secrets.token_urlsafe(18)),
 }
 # Kosh sends no e-mail: every SMTP setting goes (revoke the Gmail app password separately).
+# AUTH_DEMO_OTP is deliberately not here: the deployed demo keeps demo sign-in so reviewers can log in as a customer.
 REMOVED = {APP: {"DEMO_OTP", "SMTP_HOST", "SMTP_PORT", "SMTP_USE_TLS", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM_EMAIL",
                  "SMTP_FROM_NAME"}, AUTH: set()}
 
