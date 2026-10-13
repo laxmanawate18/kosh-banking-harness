@@ -62,7 +62,7 @@ export const AIBankerPage: React.FC = () => {
           )}
           {needsKyc && (
             <button type="button" className="k-btn primary wide sm c-mt" onClick={() => startWorkflowById('kyc')}>
-              {kyc.status === 'NOT_DONE' ? t('Start initial KYC') : t('Complete re-KYC')}
+              {t('Complete KYC')}
             </button>
           )}
         </div>

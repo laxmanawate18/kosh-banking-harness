@@ -132,7 +132,7 @@ export const SecurityPage: React.FC<SecurityPageProps> = ({ onNavigate, onExport
 
       <div className="c-split">
         <div className="k-page-stack">
-          <section className="k-panel">
+          <section className={`k-panel ${openAlerts.length ? 'k-sec-alert-open' : ''}`}>
             <header className="k-panel-head">
               <div><h2>{t('Security alerts')}</h2><p>{openAlerts.length ? t('Something needs your attention') : t('Nothing needs your attention')}</p></div>
               {openAlerts.length > 0 && <Badge variant="warning">{t('Needs attention')}</Badge>}
@@ -147,7 +147,7 @@ export const SecurityPage: React.FC<SecurityPageProps> = ({ onNavigate, onExport
                 </div>
                 <div className="c-alert-actions">
                   <Badge status={a.status} />
-                  <button type="button" className="k-btn outline sm" onClick={() => onNavigate?.('cards')}>{t('Manage card')}</button>
+                  <button type="button" className={`k-btn ${a.status === 'OPEN' ? 'primary' : 'outline'} sm`} onClick={() => onNavigate?.('cards')}>{t('Manage card')}</button>
                 </div>
               </article>
             )) : (
@@ -160,12 +160,17 @@ export const SecurityPage: React.FC<SecurityPageProps> = ({ onNavigate, onExport
             {activity.rows.length ? (
               <ul className="c-activity">
                 <AnimatePresence initial={false}>
-                  {activity.rows.map((e, i) => {
+                  {activity.rows.reduce<{ e: (typeof activity.rows)[number]; n: number }[]>((out, e) => {
+                    const last = out[out.length - 1];
+                    if (last && last.e.event_type === e.event_type) last.n += 1;  // the same event in a row reads as one line with a count
+                    else out.push({ e, n: 1 });
+                    return out;
+                  }, []).map(({ e, n }, i) => {
                     const [label, tone] = labels[e.event_type || ''];
                     return (
                       <motion.li key={e.id || i} {...rowMotion}>
                         <span className={`c-dot ${tone}`} aria-hidden="true" />
-                        <span className="c-activity-text">{label}</span>
+                        <span className="c-activity-text">{label}{n > 1 && <span className="c-activity-count"> ×{n}</span>}</span>
                         <time dateTime={e.created_at}>{formatDateTime(e.created_at)}</time>
                       </motion.li>
                     );

@@ -91,7 +91,7 @@ export const AppShell: React.FC<AppShellProps> = ({ activeRoute, onRouteChange, 
       <GlobalSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} onNavigate={onRouteChange} />
 
       {!isOfficer && activeRoute !== 'ai-banker' && (
-        <button id="assistantToggle" type="button" className="k-fab" onClick={() => setChatOpen(true)}>
+        <button id="assistantToggle" type="button" className="k-fab" title={t('Ask Mitra')} onClick={() => setChatOpen(true)}>
           <LotusMark size={30} />
           <span id="assistantToggleText">{t('Ask Mitra')}</span>
         </button>

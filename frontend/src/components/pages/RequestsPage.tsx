@@ -4,6 +4,7 @@ import { Badge } from '../common/Badge';
 import { Icon } from '../common/Icon';
 import { Modal } from '../common/Modal';
 import { PageHeader } from '../common/PageHeader';
+import { ServiceTabs } from '../common/SectionTabs';
 import { FilterTabs } from '../common/FilterTabs';
 import { Stagger, motion } from '../common/Animate';
 import { formatDate, humanizeCode } from '../common/Formatters';
@@ -127,6 +128,7 @@ export const RequestsPage: React.FC<RequestsPageProps> = ({ onNavigate }) => {
 
   return (
     <>
+      <ServiceTabs active="requests" />
       <PageHeader title={t('My requests')} subtitle={t('Stay up to date, from submission to a decision.')}
         actions={<button type="button" className="k-btn primary" onClick={() => onNavigate?.('services')}><Icon name="services" />{t('New request')}</button>} />
       <div className="k-page-stack">
@@ -145,7 +147,6 @@ export const RequestsPage: React.FC<RequestsPageProps> = ({ onNavigate }) => {
             <Icon name="requests" />
             <h3>{filter === 'open' ? t('Nothing in progress') : t('Nothing to track just yet')}</h3>
             <p>{t('New requests and their progress will appear here.')}</p>
-            <button type="button" className="k-btn outline" onClick={() => onNavigate?.('services')}>{t('Explore services')}</button>
           </div>
         )}
       </div>

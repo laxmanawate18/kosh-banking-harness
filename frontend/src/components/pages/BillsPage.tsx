@@ -5,6 +5,7 @@ import { Icon } from '../common/Icon';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 import { PageHeader } from '../common/PageHeader';
+import { MoneyTabs } from '../common/SectionTabs';
 import { AnimatePresence, AnimatedNumber, Stagger, motion } from '../common/Animate';
 import { categoryLabel } from '../overview/RecentTransactions';
 import { LotusLoader } from '../common/LotusLoader';
@@ -48,6 +49,7 @@ export const BillsPage: React.FC = () => {
 
   return (
     <>
+      <MoneyTabs active="bills" />
       <PageHeader title={t('Bills and recharge')} subtitle={t('Review upcoming payments and bills you’ve already paid.')} />
       <div className="k-page-stack">
         <AnimatePresence>
@@ -90,14 +92,16 @@ export const BillsPage: React.FC = () => {
           )}
 
           <aside className="k-page-stack">
-            <section className="k-panel">
-              <header className="k-panel-head"><div><h2>{t('At a glance')}</h2><p>{t('Across your registered billers')}</p></div></header>
-              <div className="k-panel-body">
-                <div className="info-row"><span>{t('To pay now')}</span><strong className="c-strong-num"><AnimatedNumber value={due.reduce((n, b) => n + amountOf(b), 0)} format={v => formatMoney(Math.round(v))} /></strong></div>
-                <div className="info-row"><span>{t('Bills due')}</span><strong>{due.length}</strong></div>
-                <div className="info-row"><span>{t('Bills paid')}</span><strong>{bills.length - due.length}</strong></div>
-              </div>
-            </section>
+            {bills.length > 1 && (  // a single bill already says everything this summary would
+              <section className="k-panel">
+                <header className="k-panel-head"><div><h2>{t('At a glance')}</h2><p>{t('Across your registered billers')}</p></div></header>
+                <div className="k-panel-body">
+                  <div className="info-row"><span>{t('To pay now')}</span><strong className="c-strong-num"><AnimatedNumber value={due.reduce((n, b) => n + amountOf(b), 0)} format={v => formatMoney(Math.round(v))} /></strong></div>
+                  <div className="info-row"><span>{t('Bills due')}</span><strong>{due.length}</strong></div>
+                  <div className="info-row"><span>{t('Bills paid')}</span><strong>{bills.length - due.length}</strong></div>
+                </div>
+              </section>
+            )}
             <aside className="k-kavach-tip">
               <Icon name="shield" />
               <div>

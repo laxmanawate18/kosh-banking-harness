@@ -5,6 +5,7 @@ import { useBanking } from '../../context/BankingContext';
 import { Badge } from '../common/Badge';
 import { Icon } from '../common/Icon';
 import { PageHeader } from '../common/PageHeader';
+import { Modal } from '../common/Modal';
 import { AnimatePresence, motion } from '../common/Animate';
 import { ServiceRequestDialog, type ServiceSpec } from '../app/ServiceRequestDialog';
 import { apiPost, apiPatch, apiDelete } from '../../services/api';
@@ -60,14 +61,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onStartKyc }) => {
     }
   };
 
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
+  const [withdrawError, setWithdrawError] = useState('');
+
   const toggleConsent = async () => {
     try {
       if (hasConsent) await apiDelete('/api/consent');
       else await apiPost('/api/consent', { accepted: true });
       setConsent(!hasConsent);
+      setConfirmWithdraw(false);
+      setWithdrawError('');
       refreshOverview();
     } catch (err: any) {
-      flash({ ok: false, text: err.message || t('Could not update consent. Please try again.') });
+      const text = err.message || t('Could not update consent. Please try again.');
+      if (confirmWithdraw) setWithdrawError(text);  // the dialog covers the page, so the error has to be inside it
+      else flash({ ok: false, text });
     }
   };
 
@@ -136,7 +144,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onStartKyc }) => {
               <div className="info-row"><span>{t('Aadhaar')}</span><strong className={masked(k.aadhaar_masked) ? '' : 'c-soft'}>{masked(k.aadhaar_masked) || t('Not linked')}</strong></div>
               {needsKyc ? (
                 <button type="button" className="k-btn primary c-mt" onClick={() => onStartKyc?.()}>
-                  {kycStatus === 'NOT_DONE' ? t('Complete initial KYC with Mitra') : t('Complete KYC with Mitra')} <Icon name="arrow-right" />
+                  {t('Complete KYC with Mitra')} <Icon name="arrow-right" />
                 </button>
               ) : kycStatus === 'VERIFIED' && (
                 <p className="c-paid"><Icon name="check" />{t('Your KYC is up to date. Nothing to do.')}</p>
@@ -184,7 +192,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onStartKyc }) => {
             </header>
             <div className="k-panel-body">
               <p className="c-body">{t('You control whether Mitra can prepare actions and service requests for you.')}</p>
-              <button type="button" className="k-btn outline" onClick={toggleConsent}>{hasConsent ? t('Withdraw permission') : t('Restore permission')}</button>
+              {hasConsent
+                ? <button type="button" className="k-btn danger" onClick={() => setConfirmWithdraw(true)}>{t('Withdraw permission')}</button>
+                : <button type="button" className="k-btn primary" onClick={toggleConsent}>{t('Restore permission')}</button>}
             </div>
           </section>
 
@@ -200,6 +210,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onStartKyc }) => {
       </div>
 
       <ServiceRequestDialog spec={spec} onClose={() => setSpec(null)} />
+      <Modal isOpen={confirmWithdraw} onClose={() => { setConfirmWithdraw(false); setWithdrawError(''); }} title={t('Withdraw permission?')}
+        subtitle={t('Mitra will stop preparing actions and service requests for you until you restore permission.')}>
+        {withdrawError && <div className="form-error" role="alert">{withdrawError}</div>}
+        <div className="k-dialog-actions">
+          <button type="button" className="k-btn outline" onClick={() => { setConfirmWithdraw(false); setWithdrawError(''); }}>{t('Cancel')}</button>
+          <button type="button" className="k-btn danger" onClick={toggleConsent}>{t('Withdraw permission')}</button>
+        </div>
+      </Modal>
     </>
   );
 };

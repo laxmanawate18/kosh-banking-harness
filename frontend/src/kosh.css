@@ -559,11 +559,11 @@ p { color: var(--muted); text-wrap: pretty; }
   overflow-x: hidden !important;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: rgb(255 255 255 / .18) transparent;
+  scrollbar-width: none;  /* still scrolls when the menu is taller than the window; no bar drawn */
+  -ms-overflow-style: none;
   display: flex;
   flex-direction: column;
-  padding: 20px 16px 18px;
+  padding: 16px 16px 14px;
   color: #c9cacf;
   background: var(--band-panel);
   border-right: 1px solid var(--band-line);
@@ -571,28 +571,28 @@ p { color: var(--muted); text-wrap: pretty; }
   isolation: isolate;
   box-sizing: border-box;
 }
-.k-side::-webkit-scrollbar { width: 4px; height: 0 !important; }
+.k-side::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .k-side::-webkit-scrollbar-button { display: none !important; width: 0 !important; height: 0 !important; }
 .k-side::-webkit-scrollbar-track { background: transparent; }
 .k-side::-webkit-scrollbar-thumb { background: rgb(255 255 255 / .16); border-radius: 999px; }
 .k-side::-webkit-scrollbar-thumb:hover { background: rgb(255 255 255 / .3); }
 .k-side::-webkit-scrollbar-corner { background: transparent; display: none; }
 .k-side .k-side-motif {
-  position: absolute; z-index: -1; width: 240px; right: -20px; bottom: -20px;
+  position: absolute; z-index: -1; width: 240px; right: 0; bottom: 0;  /* inside the panel: an overhang here counts as scrollable overflow and shows a scrollbar */
   fill: none; stroke: rgb(228 230 234 / .04); pointer-events: none;
   overflow: hidden; clip-path: inset(0 0 0 0);
 }
-.k-side #navigation { display: flex; flex-direction: column; gap: 8px; width: 100%; box-sizing: border-box; }
+.k-side #navigation { display: flex; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box; }
 .k-side-logo { padding: 0 6px; text-decoration: none; width: 100%; box-sizing: border-box; display: inline-flex; align-items: center; }
 .k-side-space { display: block; margin: 12px 6px 4px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--champagne); }
 .k-side-group { display: grid; gap: 2px; width: 100%; box-sizing: border-box; }
-.k-side-group-label { margin: 14px 6px 6px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #8e9098; font-weight: 600; }
+.k-side-group-label { margin: 10px 6px 4px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #a9abb3; font-weight: 600; }
 .k-side-item {
   position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 6px 12px;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 500;
@@ -632,7 +632,7 @@ p { color: var(--muted); text-wrap: pretty; }
   line-height: 1;
   flex-shrink: 0;
 }
-.k-side-foot { margin-top: auto; padding-top: 16px; display: grid; gap: 8px; width: 100%; box-sizing: border-box; }
+.k-side-foot { margin-top: auto; padding-top: 12px; display: grid; gap: 8px; width: 100%; box-sizing: border-box; }
 .k-side-kavach { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: 14px; background: rgb(255 255 255 / .06); width: 100%; box-sizing: border-box; }
 .k-side-kavach strong { display: block; color: #fff; font-size: 13px; }
 .k-side-kavach small { font-size: 11.5px; color: #a3a5ac; line-height: 1.35; display: block; margin-top: 1px; }
@@ -719,7 +719,7 @@ p { color: var(--muted); text-wrap: pretty; }
 .k-alert.warn { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 30%, transparent); color: var(--warn); }
 .k-alert.calm { background: var(--info-bg); border-color: var(--line); color: var(--ink-2); }
 
-.k-actions { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.k-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .k-action { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 8px 14px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); font: 600 15px var(--k-sans); color: var(--ink); cursor: pointer; transition: border-color 150ms ease, transform 140ms var(--ease-out); text-align: center; }
 .k-action:active { transform: scale(0.97); }
 @media (hover: hover) and (pointer: fine) { .k-action:hover { border-color: var(--line-strong); } }
@@ -969,7 +969,7 @@ input[type=checkbox], input[type=radio] { min-height: 0; accent-color: var(--bra
    ========================================================================== */
 @media (max-width: 1180px) {
   .k-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .k-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .k-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .k-dash-grid { grid-template-columns: minmax(0, 1fr); }
   .k-dash-side { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
   .k-search { width: 44px; padding: 0; justify-content: center; }
@@ -1022,7 +1022,7 @@ input[type=checkbox], input[type=radio] { min-height: 0; accent-color: var(--bra
   .k-profile { padding: 3px; }
   .k-profile-text { display: none; }
   #mainContent.k-main { padding: 18px 14px calc(112px + env(safe-area-inset-bottom)); }
-  .k-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .k-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .k-action { padding: 13px 4px 11px; font-size: 13.5px; }
   .k-alert { flex-direction: column; align-items: flex-start; }
   .k-alert .k-btn { width: 100%; }
@@ -1508,3 +1508,35 @@ ol.mdr-list { list-style-type: decimal; }
 .k-app-done { display: grid; gap: 10px; justify-items: start; }
 .k-app-done > .icon { width: 36px; height: 36px; color: var(--ok); }
 .k-app-done h3 { margin: 0; }
+
+
+/* ==========================================================================
+   CUSTOMER PORTAL REFINEMENTS
+   ========================================================================== */
+/* Section tabs: related pages (pay and transfer, services) share one sidebar entry and a tab strip. */
+.k-subnav { display: flex; gap: 4px; padding: 4px; margin-bottom: 18px; width: fit-content; max-width: 100%; overflow-x: auto; scrollbar-width: none; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.k-subnav::-webkit-scrollbar { display: none; }
+.k-subnav a { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 999px; color: var(--muted); font: 600 14.5px var(--k-sans); text-decoration: none; white-space: nowrap; transition: background-color 150ms ease, color 150ms ease; }
+.k-subnav a:hover { color: var(--ink); }
+.k-subnav a[aria-current="page"] { background: var(--tint); color: var(--ink); }
+.k-subnav .k-subnav-count { min-width: 20px; height: 18px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--platinum); color: var(--on-platinum); font-size: 11px; font-weight: 700; }
+
+/* The assistant button sits over content, so it rests as a compact circle and opens its label on hover or focus. */
+@media (min-width: 1025px) {
+  .k-shell .k-fab { gap: 0; padding: 7px; transition: padding 220ms var(--ease-out), gap 220ms var(--ease-out), transform 140ms var(--ease-out), background-color 150ms ease; }
+  .k-shell .k-fab span { max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0; transition: max-width 220ms var(--ease-out), opacity 160ms ease; }
+  .k-shell .k-fab:hover, .k-shell .k-fab:focus-visible { gap: 10px; padding: 7px 20px 7px 7px; }
+  .k-shell .k-fab:hover span, .k-shell .k-fab:focus-visible span { max-width: 140px; opacity: 1; }
+}
+
+/* The dashboard card rests still; it still tilts on hover. */
+.k-dash-hero-card .k-card3d-wrap.floating { animation: none; }
+.k-dash-hero-actions .k-btn { min-height: 52px; }
+
+/* An unresolved security alert is the page's headline, not one more row. */
+.k-panel.k-sec-alert-open { border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); background: color-mix(in srgb, var(--danger-bg) 55%, var(--surface)); }
+.c-activity-count { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  .k-subnav { width: 100%; justify-content: space-between; }
+  .k-subnav a { flex: 1 1 auto; justify-content: center; padding: 0 10px; font-size: 14px; }
+}
