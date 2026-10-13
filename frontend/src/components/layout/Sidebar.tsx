@@ -6,6 +6,7 @@ import { Icon } from '../common/Icon';
 import { KoshLogo, LotusMark, Rangoli } from '../common/KoshLogo';
 import { ActiveIndicator } from '../common/Animate';
 import type { ServiceRequestItem } from '../../types/banking';
+import { DECIDE_STATUSES } from '../officer/CaseDialog';
 
 interface SidebarProps {
   activeRoute: string;
@@ -49,7 +50,7 @@ export const OFFICER_NAV: [string, NavItem[]][] = [
 export const ADMIN_NAV: [string, NavItem[]][] = [
   ['Governance', [
     { id: 'admin-approvals', title: 'Approvals', icon: 'check' },
-    { id: 'admin-ontology', title: 'Business ontology', icon: 'book' },
+    { id: 'admin-ontology', title: 'Banking processes', icon: 'book' },
     { id: 'admin-controls', title: 'Kill switches', icon: 'pause' },
     { id: 'admin-audit', title: 'Audit chain', icon: 'lock' },
   ]],
@@ -72,6 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onRouteChange, is
   const groups = isAdmin ? ADMIN_NAV : isOfficer ? OFFICER_NAV : CUSTOMER_NAV;
   const home = isAdmin ? 'admin-approvals' : isOfficer ? 'operations' : 'overview';
   const openRequests = overview?.requests?.filter((r: ServiceRequestItem) => OPEN_STATUSES.includes(r.status)).length || 0;
+  const toDecide = isOfficer ? overview?.requests?.filter((r: ServiceRequestItem) => DECIDE_STATUSES.includes(r.status)).length || 0 : 0;  // what an officer has to decide
   const go = (id: string) => { onRouteChange(id); onClose(); };
 
   return (
@@ -98,6 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onRouteChange, is
                     <Icon name={item.icon} />
                     <span>{t(item.title)}</span>
                     {item.id === 'services' && openRequests > 0 && <span className="k-side-count">{openRequests}</span>}
+                    {item.id === 'operations' && toDecide > 0 && <span className="k-side-count" aria-label={t('{n} to decide', { n: toDecide })}>{toDecide}</span>}
                   </a>
                 );
               })}

@@ -22,11 +22,6 @@ from service_requests import SERVICE_CATALOGUE
 logger = logging.getLogger(__name__)
 
 
-def utc_now_iso() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).isoformat()
-
-
 AUTH_INTERNAL_TOKEN = os.getenv("AUTH_INTERNAL_TOKEN", "kosh-internal-development-token")
 
 

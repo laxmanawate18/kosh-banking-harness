@@ -182,7 +182,7 @@ export const LeadsPage: React.FC = () => {
 
   return (
     <div className="k-page-stack st-page">
-      <PageHeader eyebrow="Bank operations" title="AI sales leads"
+      <PageHeader title="AI sales leads"
         subtitle="Interest Mitra recorded, and applications from new customers. A new customer can sign in only after you approve."
         actions={<button type="button" className="k-btn outline sm" onClick={refresh} disabled={busy} aria-busy={busy}>
           <Icon name="refresh" className={`icon ${busy ? 'st-spin' : ''}`} />{busy ? 'Refreshing…' : 'Refresh'}</button>} />

@@ -45,9 +45,10 @@ def _tls_context() -> ssl.SSLContext:
 
 
 TLS = _tls_context()
-PROJECT = "project-5fc303c2-29cb-4e5d-9f9"
-REGION = "us-central1"
-SQL_INSTANCE = "kosh-db"
+# The defaults are this deployment; set KOSH_GCP_PROJECT, KOSH_GCP_REGION or KOSH_SQL_INSTANCE to release somewhere else.
+PROJECT = os.environ.get("KOSH_GCP_PROJECT", "project-5fc303c2-29cb-4e5d-9f9")
+REGION = os.environ.get("KOSH_GCP_REGION", "us-central1")
+SQL_INSTANCE = os.environ.get("KOSH_SQL_INSTANCE", "kosh-db")
 REGISTRY = f"{REGION}-docker.pkg.dev/{PROJECT}/kosh"
 BUILD_ACCOUNT = f"projects/{PROJECT}/serviceAccounts/kosh-build@{PROJECT}.iam.gserviceaccount.com"
 APP, AUTH = "kosh-app", "kosh-auth"
@@ -255,7 +256,7 @@ def main() -> int:
     print(f"""    Mitra and the copilot answer "paused" until prompt version {version} is approved in production:
       venv/bin/python scripts/promote_evaluation.py --version {version} --apply
       then sign in as the admin (password: gcloud secrets versions access latest --secret=kosh-admin-password)
-      and approve it in the Admin Panel -> Approvals; then approve the processes in Admin Panel -> Business ontology
+      and approve it in the Admin Panel -> Approvals; then approve the processes in Admin Panel -> Banking processes
     Optional: scripts/register_agent.sh (outside agents), scripts/cloud_armor.sh (once the quota is raised)""")
     if not args.apply:
         print("\nDry run. Nothing was changed. Re-run with --apply.")

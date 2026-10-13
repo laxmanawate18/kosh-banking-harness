@@ -136,7 +136,7 @@ export const TrackApplicationPage: React.FC<{ reference?: string; onAsk: (prompt
 
   return (
     <>
-      <PageHero eyebrow={t('Help')} title={t('Track application')} intro={t('Enter your application reference and the mobile number you applied with.')} />
+      <PageHero title={t('Track application')} intro={t('Enter your application reference and the mobile number you applied with.')} />
       <section className="k-section k-track">
         <div>
           <form onSubmit={submit} className="k-card k-track-form">

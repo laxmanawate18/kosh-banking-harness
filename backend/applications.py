@@ -293,12 +293,6 @@ def bind(db, auth_service, account_applications=None) -> None:
     _bound.update(db=db, auth_service=auth_service, account_applications=account_applications)
 
 
-def submit_bound(req: ProductApplyRequest) -> dict:
-    if not _bound:
-        raise HTTPException(503, "Applications are not available right now")
-    return submit_application(_bound["db"], _bound["auth_service"], req)
-
-
 _STATUS = {  # lead status -> what the applicant is told (never internal notes)
     "PENDING_APPROVAL": ("UNDER_REVIEW", "Under review", "A Kosh officer is reviewing your application."),
     "QUALIFIED": ("UNDER_REVIEW", "Under review", "A Kosh officer is reviewing your application."),

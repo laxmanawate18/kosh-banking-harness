@@ -25,10 +25,6 @@ class GCPPhoneLoginRequest(BaseModel):
     code: str | None = Field(default=None, max_length=12)
 
 
-class StepUpRequest(BaseModel):
-    code: str = Field(min_length=1, max_length=10)
-
-
 class ProductApplyRequest(BaseModel):
     product_id: str = "PROD-SAV-PREMIER"
     full_name: Optional[str] = None

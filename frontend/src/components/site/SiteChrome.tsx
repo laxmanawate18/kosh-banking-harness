@@ -90,7 +90,7 @@ const DisplayControlsCompact: React.FC = () => {
 };
 
 /** Inner-page hero in the Home language: breadcrumb, gold-thread eyebrow, serif headline whose last word is the accent. */
-export const PageHero: React.FC<{ eyebrow: string; title: string; intro: string; trail?: [string, string][] }> = ({ eyebrow, title, intro, trail = [] }) => {
+export const PageHero: React.FC<{ title: string; intro: string; trail?: [string, string][] }> = ({ title, intro, trail = [] }) => {
   const { t } = useI18n();
   const cut = title.lastIndexOf(' ') + 1;
   return (
@@ -103,7 +103,6 @@ export const PageHero: React.FC<{ eyebrow: string; title: string; intro: string;
           ))}
           <span aria-current="page">{title}</span>
         </nav>
-        <span className="kl-eyebrow"><i />{eyebrow}</span>
         <h1>{title.slice(0, cut)}<em>{title.slice(cut)}</em></h1>
         <p>{intro}</p>
       </div>

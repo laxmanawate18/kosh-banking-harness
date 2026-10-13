@@ -30,6 +30,23 @@ PORT=8017 python dev_ui.py
 
 Open [http://127.0.0.1:8017](http://127.0.0.1:8017). The OAuth authority and its hosted sign-in/consent pages run on [http://127.0.0.1:8020](http://127.0.0.1:8020).
 
+**On Windows (PowerShell)** the same steps are:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up -d postgres auth-postgres auth-server
+venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python scripts\migrate_auth_subjects.py --apply
+$env:PORT = 8017; python dev_ui.py
+```
+
+Use `venv\Scripts\python` wherever the commands below say `venv/bin/python`, and `venv\Scripts\pytest` for `venv/bin/pytest`.
+
+**Signing in as a customer without Firebase.** Set `AUTH_DEMO_OTP=246810` for both the auth server and the app (`.env` or the shell). The sign-in page then accepts the registered demo number `+919876543210` with that code and sends no SMS. Whether it stays on in a deployed demo is a release decision.
+
+**Frontend.** After changing anything in `frontend/`, run `npm run build` there: the app serves `frontend/dist`. `npm run dev` serves it live while you work.
+
 Demo identities (local simulation only):
 
 - Customer OAuth: the configured Firebase test phone and verification code
