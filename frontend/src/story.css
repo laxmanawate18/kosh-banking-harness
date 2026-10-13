@@ -162,7 +162,7 @@
 }
 
 /* ---------------------------------------------------------------- temple-door finale */
-.ks-finale { position: relative; height: 260svh; background: var(--lux-deep); }
+.ks-finale { position: relative; height: 170svh; background: var(--lux-deep); }
 .ks-finale-stick { position: sticky; top: 0; height: 100svh; overflow: hidden; display: grid; place-items: center; perspective: 1300px; }
 .ks-light { position: absolute; inset: -10%; background: radial-gradient(38% 58% at 50% 55%, #fffdf7 0%, #fbeccb 22%, #e9cf98 40%, #b98a45 60%, rgb(120 90 40 / 0) 80%); scale: calc(.5 + var(--p, 1) * .65); will-change: scale; }
 .ks-finale-copy { --show: clamp(0, calc((var(--p, 1) - .42) * 3.2), 1); position: relative; z-index: 1; display: grid; justify-items: center; gap: 6px; max-width: 760px; padding: 0 20px; text-align: center; color: #15130f; opacity: var(--show); translate: 0 calc((1 - var(--show)) * 36px); will-change: opacity, translate; }
@@ -246,7 +246,7 @@
 }
 @media (max-width: 900px) {
   .ks-stats-inner { grid-template-columns: 1fr; }
-  .ks-finale { height: 200svh; }
+  .ks-finale { height: 150svh; }
   .ks-finale-stick { perspective: 600px; }
   .ks-door-grid { grid-template-columns: 1fr; }
   .ks-door-grid > :is(:nth-child(2), :nth-child(5), :nth-child(8)) { display: none; }
