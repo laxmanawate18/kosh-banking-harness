@@ -14,7 +14,7 @@ interface SidebarProps {
   onClose: () => void;
 }
 
-type NavItem = { id: string; title: string; icon: string };
+type NavItem = { id: string; title: string; icon: string; also?: string[] };  // `also`: grouped pages that keep this entry active
 
 export const CUSTOMER_NAV: [string, NavItem[]][] = [
   ['Banking', [
@@ -24,16 +24,12 @@ export const CUSTOMER_NAV: [string, NavItem[]][] = [
     { id: 'transactions', title: 'Transactions', icon: 'transactions' },
   ]],
   ['Move money', [
-    { id: 'upi', title: 'UPI', icon: 'upi' },
-    { id: 'payments', title: 'Send money', icon: 'payments' },
-    { id: 'beneficiaries', title: 'Payees', icon: 'beneficiaries' },
-    { id: 'bills', title: 'Bills and recharge', icon: 'bills' },
+    { id: 'payments', title: 'Pay and transfer', icon: 'payments', also: ['upi', 'beneficiaries', 'bills'] },
   ]],
   ['Products', [
     { id: 'cards', title: 'Cards', icon: 'cards' },
     { id: 'deposits', title: 'Deposits', icon: 'deposits' },
-    { id: 'services', title: 'Services', icon: 'services' },
-    { id: 'requests', title: 'My requests', icon: 'requests' },
+    { id: 'services', title: 'Services and requests', icon: 'services', also: ['requests'] },
   ]],
   ['You', [
     { id: 'security', title: 'Sentinel security', icon: 'security' },
@@ -94,14 +90,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeRoute, onRouteChange, is
             <div key={group} className="k-side-group">
               <span className="k-side-group-label">{t(group)}</span>
               {items.map(item => {
-                const active = activeRoute === item.id;
+                const active = activeRoute === item.id || !!item.also?.includes(activeRoute);
                 return (
                   <a key={item.id} href={`#${item.id}`} className={`k-side-item ${active ? 'active' : ''}`}
                     aria-current={active ? 'page' : undefined} onClick={e => { e.preventDefault(); go(item.id); }}>
                     {active && <ActiveIndicator id="side-active" className="k-side-indicator" />}
                     <Icon name={item.icon} />
                     <span>{t(item.title)}</span>
-                    {item.id === 'requests' && openRequests > 0 && <span className="k-side-count">{openRequests}</span>}
+                    {item.id === 'services' && openRequests > 0 && <span className="k-side-count">{openRequests}</span>}
                   </a>
                 );
               })}

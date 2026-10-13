@@ -4,6 +4,7 @@ import { useBanking } from '../../context/BankingContext';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
 import { PageHeader } from '../common/PageHeader';
+import { MoneyTabs } from '../common/SectionTabs';
 import { RecentTransactions, TransactionDetailModal } from '../overview/RecentTransactions';
 import type { Transaction } from '../../types/banking';
 import { parseUpi } from '../../upi';
@@ -80,6 +81,7 @@ export const UpiPage: React.FC<UpiPageProps> = ({ onNavigate, onSendMoney }) => 
 
   return (
     <>
+      <MoneyTabs active="upi" />
       <PageHeader title={t('UPI')} subtitle={t('Receive money with your QR code, or scan any UPI QR to pay. Sentinel checks every payment.')} />
       <div className="k-page-stack">
 

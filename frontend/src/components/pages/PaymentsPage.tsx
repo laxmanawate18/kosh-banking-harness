@@ -3,6 +3,7 @@ import { useBanking } from '../../context/BankingContext';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
 import { PageHeader } from '../common/PageHeader';
+import { MoneyTabs } from '../common/SectionTabs';
 import { Modal } from '../common/Modal';
 import { Celebrate } from '../common/Celebrate';
 import { formatDateTime, formatMoney } from '../common/Formatters';
@@ -91,6 +92,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialBeneficiaryId
 
   return (
     <>
+      <MoneyTabs active="payments" />
       <PageHeader title={t('Send money')} subtitle={t('Choose a payee and amount. Sentinel checks the payment before any money moves.')} />
       <div className="k-page-stack">
 
@@ -98,7 +100,7 @@ export const PaymentsPage: React.FC<PaymentsPageProps> = ({ initialBeneficiaryId
         <section className="k-alert danger">
           <Icon name="alert" />
           <div>
-            <strong>{t('Transfers are paused until KYC is complete')}</strong>
+            <strong>{t('Complete your KYC to send money')}</strong>
             <p>{t('As per RBI rules, UPI, IMPS, NEFT and RTGS transfers and debit card use are paused until KYC is complete.')}</p>
           </div>
           <button type="button" className="k-btn primary" onClick={() => onStartKyc?.()}>{t('Complete KYC with Mitra')}</button>

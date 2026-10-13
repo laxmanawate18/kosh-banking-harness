@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n';
 import { Modal } from '../common/Modal';
 import { Icon } from '../common/Icon';
 import { PageHeader } from '../common/PageHeader';
+import { MoneyTabs } from '../common/SectionTabs';
 import { Stagger } from '../common/Animate';
 import { formatDate, formatDateTime } from '../common/Formatters';
 import { useStepUp, StepUpField } from '../app/StepUp';
@@ -56,6 +57,7 @@ export const BeneficiariesPage: React.FC<BeneficiariesPageProps> = ({ onNavigate
 
   return (
     <>
+      <MoneyTabs active="beneficiaries" />
       <PageHeader title={t('Payees')} subtitle={t('People you pay often. New payees have a 24-hour cooling period for your safety.')}
         actions={<button type="button" className="k-btn primary" onClick={() => setOpen(true)}><Icon name="beneficiaries" />{t('Add payee')}</button>} />
 

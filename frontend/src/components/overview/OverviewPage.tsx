@@ -56,8 +56,6 @@ const ACTIONS: { id: string; label: string; icon: FeatureIconName; hl?: boolean 
   { id: 'payments', label: 'Send money', icon: 'send' },
   { id: 'bills', label: 'Pay bills', icon: 'bills' },
   { id: 'beneficiaries', label: 'Add payee', icon: 'payee' },
-  { id: 'deposits', label: 'Open FD', icon: 'deposits' },
-  { id: 'accounts', label: 'Statements', icon: 'statement' },
 ];
 
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replace(/_/g, ' ');
@@ -207,7 +205,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
                 : t('Complete verification by {date} to keep your accounts active.', { date: formatDate(kyc?.due_date || '') })}</p>
           </div>
           {kycState !== 'SUBMITTED_FOR_REVIEW' && <button type="button" className="k-btn primary" onClick={startKyc}>{t('Complete KYC with Mitra')}</button>}
-          {kycState === 'NOT_DONE' && <button type="button" className="k-btn" onClick={() => startVideoKyc().catch(() => undefined)}>{t('Video KYC now')}</button>}
+          {kycState === 'NOT_DONE' && <button type="button" className="k-link" onClick={() => startVideoKyc().catch(() => undefined)}>{t('Video KYC now')}</button>}
         </section>
       )}
 
@@ -228,9 +226,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
             </button>
           )}
           <PersonalOffers onNavigate={onNavigate} ask={ask} />
-          <button type="button" className="k-offer" onClick={() => onNavigate('upi')}>
-            <Icon name="qr" /><span><strong>{t('Share your UPI QR')}</strong><small>{t('Get paid by anyone, on any UPI app, straight into your account.')}</small></span>
-          </button>
         </div>
       </section>
 
