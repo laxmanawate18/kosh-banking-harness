@@ -10,7 +10,7 @@ type Note = { id: string; tone: 'warn' | 'danger' | 'ok' | ''; icon: string; tit
 const OPEN = ['SUBMITTED', 'PENDING_APPROVAL', 'ESCALATED', 'MORE_INFO_REQUIRED'];
 
 /** Notifications are derived from the overview we already load: alerts, KYC, bills and request updates. */
-export function useNotifications(): Note[] {
+function useNotifications(): Note[] {
   const { t } = useI18n();
   const { overview } = useBanking();
   if (!overview) return [];

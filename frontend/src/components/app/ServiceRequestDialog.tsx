@@ -6,7 +6,7 @@ import { useStepUp, StepUpField } from './StepUp';
 import { useBanking } from '../../context/BankingContext';
 import { useI18n } from '../../i18n';
 
-export type Field = {
+type Field = {
   name: string;
   label: string;
   type?: 'text' | 'select' | 'date' | 'email' | 'tel';

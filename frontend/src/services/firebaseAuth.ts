@@ -13,7 +13,7 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let recaptchaVerifier: RecaptchaVerifier | null = null;
 
-export function formatE164(phone: string): string {
+function formatE164(phone: string): string {
   let cleaned = phone.replace(/[^\d+]/g, '');
   if (cleaned.startsWith('+')) {
     return cleaned;
@@ -27,7 +27,7 @@ export function formatE164(phone: string): string {
   return `+${cleaned}`;
 }
 
-export function getFirebaseAuth(config: PublicAuthConfig): Auth {
+function getFirebaseAuth(config: PublicAuthConfig): Auth {
   if (!app) {
     const firebaseConfig = {
       apiKey: config.firebase_api_key,
@@ -40,7 +40,7 @@ export function getFirebaseAuth(config: PublicAuthConfig): Auth {
   return auth!;
 }
 
-export function setupRecaptcha(containerId: string, authInstance: Auth): RecaptchaVerifier {
+function setupRecaptcha(containerId: string, authInstance: Auth): RecaptchaVerifier {
   if (recaptchaVerifier) {
     try {
       recaptchaVerifier.clear();
@@ -59,7 +59,7 @@ export function setupRecaptcha(containerId: string, authInstance: Auth): Recaptc
   return recaptchaVerifier;
 }
 
-export async function sendRealPhoneOtp(
+async function sendRealPhoneOtp(
   phoneNumber: string,
   config: PublicAuthConfig,
   containerId: string = 'recaptcha-container',

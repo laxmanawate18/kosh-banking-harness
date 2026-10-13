@@ -103,10 +103,10 @@ async function transcribe(blob: Blob, lang: DictationLang): Promise<string> {
 
 const MR = /(आहे|आहेत|नाही|तुमच|माझ|करा|झाले|मिळेल|साठी)/;
 /** Best-effort language for a reply: Devanagari → Marathi or Hindi, otherwise Indian English. */
-export const speechLang = (text: string) => (/[ऀ-ॿ]/.test(text) ? (MR.test(text) ? 'mr-IN' : 'hi-IN') : 'en-IN');
+const speechLang = (text: string) => (/[ऀ-ॿ]/.test(text) ? (MR.test(text) ? 'mr-IN' : 'hi-IN') : 'en-IN');
 
 /** Markdown and the hidden suggestion block are for eyes, not ears. */
-export const speakable = (md: string) => md
+const speakable = (md: string) => md
   .replace(/SUGGESTIONS:\s*\[.*?\]/gis, '')
   .replace(/```[\s\S]*?```/g, ' ')
   .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
@@ -144,7 +144,7 @@ function speakWithBrowser(id: string, words: string) {
 }
 
 /** Sentence-sized pieces: a short first piece so audio starts quickly, longer ones after it. */
-export function speechChunks(words: string): string[] {
+function speechChunks(words: string): string[] {
   const sentences = words.match(/[^.!?।]+[.!?।]*\s*/g) || [words];
   const chunks: string[] = [];
   let current = '';

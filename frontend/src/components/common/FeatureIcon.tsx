@@ -6,7 +6,7 @@ import '../../feature-icons.css';
  * signature animation that plays once on scroll-in, on hover/focus of the icon or any
  * `.fi-host` ancestor, and on a 4s cycle when `loop` is set. Motion lives in feature-icons.css.
  */
-export const FEATURE_ICONS = [
+const FEATURE_ICONS = [
   'savings', 'cards', 'deposits', 'loans', 'upi', 'kavach', 'mitra', 'bills', 'rates', 'send', 'nri', 'kisan',
   'student', 'senior', 'women', 'business', 'rewards', 'payee', 'statement',
 ] as const;

@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { Icon } from '../common/Icon';
-import { Card3D } from '../common/Card3D';
 import { HeroCard } from './HeroCard';
 import { FeatureIcon, type FeatureIconName } from '../common/FeatureIcon';
 import { LotusMark, Rangoli } from '../common/KoshLogo';
@@ -58,25 +57,6 @@ export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({
         <li>{t('Mitra answers 24×7 in English, Hindi and Marathi')}</li>
       </ul>
       <span className="kl-scroll-cue" aria-hidden="true"><i /></span>
-    </section>
-  );
-};
-
-/* ------------------------------------------------------------------ card wheel */
-
-export const CardRing: React.FC = () => {
-  const { t } = useI18n();
-  return (
-    <section className="kl-ring" aria-labelledby="ring-title">
-      <div className="kl-ring-copy">
-        <span className="kl-eyebrow">{t('Cards and accounts')}</span>
-        <h2 id="ring-title">{rich(t('do more with *every rupee*.'))}</h2>
-        <p>{t('Accounts, cards, deposits and loans in one place. Reminders before every due date, no hidden charges, and a clear view of what your money earns.')}</p>
-        <a className="kl-link" href="#/products">{t('Explore products')} <Icon name="arrow-right" /></a>
-      </div>
-      <div className="kl-ring-stage" aria-hidden="true" inert>
-        <div className="kl-card-css"><Card3D float /></div>
-      </div>
     </section>
   );
 };
@@ -278,7 +258,7 @@ const row: Variants = { hidden: { opacity: 0.4 }, show: { opacity: 1, transition
 const tick: Variants = { hidden: { scale: 0.3, opacity: 0 }, show: { scale: 1, opacity: 1, transition: SPRING } };
 
 /** A sample payment is scanned and the checks tick in one by one, once, when it scrolls into view. Reduced motion: the finished state. */
-export const SentinelDemo: React.FC = () => {
+const SentinelDemo: React.FC = () => {
   const { t } = useI18n();
   const reduce = useReducedMotion();
   const ref = useRef<HTMLElement>(null);

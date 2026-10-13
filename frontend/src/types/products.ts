@@ -29,7 +29,7 @@ export interface ProductCategory {
   label: string;
 }
 
-export interface OnboardingProfile {
+interface OnboardingProfile {
   user_id: string;
   customer_id: string;
   display_name: string;

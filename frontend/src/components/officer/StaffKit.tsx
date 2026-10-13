@@ -106,7 +106,7 @@ export const Tag: React.FC<{ tone: 'success' | 'warning' | 'danger' | 'neutral' 
   <Badge variant={tone}><>{children}</></Badge>;
 
 /** Words for the codes staff see most. */
-export const CHANNEL: Record<string, string> = {
+const CHANNEL: Record<string, string> = {
   CUSTOMER: 'Customer chat', VISITOR: 'Website visitors', MCP: 'Outside AI agents', OFFICER: 'Officer copilot',
   MITRA: 'Mitra chat', DASHBOARD: 'Dashboard',
 };

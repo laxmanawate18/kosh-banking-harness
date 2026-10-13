@@ -1,19 +1,9 @@
 import React from 'react';
 
 /** Shimmering placeholders shaped like the content that is loading, so nothing jumps when it arrives. */
-export const Skeleton: React.FC<{ width?: string | number; height?: number; radius?: number; className?: string }> = (
+const Skeleton: React.FC<{ width?: string | number; height?: number; radius?: number; className?: string }> = (
   { width = '100%', height = 14, radius = 8, className = '' }) => (
   <span className={`k-skel ${className}`} style={{ width, height, borderRadius: radius }} aria-hidden="true" />
-);
-
-/** A card-shaped placeholder: title line, two text lines, optional figure. */
-export const SkeletonCard: React.FC<{ figure?: boolean }> = ({ figure = false }) => (
-  <div className="k-skel-card" aria-hidden="true">
-    <Skeleton width="40%" height={13} />
-    {figure && <Skeleton width="60%" height={30} radius={10} />}
-    <Skeleton width="90%" />
-    <Skeleton width="70%" />
-  </div>
 );
 
 /** Rows for tables and lists while they load. Announced once as "Loading" for screen readers. */
