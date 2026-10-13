@@ -30,7 +30,7 @@ export const RatesPage: React.FC<{ products: Product[] }> = ({ products }) => {
   const rate = (id: string, fallback: string) => products.find(p => p.id === id)?.headline_rate || fallback;
   return (
     <>
-      <PageHero eyebrow={t('Bank with us')} title={t('Interest rates')} intro={t('Illustrative rates for the Kosh demo bank, effective 1 September 2026. Real banks publish rates like these and revise them when the RBI changes the repo rate.')} />
+      <PageHero title={t('Interest rates')} intro={t('Illustrative rates for the Kosh demo bank, effective 1 September 2026. Real banks publish rates like these and revise them when the RBI changes the repo rate.')} />
       <section className="k-section k-tables">
         <Table
           caption={t('Savings accounts')}
@@ -75,7 +75,7 @@ export const FeesPage: React.FC = () => {
   const { t } = useI18n();
   return (
     <>
-      <PageHero eyebrow={t('Bank with us')} title={t('Fees and charges')} intro={t('Everything we charge, in one place. GST at 18% applies on top of these illustrative fees.')} />
+      <PageHero title={t('Fees and charges')} intro={t('Everything we charge, in one place. GST at 18% applies on top of these illustrative fees.')} />
       <section className="k-section k-tables">
         <Table
           caption={t('Account and payments')}
@@ -132,7 +132,7 @@ export const HelpPage: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   ];
   return (
     <>
-      <PageHero eyebrow={t('Help')} title={t('Help and grievances')} intro={t('Reach us any time. If a complaint is not resolved, you can escalate step by step, up to the RBI Ombudsman.')} />
+      <PageHero title={t('Help and grievances')} intro={t('Reach us any time. If a complaint is not resolved, you can escalate step by step, up to the RBI Ombudsman.')} />
       <section className="k-section">
         <Stagger className="k-contact-grid">
           {contacts.map(([icon, label, href, note]) => (
@@ -214,7 +214,7 @@ export const FaqsPage: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   const { t } = useI18n();
   return (
     <>
-      <PageHero eyebrow={t('Help')} title={t('Frequently asked questions')} intro={t('Quick answers to what customers ask most. Ask Mitra for anything else.')} />
+      <PageHero title={t('Frequently asked questions')} intro={t('Quick answers to what customers ask most. Ask Mitra for anything else.')} />
       <section className="k-section">
         {FAQ_GROUPS.map(([group, items]) => (
           <Reveal key={group} className="k-faq-group">
@@ -281,7 +281,7 @@ export const SegmentsPage: React.FC<{ id?: string; onAsk: Ask }> = ({ id = 'seni
   const s = SEGMENTS[key];
   return (
     <>
-      <PageHero eyebrow={t('Banking for everyone')} title={t(s.title)} intro={t(s.intro)} />
+      <PageHero title={t(s.title)} intro={t(s.intro)} />
       <section className="k-section">
         <nav className="k-tabs-row" aria-label={t('Banking for everyone')}>
           {Object.entries(SEGMENTS).map(([sid, seg]) => (
@@ -343,7 +343,7 @@ export const LearnPage: React.FC = () => {
   const { t } = useI18n();
   return (
     <>
-      <PageHero eyebrow={t('Help')} title={t('Safe banking guide')} intro={t('Short, practical guides to protect your money and make it grow.')} />
+      <PageHero title={t('Safe banking guide')} intro={t('Short, practical guides to protect your money and make it grow.')} />
       <section className="k-section">
         <Stagger className="k-articles">
           {ARTICLES.map((a, i) => (

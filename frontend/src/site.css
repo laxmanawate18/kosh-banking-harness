@@ -28,7 +28,7 @@
 .k-page-hero .kl-eyebrow { margin-top: clamp(14px, 2.2vw, 30px); }
 .k-page-hero h1 { max-width: 18ch; margin: 16px 0 18px; font: 400 clamp(44px, 6.2vw, 88px)/1.03 var(--k-serif); letter-spacing: -.035em; color: var(--ink); }
 .k-page-hero h1 em { font-style: italic; padding-right: .06em; color: var(--accent-ink); }
-[data-theme="dark"] .k-page-hero h1 em { background: var(--lux-metal); -webkit-background-clip: text; background-clip: text; color: transparent; }
+[data-theme="dark"] .k-page-hero h1 em { color: var(--champagne); }
 [data-contrast="more"] .k-page-hero h1 em { background: none; color: var(--ink); }
 .k-page-hero p { max-width: 58ch; margin: 0; font-size: clamp(17px, 1.35vw, 19.5px); line-height: 1.6; color: var(--muted); }
 @media (max-width: 760px) { .k-page-hero-art { right: -55vw; width: 115vw; stroke-opacity: .05; } }
@@ -176,7 +176,7 @@
 
 /* ---------------------------------------------------------------- calculators */
 .k-calc { box-shadow: var(--shadow); }
-.k-calc h3 { font: 400 clamp(26px, 2.6vw, 32px) var(--k-serif); letter-spacing: -.02em; }
+.k-calc :is(h2, h3) { font: 400 clamp(26px, 2.6vw, 32px) var(--k-serif); letter-spacing: -.02em; }
 /* Bars over time: each slot is a faint track; principal (brand) stands in front of the total (accent), both scaled from the bottom. */
 .k-bars { width: 100%; margin: 0; display: grid; gap: 8px; }
 .k-bars figcaption { font: 600 14.5px var(--k-sans); color: var(--muted); }
@@ -188,12 +188,10 @@
 .k-bars-axis { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--muted); }
 
 /* ---------------------------------------------------------------- footer: two link columns on phones, room for Ask Mitra at the end */
-.k-footer-base { padding-bottom: 104px; }
+.k-footer-base { padding-bottom: 72px; }  /* clears the floating Ask Mitra button */
 /* The Kosh seal mirrors Ask Mitra: same 44px lotus, same distance from its corner (fab: 22px + 7px padding). The wide gap
    keeps the golden thread's ring around the lotus clear of the wordmark. */
 .k-footer { position: relative; }
-.k-footer-seal { position: absolute; left: 29px; bottom: 29px; z-index: 4; text-decoration: none; }
-.k-footer-seal .k-logo { gap: 20px; }
 @media (max-width: 760px) {
   .k-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 20px; }
   .k-footer-grid > div:first-child { grid-column: 1 / -1; }

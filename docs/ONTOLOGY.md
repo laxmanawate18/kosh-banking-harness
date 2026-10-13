@@ -31,7 +31,7 @@ A customer or visitor can never be routed to an officer-only process (AML, regul
 
 The ontology runs on every Mitra turn; there is no switch to turn it off. Every turn is routed and recorded, and the process guide goes to the model. Every guide, exactly as the model reads it, is part of the prompt version, so any change to the ontology or to the code that renders it needs a passing evaluation (including `process_routing` at 100%) and the admin's approval.
 
-**In production a process guides Mitra only once the admin has approved it** in the Admin Panel (Business ontology), for its exact content: the process file, the activities it uses and the guardrails. Editing any of them needs a new approval. Until a process is approved, turns routed to it are still recorded, but Mitra answers without its guide. The file's own `status` field is the authoring stage (draft, reviewed); the approval that counts is the recorded one.
+**In production a process guides Mitra only once the admin has approved it** in the Admin Panel (Banking processes), for its exact content: the process file, the activities it uses and the guardrails. Editing any of them needs a new approval. Until a process is approved, turns routed to it are still recorded, but Mitra answers without its guide. The file's own `status` field is the authoring stage (draft, reviewed); the approval that counts is the recorded one.
 
 ## Changing the ontology
 

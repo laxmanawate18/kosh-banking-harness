@@ -45,7 +45,7 @@
 .kl-eyebrow i { width: 28px; height: 1px; background: var(--lux-thread); opacity: .85; }
 .kl-hero h1 em, .kl-ring h2 em, .kl-upgrade h2 em, .kl-rewards h2 em, .kl-editorial h2 em, .kl-story-copy strong em {
   font-family: var(--k-serif); font-style: italic; font-weight: 400; padding-right: .06em;
-  background: var(--lux-metal); -webkit-background-clip: text; background-clip: text; color: transparent;
+  color: var(--champagne);
 }
 .kl-link { display: inline-flex; align-items: center; gap: 8px; padding: 6px 0; border: 0; background: none; cursor: pointer; font: 600 16px var(--k-sans); color: var(--lux-ink); text-decoration: none; border-bottom: 1px solid rgb(242 242 240 / .35); transition: border-color 200ms ease; }
 .kl-link:hover { border-bottom-color: var(--lux-thread); }
@@ -245,7 +245,7 @@
 }
 /* Keeps the rewards headline legible over the rangoli glow. */
 .kl-rewards-copy::before { content: ''; position: absolute; z-index: -1; inset: -18% -12%; background: radial-gradient(closest-side, rgb(6 6 7 / .72), rgb(6 6 7 / .35) 60%, transparent); pointer-events: none; }
-.kl-rewards h2 em { background: linear-gradient(100deg, #ffffff 20%, #e4e6ea 60%, #c3c7ce); -webkit-background-clip: text; background-clip: text; }
+.kl-rewards h2 em { color: var(--champagne); }
 
 /* ==========================================================================
    Home motion moments (Lux.tsx + LuxDecor.tsx). Decorative layers are aria-hidden and pointer-events: none.
@@ -300,7 +300,7 @@
   .kl-tile-art { transition: transform 600ms var(--ease-out), translate 900ms var(--ease-out); }
   .kl-tile.is-centre .kl-tile-art:has(.kl-art-qr) { translate: 0 -62px; transition-delay: 0s, 1.3s; }
   .kl-tile.is-centre .kl-art-beam { animation: kl-art-beam 700ms 150ms ease-in-out 2 both; }
-  .kl-tile.is-centre .kl-art-ok { animation: kl-art-pop 520ms 1.55s cubic-bezier(.2, .9, .3, 1.4) both; }
+  .kl-tile.is-centre .kl-art-ok { animation: kl-art-pop 520ms 1.55s cubic-bezier(.23, 1, .32, 1) both; }
   .kl-tile.is-centre .kl-art-qr small { animation: kl-art-type 700ms 1.75s steps(20, end) both; }
   .kl-tile.is-centre .kl-art-stamp { animation: kl-art-stamp 520ms 650ms cubic-bezier(.3, 0, .4, 1) both; }
   .kl-tile.is-centre .kl-art-phone:has(.kl-art-stamp) { animation: kl-art-thud 420ms 1.02s ease-out both; }

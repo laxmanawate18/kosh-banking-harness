@@ -5,6 +5,7 @@ import { Modal } from '../common/Modal';
 import { Icon } from '../common/Icon';
 import { PageHeader } from '../common/PageHeader';
 import { MoneyTabs } from '../common/SectionTabs';
+import { ServiceRequestDialog, type ServiceSpec } from '../app/ServiceRequestDialog';
 import { Stagger } from '../common/Animate';
 import { formatDate, formatDateTime } from '../common/Formatters';
 import { useStepUp, StepUpField } from '../app/StepUp';
@@ -28,6 +29,7 @@ const initials = (s: string) => (s || 'P').split(' ').map(p => p[0]).slice(0, 2)
 export const BeneficiariesPage: React.FC<BeneficiariesPageProps> = ({ onNavigate, onSendMoney }) => {
   const { t } = useI18n();
   const { overview, addBeneficiary } = useBanking();
+  const [reviewSpec, setReviewSpec] = useState<ServiceSpec | null>(null);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [upiId, setUpiId] = useState('');
@@ -92,7 +94,15 @@ export const BeneficiariesPage: React.FC<BeneficiariesPageProps> = ({ onNavigate
                     : t('Added {date}', { date: formatDate(b.created_at) || t('earlier') })}
                 </small>
                 {blocked
-                  ? <p className="form-error c-mt">{t('Payments to this destination are blocked by Sentinel.')}</p>
+                  ? <>
+                      <p className="form-error c-mt">{t('Payments to this destination are blocked by Sentinel.')}</p>
+                      <button type="button" className="k-btn outline sm" onClick={() => setReviewSpec({
+                        serviceId: 'P2-14', title: t('Ask the bank to review this payee'),
+                        subtitle: t('A senior officer looks at why this destination was blocked and replies to you. It stays blocked until then.'),
+                        hideAccount: true,
+                        details: () => `Review of blocked payee ${display} (${b.upi_id || b.destination_masked || b.account_number_masked || b.id})`,
+                      })}>{t('Ask the bank to review')}</button>
+                    </>
                   : <button type="button" className="k-btn outline sm c-payee-send"
                       onClick={() => (onSendMoney ? onSendMoney(b.id) : onNavigate?.('payments'))}>
                       <Icon name="payments" />{t('Send money')}
@@ -124,6 +134,7 @@ export const BeneficiariesPage: React.FC<BeneficiariesPageProps> = ({ onNavigate
           </form>
         </Modal>
       )}
+      <ServiceRequestDialog spec={reviewSpec} onClose={() => setReviewSpec(null)} />
     </>
   );
 };

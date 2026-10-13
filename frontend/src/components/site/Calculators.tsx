@@ -75,7 +75,7 @@ export const EmiCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   return (
     <div className="k-calc">
       <div>
-        <h3>{t('Loan EMI calculator')}</h3>
+        <h2>{t('Loan EMI calculator')}</h2>
         <Slider label={t('Loan amount')} value={amount} set={setAmount} min={100_000} max={10_000_000} step={50_000} show={formatRupees(amount)} />
         <Slider label={t('Interest rate per year')} value={rate} set={setRate} min={6} max={16} step={0.05} show={`${rate.toFixed(2)}%`} />
         <Slider label={t('Tenure')} value={years} set={setYears} min={1} max={30} step={1} show={t('{n} years', { n: years })} />
@@ -115,7 +115,7 @@ const FdCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   return (
     <div className="k-calc">
       <div>
-        <h3>{t('Fixed deposit calculator')}</h3>
+        <h2>{t('Fixed deposit calculator')}</h2>
         <Slider label={t('Deposit amount')} value={amount} set={setAmount} min={5_000} max={5_000_000} step={5_000} show={formatRupees(amount)} />
         <Slider label={t('Interest rate per year')} value={rate} set={setRate} min={3} max={9} step={0.05} show={`${rate.toFixed(2)}%`} />
         <Slider label={t('Tenure')} value={years} set={setYears} min={1} max={10} step={1} show={t('{n} years', { n: years })} />
@@ -157,7 +157,7 @@ const RdCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   return (
     <div className="k-calc">
       <div>
-        <h3>{t('Recurring deposit calculator')}</h3>
+        <h2>{t('Recurring deposit calculator')}</h2>
         <Slider label={t('Monthly instalment')} value={monthly} set={setMonthly} min={500} max={100_000} step={500} show={formatRupees(monthly)} />
         <Slider label={t('Interest rate per year')} value={rate} set={setRate} min={3} max={9} step={0.05} show={`${rate.toFixed(2)}%`} />
         <Slider label={t('Tenure')} value={months} set={setMonths} min={6} max={120} step={3} show={t('{n} months', { n: months })} />
@@ -192,7 +192,7 @@ const EligibilityCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   return (
     <div className="k-calc">
       <div>
-        <h3>{t('Home loan eligibility')}</h3>
+        <h2>{t('Home loan eligibility')}</h2>
         <Slider label={t('Monthly take-home income')} value={income} set={setIncome} min={15_000} max={1_000_000} step={5_000} show={formatRupees(income)} />
         <Slider label={t('Existing EMIs per month')} value={existing} set={setExisting} min={0} max={200_000} step={1_000} show={formatRupees(existing)} />
         <Slider label={t('Interest rate per year')} value={rate} set={setRate} min={7} max={14} step={0.05} show={`${rate.toFixed(2)}%`} />
@@ -224,7 +224,7 @@ export const CalculatorsPage: React.FC<{ tab?: string; onAsk: Ask }> = ({ tab = 
   const active = TABS.some(([id]) => id === tab) ? tab : 'emi';
   return (
     <>
-      <PageHero eyebrow={t('Plan ahead')} title={t('Calculators')} intro={t('Plan loans and savings with the same formulas Indian banks use. Results are estimates, not offers.')} />
+      <PageHero title={t('Calculators')} intro={t('Plan loans and savings with the same formulas Indian banks use. Results are estimates, not offers.')} />
       <section className="k-section">
         <nav className="k-tabs-row" aria-label={t('Calculators')}>
           {TABS.map(([id, label]) => (

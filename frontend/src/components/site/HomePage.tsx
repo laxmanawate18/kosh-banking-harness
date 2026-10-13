@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { Editorial, LuxHero, Rewards, SafetyStatement, UpgradeRail } from './Lux';
-import { CardFan, Dust, FinaleCard, GoldenThread, Torch, TravelingCard } from './Journey';
+import { CardFan, Dust, FinaleCard, Torch, TravelingCard } from './Journey';
 import { DoorFinale, Manifesto, Stats } from './Story';
 
 interface HomeProps {
@@ -24,7 +24,6 @@ export const HomePage: React.FC<HomeProps> = ({ onLogin, onAsk }) => {
         <SafetyStatement />
         <Stats />
         <DoorFinale onOpen={openAccount} onAsk={onAsk}><FinaleCard /></DoorFinale>
-        <GoldenThread root={root} />
       </div>
       <TravelingCard />
       <Torch />

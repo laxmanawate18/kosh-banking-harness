@@ -37,7 +37,6 @@ export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({
       <Rangoli className="kl-hero-rangoli" rings={22} />
       <div className="kl-hero-inner">
         <div className="kl-hero-copy">
-          <span className="kl-eyebrow"><i />{t('Private-grade banking for every Indian')}</span>
           <h1 id="hero-title">
             <span className="kl-line" style={{ '--d': 0 } as Vars}>{t('Bharosa,')}</span>
             <em className="kl-line" style={{ '--d': 1 } as Vars}>{t('har kadam.')}</em>
@@ -48,6 +47,7 @@ export const LuxHero: React.FC<{ onOpen: () => void; onLogin: () => void }> = ({
               <span>{t('Open an account')}</span><Icon name="arrow-right" />
             </button>
             <button type="button" className="kl-link" onClick={onLogin}>{t('Login')} <Icon name="arrow-right" /></button>
+            <a className="kl-link" href="#/rates">{t('See interest rates')} <Icon name="arrow-right" /></a>
           </div>
         </div>
         <div className="kl-card3d"><HeroCard /></div>

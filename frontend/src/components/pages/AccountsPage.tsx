@@ -199,21 +199,25 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({ onNavigate }) => {
         })}
       </Stagger>
 
-      <section aria-labelledby="docs-title">
-        <div className="c-section-head">
+      <details className="c-docs" open>
+        <summary>
           <h2 id="docs-title">{t('Documents and account services')}</h2>
+          <span className="c-docs-count">{services.length}</span>
+          <Icon name="chevron-right" className="icon c-docs-chev" />
+        </summary>
+        <div className="c-docs-body">
           <button type="button" className="k-link" onClick={() => onNavigate?.('services')}>{t('All banking services')} <Icon name="arrow-right" /></button>
+          <Stagger className="c-tile-grid">
+            {services.map(s => (
+              <Stagger.Item as="button" key={s.title} type="button" className="k-quick-tile" whileTap={{ scale: 0.98 }} onClick={() => setSpec(s.spec)}>
+                <Icon name={s.icon} />
+                <span><strong>{s.title}</strong><small>{s.body}</small></span>
+                <Icon name="arrow-right" className="icon k-go" />
+              </Stagger.Item>
+            ))}
+          </Stagger>
         </div>
-        <Stagger className="c-tile-grid">
-          {services.map(s => (
-            <Stagger.Item as="button" key={s.title} type="button" className="k-quick-tile" whileTap={{ scale: 0.98 }} onClick={() => setSpec(s.spec)}>
-              <Icon name={s.icon} />
-              <span><strong>{s.title}</strong><small>{s.body}</small></span>
-              <Icon name="arrow-right" className="icon k-go" />
-            </Stagger.Item>
-          ))}
-        </Stagger>
-      </section>
+      </details>
       </>
       )}
       </div>

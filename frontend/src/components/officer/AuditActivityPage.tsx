@@ -60,11 +60,11 @@ export const AuditActivityPage: React.FC<AuditActivityPageProps> = ({ onExportAu
   const attention = all.filter((e: any) => ATTENTION.includes(e.severity)).length;
   return (
     <div className="k-page-stack st-page">
-      <PageHeader eyebrow="Bank operations" title="Security activity"
+      <PageHeader title="Security activity"
         subtitle="Sign-ins, Sentinel payment checks, Mitra's tool use and case activity, newest first. Repeats on the same day are grouped."
         actions={<button type="button" className="k-btn outline sm" onClick={exportCsv} disabled={!shown.length}><Icon name="download" />Export CSV</button>} />
       <Panel title="Recent events" count={groups.length}
-        sub={`${all.length} recent events${attention ? ` · ${attention} need a look (warning or critical)` : ''}`}
+        sub={`${all.length} events, grouped into ${groups.length} lines${attention ? ` · ${attention} need a look (warning or critical)` : ''}`}
         actions={<FilterTabs name="audit" label="Filter by severity" value={filter} onChange={setFilter} tabs={[
           { id: 'all', label: 'All', count: all.length }, { id: 'attention', label: 'Warnings and critical', count: attention },
           { id: 'info', label: 'Information', count: all.length - attention }]} />}>
@@ -78,7 +78,7 @@ export const AuditActivityPage: React.FC<AuditActivityPageProps> = ({ onExportAu
             <tbody><AnimatePresence initial={false}>{shown.map((g, i) => {
               const e = g.first; const sev = SEVERITY[e.severity] || ['neutral', humanizeCode(e.severity) || 'Info'];
               return (
-                <motion.tr key={g.key} {...rowMotion(i % 20)}>
+                <motion.tr key={g.key} className={`st-row-${sev[0]}`} {...rowMotion(i % 20)}>
                   <td data-label="When" className="st-nowrap">{formatDateTime(e.created_at)}
                     {g.count > 1 && g.earliest && formatTime(g.earliest) !== formatTime(e.created_at) && <span className="st-sub">first at {formatTime(g.earliest)}</span>}</td>
                   <td className="st-main"><strong>{nameOf(e)}</strong>

@@ -72,7 +72,29 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ isHistory = fals
 const RequestsTable: React.FC<{ rows: any[]; onOpen: (r: any) => void; history?: boolean; reset?: string; fresh?: Set<string> }> = (
   { rows, onOpen, history, reset, fresh }) => {
   const now = useNow();
+  const box = useRef<HTMLDivElement>(null);
+  const actions = () => Array.from(box.current?.querySelectorAll<HTMLButtonElement>('td.st-act button:not(:disabled)') ?? []);
+  // J and K (or the arrow keys) step through the queue; Enter opens the focused case. J on an idle page starts at the top.
+  const onKey = (e: React.KeyboardEvent) => {
+    const down = e.key === 'j' || e.key === 'ArrowDown', up = e.key === 'k' || e.key === 'ArrowUp';
+    if (!down && !up) return;
+    const list = actions(), at = list.indexOf(document.activeElement as HTMLButtonElement);
+    if (at < 0) return;
+    e.preventDefault();
+    list[Math.max(0, Math.min(list.length - 1, at + (down ? 1 : -1)))]?.focus();
+  };
+  useEffect(() => {
+    const start = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.key !== 'j' || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('dialog[open]')) return;
+      if (t && (t.closest('input, textarea, select, [contenteditable]') || (t !== document.body && t.closest('button, a')))) return;
+      actions()[0]?.focus();
+    };
+    window.addEventListener('keydown', start);
+    return () => window.removeEventListener('keydown', start);
+  }, []);
   return (
+    <div ref={box} onKeyDown={onKey}>
     <Paged rows={rows} reset={reset}>{shown => (
       <div className="table-scroll"><table className="table st-cards st-sticky">
         <thead><tr><th>Request</th><th>Customer</th><th>Submitted</th>{history && <th>Decided</th>}<th>Status</th><th><span className="sr-only">Action</span></th></tr></thead>
@@ -93,8 +115,10 @@ const RequestsTable: React.FC<{ rows: any[]; onOpen: (r: any) => void; history?:
               </div></td>
             </motion.tr>);
         })}</AnimatePresence></tbody>
-      </table></div>)}
+      </table>
+      {shown.length > 1 && <p className="st-keyhint"><kbd>J</kbd> <kbd>K</kbd> move between cases · <kbd>Enter</kbd> opens one</p>}</div>)}
     </Paged>
+    </div>
   );
 };
 
@@ -400,7 +424,7 @@ const QueuePage: React.FC = () => {
 
   return (
     <div className="k-page-stack st-page">
-      <PageHeader eyebrow="Bank operations" title="Review queue"
+      <PageHeader title="Review queue"
         subtitle="Service requests, customer care and customer access, most urgent first. Mitra and the copilot never decide; you do."
         actions={<RefreshButton busy={busy} onClick={() => refresh(true)} />} />
       <p className="sr-only" aria-live="polite">{arrived}</p>
@@ -417,7 +441,7 @@ const QueuePage: React.FC = () => {
             {apps.length > 0 && <a className="k-link" href="#leads">{plural(apps.length, 'account application')} to approve in AI sales leads</a>}
           </span>
         </Attention>
-      ) : <Attention tone="ok" title="Nothing waits for your decision">New requests, care cases and applications appear here first.</Attention>)}
+      ) : view !== 'requests' && <Attention tone="ok" title="Nothing waits for your decision">New requests, care cases and applications appear here first.</Attention>)}  {/* the empty queue below says the same */}
 
       <div className="st-kpis" role="group" aria-label="Queues">
         <Kpi group="ops" label="Requests to decide" value={toDecide.length} tone="warn" caption={`${plural(open.length, 'request')} open in total`}
@@ -472,7 +496,7 @@ const HistoryPage: React.FC = () => {
   const rows = filter === 'all' ? done : done.filter((r: any) => r.status === filter);
   return (
     <div className="k-page-stack st-page">
-      <PageHeader eyebrow="Bank operations" title="Case history" subtitle="Decided, completed and cancelled requests, newest first. Open one to see what was checked and decided."
+      <PageHeader title="Case history" subtitle="Decided, completed and cancelled requests, newest first. Open one to see what was checked and decided."
         actions={<RefreshButton busy={busy} onClick={async () => { setBusy(true); await refreshOverview(); setBusy(false); }} />} />
       <Panel title="Past requests" count={rows.length}
         actions={<FilterTabs name="history" label="Filter by outcome" value={filter} onChange={setFilter}

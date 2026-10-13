@@ -28,7 +28,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = props => {
   const [title, intro] = HEAD[props.category] || HEAD.all;
   return (
     <>
-      <PageHero eyebrow={t('Bank with us')} title={t(title)} intro={t(intro)} trail={props.category === 'all' ? [] : [['All products', '#/products']]} />
+      <PageHero title={t(title)} intro={t(intro)} trail={props.category === 'all' ? [] : [['All products', '#/products']]} />
       <section id="products" className="k-section">
         <ProductsCatalogView {...props} />
       </section>

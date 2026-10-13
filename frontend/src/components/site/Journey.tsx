@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { motion, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 import { Icon } from '../common/Icon';
 import { useI18n } from '../../i18n';
@@ -11,10 +11,9 @@ import '../../home.css';
  * - TravelingCard: scrolling lifts the forged hero card, flies it down the right margin past the manifesto, and lands it
  *   in the card section, where CardFan spreads it into a hand with its siblings. FinaleCard brings it back in the light
  *   behind the temple doors.
- * - GoldenThread: a gold line that draws itself down the page with the scroll, beading at every section, running down the
- *   left margin to the very bottom and tying off around the Kosh seal in the bottom-left corner. Torch: a cursor light that reveals rangoli hidden in the dark. Dust: three parallax layers of gold.
- * All decorative (aria-hidden). Reduced motion or narrow screens: cards sit in their sections, the thread is drawn in
- * full, nothing follows the cursor or the scroll.
+ * - Torch: a cursor light that reveals rangoli hidden in the dark. Dust: three parallax layers of gold.
+ * All decorative (aria-hidden). Reduced motion or narrow screens: cards sit in their sections, nothing follows the
+ * cursor or the scroll.
  */
 
 type Vars = CSSProperties & Record<`--${string}`, string | number>;
@@ -147,123 +146,6 @@ export const FinaleCard: React.FC = () => (
     <div className="kj-finale-float"><MetalCard /></div>
   </div>
 );
-
-/* ------------------------------------------------------------------ the golden thread */
-
-type Sample = { len: number; x: number; y: number; reach: number };
-
-export const GoldenThread: React.FC<{ root: RefObject<HTMLElement | null> }> = ({ root }) => {
-  const reduce = useReducedMotion();
-  const [shape, setShape] = useState({ d: '', beads: [] as { x: number; y: number }[], h: 0 });
-  const line = useRef<SVGPathElement>(null), glow = useRef<SVGPathElement>(null), spark = useRef<HTMLSpanElement>(null);
-  const samples = useRef<Sample[]>([]), total = useRef(0), top = useRef(0);
-  const { scrollY } = useScroll();
-
-  useRelayout(() => {
-    const el = root.current;
-    if (!el) return;
-    const base = el.getBoundingClientRect();
-    top.current = base.top + window.scrollY;
-    const W = base.width, narrow = W < 1025;
-    const m = narrow ? 10 : Math.max(18, Math.min(44, W * 0.028));
-    const rel = (r: DOMRect) => ({ x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height });
-    const sections = Array.from(el.querySelectorAll(':scope > section')).map(s => rel(s.getBoundingClientRect()));
-    const card = el.querySelector('.kh-3d');
-    if (sections.length < 2 || !card) return;
-    const c = rel(card.getBoundingClientRect());
-    const x0 = narrow ? m : c.x + c.w / 2, y0 = narrow ? sections[1].y : c.y + c.h + 70;
-    const beads: { x: number; y: number }[] = [];
-    let d = `M ${x0} ${y0}`, side = 0, x = m;
-    if (!narrow) {  // spool out of the card, curving down to the left margin as the hero ends
-      const yb = sections[1].y;
-      d += ` C ${x0} ${yb - 30}, ${m} ${y0 + 60}, ${m} ${yb + 40}`;
-    }
-    const r = narrow ? 5 : 9;
-    sections.slice(1).forEach((s, i, rest) => {
-      const by = s.y + Math.min(170, s.h / 3);  // a bead near each section's heading
-      d += ` L ${x} ${by - r} A ${r} ${r} 0 1 1 ${x} ${by + r} A ${r} ${r} 0 1 1 ${x} ${by - r} L ${x} ${by + r}`;
-      beads.push({ x, y: by });
-      const next = rest[i + 1];
-      if (!next) { d += ` L ${x} ${s.y + s.h - 60}`; return; }
-      if (narrow) return;
-      side = 1 - side;  // cross the page in the seam between sections, then run down the other margin
-      const nx = side ? W - m : m, yb = next.y;
-      d += ` L ${x} ${yb - 80} C ${x} ${yb}, ${nx} ${yb}, ${nx} ${yb + 80}`;
-      x = nx;
-    });
-    const seal = document.querySelector('.k-footer-seal svg'), footer = document.querySelector('.k-footer');
-    if (seal && footer) {
-      // Down to the very bottom of the page: cross to the left margin in the seam above the footer, run down past it and
-      // tie off around the seal's lotus, arriving at its top so the ring never reaches the "kosh" wordmark beside it.
-      const l = rel(seal.getBoundingClientRect()), lx = l.x + l.w / 2, ly = l.y + l.h / 2, lr = l.w / 2 + 4;
-      const yb = rel(footer.getBoundingClientRect()).y;
-      if (x !== m) {
-        d += ` C ${x} ${yb}, ${m} ${yb}, ${m} ${yb + 80}`;
-        x = m;
-      }
-      d += ` L ${x} ${ly - lr - 46} C ${x} ${ly - lr - 10}, ${lx} ${ly - lr - 22}, ${lx} ${ly - lr}`
-        + ` A ${lr} ${lr} 0 1 1 ${lx} ${ly + lr} A ${lr} ${lr} 0 1 1 ${lx} ${ly - lr}`;
-    }
-    setShape({ d, beads, h: Math.ceil(base.height) });
-  });
-
-  const draw = (sy: number) => {
-    const list = samples.current, L = total.current;
-    if (!list.length || !line.current || !glow.current) return;
-    let len = L, at = list[list.length - 1];
-    if (!reduce) {
-      // The tip leads 2/3 down the screen; over the last 60% of a screen of scrolling it runs on to the page's very bottom,
-      // so the knot around the seal is complete when the reader arrives there.
-      const vh = window.innerHeight, rest = document.documentElement.scrollHeight - vh - sy;
-      const end = Math.min(1, Math.max(0, 1 - rest / (vh * 0.6)));
-      const tip = sy + vh * (0.66 + 0.34 * end) - top.current;
-      let lo = 0, hi = list.length - 1;
-      while (lo < hi) { const mid = (lo + hi) >> 1; if (list[mid].reach < tip) lo = mid + 1; else hi = mid; }
-      at = list[Math.max(0, lo - 1)];
-      len = lo === 0 ? 0 : at.len;
-    }
-    const off = String(L - len);
-    line.current.style.strokeDashoffset = off;
-    glow.current.style.strokeDashoffset = off;
-    if (spark.current) {
-      spark.current.style.transform = `translate3d(${at.x}px, ${at.y}px, 0)`;
-      spark.current.style.opacity = !reduce && len > 0 && len < L ? '1' : '0';
-    }
-  };
-  // Sample the path once per shape: (length, point, highest y reached so far) for the scroll lookup.
-  useEffect(() => {
-    const p = line.current;
-    if (!p || !shape.d) return;
-    total.current = p.getTotalLength();
-    for (const el of [line.current, glow.current]) el?.style.setProperty('stroke-dasharray', String(total.current));
-    const n = Math.min(2400, Math.max(300, Math.round(total.current / 6)));
-    let reach = -Infinity;
-    samples.current = Array.from({ length: n + 1 }, (_, i) => {
-      const len = (total.current * i) / n, pt = p.getPointAtLength(len);
-      reach = Math.max(reach, pt.y);
-      return { len, x: pt.x, y: pt.y, reach };
-    });
-    draw(window.scrollY);
-  }, [shape.d]);  // eslint-disable-line react-hooks/exhaustive-deps
-
-  useMotionValueEvent(scrollY, 'change', draw);
-
-  return (
-    <div className="kj-thread" aria-hidden="true" style={{ height: shape.h }}>
-      <svg width="100%" height={shape.h}>
-        <defs>
-          <linearGradient id="kj-gold" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#f6dc94" /><stop offset=".5" stopColor="#d4a24c" /><stop offset="1" stopColor="#f3d27f" />
-          </linearGradient>
-        </defs>
-        <path ref={glow} d={shape.d} className="kj-thread-glow" />
-        <path ref={line} d={shape.d} className="kj-thread-line" stroke="url(#kj-gold)" />
-        {shape.beads.map((b, i) => <circle key={i} cx={b.x} cy={b.y} r="3" className="kj-bead" />)}
-      </svg>
-      <span ref={spark} className="kj-spark" />
-    </div>
-  );
-};
 
 /* ------------------------------------------------------------------ torchlight and dust */
 

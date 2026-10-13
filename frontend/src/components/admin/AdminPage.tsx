@@ -34,7 +34,7 @@ const Loading: React.FC<{ error: string | null; retry: () => void }> = ({ error,
   : <section className="panel"><SkeletonRows rows={4} /></section>;
 
 const Head: React.FC<{ tab: string; sub: ReactNode; actions?: ReactNode }> = ({ tab, sub, actions }) => (
-  <PageHeader eyebrow="AI administration" title={ADMIN_NAV.flatMap(([, items]) => items).find(i => i.id === tab)?.title || 'Admin'}
+  <PageHeader title={ADMIN_NAV.flatMap(([, items]) => items).find(i => i.id === tab)?.title || 'Admin'}
     subtitle={sub} actions={actions} />
 );
 
@@ -124,11 +124,11 @@ const ApprovalsTab: React.FC<{ go: (route: string) => void }> = ({ go }) => {
   return (
     <>
       {head}
-      <Attention tone={waiting ? 'warn' : 'ok'}
-        title={waiting ? `${plural(waiting, 'decision')} waiting for you` : 'Nothing waits for your decision'}>
+      <Attention tone={waiting || blocked ? 'warn' : 'ok'}
+        title={waiting ? `${plural(waiting, 'decision')} waiting for you` : blocked ? 'Nothing is ready to approve yet' : 'Nothing waits for your decision'}>
         {[ready.length && plural(ready.length, 'prompt version') + ' ready to approve',
           pending.length && plural(pending.length, 'customer deletion') + ' to decide',
-          blocked && `${plural(blocked, 'version')} blocked by the release gate`].filter(Boolean).join(' · ') || 'New requests appear here.'}
+          blocked && `${plural(blocked, 'version')} blocked by the release gate: see the reasons in the table below`].filter(Boolean).join(' · ') || 'New requests appear here.'}
       </Attention>
 
       <Panel title="Prompt versions" count={data.prompt_versions.length}
@@ -144,7 +144,7 @@ const ApprovalsTab: React.FC<{ go: (route: string) => void }> = ({ go }) => {
                     <span className="st-sub">{when(v.evaluation.at)}</span></>
                   : <span className="muted">Not evaluated</span>}</td>
                 <td className="st-status">{v.gate.length
-                  ? <><Tag tone="danger">Blocked</Tag><ul className="st-reasons">{v.gate.map(g => <li key={g}>{plain(g)}</li>)}</ul></>
+                  ? <><Tag tone="danger">Blocked</Tag><ul className="st-reasons" id={`gate-${v.id}`}>{v.gate.map(g => <li key={g}>{plain(g)}</li>)}</ul></>
                   : <Tag tone="success">Passes</Tag>}</td>
                 <td data-label="Backup model">{!v.backup ? <span className="muted">None</span> : <>
                   {v.backup.model} <Tag tone={v.backup.gate.length ? 'warning' : 'success'}>{v.backup.gate.length ? 'Not cleared' : 'Cleared'}</Tag>
@@ -152,7 +152,7 @@ const ApprovalsTab: React.FC<{ go: (route: string) => void }> = ({ go }) => {
                     ? `Never answers customers: ${v.backup.gate.map(plain).join('; ')}`
                     : `Takes over when the main model is overloaded (${v.backup.evaluation?.passed}/${v.backup.evaluation?.total} passed)`}</span></>}</td>
                 <td className="st-act"><div className="row-actions">{v.gate.length
-                  ? <span className="muted st-nowrap">Fix the gate first</span>
+                  ? <button type="button" className="k-btn outline sm" disabled aria-describedby={`gate-${v.id}`} title="Blocked by the release gate. The reasons are listed in the Release gate column.">Approve…</button>
                   : <button type="button" className="k-btn primary sm" onClick={() => approvePrompt(v)}>Approve…</button>}</div></td>
               </motion.tr>))}</AnimatePresence></tbody>
           </table></div>
@@ -190,7 +190,7 @@ const ApprovalsTab: React.FC<{ go: (route: string) => void }> = ({ go }) => {
           </details>)}
       </Panel>
 
-      <Panel title="Ontology processes without approval" count={data.processes.length}
+      <Panel title="Banking processes without approval" count={data.processes.length}
         sub="In production a process guides Mitra only once its current content is approved."
         actions={<button type="button" className="k-btn outline sm" onClick={() => go('admin-ontology')}>Review processes <Icon name="arrow-right" /></button>} />
 
@@ -397,18 +397,18 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
         <div className="ont-info-header">
           <div className="ont-info-icon"><Icon name="book" /></div>
           <div className="ont-info-text">
-            <strong>How Mitra Uses Business Ontology:</strong>
+            <strong>How Mitra uses banking processes:</strong>
             <p>
-              The ontology graph provides formal deterministic guardrails for Mitra (the AI model). Mitra consults this graph to understand which business process applies to a customer inquiry, which APIs (tools) it is legally authorized to call, which database tables it may read, and which RBI/banking policies must govern the transaction.
+              This map shows the rules Mitra follows. Mitra reads it to know which banking process applies to a customer's question, which tools it may call, which data it may read, and which RBI and bank policies apply.
             </p>
           </div>
         </div>
         <div className="ont-legend-chips">
-          <span className="ont-legend-chip trigger"><span className="ont-legend-dot" /> 1. Triggers & Intents</span>
-          <span className="ont-legend-chip core"><span className="ont-legend-dot" /> 2. Process Core</span>
-          <span className="ont-legend-chip activity"><span className="ont-legend-dot" /> 3. Activities & Steps</span>
-          <span className="ont-legend-chip tool"><span className="ont-legend-dot" /> 4. Authorized Tools & DB</span>
-          <span className="ont-legend-chip guardrail"><span className="ont-legend-dot" /> 5. Policy Guardrails</span>
+          <span className="ont-legend-chip trigger"><span className="ont-legend-dot" /> 1. What the customer asks</span>
+          <span className="ont-legend-chip core"><span className="ont-legend-dot" /> 2. The process</span>
+          <span className="ont-legend-chip activity"><span className="ont-legend-dot" /> 3. Steps</span>
+          <span className="ont-legend-chip tool"><span className="ont-legend-dot" /> 4. Tools and data</span>
+          <span className="ont-legend-chip guardrail"><span className="ont-legend-dot" /> 5. Policies</span>
         </div>
       </div>
 
@@ -437,10 +437,10 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
 
       {graphData && (
         <div className="st-kpis">
-          <Kpi label="Connected Nodes" value={graphData.stats.total_nodes} caption="In active process subgraph" />
-          <Kpi label="Mapped Relationships" value={graphData.stats.total_edges} caption="Typed graph edges" />
-          <Kpi label="Executable Tools" value={allTools.length} caption={`${allTools.length} authorized tools`} />
-          <Kpi label="Governing Policies" value={allPolicies.length} caption="Guardrails and constraints" />
+          <Kpi label="Steps and rules" value={graphData.stats.total_nodes} caption="In this process" />
+          <Kpi label="Links between them" value={graphData.stats.total_edges} caption="How steps and rules connect" />
+          <Kpi label="Tools Mitra can use" value={allTools.length} caption={`${allTools.length} authorized tools`} />
+          <Kpi label="Policies that apply" value={allPolicies.length} caption="Limits Mitra must respect" />
         </div>
       )}
 
@@ -492,7 +492,7 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
             {/* Lane 1: Triggers & Entry */}
             <div className="ont-lane">
               <div className="ont-lane-title">
-                <span>1. Triggers & Inputs</span>
+                <span>1. What the customer asks</span>
                 <Tag tone="neutral">{triggers.length}</Tag>
               </div>
               {triggers.length ? triggers.map(t => (
@@ -519,7 +519,7 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
             {/* Lane 2: Process Core */}
             <div className="ont-lane">
               <div className="ont-lane-title">
-                <span>2. Process Hub</span>
+                <span>2. The process</span>
                 <Tag tone="success">Core</Tag>
               </div>
               {p && (
@@ -543,7 +543,7 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
             {/* Lane 3: Activities & Steps */}
             <div className="ont-lane">
               <div className="ont-lane-title">
-                <span>3. Activities & Steps</span>
+                <span>3. Steps</span>
                 <Tag tone="neutral">{activities.length}</Tag>
               </div>
               {activities.length ? activities.slice(0, 10).map(a => (
@@ -565,7 +565,7 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
             {/* Lane 4: Executable Tools & Tables */}
             <div className="ont-lane">
               <div className="ont-lane-title">
-                <span>4. Tools & Tables</span>
+                <span>4. Tools and data</span>
                 <Tag tone="warning">{tools.length + tables.length}</Tag>
               </div>
               {tools.map(tl => (
@@ -601,7 +601,7 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
             {/* Lane 5: Governing Policies */}
             <div className="ont-lane">
               <div className="ont-lane-title">
-                <span>5. Governing Guardrails</span>
+                <span>5. Policies</span>
                 <Tag tone="danger">{policies.length}</Tag>
               </div>
               {policies.map(po => (
@@ -683,7 +683,7 @@ const OntologySimulatorView: React.FC = () => {
         <div className="ont-info-header">
           <div className="ont-info-icon"><Icon name="sparkles" /></div>
           <div className="ont-info-text">
-            <strong>Routing Simulator (Interactive Test Bench):</strong>
+            <strong>Try a message:</strong>
             <p>
               Simulate any user query or officer command in real time. This shows how Mitra's intent classifier matches the query to an ontology process, which tools are granted, which security policies govern execution, and what prompt instructions are injected into the LLM context.
             </p>
@@ -692,7 +692,7 @@ const OntologySimulatorView: React.FC = () => {
       </div>
 
       <div className="ont-sim-input-wrap">
-        <label htmlFor="sim-prompt-input"><strong>Test User Utterance:</strong></label>
+        <label htmlFor="sim-prompt-input"><strong>Customer message to try:</strong></label>
         <textarea
           id="sim-prompt-input"
           rows={2}
@@ -845,7 +845,7 @@ const OntologyGovernanceView: React.FC = () => {
   return (
     <div className="ont-sm-container">
       {/* 10 Governed Policy Parameters */}
-      <Panel title="Governed Banking Policy Parameters" count={paramsData?.parameters.length || 0}
+      <Panel title="Banking rules" count={paramsData?.parameters.length || 0}
         sub="The 10 formal policy parameters defined in config/ontology/policies/approval-matrix.md and bound to config/harness/policy.json.">
         {pError && <p className="form-error">{pError}</p>}
         {paramsData ? (
@@ -964,13 +964,13 @@ const OntologyTab: React.FC = () => {
           Processes & Approvals ({data.processes.length})
         </button>
         <button type="button" className={subView === 'mapping' ? 'active' : ''} onClick={() => setSubView('mapping')}>
-          Mapping & Graph Visualizer
+          Process map
         </button>
         <button type="button" className={subView === 'simulator' ? 'active' : ''} onClick={() => setSubView('simulator')}>
-          Routing Simulator (Test Bench)
+          Try a message
         </button>
         <button type="button" className={subView === 'governance' ? 'active' : ''} onClick={() => setSubView('governance')}>
-          Policy Parameters & State Machines
+          Rules and statuses
         </button>
       </div>
 
@@ -1040,15 +1040,15 @@ const SkillsTab: React.FC = () => {
   return (
     <>
       {head}
-      <Panel title="Skills" count={data.skills.length} sub="Guided forms and chat guides. Each needs a SKILL.md guide that tells Mitra how to run it.">
+      <Panel title="Skills" count={data.skills.length} sub="Guided forms and chat guides. Each needs a guide that tells Mitra how to run it.">
         <div className="table-scroll"><table className="table st-cards">
-          <thead><tr><th>Skill</th><th>Kind</th><th>Sign-in needed</th><th>Ontology process</th><th>Guide</th></tr></thead>
+          <thead><tr><th>Skill</th><th>Kind</th><th>Sign-in needed</th><th>Banking process</th><th>Guide</th></tr></thead>
           <tbody>{data.skills.map((s, i) => (
             <motion.tr key={s.id} {...rowMotion(i)}>
               <td className="st-main"><strong>{s.name}</strong><span className="st-sub">{s.description}</span></td>
               <td data-label="Kind"><Tag tone={s.kind === 'Guided form' ? 'info' : 'neutral'}>{s.kind}</Tag></td>
               <td data-label="Sign-in needed">{s.level ? <>{LEVEL[s.level] || s.level}<span className="st-sub st-nowrap">Level {s.level.replace('L', '')}{s.service_id ? ` · service ${s.service_id}` : ''}</span></> : <span className="muted">Any</span>}</td>
-              <td data-label="Ontology process">{s.process ? processName(s.process) : <span className="muted">Enquiry only</span>}</td>
+              <td data-label="Banking process">{s.process ? processName(s.process) : <span className="muted">Enquiry only</span>}</td>
               <td className="st-status">{s.guide ? <Tag tone="success">Guide present</Tag> : <Tag tone="danger">Guide missing</Tag>}</td>
             </motion.tr>))}</tbody>
         </table></div>
@@ -1377,7 +1377,7 @@ const UsageTab: React.FC = () => {
             : 'Tokens × the reviewed rates'} />
       </div>
       <div className="k-note"><Icon name="info" /><div>Counts Mitra's customer and visitor turns. Not included: the officer copilot, the process classifier, speech and OCR calls.
-        Cost is tokens × the rates in <code>config/pricing.json</code>: an estimate, not your bill.{unpriced.length > 0 && <> Add rates for {unpriced.map(m => m.key).join(', ')} there to price every turn.</>}</div></div>
+        Cost is tokens × the pricing rates (<code>config/pricing.json</code>): an estimate, not your bill.{unpriced.length > 0 && <> Add rates for {unpriced.map(m => m.key).join(', ')} there to price every turn.</>}</div></div>
       <UsageTable title="By day" column="Day" rows={data.by_day} name={k => formatDate(k)} money={money} />
       <UsageTable title="By channel" column="Channel" rows={data.by_channel} name={channelName} money={money} />
       <UsageTable title="By model" column="Model" rows={data.by_model} name={k => (k === 'none' ? 'No model (not answered)' : k)} money={money} />
@@ -1517,6 +1517,7 @@ const SwitchRow: React.FC<{ on: boolean; label: string; name: string; flip: () =
       onPointerDown={e => { if (e.button === 0) start(); }} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}
       onContextMenu={e => { if (timer.current) e.preventDefault(); }}>
       {children}
+      <span className="st-hold-col">
       <span className="st-hold">
         <input type="checkbox" role="switch" className="k-switch" checked={on} aria-label={label} aria-describedby={hint} onChange={() => undefined}
           // Screen readers in browse mode send one click with no pointer and no key press; they can't hold, so that click
@@ -1528,6 +1529,8 @@ const SwitchRow: React.FC<{ on: boolean; label: string; name: string; flip: () =
           <motion.rect x="2" y="2" width="60" height="40" rx="20" initial={false} animate={{ pathLength: holding ? 1 : 0, opacity: holding ? 1 : 0 }}
             transition={holding ? { duration: HOLD_MS / 1000, ease: 'linear' } : { duration: DUR.fast }} />
         </svg>
+      </span>
+      {on && <small className="st-hold-label" aria-hidden="true">Hold to pause</small>}
       </span>
       <span id={hint} className="sr-only">{on ? `Press and hold to pause ${name}: hold Space for 1.5 seconds; letting go early cancels. With a screen reader, activate it once. You confirm when you save.`
         : `Paused. Press Space to turn ${name} back on.`}</span>

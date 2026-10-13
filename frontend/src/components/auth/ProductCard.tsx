@@ -13,6 +13,9 @@ interface ProductCardProps {
 
 const ICON: Record<string, FeatureIconName> = { savings: 'savings', cards: 'cards', deposits: 'deposits', loans: 'loans', wealth: 'rates' };
 
+/** What the big number means depends on the product, so the label names it. */
+const RATE_LABEL: Record<string, string> = { savings: 'Interest rate', deposits: 'Interest rate', loans: 'Starting rate', cards: 'Rewards', wealth: 'Expected return' };
+
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onApply, onAskAI }) => {
   const { t } = useI18n();
   const perks = [product.min_balance, product.joining_fee, product.tenure_range, product.welcome_bonus].filter(Boolean) as string[];
@@ -22,7 +25,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onApply, onAs
         <FeatureIcon name={ICON[product.category] || 'rewards'} size={48} />
         <div>
           <span className="k-product-cat">{t(product.category_label)}</span>
-          <h3>{product.title}</h3>
+          <h2>{product.title}</h2>
         </div>
         {product.badge && <span className={`k-pill ${product.featured ? 'warn' : 'brand'}`}>{product.badge}</span>}
       </header>
@@ -31,7 +34,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onApply, onAs
 
       <div className="k-product-rate">
         <strong>{product.headline_rate}</strong>
-        <span>{t('Rate or benefit')}</span>
+        <span>{t(RATE_LABEL[product.category] || 'Highlight')}</span>
       </div>
 
       {perks.length > 0 && <div className="k-product-perks">{perks.map(p => <span key={p} className="k-pill">{p}</span>)}</div>}

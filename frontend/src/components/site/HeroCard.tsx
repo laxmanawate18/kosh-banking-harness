@@ -33,18 +33,18 @@ const STACK: Layer[] = [
   { key: 'gloss', tag: 'Sentinel shield', far: 1120, burst: 240, rest: 3.2 },
 ];
 const EDGE = Array.from({ length: 9 }, (_, i) => -0.7 * (i + 1));  // slices behind the face: a 6 px metal slab
-const FORGE_AT = 2050;  // ms: the stack hangs exploded, then slams shut
-const LIVE_AT = 2700;
+const FORGE_AT = 1000;  // ms: the stack hangs exploded for a beat, then slams shut
+const LIVE_AT = 1650;
 
 const pose: Variants = {
   gather: { rotateX: 58, rotateY: 0, rotateZ: -34, scale: 0.7 },
-  exploded: { rotateX: 54, rotateY: 4, rotateZ: -24, scale: 0.74, transition: { duration: 2.3, ease: 'easeOut' } },
+  exploded: { rotateX: 54, rotateY: 4, rotateZ: -24, scale: 0.74, transition: { duration: 1, ease: 'easeOut' } },
   forged: { rotateX: 6, rotateY: -14, rotateZ: -5, scale: 1, transition: { type: 'spring', stiffness: 110, damping: 13, mass: 1.05 } },
 };
 type Custom = Layer & { i: number; k: number };
 const layer: Variants = {
   gather: (c: Custom) => ({ z: c.far * c.k, opacity: 0 }),
-  exploded: (c: Custom) => ({ z: c.burst * c.k, opacity: 1, transition: { delay: 0.15 + c.i * 0.11, duration: 0.95, ease: EASE } }),
+  exploded: (c: Custom) => ({ z: c.burst * c.k, opacity: 1, transition: { delay: 0.03 + c.i * 0.06, duration: 0.55, ease: EASE } }),
   forged: (c: Custom) => ({ z: c.rest, opacity: 1, transition: { type: 'spring', stiffness: 520, damping: 26, delay: (STACK.length - c.i) * 0.018 } }),
 };
 
@@ -170,7 +170,7 @@ export const HeroCard: React.FC = () => {
     if (reduce) return;
     setK(Math.max(0.55, Math.min(1, (scene.current?.clientWidth ?? 600) / 620)));
     const timers = [
-      window.setTimeout(() => setPhase('exploded'), 60),
+      window.setTimeout(() => setPhase('exploded'), 0),
       window.setTimeout(() => setPhase('forged'), FORGE_AT),
       window.setTimeout(() => setLive(true), LIVE_AT),
     ];

@@ -426,3 +426,15 @@ a.k-quick-tile { text-decoration: none; }
   .wf-scan-ok { animation: k-fade 200ms 1s both; }
 }
 @keyframes wf-scan { 0% { transform: translateY(0); opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(46px); opacity: 0; } }
+
+/* Tax and account documents are occasional, so they sit folded under the balances and statements people come for. */
+.c-docs { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+.c-docs summary { display: flex; align-items: center; gap: 10px; padding: 16px 20px; cursor: pointer; list-style: none; }
+.c-docs summary::-webkit-details-marker { display: none; }
+.c-docs summary h2 { margin: 0; font-size: 18px; }
+.c-docs-count { min-width: 22px; height: 20px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 700; }
+.c-docs-chev { margin-left: auto; color: var(--muted); transition: transform 200ms var(--ease-out); }
+.c-docs[open] .c-docs-chev { transform: rotate(90deg); }
+.c-docs summary:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; border-radius: var(--r); }
+.c-docs-body { display: grid; gap: 14px; padding: 0 20px 20px; justify-items: start; }
+.c-docs-body .c-tile-grid { justify-self: stretch; }
