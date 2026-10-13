@@ -21,7 +21,7 @@ export interface ServiceSchema {
   icon?: string;
 }
 
-export interface WorkflowDocument {
+interface WorkflowDocument {
   id: string;
   document_type: string;
   scan_status: 'TEXT_EXTRACTED' | 'NO_TEXT_FOUND' | 'ERROR' | string;
@@ -29,7 +29,7 @@ export interface WorkflowDocument {
   message?: string;
 }
 
-export interface WorkflowCheck {
+interface WorkflowCheck {
   code: string;
   status: 'PASS' | 'OFFICER_REVIEW' | 'FAIL' | string;
   blocking: boolean;

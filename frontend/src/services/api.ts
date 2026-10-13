@@ -13,7 +13,7 @@ async function refreshCsrfToken(): Promise<boolean> {
   return Boolean(csrfToken);
 }
 
-export async function request<T = any>(url: string, options: RequestInit = {}, retried = false): Promise<T> {
+async function request<T = any>(url: string, options: RequestInit = {}, retried = false): Promise<T> {
   const method = options.method || 'GET';
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

@@ -1,5 +1,5 @@
-export type Theme = 'light' | 'dark';
-export type ContrastMode = 'normal' | 'more';
+type Theme = 'light' | 'dark';
+type ContrastMode = 'normal' | 'more';
 export type DisplayPrefs = { theme: Theme; contrast: ContrastMode; zoom: number };
 
 export const ZOOM_STEPS = [0.9, 1, 1.125];

@@ -7,7 +7,7 @@ export interface Attachment {
   data_base64: string;
 }
 
-export interface RPAProgressPayload {
+interface RPAProgressPayload {
   application_reference: string;
   customer_name?: string;
   account_scheme?: string;
@@ -63,7 +63,7 @@ export interface ChatMessage {
   storedIndex?: number;
 }
 
-export interface SalesProduct extends Product {
+interface SalesProduct extends Product {
   match_reasons?: string[];
   tradeoffs?: string[];
   disclosure?: string;

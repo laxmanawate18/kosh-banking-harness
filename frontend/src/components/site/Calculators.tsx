@@ -63,7 +63,7 @@ const Row: React.FC<{ label: string; value: React.ReactNode; swatch?: string }> 
   <div><dt>{swatch && <i className={`sw ${swatch}`} />}{label}</dt><dd>{value}</dd></div>
 );
 
-export const EmiCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
+const EmiCalculator: React.FC<{ onAsk: Ask }> = ({ onAsk }) => {
   const { t } = useI18n();
   const [amount, setAmount] = useState(2_500_000);
   const [rate, setRate] = useState(8.5);

@@ -43,7 +43,7 @@ $env:PORT = 8017; python dev_ui.py
 
 Use `venv\Scripts\python` wherever the commands below say `venv/bin/python`, and `venv\Scripts\pytest` for `venv/bin/pytest`.
 
-**Signing in as a customer without Firebase.** Set `AUTH_DEMO_OTP=246810` for both the auth server and the app (`.env` or the shell). The sign-in page then accepts the registered demo number `+919876543210` with that code and sends no SMS. Whether it stays on in a deployed demo is a release decision.
+**Signing in as a customer without Firebase.** Set `AUTH_DEMO_OTP=246810` for both the auth server and the app (`.env` or the shell). The sign-in page then accepts the registered demo number `+919876543210` with that code and sends no SMS. The deployed demo keeps it on so reviewers can sign in. Both `kosh-auth` (accepts the code) and `kosh-app` (shows it on the sign-in page) need `AUTH_DEMO_OTP` set; the release script keeps it if it is already set on the service, and never adds it.
 
 **Frontend.** After changing anything in `frontend/`, run `npm run build` there: the app serves `frontend/dist`. `npm run dev` serves it live while you work.
 
@@ -160,6 +160,13 @@ Soft signals include new beneficiary, amount above baseline, high value, new dev
 Frontend rendering is allowlisted to fixed local presentation types. Tool data cannot provide HTML, scripts, CSS classes, URLs, or event handlers.
 
 ## Verification
+
+Point the tests at a throwaway database first. With the default `.env`, some tests try to reach the database that file names, so set a local SQLite file and turn the Cloud SQL sync off:
+
+```bash
+export SENTINEL_DATABASE_URL=sqlite+pysqlite:///$TMPDIR/kosh-test.sqlite3   # PowerShell: $env:SENTINEL_DATABASE_URL = "sqlite+pysqlite:///$env:TEMP/kosh-test.sqlite3"
+export ENABLE_CLOUD_SQL_SYNC=false
+```
 
 ```bash
 venv/bin/python -m unittest discover -v

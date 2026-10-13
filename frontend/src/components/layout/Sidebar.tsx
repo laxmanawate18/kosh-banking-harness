@@ -17,7 +17,7 @@ interface SidebarProps {
 
 type NavItem = { id: string; title: string; icon: string; also?: string[] };  // `also`: grouped pages that keep this entry active
 
-export const CUSTOMER_NAV: [string, NavItem[]][] = [
+const CUSTOMER_NAV: [string, NavItem[]][] = [
   ['Banking', [
     { id: 'overview', title: 'Home', icon: 'overview' },
     { id: 'ai-banker', title: 'Mitra AI banker', icon: 'ai-banker' },

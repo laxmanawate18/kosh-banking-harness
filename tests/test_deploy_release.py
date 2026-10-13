@@ -26,6 +26,13 @@ class DeployReleaseTests(unittest.TestCase):
         self.assertEqual(refs["SENTINEL_WEB_CLIENT_SECRET"], "kosh-oauth-web-client-secret")  # same secret as the app's
         self.assertNotIn("SENTINEL_DEMO_SECRET", refs)
 
+    def test_demo_sign_in_stays_on_in_the_deployed_demo(self):
+        # Reviewers sign in with the demo number and the fixed code, so a release must keep AUTH_DEMO_OTP on both services.
+        env = [{"name": "AUTH_DEMO_OTP", "value": "246810"}]
+        for service in (APP, AUTH):
+            plain, _ = split_env(env, service)
+            self.assertEqual(plain, {"AUTH_DEMO_OTP": "246810"})
+
 
 if __name__ == "__main__":
     unittest.main()

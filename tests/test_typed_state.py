@@ -13,14 +13,14 @@ from persistence import BankAccountRecord, BankDocumentRecord, BankingStateRecor
 
 class TypedStateTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
+        self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.url = f"sqlite+pysqlite:///{Path(self.tmp.name) / 'typed.sqlite3'}"
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def test_legacy_json_record_migrates_losslessly(self):
-        legacy = json.loads(Path(DEFAULT_SEED_PATH).read_text())
+        legacy = json.loads(Path(DEFAULT_SEED_PATH).read_text(encoding="utf-8"))
         legacy["preferences"] = {"CUST-1001": {"whatsapp_updates": True, "marketing_offers": False}}
         legacy["cheque_books"] = {"CHQ-1": {"id": "CHQ-1", "leaves": 25}}
         first = BankingDatabase(self.url)
@@ -66,7 +66,7 @@ class TypedStateTests(unittest.TestCase):
         self.assertEqual(db.snapshot()["standing_instructions"], {})
         db.reset_to_seed()
         self.assertNotIn("standing_instructions", db.snapshot())
-        self.assertEqual(db.snapshot(), json.loads(Path(DEFAULT_SEED_PATH).read_text()))
+        self.assertEqual(db.snapshot(), json.loads(Path(DEFAULT_SEED_PATH).read_text(encoding="utf-8")))
 
 
 if __name__ == "__main__":

@@ -452,7 +452,8 @@ class SentinelService:
                 reasons.append("EXCEEDS_AGENT_PAYMENT_LIMIT")
             customer = self.db.get_customer(context.get("customer_id", CUSTOMER_ID)) or {}
             normal = int(customer.get("normal_transfer_minor", policy["default_normal_transfer_minor"]))
-            if action_type == "TRANSFER" and amount_minor > normal * policy["baseline_multiple"]:
+            # The agent-limit check above may already have raised this signal; one amount must not be charged twice.
+            if action_type == "TRANSFER" and amount_minor > normal * policy["baseline_multiple"] and "AMOUNT_ABOVE_BASELINE" not in reasons:
                 signal("AMOUNT_ABOVE_BASELINE")
             if amount_minor > policy["high_value_minor"]:
                 signal("HIGH_VALUE_TRANSFER")

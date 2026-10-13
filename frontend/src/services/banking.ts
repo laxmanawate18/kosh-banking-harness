@@ -66,7 +66,7 @@ export async function payBill(payload: {
   });
 }
 
-export async function freezeCard(cardId: string, note?: string): Promise<any> {
+async function freezeCard(cardId: string, note?: string): Promise<any> {
   const requestKey = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `req-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   return post('/api/portal/payments', {
     request_key: requestKey,

@@ -20,7 +20,7 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
-export const ROUTE_TITLES: Record<string, string> = {
+const ROUTE_TITLES: Record<string, string> = {
   overview: 'Home',
   'ai-banker': 'Mitra AI banker',
   accounts: 'Accounts and statements',
