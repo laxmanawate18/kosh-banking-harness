@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-_SUITE_DATABASE = tempfile.TemporaryDirectory()
+_SUITE_DATABASE = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
 os.environ["SENTINEL_DATABASE_URL"] = f"sqlite+pysqlite:///{Path(_SUITE_DATABASE.name) / 'suite.sqlite3'}"
 
 from banking_db import BankingDatabase
@@ -17,7 +17,7 @@ from sentinel import CUSTOMER_ID, IntentResolver, SentinelService
 
 class SentinelBankingTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
+        self.temp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.store = Path(self.temp.name) / "store.json"
         seed = Path(__file__).parent / "data" / "banking_seed.json"
         self.repo = BankingDatabase(self.store, seed)

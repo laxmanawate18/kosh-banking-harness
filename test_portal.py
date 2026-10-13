@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from pathlib import Path
 
-_DATABASE = tempfile.TemporaryDirectory()
+_DATABASE = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
 os.environ.setdefault("SENTINEL_DATABASE_URL", f"sqlite+pysqlite:///{Path(_DATABASE.name) / 'portal-tests.sqlite3'}")
 
 from fastapi.testclient import TestClient

@@ -17,7 +17,7 @@ RUN = {"at": "2026-10-05T18:14:12Z", "passed": 283, "total": 284, "pass_rate": 9
 
 class PromoteEvaluationTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
+        self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.version = mitra_ops.prompt_version()
         self.local, self.prod = (f"sqlite+pysqlite:///{Path(self.tmp.name) / n}" for n in ("local.db", "prod.db"))
         for url in (self.local, self.prod):
