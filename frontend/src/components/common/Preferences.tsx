@@ -22,7 +22,7 @@ export const DisplayControls: React.FC = () => {
             type="button"
             aria-pressed={zi === i}
             className={zi === i ? 'active' : ''}
-            aria-label={[t('Smaller text'), t('Default text size'), t('Larger text')][i]}
+            aria-label={`${label} ${[t('smaller text'), t('default text size'), t('larger text')][i]}`}
             onClick={() => update({ zoom: ZOOM_STEPS[i] })}
           >
             <span style={{ fontSize: [12, 14, 17][i] }}>{label}</span>

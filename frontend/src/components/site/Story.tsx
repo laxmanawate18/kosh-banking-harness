@@ -131,7 +131,7 @@ export const Stats: React.FC = () => {
           {STATS.map((s, i) => (
             <div key={s.label} className="reveal">
               <dt>{t(s.label)}</dt>
-              <dd aria-label={`${s.prefix || ''}${s.to}${s.suffix || ''}`}><FlapBoard text={figure(s)} run={run} still={still} delay={i * 300} /></dd>
+              <dd><span className="sr-only">{`${s.prefix || ''}${s.to}${s.suffix || ''}`}</span><span aria-hidden="true"><FlapBoard text={figure(s)} run={run} still={still} delay={i * 300} /></span></dd>
             </div>
           ))}
         </dl>

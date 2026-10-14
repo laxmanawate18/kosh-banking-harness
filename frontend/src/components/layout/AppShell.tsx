@@ -69,6 +69,7 @@ export const AppShell: React.FC<AppShellProps> = ({ activeRoute, onRouteChange, 
   }, []);
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [activeRoute]);
+  useEffect(() => { document.title = `${t(ROUTE_TITLES[activeRoute] || ADMIN_TITLES[activeRoute] || 'Home')} | Kosh`; }, [activeRoute, t]);
 
   return (
     <div id="appShell" className="k-shell">
