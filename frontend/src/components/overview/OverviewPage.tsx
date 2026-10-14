@@ -160,6 +160,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
 
   return (
     <div className="k-dash">
+      <h1 className="sr-only">{t('Home')}</h1>
       <section className="k-dash-hero" aria-labelledby="dash-balance-label">
         <Rangoli className="k-hero-motif" />
         <div>
@@ -236,7 +237,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
               <span className="k-acc-type">{t(titleCase(a.type || a.account_type || 'SAVINGS'))}</span>
                 <Badge status={a.status} />
             </header>
-            <h3>{a.name || t('Savings account')}</h3>
+            <h2>{a.name || t('Savings account')}</h2>
             <span className="k-acc-no">{a.account_number_masked || '•••• 0000'}{a.ifsc_code ? ` · ${a.ifsc_code}` : ''}</span>
             <strong className="k-acc-bal"><Money value={a.available_balance_minor ?? 0} /></strong>
             <button type="button" className="k-link" onClick={() => onNavigate('accounts')}>{t('Details and statements')} <Icon name="arrow-right" /></button>

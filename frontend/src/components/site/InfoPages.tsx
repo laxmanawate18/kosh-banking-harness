@@ -283,7 +283,7 @@ export const SegmentsPage: React.FC<{ id?: string; onAsk: Ask }> = ({ id = 'seni
     <>
       <PageHero title={t(s.title)} intro={t(s.intro)} />
       <section className="k-section">
-        <nav className="k-tabs-row" aria-label={t('Banking for everyone')}>
+        <nav className="k-tabs-row" aria-label={t('Choose a group')}>
           {Object.entries(SEGMENTS).map(([sid, seg]) => (
             <a key={sid} href={`#/for/${sid}`} aria-current={sid === key ? 'page' : undefined}>
               {sid === key && <ActiveIndicator id="segment-tab" />}<Icon name={seg.icon} /> {t(seg.title)}

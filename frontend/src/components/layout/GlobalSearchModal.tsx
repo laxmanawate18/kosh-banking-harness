@@ -81,13 +81,30 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
     );
   });
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (isOpen) {
+      opener.current = document.activeElement as HTMLElement | null;  // where the keyboard was, to return there
       setQuery('');
       setSelectedIndex(0);
       setTimeout(() => inputRef.current?.focus(), 50);
+    } else if (opener.current) {
+      if (opener.current.isConnected && opener.current !== document.body) opener.current.focus({ preventScroll: true });
+      opener.current = null;
     }
   }, [isOpen]);
+
+  // aria-modal promises that nothing behind the panel can be reached: Tab cycles within it.
+  const keepFocusInside = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }  // from the text box or the close button alike
+    if (e.key !== 'Tab') return;
+    const stops = Array.from(panelRef.current?.querySelectorAll<HTMLElement>('input, button:not([tabindex="-1"])') ?? []);
+    if (!stops.length) return;
+    const first = stops[0], last = stops[stops.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -125,7 +142,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
       {isOpen && (
         <motion.div className="gsm-scrim" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           transition={{ duration: 0.16 }}>
-          <motion.div className="k-search-panel" role="dialog" aria-modal="true" aria-label={t('Search')} onClick={e => e.stopPropagation()}
+          <motion.div ref={panelRef} className="k-search-panel" role="dialog" aria-modal="true" aria-label={t('Search')} onClick={e => e.stopPropagation()}
+            onKeyDown={keepFocusInside}
             initial={{ opacity: 0, y: -10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={SPRING}>
             <div className="k-search-head">
@@ -144,7 +162,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                   {filtered.map((item, idx) => {
                     const isSelected = idx === selectedIndex;
                     return (
-                      <Stagger.Item as="button" key={item.id} id={`sr-${item.id}`} type="button" role="option" aria-selected={isSelected}
+                      <Stagger.Item as="button" key={item.id} id={`sr-${item.id}`} type="button" role="option" aria-selected={isSelected} tabIndex={-1}
                         className={`k-search-result ${isSelected ? 'selected' : ''}`} onMouseEnter={() => setSelectedIndex(idx)}
                         onClick={() => handleSelect(item)}>
                         {isSelected && <ActiveIndicator id="search-selection" className="k-search-highlight" />}

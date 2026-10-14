@@ -82,7 +82,7 @@ export const RequestCard: React.FC<{ request: any; onOpen: (r: any) => void }> =
     <Stagger.Item as="article" className="request-card c-request">
       <div className="c-request-top">
         <div>
-          <h3>{serviceLabel(t, r.service_id, r.service_name || r.request_type)}</h3>
+          <h2>{serviceLabel(t, r.service_id, r.service_name || r.request_type)}</h2>
           <p>{t('Ref.')} {r.id}</p>
         </div>
         <div className="request-actions">
@@ -145,7 +145,7 @@ export const RequestsPage: React.FC<RequestsPageProps> = ({ onNavigate }) => {
         ) : (
           <div className="k-card empty">
             <Icon name="requests" />
-            <h3>{filter === 'open' ? t('Nothing in progress') : t('Nothing to track just yet')}</h3>
+            <h2>{filter === 'open' ? t('Nothing in progress') : t('Nothing to track just yet')}</h2>
             <p>{t('New requests and their progress will appear here.')}</p>
           </div>
         )}

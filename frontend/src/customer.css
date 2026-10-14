@@ -246,7 +246,7 @@ a.k-quick-tile { text-decoration: none; }
 .c-track-text time { font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .request-list { display: grid; gap: 12px; }
 .request-card { padding: 16px 20px; gap: 16px; }
-.request-card h3 { font-size: 17px; margin: 0 0 4px; }
+.request-card :is(h2, h3) { font-size: 17px; margin: 0 0 4px; }
 .request-card p { font-size: 14px; margin: 0; overflow-wrap: anywhere; }
 .request-card .request-actions { flex-wrap: nowrap; gap: 12px; }
 @media (max-width: 640px) {

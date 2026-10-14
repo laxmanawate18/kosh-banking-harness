@@ -738,7 +738,7 @@ p { color: var(--muted); text-wrap: pretty; }
 .k-acc { display: flex; flex-direction: column; gap: 3px; padding: 20px 22px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); }
 .k-acc header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .k-acc-type { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-ink); }
-.k-acc h3 { font-size: 19px; margin: 0; }
+.k-acc :is(h2, h3) { font-size: 19px; margin: 0; }
 .k-acc-no { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .k-acc-bal { font: 700 29px var(--k-display); letter-spacing: -.01em; margin: 12px 0 8px; font-variant-numeric: tabular-nums; color: var(--ink); }
 .k-acc .k-link { align-self: flex-start; }
@@ -857,7 +857,7 @@ input[type=checkbox], input[type=radio] { min-height: 0; accent-color: var(--bra
 .filter.active { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
 .toolbar { border-bottom-color: var(--line); }
 .toolbar input, .toolbar select { min-height: 42px; font-size: 15px; }
-.empty h3 { font-size: 19px; }
+.empty :is(h2, h3) { font-size: 19px; }
 .empty p { font-size: 15px; }
 .empty .icon { color: var(--muted); }
 .review-amount { font-family: var(--k-display); font-size: 40px; letter-spacing: -.02em; color: var(--ink); text-align: center; margin: 14px 0; }

@@ -21,6 +21,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@esbuild/win32-x64": "^0.28.2",
     "@types/node": "^24.10.0",
     "@types/pg": "^8.15.6",
     "tsx": "^4.20.6",

@@ -17,14 +17,37 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, subtitle, 
   const { t } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
 
+  // The dialog leaves the page when it closes, so the browser cannot send focus back by itself: remember what opened it
+  // and return there, otherwise a keyboard user lands at the top of the page.
   useEffect(() => {
     const d = ref.current;
-    if (!d) return;
-    if (isOpen && !d.open) d.showModal();
-    if (!isOpen && d.open) d.close();
+    if (!d || !isOpen) return;
+    const opener = document.activeElement as HTMLElement | null;
+    if (!d.open) d.showModal();
+    return () => { if (opener?.isConnected && opener !== document.body) opener.focus({ preventScroll: true }); };
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDialogElement>) => {
+    if (e.key === 'Tab') {
+      const d = ref.current;
+      if (!d) return;
+      const focusables = Array.from(d.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter(el => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement);
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  };
 
   return (
     <dialog
@@ -32,6 +55,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, subtitle, 
       className={`k-dialog ${wide ? 'wide' : ''}`}
       aria-labelledby="k-modal-title"
       onCancel={e => { e.preventDefault(); onClose(); }}
+      onKeyDown={handleKeyDown}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <motion.div initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}

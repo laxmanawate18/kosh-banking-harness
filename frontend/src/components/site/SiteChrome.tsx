@@ -40,7 +40,7 @@ export const UtilityBar: React.FC = () => {
     return () => clearInterval(id);
   }, [paused]);
   return (
-    <div className="k-utility">
+    <div className="k-utility" role="region" aria-label={t('Product demo notice')}>
       <div className="k-utility-inner">
         <button
           type="button"

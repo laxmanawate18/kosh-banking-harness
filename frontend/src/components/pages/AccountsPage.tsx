@@ -188,7 +188,7 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({ onNavigate }) => {
                 <motion.span layoutId={id.type} className="k-acc-type">{typeLabel(a.type)}</motion.span>
                 <motion.span layoutId={id.badge}><Badge status={a.status} /></motion.span>
               </header>
-              <motion.h3 layoutId={id.name}>{a.name}</motion.h3>
+              <motion.h2 layoutId={id.name}>{a.name}</motion.h2>
               <motion.span layoutId={id.no} className="k-acc-no">{a.account_number_masked}{a.ifsc_code ? ` · IFSC ${a.ifsc_code}` : ''}</motion.span>
               <motion.strong layoutId={id.bal} className="k-acc-bal"><Money value={a.available_balance_minor ?? 0} /></motion.strong>
               <button type="button" className="k-link" id={`acc-open-${a.id}`} onClick={() => open(a.id)}>

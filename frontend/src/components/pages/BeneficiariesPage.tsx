@@ -86,7 +86,7 @@ export const BeneficiariesPage: React.FC<BeneficiariesPageProps> = ({ onNavigate
                       ? <span className="k-pill warn k-cooling"><Icon name="timer" />{t('Cooling period')}</span>
                       : <span className="k-pill ok">{t('Verified')}</span>}
                 </header>
-                <h3>{display}</h3>
+                <h2>{display}</h2>
                 <span className="k-acc-no">{b.upi_id || b.destination_masked || b.account_number_masked}</span>
                 <small className="c-payee-note">
                   {cooling

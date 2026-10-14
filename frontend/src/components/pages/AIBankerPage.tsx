@@ -46,6 +46,7 @@ export const AIBankerPage: React.FC = () => {
 
   return (
     <div className="ai-workbench-grid">
+      <h1 className="sr-only">{t('Mitra AI banker')}</h1>
       <aside className="ai-sidebar-panel">
         <div className="ai-customer-card">
           <div className="ai-customer-top">

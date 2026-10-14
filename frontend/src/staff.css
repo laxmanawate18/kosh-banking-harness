@@ -53,7 +53,7 @@ button.st-kpi:focus-visible { outline: 3px solid var(--focus); outline-offset: 3
 .st-panel-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; max-width: 100%; min-width: 0; }
 .st-panel > :is(.table-scroll, .empty, .st-tool-list) { border-top: 1px solid var(--line); }
 .st-panel > .st-toolbar + :is(.table-scroll, .st-tool-list) { border-top: 1px solid var(--line); }
-.st-panel .empty h3 { margin: 0; }
+.st-panel .empty :is(h2, h3) { margin: 0; }
 
 /* ---------- Tables: secondary line, wrapping text, sticky actions ---------- */
 .st-sub { display: block; margin-top: 2px; font-size: 13.5px; line-height: 1.45; color: var(--muted); font-weight: 400; }

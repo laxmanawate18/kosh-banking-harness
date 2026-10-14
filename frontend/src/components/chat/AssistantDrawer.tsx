@@ -14,11 +14,20 @@ export function AssistantDrawer() {
   const { openWorkflow, startWorkflowById, activeWorkflowId, activeChallenge } = useBanking();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const opener = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    if (isOpen && !dialog.open) dialog.showModal();
-    if (!isOpen && dialog.open) dialog.close();
+    if (isOpen) {
+      opener.current = document.activeElement as HTMLElement | null;
+      if (!dialog.open) dialog.showModal();
+    } else {
+      if (dialog.open) dialog.close();
+      if (opener.current?.isConnected && opener.current !== document.body) {
+        opener.current.focus({ preventScroll: true });
+        opener.current = null;
+      }
+    }
   }, [isOpen]);
   useEffect(() => {
     if (activeWorkflowId || activeChallenge) setIsOpen(false);
@@ -44,8 +53,29 @@ export function AssistantDrawer() {
       .find(item => item.id === productId);
     if (product) setSelectedProduct(product as Product);
   };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDialogElement>) => {
+    if (e.key === 'Tab') {
+      const d = dialogRef.current;
+      if (!d) return;
+      const focusables = Array.from(d.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter(el => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement);
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  };
   return <>
-    <dialog ref={dialogRef} className="assistant-dialog" aria-label={t('Mitra, Kosh AI banker')} onCancel={() => setIsOpen(false)} onClose={() => setIsOpen(false)} onClick={e => { if (e.target === e.currentTarget) setIsOpen(false); }}>
+    <dialog ref={dialogRef} className="assistant-dialog" aria-label={t('Mitra, Kosh AI banker')}
+      onCancel={() => setIsOpen(false)} onClose={() => setIsOpen(false)} onKeyDown={handleKeyDown}
+      onClick={e => { if (e.target === e.currentTarget) setIsOpen(false); }}>
       <section className="ai-main-workspace assistant-workspace">
         <ChatHeader onClose={() => setIsOpen(false)} />
         <ChatMessageList messages={messages} onSuggestedQuery={sendMessage} onOpenWorkflow={openWorkflow} onStartWorkflow={startWorkflowById} onApplyProduct={handleApplyProduct} />

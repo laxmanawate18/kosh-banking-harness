@@ -1,6 +1,8 @@
 """Officer copilot: a second agent built only from harness config; it reads and drafts, the officer decides."""
 import asyncio
 import unittest
+import uuid
+import itertools
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -10,6 +12,7 @@ from google.antigravity import types
 import dev_ui
 from backend import harness, officer_copilot
 from backend.agent_config import HarnessGateHook, create_harness_agent_config
+from persistence import ServiceRequestRecord
 from service_requests import ServiceRequestService
 
 
@@ -33,13 +36,38 @@ class FakeCopilot:
         return SimpleNamespace(chunks=chunks())
 
 
+_real_uuid4 = uuid.uuid4
+_FIXED_REQUEST_UUID = uuid.UUID("ba5eba11-cafe-4b00-8000-000000000000")
+FIXED_REQUEST_ID = f"REQ-{_FIXED_REQUEST_UUID.hex[:16].upper()}"
+
+
 class OfficerCopilotTests(unittest.TestCase):
     def setUp(self):
         dev_ui.limiter.reset()
         self.svc = ServiceRequestService(dev_ui.db)
-        self.request = self.svc.create(customer_id="CUST-1001", user_id="aarav", service_id="P1-08", consent_id="C", session_id="S",
-                                       data={"card": "1234", "pan_number": "ABCDE1234F", "mobile": "9876543210"})
+        with dev_ui.db.runtime.sessions.begin() as session:
+            old = session.get(ServiceRequestRecord, FIXED_REQUEST_ID)
+            if old:
+                session.delete(old)
+        called = False
+
+        def _mock_uuid4():
+            nonlocal called
+            if not called:
+                called = True
+                return _FIXED_REQUEST_UUID
+            return _real_uuid4()
+
+        with patch.object(uuid, "uuid4", side_effect=_mock_uuid4):
+            self.request = self.svc.create(customer_id="CUST-1001", user_id="aarav", service_id="P1-08", consent_id="C", session_id="S",
+                                           data={"card": "1234", "pan_number": "ABCDE1234F", "mobile": "9876543210"})
         self.tools = {t.__name__: t for t in officer_copilot.build_officer_tools(dev_ui.db, self.svc, "USR-OFFICER-001")}
+
+    def tearDown(self):
+        with dev_ui.db.runtime.sessions.begin() as session:
+            row = session.get(ServiceRequestRecord, self.request["id"])
+            if row:
+                session.delete(row)
 
     def test_tools_are_exactly_the_registry_channel(self):
         self.assertEqual(set(self.tools), set(harness.tools("officer")))
