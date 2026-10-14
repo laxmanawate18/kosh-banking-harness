@@ -1,4 +1,4 @@
-import React, { useEffect, useState, type PointerEvent } from 'react';
+import React, { useEffect, useId, useState, type PointerEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion, useSpring, useTransform } from 'framer-motion';
 import { EASE } from './Animate';
 import { LotusMark, Rangoli } from './KoshLogo';
@@ -36,6 +36,7 @@ export const Card3D: React.FC<Card3DProps> = ({
   hint = false,
 }) => {
   const { t } = useI18n();
+  const hintId = useId();
   const reduce = useReducedMotion();
   const [flipped, setFlipped] = useState(false);
 
@@ -55,6 +56,7 @@ export const Card3D: React.FC<Card3DProps> = ({
 
   return (
     <div className="k-card3d-holder">
+      <span id={`${hintId}-flip`} className="sr-only">{t('Press to flip the card.')}</span>
       <div className={`k-card3d-wrap ${float ? 'floating' : ''}`} onPointerMove={lean} onPointerLeave={settle}>
         <motion.button
           type="button"
@@ -63,9 +65,9 @@ export const Card3D: React.FC<Card3DProps> = ({
           whileTap={reduce ? undefined : { scale: 0.98 }}
           onClick={() => setFlipped(f => !f)}
           aria-pressed={flipped}
-          aria-label={t('{label}, {number}. Press to flip the card.', { label, number })}
+          aria-describedby={`${hintId}-flip`}
         >
-          <span className="k-card-face front">
+          <span className="k-card-face front" aria-hidden={flipped}>
             <Rangoli className="k-card-motif" rings={10} />
             <span className="k-card-row">
               <span className="k-card-brand"><LotusMark size={28} /> kosh</span>
@@ -94,7 +96,7 @@ export const Card3D: React.FC<Card3DProps> = ({
             </AnimatePresence>
             <span className="k-card-sheen" aria-hidden="true" />
           </span>
-          <span className="k-card-face back">
+          <span className="k-card-face back" aria-hidden={!flipped}>
             <span className="k-card-strip" />
             <span className="k-card-cvv"><small>CVV</small>•••</span>
             <span className="k-card-note">{t('Kosh will never ask for your card PIN, CVV or OTP. Report fraud on 1930.')}</span>

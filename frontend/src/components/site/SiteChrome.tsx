@@ -143,7 +143,7 @@ export const SiteHeader: React.FC<{ route: string[]; onLogin: () => void }> = ({
   return (
     <header className={`k-header ${scrolled ? 'scrolled' : ''}`}>
       <div className="k-header-inner">
-        <a href="#/" aria-label={t('Kosh home')}><KoshLogo size={38} tagline /></a>
+        <a href="#/"><KoshLogo size={38} tagline /></a>
         <nav className={`k-nav ${open ? 'open' : ''}`} aria-label={t('Primary')}>
           {NAV.map(([label, href]) => (
             <a key={href} href={href} aria-current={section.startsWith(href) ? 'page' : undefined}>{t(label)}</a>

@@ -228,7 +228,7 @@ export const HeroCard: React.FC = () => {
       <div className="kh-floor" />
       <Orbits side="back" lit={phase === 'forged'} />
 
-      <motion.div className="kh-3d" style={{ touchAction: 'pan-y' }}
+      <motion.div className="kh-3d" tabIndex={-1} style={{ touchAction: 'pan-y' }}
         onPointerMove={lean} onPointerLeave={rest} onPointerDown={() => { panned.current = false; }}
         onPanStart={() => { if (!live) return; panned.current = true; spin.current?.stop(); from.current = spinY.get(); }}
         onPan={(_, info) => { if (live) spinY.set(from.current + info.offset.x * 0.6); }}

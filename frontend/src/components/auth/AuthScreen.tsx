@@ -31,6 +31,15 @@ export const AuthScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('all');
 
+  // Each page names itself in the browser tab and to screen readers: the page's own heading, once it has rendered.
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const heading = (document.querySelector('main h1, h1') as HTMLElement | null)?.innerText?.replace(/\s+/g, ' ').trim();
+      document.title = heading ? `${heading} | Kosh, a product demo` : 'Kosh, a product demo | not a real bank';
+    }, 400);
+    return () => window.clearTimeout(id);
+  }, [route.join('/')]);
+
   useEffect(() => {
     fetchProducts('all')
       .then(d => { setProducts(d.products || []); setCategories(d.categories || []); })

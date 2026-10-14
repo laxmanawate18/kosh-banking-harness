@@ -42,7 +42,7 @@ export const Topbar: React.FC<TopbarProps> = ({ activeRouteLabel, onOpenMobileMe
       </div>
 
       <div className="k-top-actions">
-        <button id="searchBtn" type="button" className="k-search" onClick={onOpenSearch} aria-label={t('Search')}>
+        <button id="searchBtn" type="button" className="k-search" onClick={onOpenSearch}>
           <Icon name="search" />
           <span>{isOfficer || isAdmin ? t('Search pages') : t('Search accounts, payees, services')}</span>
           <kbd>⌘K</kbd>
@@ -53,10 +53,10 @@ export const Topbar: React.FC<TopbarProps> = ({ activeRouteLabel, onOpenMobileMe
         <PreferencesMenu />
         {!isOfficer && !isAdmin && <NotificationsMenu onNavigate={r => onNavigate?.(r)} />}
         <button id="profileBtn" type="button" className="k-profile" onClick={() => onNavigate?.(isAdmin ? 'admin-audit' : isOfficer ? 'audit' : 'settings')}
-          aria-label={t('Profile and settings')}>
-          <span id="profileInitials" className="k-avatar">{initials(user?.display_name)}</span>
+          aria-label={`${user?.display_name || t('Customer')} ${isAdmin ? t('AI admin') : isOfficer ? t('Bank officer') : t('Personal account')}, ${t('profile and settings')}`}>
+          <span id="profileInitials" className="k-avatar k-avatar-drawn" data-initials={initials(user?.display_name)} aria-hidden="true" />
           <span className="k-profile-text">
-            <strong id="signedInIdentity">{user?.display_name || t('Customer')}</strong>
+            <strong id="signedInIdentity">{user?.display_name || t('Customer')}</strong>{' '}
             <small id="signedInRole">{isAdmin ? t('AI admin') : isOfficer ? t('Bank officer') : t('Personal account')}</small>
           </span>
         </button>
