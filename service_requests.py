@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import uuid
 import copy
-from datetime import timedelta, timezone
+import secrets
+from datetime import date, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -158,6 +159,131 @@ class ServiceRequestService:
                     profile.update(status="NOT_DONE" if profile.get("kyc_type") == "INITIAL_KYC" else "PENDING_RE_KYC",
                         pending_request_id=None)
                 self.db.save_state(session, before, state)
+
+            if action == "APPROVE" and row.service_id != "P1-17":
+                before = self.db.open_state(session)
+                state = copy.deepcopy(before)
+                customer_targets = []
+                if "customers" in state and row.customer_id in state["customers"]:
+                    customer_targets.append(state["customers"][row.customer_id])
+                if "customer" in state and (state["customer"].get("id") == row.customer_id or row.customer_id == "CUST-1001"):
+                    customer_targets.append(state["customer"])
+                if not customer_targets:
+                    cust_entry = state.setdefault("customers", {}).setdefault(row.customer_id, {"id": row.customer_id})
+                    customer_targets.append(cust_entry)
+                state_changed = False
+
+                if row.service_id == "P1-08":  # Debit card reissue
+                    cards = state.setdefault("cards", {})
+                    for c in cards.values():
+                        if c.get("customer_id") == row.customer_id and c.get("status") == "ACTIVE":
+                            c["status"] = "REPLACED"
+                            c["replaced_at"] = str(row.updated_at)
+                    new_card_id = f"CRD-{uuid.uuid4().hex[:8].upper()}"
+                    rand_suffix = f"{secrets.randbelow(9000) + 1000}"
+                    now_year = date.today().year
+                    new_card = {
+                        "id": new_card_id,
+                        "customer_id": row.customer_id,
+                        "card_number_masked": f"•••• •••• •••• {rand_suffix}",
+                        "card_type": "DEBIT",
+                        "status": "ACTIVE",
+                        "expiry_month": 12,
+                        "expiry_year": now_year + 5,
+                        "daily_limit_minor": 5000000,
+                        "online_enabled": True,
+                        "international_enabled": False,
+                        "issued_at": str(row.updated_at),
+                        "reference_request_id": row.id,
+                    }
+                    cards[new_card_id] = new_card
+                    row.collected_data = {**row.collected_data, "issued_card": new_card, "card_id": new_card_id}
+                    state_changed = True
+
+                elif row.service_id == "P1-11":  # Contact detail update
+                    email = row.collected_data.get("email")
+                    mobile = row.collected_data.get("mobile")
+                    for cust in customer_targets:
+                        if email:
+                            cust["email"] = email
+                        if mobile:
+                            cust["phone_number"] = mobile
+                            cust["phone_masked"] = f"+91 ••••• {mobile[-5:]}" if len(mobile) >= 5 else mobile
+                    state_changed = True
+
+                elif row.service_id == "P1-12":  # Address update
+                    for cust in customer_targets:
+                        for k in ("address", "city", "state", "pincode"):
+                            if row.collected_data.get(k):
+                                cust[k] = row.collected_data[k]
+                        if "kyc" in cust and isinstance(cust["kyc"], dict):
+                            for k in ("address", "city", "state", "pincode"):
+                                if row.collected_data.get(k):
+                                    cust["kyc"][k] = row.collected_data[k]
+                    state_changed = True
+
+                elif row.service_id == "P1-14":  # Nominee update
+                    acc_id = row.collected_data.get("account_id")
+                    if acc_id and acc_id in state.get("accounts", {}):
+                        acc = state["accounts"][acc_id]
+                        acc["nominee"] = {
+                            "name": row.collected_data.get("nominee_name", ""),
+                            "relationship": row.collected_data.get("relationship", ""),
+                            "dob": row.collected_data.get("nominee_dob", ""),
+                            "address": row.collected_data.get("nominee_address", ""),
+                            "guardian_name": row.collected_data.get("guardian_name", ""),
+                            "updated_at": str(row.updated_at),
+                        }
+                        state_changed = True
+
+                elif row.service_id == "P1-15":  # PAN update
+                    pan = row.collected_data.get("pan_number") or row.collected_data.get("pan")
+                    if pan:
+                        masked = f"{pan[:2]}••••{pan[-2:]}" if len(pan) >= 4 else pan
+                        for cust in customer_targets:
+                            cust["pan_masked"] = masked
+                            cust.setdefault("kyc", {})["pan_masked"] = masked
+                    state_changed = True
+
+                elif row.service_id == "P2-06":  # Inoperative account activation
+                    acc_id = row.collected_data.get("account_id")
+                    if acc_id and acc_id in state.get("accounts", {}):
+                        state["accounts"][acc_id]["status"] = "ACTIVE"
+                        state["accounts"][acc_id]["inoperative"] = False
+                        state_changed = True
+
+                elif row.service_id == "P2-09":  # Lien removal
+                    acc_id = row.collected_data.get("account_id")
+                    if acc_id and acc_id in state.get("accounts", {}):
+                        state["accounts"][acc_id]["has_lien"] = False
+                        state["accounts"][acc_id]["lien_amount_minor"] = 0
+                        state_changed = True
+
+                elif row.service_id == "P2-11":  # Standing instruction cancellation
+                    si_id = row.collected_data.get("instruction_id") or row.collected_data.get("si_id")
+                    sis = state.get("standing_instructions", {})
+                    if si_id and si_id in sis:
+                        sis[si_id]["status"] = "CANCELLED"
+                        sis[si_id]["cancelled_at"] = str(row.updated_at)
+                        state_changed = True
+
+                elif row.service_id == "P2-13":  # Safe deposit locker
+                    lockers = state.setdefault("lockers", {})
+                    lck_id = f"LCK-{uuid.uuid4().hex[:6].upper()}"
+                    lockers[lck_id] = {
+                        "id": lck_id,
+                        "customer_id": row.customer_id,
+                        "branch": row.collected_data.get("branch", "Mumbai Fort"),
+                        "size": row.collected_data.get("locker_size", "MEDIUM"),
+                        "status": "ALLOCATED",
+                        "allotted_at": str(row.updated_at),
+                        "reference_request_id": row.id,
+                    }
+                    row.collected_data = {**row.collected_data, "locker": lockers[lck_id]}
+                    state_changed = True
+
+                if state_changed:
+                    self.db.save_state(session, before, state)
             if row.service_id == "P1-25" and action == "APPROVE":
                 row.status = "QUEUED_FOR_CBS"
                 rpa_payload = copy.deepcopy(row.collected_data)

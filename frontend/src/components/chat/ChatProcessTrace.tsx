@@ -38,6 +38,28 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
   const [userToggled, setUserToggled] = useState<boolean>(false);
   const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({});
 
+  const [elapsedSec, setElapsedSec] = useState<number>(0);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      setElapsedSec(0);
+      return;
+    }
+    const start = Date.now();
+    const interval = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isStreaming]);
+
+  const getProgressiveStatus = (sec: number) => {
+    if (sec < 4) return t('Understanding your request…');
+    if (sec < 12) return t('Consulting account records and CBS…');
+    if (sec < 25) return t('Verifying banking policy and safeguards…');
+    if (sec < 45) return t('Coordinating with banking services…');
+    return t('Finalizing core banking response (up to 90s)…');
+  };
+
   // When streaming finishes, if the user didn't explicitly toggle, collapse cleanly to keep chat uncluttered
   useEffect(() => {
     if (!isStreaming && !userToggled) {
@@ -54,9 +76,14 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
       return (
         <div className="chat-trace-container">
           <div className="chat-trace-header live">
-            <div className="chat-trace-title">
-              <Loader2 className="trace-spinner" size={13} />
-              <span>{t('Understanding your request…')}</span>
+            <div className="chat-trace-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Loader2 className="trace-spinner text-brand" size={13} />
+              <span>{getProgressiveStatus(elapsedSec)}</span>
+              {elapsedSec >= 3 && (
+                <span className="trace-dur-pill" style={{ opacity: 0.85, fontSize: '11px' }}>
+                  {elapsedSec}s / 90s
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -143,9 +170,9 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
             <span className="trace-dur-pill">{formatDuration(totalDuration)}</span>
           )}
           {isStreaming && (
-            <span className="trace-live-indicator">
+            <span className="trace-live-indicator" title={t('Signed-in requests timeout after 90 seconds')}>
               <span className="trace-live-pulse" />
-              {t('Running')}
+              {elapsedSec > 0 ? `${elapsedSec}s · ` : ''}{t('Running')}
             </span>
           )}
         </div>
@@ -250,6 +277,13 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
               );
             })}
           </div>
+          {isStreaming && elapsedSec >= 8 && (
+            <div className="trace-progressive-status" style={{ padding: '8px 14px', fontSize: '12px', color: 'var(--text-muted, #64748b)', display: 'flex', alignItems: 'center', gap: '8px', borderTop: '1px dashed var(--border-color, #e2e8f0)', marginTop: '6px' }}>
+              <Loader2 className="trace-spinner text-brand" size={12} />
+              <span>{getProgressiveStatus(elapsedSec)}</span>
+              <span style={{ marginLeft: 'auto', fontSize: '11px', opacity: 0.8 }}>{elapsedSec}s / 90s</span>
+            </div>
+          )}
         </div>
       )}
     </div>

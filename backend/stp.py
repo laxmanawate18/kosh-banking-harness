@@ -17,7 +17,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
 
-STP_SKILLS = {"cheque_book", "stop_cheque", "deposit", "standing_instruction", "certificate"}
+STP_SKILLS = {"cheque_book", "stop_cheque", "deposit", "standing_instruction", "certificate", "statement", "appointment", "nominee_update"}
 FD_AUTO_LIMIT_MINOR = 10_00_000 * 100      # ₹10 lakh; larger deposits get an officer check
 RD_AUTO_LIMIT_MINOR = 1_00_000 * 100       # ₹1 lakh monthly instalment
 SI_AUTO_LIMIT_MINOR = 1_00_000 * 100       # ₹1 lakh per instruction
@@ -165,8 +165,75 @@ def _certificate(state, customer_id, customer, f, request_id):
             "certificate": certificate, "download": f"/api/portal/certificates/{request_id}.csv"}, None
 
 
-HANDLERS = {"cheque_book": _cheque_book, "stop_cheque": _stop_cheque, "deposit": _deposit,
-            "standing_instruction": _standing_instruction, "certificate": _certificate}
+def _statement(state, customer_id, customer, f, request_id):
+    account = _own_account(state, customer_id, f["account_id"])
+    if not account:
+        return None, "Account is not active or not owned by the customer"
+    start, end = f.get("start", ""), f.get("end", "")
+    if start and end and start > end:
+        return None, "From date cannot be after To date"
+    txns = [t for t in state.get("transactions", [])
+            if t.get("account_id") == account["id"]
+            and (not start or t.get("created_at", "")[:10] >= start)
+            and (not end or t.get("created_at", "")[:10] <= end)]
+    summary = f"Statement for {account['name']} ({start or 'earliest'} to {end or 'latest'}) generated ({len(txns)} transactions)"
+    download = f"/api/portal/statement.csv?account_id={account['id']}&start={start}&end={end}"
+    return {"summary": summary, "account_id": account["id"], "transaction_count": len(txns), "download": download}, None
+
+
+def _appointment(state, customer_id, customer, f, request_id):
+    branch = f.get("branch", "FORT")
+    date_str = f.get("appointment_date") or f.get("preferred_date", "")
+    window = f.get("time_window") or f.get("preferred_window", "10:00–12:00")
+    purpose = f.get("purpose") or f.get("details", "General banking services")
+    if date_str and date_str < date.today().isoformat():
+        return None, "Appointment date must be today or in the future"
+    apts = state.setdefault("appointments", {})
+    apt = {
+        "id": f"APT-{request_id[-8:]}",
+        "customer_id": customer_id,
+        "branch": branch.replace("_", " ").title(),
+        "appointment_date": date_str,
+        "time_window": window,
+        "purpose": purpose[:160],
+        "status": "CONFIRMED",
+        "created_at": _iso(_now()),
+    }
+    apts[apt["id"]] = apt
+    return {"summary": f"Branch appointment booked at {apt['branch']} for {date_str} ({window})", "appointment": apt}, None
+
+
+def _nominee_update(state, customer_id, customer, f, request_id):
+    account = _own_account(state, customer_id, f["account_id"])
+    if not account:
+        return None, "Account is not active or not owned by the customer"
+    name = (f.get("nominee_name") or "").strip()
+    rel = f.get("relationship", "OTHER")
+    if not name:
+        return None, "Nominee full name is required"
+    nominee = {
+        "name": name,
+        "relationship": rel,
+        "dob": f.get("nominee_dob", ""),
+        "address": f.get("nominee_address", ""),
+        "guardian_name": f.get("guardian_name", ""),
+        "updated_at": _iso(_now()),
+        "reference_request_id": request_id,
+    }
+    account["nominee"] = nominee
+    return {"summary": f"Nominee {name} ({rel.replace('_', ' ').title()}) registered for account {account['account_number_masked']}", "nominee": nominee}, None
+
+
+HANDLERS = {
+    "cheque_book": _cheque_book,
+    "stop_cheque": _stop_cheque,
+    "deposit": _deposit,
+    "standing_instruction": _standing_instruction,
+    "certificate": _certificate,
+    "statement": _statement,
+    "appointment": _appointment,
+    "nominee_update": _nominee_update,
+}
 
 
 def fulfil(db, skill_id: str, customer_id: str, fields: Dict[str, Any], request_id: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:

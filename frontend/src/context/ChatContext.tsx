@@ -75,7 +75,54 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const messagesRef = useRef<ChatMessage[]>(messages);
   messagesRef.current = messages;
 
-  useEffect(() => () => chatSocket.disconnect(), []);
+  const SIGNED_IN_TIMEOUT_MS = 90_000;
+  const turnTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTurnTimeout = () => {
+    if (turnTimeoutRef.current) {
+      clearTimeout(turnTimeoutRef.current);
+      turnTimeoutRef.current = null;
+    }
+  };
+
+  const startTurnTimeout = () => {
+    clearTurnTimeout();
+    if (!isCustomer) return;
+    turnTimeoutRef.current = setTimeout(() => {
+      turnTimeoutRef.current = null;
+      if (sending.current) {
+        sending.current = false;
+        setIsStreaming(false);
+        setMessages(prev => {
+          const updated = prev.map(m => {
+            if (!m.isStreaming) return m;
+            const completedSteps = (m.steps || []).map(s =>
+              s.status === 'running' ? { ...s, status: 'completed' as const, detail: `${s.detail || ''} (timed out)` } : s
+            );
+            return {
+              ...m,
+              isStreaming: false,
+              steps: completedSteps.length > 0 ? completedSteps : undefined,
+            };
+          });
+          return [
+            ...updated,
+            {
+              id: `timeout-${Date.now()}`,
+              role: 'system',
+              text: translate(lang, 'This request took longer than expected (90s limit reached). If you initiated a banking service or transfer, please check "My requests" to verify its status before trying again.'),
+              timestamp: Date.now(),
+            },
+          ];
+        });
+      }
+    }, SIGNED_IN_TIMEOUT_MS);
+  };
+
+  useEffect(() => () => {
+    chatSocket.disconnect();
+    clearTurnTimeout();
+  }, []);
 
   // Handle user authentication transitions and session loading
   useEffect(() => {
@@ -85,6 +132,7 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     if (prevIsCustomerRef.current && !isCustomer) {
       prevIsCustomerRef.current = isCustomer;
       prevUserIdRef.current = undefined;
+      clearTurnTimeout();
       chatSocket.disconnect();
       setMessages([]);
       setSessions([]);
@@ -307,6 +355,7 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           return [...prev, botMsg];
         });
       } else if (event.type === 'turn_start') {
+        startTurnTimeout();
         setIsStreaming(true);
         setMessages(prev => {
           const streamIdx = prev.findIndex(m => m.isStreaming);
@@ -488,6 +537,7 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           return prev.map((m, k) => (k === i ? { ...m, storedIndex: index } : m));
         });
       } else if (['turn_complete', 'cancelled', 'cleared'].includes(event.type)) {
+        clearTurnTimeout();
         sending.current = false;
         setIsStreaming(false);
         const dur = event.rawEvent?.duration_ms;
@@ -523,6 +573,7 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
             );
         });
       } else if (event.type === 'disconnected' || event.type === 'error') {
+        clearTurnTimeout();
         const interrupted = sending.current;
         sending.current = false;
         if (event.type === 'disconnected') setIsConnected(false);
@@ -543,6 +594,7 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
     return () => {
       active = false;
+      clearTurnTimeout();
       unsubscribe();
     };
   }, [currentSessionId, isCustomer, isLoading, requiresConsent, sessionsLoaded, connectionAttempt]);
@@ -586,6 +638,7 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     }
     sending.current = true;
     setIsStreaming(true);
+    startTurnTimeout();
 
     const userMsg: ChatMessage = {
       id: Math.random().toString(),
@@ -603,6 +656,7 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const startNewSession = async () => {
     if (sending.current) return;
+    clearTurnTimeout();
     try {
       const newSess = isCustomer ? await createSession('New Conversation') : null;
       historyRequest.current += 1;
@@ -625,6 +679,7 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const switchSession = async (sessionId: string) => {
     if (sending.current || sessionId === currentSessionId) return;
+    clearTurnTimeout();
     const request = ++historyRequest.current;
     setIsConnected(false);
     clearAttachments();
