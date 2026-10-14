@@ -10,10 +10,11 @@ interface ModalProps {
   subtitle?: string;
   children: ReactNode;
   wide?: boolean;
+  closeOnBackdrop?: boolean;
 }
 
 /** Native <dialog>: focus trap, Esc and top-layer stacking come from the platform. */
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, subtitle, children, wide }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, subtitle, children, wide, closeOnBackdrop = true }) => {
   const { t } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -56,7 +57,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, subtitle, 
       aria-labelledby="k-modal-title"
       onCancel={e => { e.preventDefault(); onClose(); }}
       onKeyDown={handleKeyDown}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={e => { if (closeOnBackdrop && e.target === e.currentTarget) onClose(); }}
     >
       <motion.div initial={{ opacity: 0, y: 14, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.26, ease: EASE }}>

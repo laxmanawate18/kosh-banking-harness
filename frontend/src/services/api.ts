@@ -38,6 +38,9 @@ async function request<T = any>(url: string, options: RequestInit = {}, retried 
   }
 
   if (!response.ok) {
+    if (response.status === 401 && !url.includes('/api/auth/session')) {
+      window.dispatchEvent(new CustomEvent('kosh:session-expired', { detail: { url, status: 401 } }));
+    }
     if (response.status === 403 && data.detail === 'CSRF validation failed' && !retried && await refreshCsrfToken()) {
       return request<T>(url, options, true);
     }

@@ -60,14 +60,65 @@ const read = (file: File) => new Promise<string>((resolve, reject) => {
 });
 
 const SavingsApplicationForm: React.FC<{ product: Product; onClose: () => void; prefill?: Prefill }> = ({ product, onClose, prefill }) => {
-  const [step, setStep] = useState(0);
-  const [f, setF] = useState<Record<string, string>>({ state: 'Maharashtra', ...(prefill?.fields || {}) });
-  const [proof, setProof] = useState('AADHAAR');
+  const DRAFT_KEY = `kosh_draft_savings_app_${product.id}`;
+
+  const [step, setStep] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.step === 'number' && parsed.step >= 0 && parsed.step <= 4) return parsed.step;
+      }
+    } catch {}
+    return 0;
+  });
+
+  const [f, setF] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { state: 'Maharashtra', ...(prefill?.fields || {}), ...(parsed.fields || {}) };
+      }
+    } catch {}
+    return { state: 'Maharashtra', ...(prefill?.fields || {}) };
+  });
+
+  const [proof, setProof] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.proof) return parsed.proof;
+      }
+    } catch {}
+    return 'AADHAAR';
+  });
+
   const [docs, setDocs] = useState<Docs>({});
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState<any>(null);
+
+  // Auto-save draft on changes
+  useEffect(() => {
+    if (done) return;
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ fields: f, step, proof, saved_at: Date.now() }));
+    } catch {}
+  }, [DRAFT_KEY, f, step, proof, done]);
+
+  const clearDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {}
+    setF({ state: 'Maharashtra', ...(prefill?.fields || {}) });
+    setStep(0);
+    setProof('AADHAAR');
+    setDocs({});
+  };
+
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [key]: e.target.value });
   const field = (key: string, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <label className="k-field">{label}<input value={f[key] || ''} onChange={set(key)} required {...props} /></label>);
@@ -85,12 +136,14 @@ const SavingsApplicationForm: React.FC<{ product: Product; onClose: () => void; 
     if (!docs.PAN || !docs[proof]) return setError('Upload your PAN card and your address proof.');
     setBusy(true);
     try {
-      setDone(await post('/api/applications/account', {
+      const res = await post('/api/applications/account', {
         product_id: product.id, reapplied_from: prefill?.reapplied_from,
         fields: { ...f, declarations_accepted: agreed },
         documents: [{ document_type: 'PAN', mime_type: docs.PAN.mime, content_base64: docs.PAN.data },
           { document_type: proof, mime_type: docs[proof].mime, content_base64: docs[proof].data }],
-      }));
+      });
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
+      setDone(res);
     } catch (err: any) {
       setError(err.message || 'The application could not be submitted.');
     } finally {
@@ -99,7 +152,7 @@ const SavingsApplicationForm: React.FC<{ product: Product; onClose: () => void; 
   };
 
   return (
-    <Modal isOpen onClose={onClose} title={`Open ${product.title}`} subtitle={done ? undefined : `Step ${step + 1} of ${steps.length}: ${steps[step]}`} wide>
+    <Modal isOpen onClose={onClose} closeOnBackdrop={false} title={`Open ${product.title}`} subtitle={done ? undefined : `Step ${step + 1} of ${steps.length}: ${steps[step]}`} wide>
       {done ? (
         <Done reference={done.reference} heading="Application received" onClose={onClose}>
           <p>A Kosh officer verifies your KYC and reviews it. Once approved, your account is opened and your welcome kit
@@ -108,6 +161,14 @@ const SavingsApplicationForm: React.FC<{ product: Product; onClose: () => void; 
         </Done>
       ) : (
         <form onSubmit={step < 4 ? next : submit} className="k-app-form">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '-4px 0 10px', fontSize: '12px', color: '#68776f' }}>
+            <span><Icon name="check" /> Draft progress auto-saved</span>
+            {(f.full_name || f.mobile || step > 0) && (
+              <button type="button" onClick={clearDraft} style={{ background: 'none', border: 'none', color: '#889890', cursor: 'pointer', textDecoration: 'underline', fontSize: '11px', padding: 0 }}>
+                Reset form
+              </button>
+            )}
+          </div>
           {prefill && step === 0 && <p className="k-note"><Icon name="refresh" /> Applying again after {prefill.reapplied_from}. Check the details,
             and enter your PAN and date of birth again.</p>}
           {step === 0 && <>
@@ -185,7 +246,7 @@ const CustomerSavingsDialog: React.FC<{ product: Product; onClose: () => void }>
     }
   };
   return (
-    <Modal isOpen onClose={onClose} title={`Open ${product.title}`} subtitle="Another account under your existing customer ID">
+    <Modal isOpen onClose={onClose} closeOnBackdrop={false} title={`Open ${product.title}`} subtitle="Another account under your existing customer ID">
       {done ? (
         <Done reference={done.reference} heading="Request received" onClose={onClose}>
           <p>A Kosh officer reviews it, then the account is opened in core banking and appears in your accounts.</p>
@@ -256,7 +317,7 @@ const DepositDialog: React.FC<{ product: Product; onClose: () => void }> = ({ pr
   };
 
   return (
-    <Modal isOpen onClose={onClose} title={`Book ${product.title}`} subtitle={`${product.headline_rate || '8.10% p.a.'} · funded from your savings`}>
+    <Modal isOpen onClose={onClose} closeOnBackdrop={false} title={`Book ${product.title}`} subtitle={`${product.headline_rate || '8.10% p.a.'} · funded from your savings`}>
       {booking ? (
         <div className="k-app-done" role="status">
           <Icon name={booking.status === 'OPENED' ? 'check' : 'clock'} />

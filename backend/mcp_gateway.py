@@ -39,7 +39,7 @@ CHANNEL = "MCP"
 SENTINEL_ACTIONS: Dict[str, Callable[[Dict[str, Any]], tuple]] = {
     "propose_transfer": lambda a: ("TRANSFER", {"amount_minor": a.get("amount_minor"), "beneficiary_id": a.get("beneficiary_id"),
                                                 "source_account_id": str(a.get("source_account_id", "")).upper()}),
-    "propose_bill_payment": lambda a: ("PAY_BILL", {"bill_id": a.get("bill_id"), "source_account_id": str(a.get("source_account_id", "")).upper()}),
+    "propose_bill_payment": lambda a: ("PAY_BILL", {"bill_id": a.get("bill_id"), "source_account_id": str(a.get("source_account_id", "")).upper(), "amount_minor": a.get("amount_minor")}),
     "freeze_card": lambda a: ("FREEZE_CARD", {"card_id": a.get("card_id")}),
 }
 _CALLER: contextvars.ContextVar[Dict[str, Any]] = contextvars.ContextVar("kosh_mcp_caller")

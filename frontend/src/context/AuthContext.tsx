@@ -53,6 +53,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await refreshSession();
     }
     init();
+
+    // Periodic heartbeat: keeps session alive and touches last_seen_at while tab is active
+    const heartbeat = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        refreshSession().catch(() => {});
+      }
+    }, 2.5 * 60 * 1000);
+
+    const onFocus = () => {
+      refreshSession().catch(() => {});
+    };
+    window.addEventListener('focus', onFocus);
+
+    const onExpired = () => {
+      refreshSession().catch(() => {});
+    };
+    window.addEventListener('kosh:session-expired', onExpired);
+
+    return () => {
+      clearInterval(heartbeat);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('kosh:session-expired', onExpired);
+    };
   }, []);
 
   const submitConsent = async (accepted: boolean = true) => {

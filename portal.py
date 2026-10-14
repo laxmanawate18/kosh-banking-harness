@@ -255,7 +255,8 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
             if body.action == "TRANSFER":
                 result = banking.propose_transfer(sc, body.beneficiary_id, body.amount_minor, body.source_account_id, body.note)
             elif body.action == "PAY_BILL":
-                result = banking.propose_bill_payment(sc, body.bill_id, body.source_account_id)
+                amount_minor = body.amount_minor if body.amount_minor > 0 else None
+                result = banking.propose_bill_payment(sc, body.bill_id, body.source_account_id, amount_minor=amount_minor)
             else:
                 result = banking.freeze_card(sc, body.card_id, body.note or "Customer requested card protection")
             db.transaction(lambda data: data["portal_requests"][key].update(result=result))

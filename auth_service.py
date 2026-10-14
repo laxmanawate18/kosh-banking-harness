@@ -20,7 +20,7 @@ COOKIE_NAME = "sentinel_session"
 TERMS_VERSION = "sentinel-terms-v1"
 CONSENT_PURPOSE = "digital_banking"
 CONSENT_SCOPE = ["accounts:read", "transactions:read", "payments:propose", "cards:protect", "service_requests:create"]
-IDLE_TIMEOUT = timedelta(minutes=10)
+IDLE_TIMEOUT = timedelta(minutes=60)
 ABSOLUTE_TIMEOUT = timedelta(hours=8)
 
 

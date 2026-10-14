@@ -95,7 +95,7 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({ ch
   const { recordPaymentSuccess } = useChat();
   const { auth, publicConfig } = useAuth();
   const demo = Boolean(publicConfig?.demo_otp);  // demo OTP mode: no Firebase, no SMS
-  const [code, setCode] = useState(publicConfig?.demo_otp_code || '');
+  const [code, setCode] = useState(publicConfig?.demo_otp_code || (publicConfig?.demo_otp ? '246810' : ''));
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -132,10 +132,10 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({ ch
     setError('');
     setIsLoading(true);
     try {
-      if (demo) await demoStepUp(code);
+      if (demo) await demoStepUp(code.trim());
       else {
         if (!confirmation) throw new Error(t('Send a fresh verification code first.'));
-        await completeStepUp(confirmation, code);
+        await completeStepUp(confirmation, code.trim());
       }
       const res = await verifyChallenge();
       if (res.success || res.status === 'SUCCESS' || res.status === 'APPROVED') {
@@ -154,7 +154,11 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({ ch
         setAttempt(a => a + 1);
       }
     } catch (err: any) {
-      setError(err.message || t('That code did not match. Check it and try again.'));
+      if (err.message?.toLowerCase().includes('authentication') || err.status === 401) {
+        setError(t('Your session expired. Please sign in again to approve this transfer.'));
+      } else {
+        setError(err.message || t('That code did not match. Check it and try again.'));
+      }
       setAttempt(a => a + 1);
     } finally {
       setIsLoading(false);
@@ -186,7 +190,23 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({ ch
             </div>
             <p className="kv-bound"><Icon name="lock" /> {t('This approval works only for this amount and payee.')}</p>
 
-            {error && <div className="k-note danger" role="alert"><Icon name="alert" /> <span>{error}</span></div>}
+            {error && (
+              <div className="k-note danger" role="alert" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Icon name="alert" /> <span>{error}</span>
+                </div>
+                {error.toLowerCase().includes('session expired') && (
+                  <button
+                    type="button"
+                    onClick={() => { onClose(); window.dispatchEvent(new Event('open-login-modal')); }}
+                    className="k-btn primary"
+                    style={{ padding: '2px 8px', fontSize: '12px' }}
+                  >
+                    {t('Sign in')}
+                  </button>
+                )}
+              </div>
+            )}
             {expired && <div className="k-note warn" role="alert"><Icon name="clock" /> <span>{t('This approval window has closed. Close this and ask Mitra to prepare the payment again.')}</span></div>}
 
             <div id="payment-step-up-recaptcha" />

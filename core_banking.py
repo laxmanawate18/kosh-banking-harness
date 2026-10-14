@@ -58,9 +58,16 @@ class MockCoreBanking:
                 bill = data["bills"].get(posting["bill_id"])
                 if not bill or bill.get("status") != "DUE":
                     raise ValueError("Bill is no longer payable")
-                if bill["amount_minor"] != amount or bill["biller_id"] != posting["beneficiary_id"]:
+                if bill["biller_id"] != posting["beneficiary_id"]:
                     raise PermissionError("BILL_BINDING_MISMATCH")
-                bill.update(status="PAID", paid_at=utc_now(), payment_reference=reference)
+                if amount > bill["amount_minor"]:
+                    raise ValueError("Payment amount exceeds outstanding bill balance")
+                if amount < bill["amount_minor"]:
+                    bill["amount_minor"] -= amount
+                    bill["status"] = "DUE"
+                    bill["last_payment_reference"] = reference
+                else:
+                    bill.update(status="PAID", paid_at=utc_now(), payment_reference=reference)
                 transaction.update(description=f"BBPS • {bill['biller_name']}", category="UTILITIES")
                 payee_name = bill["biller_name"]
             else:

@@ -528,19 +528,35 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
             {/* Prominent Notifications Banner (Always Visible at Top of Modal) */}
             {errorMessage && (
               <div className="wf-alert-box error" role="alert">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '16px' }}>⚠️</span>
-                  <div>
-                    <strong>Action Required:</strong> {errorMessage}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '16px' }}>⚠️</span>
+                    <div>
+                      <strong>Action Required:</strong>{' '}
+                      {errorMessage.toLowerCase().includes('authentication')
+                        ? 'Your session expired. Please sign in to continue this workflow.'
+                        : errorMessage}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {errorMessage.toLowerCase().includes('authentication') && (
+                      <button
+                        type="button"
+                        onClick={() => window.dispatchEvent(new Event('open-login-modal'))}
+                        style={{ background: '#9b1c1c', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
+                      >
+                        Sign in
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setErrorMessage(null)}
+                      style={{ background: 'none', border: 'none', color: '#9b1c1c', cursor: 'pointer', fontSize: '14px' }}
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setErrorMessage(null)}
-                  style={{ background: 'none', border: 'none', color: '#9b1c1c', cursor: 'pointer', fontSize: '14px' }}
-                >
-                  ✕
-                </button>
               </div>
             )}
 

@@ -380,7 +380,7 @@ class SentinelService:
             bill_ok = bool(
                 bill
                 and bill.get("status") == "DUE"
-                and bill.get("amount_minor") == amount_minor
+                and 0 < amount_minor <= int(bill.get("amount_minor", 0))
                 and bill.get("biller_id") == action.get("beneficiary_id")
             )
             check("Trusted bill binding", bill_ok, bill.get("biller_name", "Bill not found") if bill else "Bill not found", "BILL_BINDING_MISMATCH")

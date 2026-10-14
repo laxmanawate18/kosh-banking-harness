@@ -3,11 +3,11 @@ import { Modal } from '../common/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { useI18n } from '../../i18n';
 
-const IDLE_MS = 5 * 60_000;
-const WARN_MS = 60_000;
+const IDLE_MS = 30 * 60_000;
+const WARN_MS = 120_000;
 const ACTIVITY = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
 
-/** Bank-style idle timeout: warn after 4 idle minutes, sign out at 5. Keeps the server session fresh on "stay". */
+/** Bank-style idle timeout: warn after 28 idle minutes, sign out at 30. Keeps the server session fresh on "stay". */
 export const SessionGuard: React.FC = () => {
   const { t } = useI18n();
   const { logout, refreshSession } = useAuth();

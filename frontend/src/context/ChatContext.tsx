@@ -672,8 +672,17 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         setCurrentSessionId(null);
         reconnect();
       }
-    } catch {
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'system', text: 'Could not start a new conversation. Please try again.', timestamp: Date.now() }]);
+    } catch (err: any) {
+      if (err?.status === 401 || err?.message?.toLowerCase().includes('authentication')) {
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(),
+          role: 'system',
+          text: 'Your banking session expired. Please sign in again to start a new conversation.',
+          timestamp: Date.now()
+        }]);
+      } else {
+        setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'system', text: 'Could not start a new conversation. Please try again.', timestamp: Date.now() }]);
+      }
     }
   };
 

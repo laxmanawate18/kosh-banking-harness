@@ -352,26 +352,30 @@ class SecureBankingService:
         session_context: Dict[str, Any],
         bill_id: str,
         source_account_id: str,
+        amount_minor: int | None = None,
     ) -> Dict[str, Any]:
         with self._workflow_lock:
-            return self._propose_bill_payment_locked(session_context, bill_id, source_account_id)
+            return self._propose_bill_payment_locked(session_context, bill_id, source_account_id, amount_minor=amount_minor)
 
     def _propose_bill_payment_locked(
         self,
         session_context: Dict[str, Any],
         bill_id: str,
         source_account_id: str,
+        amount_minor: int | None = None,
     ) -> Dict[str, Any]:
         customer_id = session_context.get("customer_id") or CUSTOMER_ID
         bill = self.db.get_bill(bill_id)
         if not bill or bill.get("customer_id") != customer_id:
-            return {"success": False, "error": "Bill not found."}
+            return {"success": False, "status": "DENIED", "error": "Bill not found."}
+        bill_balance = int(bill.get("amount_minor", 0))
+        pay_amount = int(amount_minor) if (amount_minor is not None and int(amount_minor) > 0) else bill_balance
         action = {
             "action_type": "PAY_BILL",
             "source_account_id": source_account_id.upper(),
             "beneficiary_id": bill["biller_id"],
             "bill_id": bill["id"],
-            "amount_minor": int(bill["amount_minor"]),
+            "amount_minor": pay_amount,
             "currency": "INR",
         }
         existing = self._replay_result(session_context, action)
@@ -380,6 +384,10 @@ class SecureBankingService:
                     "presentation": {"type": "PAYMENT_RECEIPT", "title": "Payment already complete"}}
         if bill.get("status") != "DUE":
             return {"success": True, "status": "ALREADY_PAID", "receipt": {"reference": bill.get("payment_reference")}}
+        if pay_amount > bill_balance:
+            return {"success": False, "status": "DENIED", "error": f"Payment amount ₹{pay_amount/100:.2f} cannot exceed outstanding bill balance ₹{bill_balance/100:.2f}."}
+        if pay_amount <= 0:
+            return {"success": False, "status": "DENIED", "error": "Payment amount must be greater than zero."}
         payment = self._create_payment_intent(session_context, action)
         decision = self.sentinel.evaluate(self._context(session_context, payment))
         self._update_payment(payment["id"], decision_id=decision["id"], status=decision["decision"])
@@ -871,9 +879,9 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
         ctx = signed_in()
         return banking_service.get_security_alerts(ctx["customer_id"])
 
-    def propose_bill_payment(bill_id: str, source_account_id: str) -> dict:
-        """Propose a bill by ID. Kavach resolves the immutable amount and biller and may execute a safe low-value bill."""
-        return banking_service.propose_bill_payment(signed_in(), bill_id, source_account_id)
+    def propose_bill_payment(bill_id: str, source_account_id: str, amount_minor: int | None = None) -> dict:
+        """Propose a bill payment by ID from a source account. Supports full or partial payment in integer paise (amount_minor). If amount_minor is omitted, the full bill balance is paid. Kavach resolves the biller and may execute a safe low-value bill or require step-up."""
+        return banking_service.propose_bill_payment(signed_in(), bill_id, source_account_id, amount_minor=amount_minor)
 
     def propose_transfer(beneficiary_id: str, amount_minor: int, source_account_id: str, note: str = "") -> dict:
         """Propose a transfer in integer paise. This never bypasses Kavach or trusted customer approval."""

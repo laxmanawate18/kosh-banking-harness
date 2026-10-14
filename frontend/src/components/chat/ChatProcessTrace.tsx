@@ -57,7 +57,7 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
     if (sec < 12) return t('Consulting account records and CBS…');
     if (sec < 25) return t('Verifying banking policy and safeguards…');
     if (sec < 45) return t('Coordinating with banking services…');
-    return t('Finalizing core banking response (up to 90s)…');
+    return t('Finalizing core banking response…');
   };
 
   // When streaming finishes, if the user didn't explicitly toggle, collapse cleanly to keep chat uncluttered
@@ -79,11 +79,6 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
             <div className="chat-trace-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Loader2 className="trace-spinner text-brand" size={13} />
               <span>{getProgressiveStatus(elapsedSec)}</span>
-              {elapsedSec >= 3 && (
-                <span className="trace-dur-pill" style={{ opacity: 0.85, fontSize: '11px' }}>
-                  {elapsedSec}s / 90s
-                </span>
-              )}
             </div>
           </div>
         </div>
@@ -170,9 +165,9 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
             <span className="trace-dur-pill">{formatDuration(totalDuration)}</span>
           )}
           {isStreaming && (
-            <span className="trace-live-indicator" title={t('Signed-in requests timeout after 90 seconds')}>
+            <span className="trace-live-indicator" title={t('AI processing in progress')}>
               <span className="trace-live-pulse" />
-              {elapsedSec > 0 ? `${elapsedSec}s · ` : ''}{t('Running')}
+              {t('Running')}
             </span>
           )}
         </div>
@@ -281,7 +276,6 @@ export const ChatProcessTrace: React.FC<ChatProcessTraceProps> = ({
             <div className="trace-progressive-status" style={{ padding: '8px 14px', fontSize: '12px', color: 'var(--text-muted, #64748b)', display: 'flex', alignItems: 'center', gap: '8px', borderTop: '1px dashed var(--border-color, #e2e8f0)', marginTop: '6px' }}>
               <Loader2 className="trace-spinner text-brand" size={12} />
               <span>{getProgressiveStatus(elapsedSec)}</span>
-              <span style={{ marginLeft: 'auto', fontSize: '11px', opacity: 0.8 }}>{elapsedSec}s / 90s</span>
             </div>
           )}
         </div>

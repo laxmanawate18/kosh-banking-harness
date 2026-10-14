@@ -98,11 +98,29 @@ class SentinelBankingTests(unittest.TestCase):
         mule = next(item for item in summary["beneficiaries"] if item["id"] == "BEN-FASTCASH")
         self.assertEqual(mule["availability"], "BLOCKED")
 
-    def pay_bill_with_approval(self, context, bill_id="BILL-TATA-001", account="ACC-SAL-001"):
-        result = self.service.propose_bill_payment(context, bill_id, account)
+    def pay_bill_with_approval(self, context, bill_id="BILL-TATA-001", account="ACC-SAL-001", amount_minor=None):
+        result = self.service.propose_bill_payment(context, bill_id, account, amount_minor=amount_minor)
         if result["status"] != "CHALLENGE_REQUIRED":
             return result
         return self.service.approve_challenge(result["challenge"]["id"], result["challenge"]["transaction_digest"])
+
+    def test_partial_bill_payment_reduces_balance_and_leaves_remaining_due(self):
+        bill = self.repo.get_bill("BILL-TATA-001")
+        self.assertEqual(bill["amount_minor"], 243000)
+        self.assertEqual(bill["status"], "DUE")
+        before_balance = self.repo.get_account("ACC-SAL-001")["available_balance_minor"]
+
+        context = self.context("Pay ₹2,000 for Tata Power bill")
+        res = self.pay_bill_with_approval(context, amount_minor=200000)
+        self.assertEqual(res["status"], "EXECUTED")
+        self.assertEqual(res["receipt"]["amount_minor"], 200000)
+
+        after_balance = self.repo.get_account("ACC-SAL-001")["available_balance_minor"]
+        self.assertEqual(before_balance - after_balance, 200000)
+
+        updated_bill = self.repo.get_bill("BILL-TATA-001")
+        self.assertEqual(updated_bill["amount_minor"], 43000)
+        self.assertEqual(updated_bill["status"], "DUE")
 
     def test_bill_payment_always_needs_customer_approval(self):
         result = self.service.propose_bill_payment(self.context("Pay my Tata Power electricity bill"), "BILL-TATA-001", "ACC-SAL-001")

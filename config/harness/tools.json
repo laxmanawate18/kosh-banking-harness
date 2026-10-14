@@ -219,6 +219,12 @@
             "type": "string",
             "pattern": "^(?i:ACC-[A-Z0-9-]{1,40})$",
             "required": true
+          },
+          "amount_minor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20000000,
+            "required": false
           }
         },
         "consent": "payments:propose",
