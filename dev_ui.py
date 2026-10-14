@@ -224,7 +224,7 @@ def _resolve_request_auth(request: Request, sentinel_session: Optional[str]) -> 
     if not context:
         return None
     context = oauth_service.enrich_cookie_context(context)
-    if not context.client_id:
+    if not context or not context.client_id:
         return None
     return context
 

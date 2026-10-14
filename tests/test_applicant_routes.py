@@ -132,6 +132,7 @@ def _customer():
     with dev_ui.db.runtime.sessions.begin() as session:
         session.execute(delete(AccountApplicationRecord).where(AccountApplicationRecord.customer_id == "CUST-1001"))
     client = TestClient(dev_ui.app)
+    dev_ui.auth_service.capture_consent("CUST-1001")
     _, cookie, csrf = dev_ui.auth_service.create_direct_session("aarav")
     client.cookies.set(dev_ui.COOKIE_NAME, cookie)
     return client, {"X-CSRF-Token": csrf}, cookie

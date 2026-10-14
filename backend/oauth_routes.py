@@ -29,7 +29,12 @@ def make_oauth_router(oauth_service, db, limiter):
     @router.get("/api/auth/start")
     @limiter.limit("20/minute")
     async def start_auth(request: Request, return_to: str = Query(default="/")):
-        del request
+        sentinel_session = request.cookies.get(COOKIE_NAME)
+        if sentinel_session:
+            ctx = oauth_service.auth_service.resolve(sentinel_session, touch=False)
+            if ctx:
+                safe_target = return_to if return_to.startswith("/") else "/"
+                return RedirectResponse(safe_target, status_code=302)
         try:
             url = oauth_service.begin_authorization(kind="web", return_to=return_to)
         except PermissionError as exc:

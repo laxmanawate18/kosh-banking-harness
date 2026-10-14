@@ -5,7 +5,7 @@ import { useI18n } from '../../i18n';
 
 const IDLE_MS = 30 * 60_000;
 const WARN_MS = 120_000;
-const ACTIVITY = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
+const ACTIVITY = ['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove', 'scroll'] as const;
 
 /** Bank-style idle timeout: warn after 28 idle minutes, sign out at 30. Keeps the server session fresh on "stay". */
 export const SessionGuard: React.FC = () => {

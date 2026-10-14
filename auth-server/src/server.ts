@@ -200,12 +200,28 @@ const server = createServer(async (request, response) => {
   if (url.pathname === "/sign-out") {
     const returnTo = url.searchParams.get("return_to") ?? config.sentinelWebURL;
     const safeReturn = isAllowedReturnURL(returnTo) ? returnTo : config.sentinelWebURL;
+    const cookieHeader = String(request.headers.cookie ?? "");
+    const sessionMatch = cookieHeader.match(/(?:__Secure-)?sentinel_auth\.session_token=([^;]+)/);
+    if (sessionMatch?.[1]) {
+      const rawCookieVal = decodeURIComponent(sessionMatch[1].trim());
+      const tokenPart = rawCookieVal.split(".")[0];
+      try {
+        await authPool.query('DELETE FROM "session" WHERE "token" = $1 OR "token" = $2', [rawCookieVal, tokenPart]);
+      } catch (err) {
+        console.warn("[sign-out DB cleanup notice]", err);
+      }
+    }
     response.writeHead(302, {
       location: safeReturn,
       "set-cookie": [
         "sentinel_auth.session_token=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax",
         "sentinel_auth.session_data=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax",
         "sentinel_auth.dont_remember=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax",
+        "sentinel_auth.csrf_token=; Max-Age=0; Path=/; SameSite=Lax",
+        "__Secure-sentinel_auth.session_token=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax",
+        "__Secure-sentinel_auth.session_data=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax",
+        "__Secure-sentinel_auth.dont_remember=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax",
+        "__Secure-sentinel_auth.csrf_token=; Max-Age=0; Path=/; Secure; SameSite=Lax",
       ],
       "cache-control": "no-store",
     });

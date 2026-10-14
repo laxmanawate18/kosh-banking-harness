@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { AuthContext as AuthContextType, User, PublicAuthConfig } from '../types/auth';
 import * as authService from '../services/auth';
 
@@ -34,9 +34,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const session = await authService.checkSession();
       setAuth(session);
       setRequiresConsent(!checkHasConsent(session));
-    } catch {
-      setAuth(null);
-      setRequiresConsent(false);
+    } catch (err: any) {
+      if (err?.status === 401) {
+        setAuth(null);
+        setRequiresConsent(false);
+      } else {
+        console.warn('Session refresh encountered a transient error; preserving existing session:', err);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -84,7 +88,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await refreshSession();
   };
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     let idpSignOutUrl: string | null | undefined = null;
     try {
       const res = await authService.logout();
@@ -95,7 +99,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (idpSignOutUrl) {
       window.location.href = idpSignOutUrl;
     }
-  };
+  }, []);
 
   const setConsent = (accepted: boolean) => {
     setAuth((prev) => {

@@ -256,7 +256,7 @@ class WorkflowService:
         sha = hashlib.sha256(raw).hexdigest()
         with self.db.runtime.sessions() as session:
             row = self.owned(session, workflow_id, customer_id)
-            if any(d["sha256"] == sha and d["document_type"] == body.document_type for d in row.payload.get("documents", [])):
+            if any(d.get("sha256") == sha and d.get("document_type") == body.document_type for d in row.payload.get("documents", [])):
                 return self.view(row)
         try:
             scan = self.scanner.scan(raw, mime, pages)

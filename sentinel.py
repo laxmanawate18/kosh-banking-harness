@@ -146,7 +146,8 @@ class IntentResolver:
             if prior_intents:
                 last_intent = prior_intents[-1]
                 try:
-                    fresh = datetime.fromisoformat(last_intent.get("expires_at", "")) >= datetime.now(timezone.utc)
+                    exp = last_intent.get("expires_at", "").replace("Z", "+00:00")
+                    fresh = datetime.fromisoformat(exp) >= datetime.now(timezone.utc)
                 except Exception:
                     fresh = False
                 if fresh:
@@ -306,7 +307,8 @@ class SentinelService:
 
         delegation_fresh = False
         try:
-            delegation_fresh = datetime.fromisoformat(delegation.get("expires_at", "")) >= datetime.now(timezone.utc)
+            del_exp = delegation.get("expires_at", "").replace("Z", "+00:00")
+            delegation_fresh = datetime.fromisoformat(del_exp) >= datetime.now(timezone.utc)
         except (TypeError, ValueError):
             pass
         delegation_ok = (
@@ -338,7 +340,8 @@ class SentinelService:
         check("Intent action match", intent_action_ok, f"Expected {expected_action}; proposed {action_type}", "INTENT_ACTION_MISMATCH")
 
         if intent.get("expires_at"):
-            intent_fresh = datetime.fromisoformat(intent["expires_at"]) >= datetime.now(timezone.utc)
+            intent_exp = intent["expires_at"].replace("Z", "+00:00")
+            intent_fresh = datetime.fromisoformat(intent_exp) >= datetime.now(timezone.utc)
         else:
             intent_fresh = False
         check("Intent freshness", intent_fresh, intent.get("expires_at", "Missing"), "INTENT_EXPIRED")
@@ -480,7 +483,8 @@ class SentinelService:
             kyc_blocked = {d["id"] for d in state.get("sentinel_decisions", []) if d.get("reason_codes") == ["KYC_NON_COMPLIANT"]}
             for proposal in state.get("payment_intents", []):
                 try:
-                    age = (now - datetime.fromisoformat(proposal["created_at"])).total_seconds()
+                    created_at_str = proposal["created_at"].replace("Z", "+00:00")
+                    age = (now - datetime.fromisoformat(created_at_str)).total_seconds()
                     # Only money movement counts; protective actions such as freezing a card must not raise payment risk.
                     moves_money = (proposal.get("action") or {}).get("action_type") in {"PAY_BILL", "TRANSFER"}
                     if proposal.get("decision_id") in kyc_blocked:

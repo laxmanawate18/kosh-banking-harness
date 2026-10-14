@@ -55,6 +55,11 @@ class AdminPanelTests(unittest.TestCase):
         approved = self.admin.post(f"/api/admin/ontology/{pid}/approve", headers=self.ah, json={"note": "Read the steps and the model view"})
         self.assertEqual(approved.status_code, 200, approved.text)
         self.assertTrue(ontology.approved(pid))
+        from persistence import OntologyApprovalRecord
+        from sqlalchemy import delete
+        with dev_ui.db.runtime.sessions.begin() as s:
+            s.execute(delete(OntologyApprovalRecord).where(OntologyApprovalRecord.process_id == "proc.payment_authorisation"))
+        ontology._approvals["at"] = float("-inf")
         with patch("backend.settings.PRODUCTION", True):
             self.assertTrue(ontology.usable(pid))
             self.assertFalse(ontology.usable("proc.payment_authorisation"))  # never approved

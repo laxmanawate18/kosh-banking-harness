@@ -14,7 +14,7 @@ from backend.api_models import (
     ConsentRequest,
     GCPPhoneLoginRequest,
 )
-from auth_service import COOKIE_NAME, TERMS_VERSION
+from auth_service import COOKIE_NAME, TERMS_VERSION, secure_cookie_enabled
 
 
 
@@ -60,7 +60,13 @@ def make_auth_router(
                 auth_service.revoke(sentinel_session)
             except Exception:
                 pass
-        response.delete_cookie(COOKIE_NAME, path="/")
+        response.delete_cookie(
+            COOKIE_NAME,
+            path="/",
+            secure=secure_cookie_enabled(),
+            httponly=True,
+            samesite="lax",
+        )
         idp_sign_out = oauth_service.idp_sign_out_url("/")
         return {"logged_out": True, "idp_sign_out_url": idp_sign_out}
 

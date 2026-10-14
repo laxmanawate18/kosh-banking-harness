@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import secrets
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -88,6 +89,7 @@ class OAuthService:
             encryption_secret = "sentinel-only-for-local-development"
         self.cipher = TokenCipher(encryption_secret)
         self._jwks_client: jwt.PyJWKClient | None = None
+        self._refresh_lock = threading.Lock()
 
     @staticmethod
     def safe_return_to(value: str | None, default: str = "/") -> str:
@@ -303,7 +305,7 @@ class OAuthService:
             user_agent=user_agent,
         )
         now = utc_dt()
-        expires_in = max(1, int(tokens.get("expires_in") or 300))
+        expires_in = max(3600, int(tokens.get("expires_in") or 3600))
         with self.runtime.sessions.begin() as session:
             session.add(OAuthGrantRecord(
                 id=f"OAG-{uuid.uuid4().hex.upper()}",
@@ -321,62 +323,72 @@ class OAuthService:
         return context, raw_cookie, csrf_token
 
     def _refresh_grant(self, grant_id: str) -> tuple[tuple[str, ...], str]:
-        with self.runtime.sessions() as session:
-            grant = session.get(OAuthGrantRecord, grant_id)
-            if (
-                not grant
-                or grant.revoked_at
-                or not grant.encrypted_refresh_token
-                or (grant.refresh_expires_at and _aware(grant.refresh_expires_at) <= utc_dt())
-            ):
-                raise PermissionError("OAuth grant is no longer refreshable")
-            refresh_token = self.cipher.decrypt(grant.encrypted_refresh_token)
-            client_id = grant.client_id
-            auth_subject = grant.auth_subject
-            secret = self._secrets[client_id]
+        with self._refresh_lock:
+            with self.runtime.sessions() as session:
+                grant = session.get(OAuthGrantRecord, grant_id)
+                if (
+                    not grant
+                    or grant.revoked_at
+                    or not grant.encrypted_refresh_token
+                    or (grant.refresh_expires_at and _aware(grant.refresh_expires_at) <= utc_dt())
+                ):
+                    raise PermissionError("OAuth grant is no longer refreshable")
+                # If another concurrent request just refreshed this grant while we waited for the lock:
+                if _aware(grant.access_expires_at) > utc_dt():
+                    return tuple(grant.scopes or []), grant.assurance_level
+                refresh_token = self.cipher.decrypt(grant.encrypted_refresh_token)
+                client_id = grant.client_id
+                auth_subject = grant.auth_subject
+                secret = self._secrets[client_id]
 
-        try:
-            tokens = self._post_form(self.token_endpoint, {
-                "grant_type": "refresh_token",
-                "refresh_token": refresh_token,
-                "resource": self.audience,
-            }, client_id, secret)
-            access_token = str(tokens.get("access_token") or "")
-            claims = self.decode_token(access_token, audience=self.audience)
-            token_client = str(claims.get("client_id") or claims.get("azp") or "")
-            if claims.get("sub") != auth_subject or token_client != client_id:
-                raise PermissionError("Refreshed OAuth token identity mismatch")
-        except PermissionError:
+            try:
+                tokens = self._post_form(self.token_endpoint, {
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token,
+                    "resource": self.audience,
+                }, client_id, secret)
+                access_token = str(tokens.get("access_token") or "")
+                claims = self.decode_token(access_token, audience=self.audience)
+                token_client = str(claims.get("client_id") or claims.get("azp") or "")
+                if claims.get("sub") != auth_subject or token_client != client_id:
+                    raise PermissionError("Refreshed OAuth token identity mismatch")
+            except PermissionError:
+                with self.runtime.sessions() as session:
+                    stored = session.get(OAuthGrantRecord, grant_id)
+                    if stored and _aware(stored.access_expires_at) > utc_dt():
+                        # A concurrent request already refreshed the grant successfully
+                        return tuple(stored.scopes or []), stored.assurance_level
+                with self.runtime.sessions.begin() as session:
+                    stored = session.get(OAuthGrantRecord, grant_id)
+                    if stored and not stored.revoked_at and _aware(stored.access_expires_at) <= utc_dt():
+                        stored.revoked_at = utc_dt()
+                raise
+
+            scopes = self.scopes_from_claims(claims)
+            assurance = self.assurance_from_claims(claims)
+            now = utc_dt()
             with self.runtime.sessions.begin() as session:
                 stored = session.get(OAuthGrantRecord, grant_id)
-                if stored and not stored.revoked_at:
-                    stored.revoked_at = utc_dt()
-            raise
-
-        scopes = self.scopes_from_claims(claims)
-        assurance = self.assurance_from_claims(claims)
-        now = utc_dt()
-        with self.runtime.sessions.begin() as session:
-            stored = session.get(OAuthGrantRecord, grant_id)
-            if not stored or stored.revoked_at:
-                raise PermissionError("OAuth grant is no longer active")
-            stored.encrypted_access_token = self.cipher.encrypt(access_token)
-            if tokens.get("refresh_token"):
-                stored.encrypted_refresh_token = self.cipher.encrypt(str(tokens["refresh_token"]))
-            stored.scopes = list(scopes)
-            stored.access_expires_at = now + timedelta(seconds=max(1, int(tokens.get("expires_in") or 300)))
-            stored.updated_at = now
-            auth_session = session.get(AuthSessionRecord, stored.auth_session_id)
-            if auth_session:
-                auth_session.assurance_level = assurance
-                if assurance == "L3":
-                    raw_expiry = claims.get(ASSURANCE_EXPIRES_CLAIM)
-                    auth_session.step_up_expires_at = datetime.fromisoformat(
-                        str(raw_expiry).replace("Z", "+00:00")
-                    )
-                else:
-                    auth_session.step_up_expires_at = None
-        return scopes, assurance
+                if not stored or stored.revoked_at:
+                    raise PermissionError("OAuth grant is no longer active")
+                stored.encrypted_access_token = self.cipher.encrypt(access_token)
+                if tokens.get("refresh_token"):
+                    stored.encrypted_refresh_token = self.cipher.encrypt(str(tokens["refresh_token"]))
+                stored.scopes = list(scopes)
+                expires_in = max(3600, int(tokens.get("expires_in") or 3600))
+                stored.access_expires_at = now + timedelta(seconds=expires_in)
+                stored.updated_at = now
+                auth_session = session.get(AuthSessionRecord, stored.auth_session_id)
+                if auth_session:
+                    auth_session.assurance_level = assurance
+                    if assurance == "L3":
+                        raw_expiry = claims.get(ASSURANCE_EXPIRES_CLAIM)
+                        auth_session.step_up_expires_at = datetime.fromisoformat(
+                            str(raw_expiry).replace("Z", "+00:00")
+                        )
+                    else:
+                        auth_session.step_up_expires_at = None
+            return scopes, assurance
 
     def enrich_cookie_context(self, context: AuthContext) -> AuthContext | None:
         with self.runtime.sessions() as session:
