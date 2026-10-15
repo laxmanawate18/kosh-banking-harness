@@ -217,8 +217,10 @@ class SentinelAppTests(unittest.TestCase):
         self.assertEqual(local["firebase_test_code"], "246810")
         self.assertEqual(local["firebase_test_phone"], "+919876543210")
 
-        # Verify start auth redirects to Better Auth provider with PKCE query
-        start = self.client.get("/api/auth/start", follow_redirects=False)
+        # A signed-in browser is sent straight to the app; an anonymous one is sent to the provider with a PKCE query
+        signed_in = self.client.get("/api/auth/start", follow_redirects=False)
+        self.assertEqual(signed_in.headers["location"], "/")
+        start = TestClient(dev_ui.app).get("/api/auth/start", follow_redirects=False)
         self.assertEqual(start.status_code, 302)
         self.assertIn("response_type=code", start.headers["location"])
         self.assertIn("client_id=sentinel-web", start.headers["location"])
