@@ -2453,7 +2453,9 @@ const QualityTab: React.FC = () => {
 };
 
 /* ---------------- Kill switches ---------------- */
-type Controls = { disabled_channels: string[]; disabled_tools: string[]; reason?: string; updated_by?: string; updated_at?: string; channels: string[]; tools: string[] };
+type AutoPause = { tool: string; reason: string; since: string; until: string };
+type Controls = { disabled_channels: string[]; disabled_tools: string[]; reason?: string; updated_by?: string; updated_at?: string; channels: string[]; tools: string[];
+  auto_pauses?: AutoPause[]; auto_pause_rule?: { refusals: number; within_minutes: number; pause_minutes: number } };
 const CHANNEL_HELP: Record<string, string> = {
   VISITOR: 'Mitra on the public website, for people who are not signed in.',
   CUSTOMER: 'Mitra in the signed-in app: balances, payments and service requests.',
@@ -2552,6 +2554,11 @@ const ControlsTab: React.FC = () => {
       toast({ message: 'Kill switches saved. They apply at once.' });
     } catch (e) { setSaveError(errorText(e)); setConfirming(false); } finally { setBusy(false); }
   };
+  const resumeAuto = async () => {
+    setBusy(true); setSaveError(null);
+    try { await post('/api/admin/controls/resume', {}); load(); toast({ message: 'Money tools resumed.' }); }
+    catch (e) { setSaveError(errorText(e)); } finally { setBusy(false); }
+  };
   const submit = (e: React.FormEvent) => {
     e.preventDefault(); setTouched(true);
     if (reasonShort) return;
@@ -2576,7 +2583,16 @@ const ControlsTab: React.FC = () => {
           title={[savedCh.length && `${savedCh.map(channelName).join(', ')} paused`, savedTools.length && `${plural(savedTools.length, 'tool')} blocked`].filter(Boolean).join(' · ')}>
           {lastChange}
         </Attention>
-      ) : <Attention tone="ok" title="All channels live · no tools blocked">{lastChange}</Attention>}
+      ) : !data.auto_pauses?.length && <Attention tone="ok" title="All channels live · no tools blocked">{lastChange}</Attention>}
+
+      {data.auto_pauses?.length ? (
+        <Attention tone="danger" title="Money tools paused automatically"
+          actions={<button type="button" className="k-btn outline sm" disabled={busy} onClick={resumeAuto}>Resume now</button>}>
+          {data.auto_pauses[0].reason}. {data.auto_pauses.map(p => humanizeCode(p.tool)).join(' and ')} stay off until {when(data.auto_pauses[0].until)}, then resume by themselves. Chat and enquiries are not affected.
+        </Attention>
+      ) : data.auto_pause_rule && (
+        <p className="muted">Automatic pause: if Sentinel refuses {data.auto_pause_rule.refusals} payments within {data.auto_pause_rule.within_minutes} minutes, the transfer and bill-payment tools stop for {data.auto_pause_rule.pause_minutes} minutes.</p>
+      )}
 
       <form onSubmit={submit} className="k-page-stack">
         <p className="sr-only" aria-live="polite">{said}</p>

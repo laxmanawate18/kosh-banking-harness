@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
-from backend import decision_view, harness, mitra_ops, ontology
+from backend import auto_controls, decision_view, harness, mitra_ops, ontology
 from backend.api_models import HarnessControlsRequest
 from persistence import Base, CustomerDeletionRecord, MitraTurnRecord, OntologyApprovalRecord, utc_dt
 
@@ -320,8 +320,18 @@ def make_admin_router(db, require_admin, require_csrf):
     async def admin_get_controls(context=Depends(require_admin)):
         from banking_tools import BANKING_TOOL_NAMES
         from product_service import PUBLIC_SALES_TOOL_NAMES, VISITOR_APPLICATION_TOOL_NAMES
-        return {**db.get_controls(), "channels": ["VISITOR", "CUSTOMER", "MCP", "OFFICER"],
-                "tools": sorted(BANKING_TOOL_NAMES | PUBLIC_SALES_TOOL_NAMES | VISITOR_APPLICATION_TOOL_NAMES)}
+        controls = {k: v for k, v in db.get_controls().items() if k != "auto_trips"}
+        return {**controls, "channels": ["VISITOR", "CUSTOMER", "MCP", "OFFICER"],
+                "tools": sorted(BANKING_TOOL_NAMES | PUBLIC_SALES_TOOL_NAMES | VISITOR_APPLICATION_TOOL_NAMES),
+                "auto_pauses": auto_controls.pauses(db),
+                "auto_pause_rule": {"refusals": auto_controls.TRIP_AT_REFUSALS, "within_minutes": auto_controls.WITHIN_MINUTES,
+                                    "pause_minutes": auto_controls.PAUSE_MINUTES}}
+
+    @router.post("/controls/resume")
+    async def admin_resume_money_tools(context=Depends(require_csrf)):
+        """End an automatic pause now. The admin's own switches are not touched."""
+        require_admin(context)
+        return {"resumed": await asyncio.to_thread(auto_controls.resume, db, context.user_id)}
 
     @router.put("/controls")
     async def admin_set_controls(req: HarnessControlsRequest, context=Depends(require_csrf)):
