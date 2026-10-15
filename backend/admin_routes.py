@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
-from backend import harness, mitra_ops, ontology
+from backend import decision_view, harness, mitra_ops, ontology
 from backend.api_models import HarnessControlsRequest
 from persistence import Base, CustomerDeletionRecord, MitraTurnRecord, OntologyApprovalRecord, utc_dt
 
@@ -334,6 +334,21 @@ def make_admin_router(db, require_admin, require_csrf):
             raise HTTPException(status_code=400, detail=f"Unknown channels or tools: {sorted(unknown)}")
         return db.set_controls(disabled_channels=req.disabled_channels, disabled_tools=req.disabled_tools,
                                reason=req.reason.strip(), officer_user_id=context.user_id)
+
+    @router.get("/decisions")
+    async def admin_decisions(limit: int = 30, decision: Optional[str] = None, context=Depends(require_admin)):
+        """Sentinel decisions with the checks, score and reasons. Admin only: customers and the AI never see this."""
+        if decision is not None and decision not in {"ALLOW", "CHALLENGE", "DENY"}:
+            raise HTTPException(status_code=400, detail="decision must be ALLOW, CHALLENGE or DENY")
+        state = await asyncio.to_thread(db.snapshot)
+        return {"decisions": decision_view.recent(state, limit=limit, decision=decision)}
+
+    @router.get("/decisions/{decision_id}")
+    async def admin_decision(decision_id: str, context=Depends(require_admin)):
+        found = decision_view.one(await asyncio.to_thread(db.snapshot), decision_id)
+        if not found:
+            raise HTTPException(status_code=404, detail="Decision not found")
+        return found
 
     @router.get("/audit/verify")
     async def admin_verify_audit(context=Depends(require_admin)):
