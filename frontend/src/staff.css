@@ -562,3 +562,269 @@ td:not(.num) > .st-bar-cell { flex-direction: row-reverse; justify-content: flex
 .st-keyhint { margin: 12px 4px 0; font-size: 13px; color: var(--muted); }
 .st-keyhint kbd { font: 600 12px var(--k-sans); padding: 2px 7px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2); }
 @media (hover: none) { .st-keyhint { display: none; } }
+
+/* ---------- Enhanced Process Review Dialog Tabs, Diff & Editor ---------- */
+.st-dialog-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  margin: 12px 0 18px;
+  background: var(--surface-2);
+  border-radius: var(--r-field);
+  border: 1px solid var(--line);
+  overflow-x: auto;
+}
+.st-dialog-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 600 13.5px var(--k-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 150ms ease;
+}
+.st-dialog-tab:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.05);
+}
+.st-dialog-tab.active {
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.st-tab-count {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--line);
+  color: var(--ink-2);
+}
+.st-tab-count.changed {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+/* Diff Viewer */
+.st-diff-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-field) var(--r-field) 0 0;
+}
+.st-diff-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.st-diff-add-pill {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.12);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+.st-diff-del-pill {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.12);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+.st-diff-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+.st-diff-container {
+  max-height: 440px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 var(--r-field) var(--r-field);
+  font: 12.5px/1.65 var(--k-mono);
+  background: var(--surface-2);
+}
+.st-diff-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.st-diff-row {
+  display: flex;
+  min-width: 100%;
+}
+.st-diff-row:hover {
+  filter: brightness(0.96);
+}
+.st-diff-line-old, .st-diff-line-new {
+  width: 44px;
+  padding: 1px 8px;
+  text-align: right;
+  color: var(--muted);
+  user-select: none;
+  font-size: 11.5px;
+  border-right: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
+}
+.st-diff-sign {
+  width: 24px;
+  text-align: center;
+  font-weight: 700;
+  user-select: none;
+  flex-shrink: 0;
+}
+.st-diff-code {
+  padding: 1px 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  flex-grow: 1;
+}
+.st-diff-row.add {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--ink);
+}
+.st-diff-row.add .st-diff-sign {
+  color: #16a34a;
+}
+.st-diff-row.del {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--ink);
+  opacity: 0.85;
+}
+.st-diff-row.del .st-diff-sign {
+  color: #dc2626;
+}
+.st-diff-row.same {
+  background: transparent;
+  color: var(--ink-2);
+}
+
+/* Editor */
+.st-editor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.st-editor-textarea {
+  width: 100%;
+  min-height: 380px;
+  max-height: 520px;
+  padding: 14px 16px;
+  border-radius: var(--r-field);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: 13px/1.65 var(--k-mono);
+  resize: vertical;
+}
+.st-editor-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.st-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+/* Copilot Section */
+.st-copilot-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.st-copilot-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.st-copilot-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: 600 12.5px var(--k-sans);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.st-copilot-chip:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.st-copilot-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 14px 16px;
+  border-radius: var(--r-field);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.st-copilot-msg {
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.st-copilot-msg.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: white;
+  max-width: 80%;
+}
+.st-copilot-msg.assistant {
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  width: 100%;
+}
+.st-copilot-msg pre {
+  margin: 10px 0;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  overflow-x: auto;
+  font: 12px/1.5 var(--k-mono);
+}
+.st-copilot-input-bar {
+  display: flex;
+  gap: 10px;
+}
+.st-copilot-input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: var(--r-field);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: 14px var(--k-sans);
+}
+

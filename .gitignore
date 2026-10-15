@@ -21,3 +21,5 @@ latest_conversation.txt
 *service_account*.json
 *service-account*.json
 *credentials*.json
+config/ontology_snapshots/*.md
+!config/ontology_snapshots/.gitkeep

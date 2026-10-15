@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { useReducedMotion } from 'framer-motion';
 import { get, post, put } from '../../services/api';
 import { Badge } from '../common/Badge';
@@ -203,7 +204,41 @@ const ApprovalsTab: React.FC<{ go: (route: string) => void }> = ({ go }) => {
 type Process = { id: string; name: string; domain: string; kosh_status: string; file_status: string; channels: string[]; tools: string[];
   turns_7d: number; content_hash: string; approval: { by: string; at: string; note: string } | null; earlier_version_approved: boolean };
 type OntologyList = { production: boolean; version: string; unrouted_turns_7d: number; processes: Process[] };
-type ProcessDetail = { id: string; name: string; model_view: string; note: string; tables: string[]; services: string[]; care: string[]; activities: string[] };
+type DiffEntry = {
+  type: 'add' | 'del' | 'same';
+  old_line: number | null;
+  new_line: number | null;
+  text: string;
+};
+
+type DiffSummary = {
+  additions: number;
+  deletions: number;
+  total_changes: number;
+};
+
+type ProcessDetail = {
+  id: string;
+  name: string;
+  domain?: string;
+  status?: string;
+  kosh_status?: string;
+  channels?: string[];
+  tools?: string[];
+  services: string[];
+  care: string[];
+  tables: string[];
+  activities: string[];
+  note: string;
+  model_view: string;
+  raw_markdown?: string;
+  approved_markdown?: string | null;
+  content_hash?: string;
+  is_approved?: boolean;
+  diff?: DiffEntry[];
+  diff_summary?: DiffSummary;
+};
+
 const IN_KOSH: Record<string, ['success' | 'warning' | 'neutral', string]> = {
   implemented: ['success', 'In Kosh'], partial: ['warning', 'Partly in Kosh'], not_implemented: ['neutral', 'Not in Kosh'] };
 const approvalState = (p: Process) => (p.approval ? 'approved' : p.earlier_version_approved ? 'changed' : 'none');
@@ -252,35 +287,355 @@ const Flow: React.FC<{ steps: Step[] }> = ({ steps }) => {
   );
 };
 
+type DialogSubTab = 'overview' | 'diff' | 'editor' | 'copilot';
+
 const ProcessDialog: React.FC<{ p: Process; close: () => void; done: () => void }> = ({ p, close, done }) => {
   const toast = useToast();
+  const [subTab, setSubTab] = useState<DialogSubTab>('overview');
   const [detail, setDetail] = useState<ProcessDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { get<ProcessDetail>(`/api/admin/ontology/${encodeURIComponent(p.id)}`).then(setDetail).catch(e => setError(errorText(e, 'Could not load'))); }, [p.id]);
+
+  // Editor states
+  const [editorText, setEditorText] = useState('');
+  const [editorSaving, setEditorSaving] = useState(false);
+  const [editorApproveNote, setEditorApproveNote] = useState('');
+  const [showApprovePrompt, setShowApprovePrompt] = useState(false);
+
+  // Diff states
+  const [onlyChanges, setOnlyChanges] = useState(true);
+
+  // Copilot states
+  const [copilotInput, setCopilotInput] = useState('');
+  const [copilotBusy, setCopilotBusy] = useState(false);
+  const [copilotMessages, setCopilotMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string; risk?: string }>>([]);
+
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+
+  const loadDetail = () => {
+    get<ProcessDetail>(`/api/admin/ontology/${encodeURIComponent(p.id)}`)
+      .then(d => {
+        setDetail(d);
+        setEditorText(d.raw_markdown || '');
+        if ((d.diff_summary?.total_changes || 0) === 0) {
+          setOnlyChanges(false);
+        }
+      })
+      .catch(e => setError(errorText(e, 'Could not load process details')));
+  };
+
+  useEffect(() => { loadDetail(); }, [p.id]);
+
   const steps = detail ? flowSteps(detail.model_view) : [];
+  const diffEntries = detail?.diff || [];
+  const diffSummary = detail?.diff_summary || { additions: 0, deletions: 0, total_changes: 0 };
+  const visibleDiff = onlyChanges ? diffEntries.filter(e => e.type !== 'same') : diffEntries;
+
+  const copyModelView = async () => {
+    if (!detail?.model_view) return;
+    try {
+      await navigator.clipboard.writeText(detail.model_view);
+      setCopiedPrompt(true);
+      setTimeout(() => setCopiedPrompt(false), 2000);
+      toast({ message: 'Model view prompt copied to clipboard' });
+    } catch {}
+  };
+
+  const handleSaveEditor = async (approve: boolean) => {
+    setEditorSaving(true);
+    try {
+      const res = await put<ProcessDetail>(`/api/admin/ontology/${encodeURIComponent(p.id)}`, {
+        content: editorText,
+        approve,
+        note: approve ? (editorApproveNote.trim() || 'Reviewed and approved by admin in editor') : undefined,
+      });
+      setDetail(res);
+      setEditorText(res.raw_markdown || editorText);
+      setShowApprovePrompt(false);
+      done();
+      toast({
+        message: approve ? `${p.name} updated and approved for production` : `${p.name} draft saved successfully`,
+      });
+      if (approve) setSubTab('overview');
+    } catch (e: any) {
+      toast({ message: errorText(e, 'Could not save process changes') });
+    } finally {
+      setEditorSaving(false);
+    }
+  };
+
+  const askCopilot = async (messageText?: string, quickAction?: string) => {
+    const textToSend = (messageText || copilotInput).trim();
+    if (!textToSend && !quickAction) return;
+
+    const userLabel = quickAction
+      ? (quickAction === 'compliance_audit' ? '🛡️ Compliance Audit' : quickAction === 'risk_detection' ? '⚠️ Risk Assessment' : quickAction === 'explain_diff' ? '📝 Explain Changes' : '💡 Suggest Guardrails')
+      : textToSend;
+
+    setCopilotMessages(prev => [...prev, { role: 'user', text: userLabel }]);
+    setCopilotInput('');
+    setCopilotBusy(true);
+
+    try {
+      const res = await post<{ reply: string; risk_level?: string }>(`/api/admin/ontology/${encodeURIComponent(p.id)}/copilot`, {
+        message: textToSend,
+        quick_action: quickAction,
+      });
+      setCopilotMessages(prev => [...prev, { role: 'assistant', text: res.reply, risk: res.risk_level }]);
+    } catch (e: any) {
+      setCopilotMessages(prev => [...prev, { role: 'assistant', text: `⚠️ Copilot encountered an error: ${errorText(e, 'Could not process review request')}` }]);
+    } finally {
+      setCopilotBusy(false);
+    }
+  };
+
   return (
     <Modal isOpen wide onClose={close} title={p.name} subtitle={`${domainName(p.domain)} · ${p.id}`}>
-      <div className="st-dialog-status"><ApprovalBadge p={p} /><Tag tone={IN_KOSH[p.kosh_status]?.[0]}>{IN_KOSH[p.kosh_status]?.[1] || humanizeCode(p.kosh_status)}</Tag>
-        {p.approval && <span className="muted">by {p.approval.by} · {when(p.approval.at)}{p.approval.note ? ` · “${p.approval.note}”` : ''}</span>}</div>
+      <div className="st-dialog-status">
+        <ApprovalBadge p={p} />
+        <Tag tone={IN_KOSH[p.kosh_status]?.[0]}>{IN_KOSH[p.kosh_status]?.[1] || humanizeCode(p.kosh_status)}</Tag>
+        {p.approval && <span className="muted">Approved by {p.approval.by} · {when(p.approval.at)}{p.approval.note ? ` · “${p.approval.note}”` : ''}</span>}
+      </div>
+
       {error && <p className="form-error" role="alert">{error}</p>}
-      {!detail ? !error && <SkeletonRows rows={3} /> : <>
-        <p className="st-dialog-text"><strong>Mitra's part in Kosh: </strong>{detail.note || 'Not available in Kosh chat.'}</p>
-        <dl className="st-dl">
-          <div><dt>Activities</dt><dd><Chips items={detail.activities} format={a => humanizeCode(a.replace(/^act\./, ''))} /></dd></div>
-          <div><dt>Services</dt><dd><Chips items={detail.services} /></dd></div>
-          <div><dt>Care requests</dt><dd><Chips items={detail.care} format={humanizeCode} /></dd></div>
-          <div><dt>Channels</dt><dd><Chips items={p.channels} format={channelName} /></dd></div>
-          <div className="wide"><dt>Tools ({p.tools.length})</dt><dd><Chips items={p.tools} format={humanizeCode} /></dd></div>
-          <div className="wide"><dt>Tables (server only, never sent to the model)</dt><dd><Chips items={detail.tables} /></dd></div>
-        </dl>
-        {steps.length > 0 && <><h3 className="st-h3">How the bank runs it</h3><Flow steps={steps} /></>}
-        <h3 className="st-h3">Exactly what the model reads when this process is selected</h3>
-        <pre className="st-pre" tabIndex={0}>{detail.model_view}</pre>
-        <h3 className="st-h3">Approve this content for production</h3>
-        <NoteForm confirm="Approve this content" placeholder="e.g. Read the model view; steps and guardrails match bank policy." onCancel={close}
-          done={() => { close(); done(); toast({ message: `${p.name} approved for production` }); }}
-          run={note => post(`/api/admin/ontology/${encodeURIComponent(p.id)}/approve`, { note })} />
-      </>}
+
+      <div className="st-dialog-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={subTab === 'overview'} className={`st-dialog-tab ${subTab === 'overview' ? 'active' : ''}`} onClick={() => setSubTab('overview')}>
+          <Icon name="overview" /> Overview & Flow
+        </button>
+        <button type="button" role="tab" aria-selected={subTab === 'diff'} className={`st-dialog-tab ${subTab === 'diff' ? 'active' : ''}`} onClick={() => setSubTab('diff')}>
+          <Icon name="search" /> Changes & Diff
+          {diffSummary.total_changes > 0 && <span className="st-tab-count changed">{diffSummary.total_changes}</span>}
+        </button>
+        <button type="button" role="tab" aria-selected={subTab === 'editor'} className={`st-dialog-tab ${subTab === 'editor' ? 'active' : ''}`} onClick={() => setSubTab('editor')}>
+          <Icon name="settings" /> Edit Process
+        </button>
+        <button type="button" role="tab" aria-selected={subTab === 'copilot'} className={`st-dialog-tab ${subTab === 'copilot' ? 'active' : ''}`} onClick={() => setSubTab('copilot')}>
+          <Icon name="ai-banker" /> Compliance Copilot
+        </button>
+      </div>
+
+      {!detail ? !error && <SkeletonRows rows={4} /> : (
+        <>
+          {/* TAB 1: OVERVIEW & FLOW */}
+          {subTab === 'overview' && (
+            <div>
+              <p className="st-dialog-text"><strong>Mitra's part in Kosh: </strong>{detail.note || 'Not available in Kosh chat.'}</p>
+              <dl className="st-dl">
+                <div><dt>Activities</dt><dd><Chips items={detail.activities} format={a => humanizeCode(a.replace(/^act\./, ''))} /></dd></div>
+                <div><dt>Services</dt><dd><Chips items={detail.services} /></dd></div>
+                <div><dt>Care requests</dt><dd><Chips items={detail.care} format={humanizeCode} /></dd></div>
+                <div><dt>Channels</dt><dd><Chips items={p.channels} format={channelName} /></dd></div>
+                <div className="wide"><dt>Tools ({p.tools.length})</dt><dd><Chips items={p.tools} format={humanizeCode} /></dd></div>
+                <div className="wide"><dt>Tables (server only, never sent to the model)</dt><dd><Chips items={detail.tables} /></dd></div>
+              </dl>
+
+              {steps.length > 0 && (
+                <>
+                  <h3 className="st-h3">How the bank runs it</h3>
+                  <Flow steps={steps} />
+                </>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '20px' }}>
+                <h3 className="st-h3" style={{ margin: 0 }}>Exactly what the model reads when this process is selected</h3>
+                <button type="button" className="k-btn outline sm" onClick={copyModelView}>
+                  <Icon name={copiedPrompt ? 'check' : 'copy'} /> {copiedPrompt ? 'Copied' : 'Copy Prompt'}
+                </button>
+              </div>
+              <pre className="st-pre" tabIndex={0} style={{ marginTop: '8px' }}>{detail.model_view}</pre>
+
+              <h3 className="st-h3">Approve this content for production</h3>
+              <NoteForm confirm="Approve this content" placeholder="e.g. Read the model view; steps and guardrails match bank policy." onCancel={close}
+                done={() => { close(); done(); toast({ message: `${p.name} approved for production` }); }}
+                run={note => post(`/api/admin/ontology/${encodeURIComponent(p.id)}/approve`, { note })} />
+            </div>
+          )}
+
+          {/* TAB 2: VISUAL DIFF VIEWER */}
+          {subTab === 'diff' && (
+            <div>
+              <div className="st-diff-header">
+                <div className="st-diff-stats">
+                  <span>Line Changes:</span>
+                  <span className="st-diff-add-pill">+{diffSummary.additions} added</span>
+                  <span className="st-diff-del-pill">-{diffSummary.deletions} removed</span>
+                </div>
+                <label className="st-diff-filter-label">
+                  <input type="checkbox" checked={onlyChanges} onChange={e => setOnlyChanges(e.target.checked)} />
+                  <span>Show modified lines only</span>
+                </label>
+              </div>
+
+              {diffSummary.total_changes === 0 && !onlyChanges ? (
+                <div className="st-diff-container" style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)' }}>
+                  ✅ Current draft matches the approved production baseline. There are no unapproved changes.
+                </div>
+              ) : visibleDiff.length === 0 ? (
+                <div className="st-diff-container" style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)' }}>
+                  No modified lines to display. Uncheck "Show modified lines only" to view all lines.
+                </div>
+              ) : (
+                <div className="st-diff-container" tabIndex={0}>
+                  <table className="st-diff-table">
+                    <tbody>
+                      {visibleDiff.map((row, idx) => (
+                        <tr key={idx} className={`st-diff-row ${row.type}`}>
+                          <td className="st-diff-line-old">{row.old_line || ''}</td>
+                          <td className="st-diff-line-new">{row.new_line || ''}</td>
+                          <td className="st-diff-sign">{row.type === 'add' ? '+' : row.type === 'del' ? '-' : ' '}</td>
+                          <td className="st-diff-code">{row.text}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+                <button type="button" className="k-btn outline sm" onClick={() => setSubTab('editor')}>
+                  <Icon name="settings" /> Open in Editor
+                </button>
+                <button type="button" className="k-btn primary sm" onClick={() => setSubTab('overview')}>
+                  <Icon name="check" /> Proceed to Approve
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: IN-PLACE MARKDOWN EDITOR */}
+          {subTab === 'editor' && (
+            <div className="st-editor-panel">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <p style={{ margin: 0, fontSize: '13.5px', color: 'var(--muted)' }}>
+                  Edit the process definition markdown. YAML frontmatter must retain <code>id: {p.id}</code>.
+                </p>
+                <span className="st-hash" style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                  Active Hash: <code>{detail.content_hash || p.content_hash}</code>
+                </span>
+              </div>
+
+              <textarea
+                className="st-editor-textarea"
+                value={editorText}
+                onChange={e => setEditorText(e.target.value)}
+                placeholder="---&#10;id: proc...&#10;name: ...&#10;---"
+                spellCheck={false}
+              />
+
+              {showApprovePrompt ? (
+                <div style={{ background: 'var(--surface-2)', padding: '14px 16px', borderRadius: 'var(--r-field)', border: '1px solid var(--line)' }}>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13.5px', fontWeight: 600 }}>
+                    Approval Justification Note:
+                  </label>
+                  <input
+                    type="text"
+                    className="st-copilot-input"
+                    style={{ width: '100%', marginBottom: '10px' }}
+                    value={editorApproveNote}
+                    onChange={e => setEditorApproveNote(e.target.value)}
+                    placeholder="e.g. Read the updated model view; steps and guardrails match bank policy."
+                  />
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    <button type="button" className="k-btn outline sm" onClick={() => setShowApprovePrompt(false)} disabled={editorSaving}>
+                      Cancel
+                    </button>
+                    <button type="button" className="k-btn primary sm" onClick={() => handleSaveEditor(true)} disabled={editorSaving || editorApproveNote.trim().length < 3}>
+                      {editorSaving ? 'Saving...' : 'Confirm & Approve for Production'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="st-editor-actions">
+                  <button type="button" className="k-btn outline sm" onClick={() => setEditorText(detail.raw_markdown || '')} disabled={editorSaving}>
+                    Discard Changes
+                  </button>
+                  <button type="button" className="k-btn outline sm" onClick={() => handleSaveEditor(false)} disabled={editorSaving}>
+                    {editorSaving ? 'Saving...' : 'Save as Draft'}
+                  </button>
+                  <button type="button" className="k-btn primary sm" onClick={() => setShowApprovePrompt(true)} disabled={editorSaving}>
+                    Save & Approve
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: COMPLIANCE COPILOT */}
+          {subTab === 'copilot' && (
+            <div className="st-copilot-container">
+              <div className="st-copilot-chips">
+                <button type="button" className="st-copilot-chip" onClick={() => askCopilot(undefined, 'compliance_audit')} disabled={copilotBusy}>
+                  🛡️ Audit RBI & DPDP Compliance
+                </button>
+                <button type="button" className="st-copilot-chip" onClick={() => askCopilot(undefined, 'risk_detection')} disabled={copilotBusy}>
+                  ⚠️ Detect Security & Autonomy Risks
+                </button>
+                <button type="button" className="st-copilot-chip" onClick={() => askCopilot(undefined, 'explain_diff')} disabled={copilotBusy}>
+                  📝 Explain Diff in Plain English
+                </button>
+                <button type="button" className="st-copilot-chip" onClick={() => askCopilot(undefined, 'suggest_guardrails')} disabled={copilotBusy}>
+                  💡 Suggest Safer Guardrails
+                </button>
+              </div>
+
+              <div className="st-copilot-chat" tabIndex={0}>
+                {copilotMessages.length === 0 ? (
+                  <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted)' }}>
+                    <p style={{ margin: 0, fontSize: '14.5px', fontWeight: 600, color: 'var(--ink)' }}>AI Compliance Review Copilot</p>
+                    <p style={{ margin: '6px 0 0', fontSize: '13px' }}>
+                      Click one of the audit chips above or ask a specific question to evaluate regulatory adherence, autonomy ceilings, and security guardrails for <strong>{p.name}</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  copilotMessages.map((msg, i) => (
+                    <div key={i} className={`st-copilot-msg ${msg.role}`}>
+                      {msg.role === 'user' ? (
+                        <div><strong>Admin:</strong> {msg.text}</div>
+                      ) : (
+                        <div>
+                          {msg.risk && (
+                            <div style={{ marginBottom: '8px' }}>
+                              <Tag tone={msg.risk === 'LOW' ? 'success' : msg.risk === 'HIGH' ? 'danger' : 'warning'}>
+                                {msg.risk} RISK
+                              </Tag>
+                            </div>
+                          )}
+                          <ReactMarkdown>{msg.text}</ReactMarkdown>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+                {copilotBusy && (
+                  <div className="st-copilot-msg assistant" style={{ fontStyle: 'italic', color: 'var(--muted)' }}>
+                    Copilot is reviewing banking regulations and analyzing process guidelines...
+                  </div>
+                )}
+              </div>
+
+              <form
+                className="st-copilot-input-bar"
+                onSubmit={e => {
+                  e.preventDefault();
+                  askCopilot();
+                }}
+              >
+                <input
+                  type="text"
+                  className="st-copilot-input"
+                  value={copilotInput}
+                  onChange={e => setCopilotInput(e.target.value)}
+                  placeholder="Ask Copilot anything about this process (e.g. Does Step 5 enforce four-eyes?)..."
+                  disabled={copilotBusy}
+                />
+                <button type="submit" className="k-btn primary sm" disabled={copilotBusy || !copilotInput.trim()}>
+                  Ask Copilot
+                </button>
+              </form>
+            </div>
+          )}
+        </>
+      )}
     </Modal>
   );
 };

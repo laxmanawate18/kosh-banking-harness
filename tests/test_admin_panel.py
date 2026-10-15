@@ -79,6 +79,67 @@ class AdminPanelTests(unittest.TestCase):
         self.assertEqual(data["rule_matched"], "trigger")
         self.assertIn("freeze_card", data["allowed_tools"])
 
+    def test_process_detail_includes_diff_and_markdown(self):
+        pid = "proc.payment_authorisation"
+        res = self.admin.get(f"/api/admin/ontology/{pid}")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("raw_markdown", data)
+        self.assertIn("diff", data)
+        self.assertIn("diff_summary", data)
+        self.assertIsInstance(data["diff"], list)
+        self.assertIn("additions", data["diff_summary"])
+        self.assertIn("deletions", data["diff_summary"])
+
+    def test_admin_update_process_saves_and_validates(self):
+        pid = "proc.payment_authorisation"
+        orig_res = self.admin.get(f"/api/admin/ontology/{pid}")
+        orig_content = orig_res.json()["raw_markdown"]
+
+        # Tampering with ID should be rejected
+        tampered = orig_content.replace("id: proc.payment_authorisation", "id: proc.tampered")
+        bad_res = self.admin.put(f"/api/admin/ontology/{pid}", headers=self.ah, json={"content": tampered})
+        self.assertEqual(bad_res.status_code, 400)
+
+        # Valid edit should succeed
+        edited = orig_content + "\n<!-- admin test note -->\n"
+        try:
+            put_res = self.admin.put(f"/api/admin/ontology/{pid}", headers=self.ah, json={"content": edited})
+            self.assertEqual(put_res.status_code, 200)
+            data = put_res.json()
+            self.assertIn("<!-- admin test note -->", data["raw_markdown"])
+            self.assertGreater(data["diff_summary"]["additions"], 0)
+        finally:
+            # Revert to original content
+            revert_res = self.admin.put(f"/api/admin/ontology/{pid}", headers=self.ah, json={"content": orig_content})
+            self.assertEqual(revert_res.status_code, 200)
+
+    def test_admin_ontology_copilot_endpoints(self):
+        pid = "proc.payment_authorisation"
+        # Compliance check
+        res = self.admin.post(
+            f"/api/admin/ontology/{pid}/copilot",
+            headers=self.ah,
+            json={"quick_action": "compliance", "message": ""},
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("reply", data)
+        self.assertIn("risk_level", data)
+        self.assertEqual(data["process_id"], pid)
+        self.assertTrue(len(data["reply"]) > 50)
+
+        # Autonomy check
+        res2 = self.admin.post(
+            f"/api/admin/ontology/{pid}/copilot",
+            headers=self.ah,
+            json={"quick_action": "autonomy", "message": ""},
+        )
+        self.assertEqual(res2.status_code, 200)
+        data2 = res2.json()
+        self.assertIn("reply", data2)
+        self.assertIn("risk_level", data2)
+
     def test_cost_needs_reviewed_rates_and_latency_comes_from_turns(self):
         mitra_ops.record_turn(dev_ui.db, session_id="S-COST", channel="CUSTOMER", language="en", outcome="ANSWERED", latency_ms=2500,
                               model="gemini-3.8-flash", tokens=[1_000_000, 500_000], process_id="proc.payment_authorisation")

@@ -21,9 +21,11 @@ Always on: every turn is routed and recorded. There is no switch to turn it off.
 from __future__ import annotations
 
 import asyncio
+import difflib
 import hashlib
 import logging
 import re
+import subprocess
 import time
 from dataclasses import dataclass
 from functools import lru_cache
@@ -156,6 +158,126 @@ def approved(process_id: str) -> bool:
     return (process_id, content_hash(process_id)) in _approvals["set"]
 
 
+SNAPSHOTS_DIR = ROOT.parent / "ontology_snapshots"
+
+
+def save_approved_snapshot(process_id: str) -> None:
+    """Save an exact snapshot of the approved process file for diff comparison."""
+    try:
+        SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+        src = _path(process_id)
+        if src.exists():
+            dest = SNAPSHOTS_DIR / f"{process_id}.md"
+            dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    except Exception as exc:
+        logger.warning("Could not save approved snapshot for %s: %r", process_id, exc)
+
+
+def get_approved_snapshot(process_id: str) -> Optional[str]:
+    """Retrieve the snapshot from the last approval, falling back to git HEAD."""
+    dest = SNAPSHOTS_DIR / f"{process_id}.md"
+    if dest.exists():
+        try:
+            return dest.read_text(encoding="utf-8")
+        except Exception:
+            pass
+    try:
+        file_path = _path(process_id)
+        repo_root = ROOT.parent.parent
+        rel_path = file_path.relative_to(repo_root).as_posix()
+        res = subprocess.run(
+            ["git", "show", f"HEAD:{rel_path}"],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            timeout=5,
+        )
+        if res.returncode == 0 and res.stdout:
+            return res.stdout
+    except Exception:
+        pass
+    return None
+
+
+def compute_line_diff(old_text: Optional[str], new_text: str) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
+    """Compute structured line-by-line diff with line numbers and change counts."""
+    if not old_text:
+        new_lines = new_text.splitlines()
+        entries = [{"type": "same", "old_line": None, "new_line": idx + 1, "text": line} for idx, line in enumerate(new_lines)]
+        return entries, {"additions": 0, "deletions": 0, "total_changes": 0}
+
+    old_lines = old_text.splitlines()
+    new_lines = new_text.splitlines()
+    matcher = difflib.SequenceMatcher(None, old_lines, new_lines)
+    entries: List[Dict[str, Any]] = []
+    adds = 0
+    dels = 0
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            for i in range(i2 - i1):
+                entries.append({
+                    "type": "same",
+                    "old_line": i1 + i + 1,
+                    "new_line": j1 + i + 1,
+                    "text": old_lines[i1 + i],
+                })
+        elif tag == "replace":
+            for i in range(i2 - i1):
+                dels += 1
+                entries.append({
+                    "type": "del",
+                    "old_line": i1 + i + 1,
+                    "new_line": None,
+                    "text": old_lines[i1 + i],
+                })
+            for j in range(j2 - j1):
+                adds += 1
+                entries.append({
+                    "type": "add",
+                    "old_line": None,
+                    "new_line": j1 + j + 1,
+                    "text": new_lines[j1 + j],
+                })
+        elif tag == "delete":
+            for i in range(i2 - i1):
+                dels += 1
+                entries.append({
+                    "type": "del",
+                    "old_line": i1 + i + 1,
+                    "new_line": None,
+                    "text": old_lines[i1 + i],
+                })
+        elif tag == "insert":
+            for j in range(j2 - j1):
+                adds += 1
+                entries.append({
+                    "type": "add",
+                    "old_line": None,
+                    "new_line": j1 + j + 1,
+                    "text": new_lines[j1 + j],
+                })
+    return entries, {"additions": adds, "deletions": dels, "total_changes": adds + dels}
+
+
+def save_process_content(process_id: str, new_content: str) -> None:
+    """Validate and write edited process markdown, clearing ontology caches."""
+    if process_id not in load():
+        raise ValueError(f"Process {process_id} not found in ontology catalogue")
+    meta, _ = front_matter(new_content)
+    if not meta or str(meta.get("id")) != process_id:
+        raise ValueError(f"Process content must include valid frontmatter with 'id: {process_id}'")
+    status = meta.get("kosh_status")
+    if status not in {"implemented", "partial", "not_implemented"}:
+        raise ValueError(f"Invalid kosh_status: '{status}'. Must be implemented, partial, or not_implemented")
+    path = _path(process_id)
+    path.write_text(new_content, encoding="utf-8")
+    load.cache_clear()
+    version.cache_clear()
+    view.cache_clear()
+    content_hash.cache_clear()
+    _approvals["at"] = float("-inf")
+
+
 def record_approval(db, process_id: str, admin_user_id: str, note: str) -> Dict[str, str]:
     import uuid
     from persistence import OntologyApprovalRecord
@@ -165,6 +287,7 @@ def record_approval(db, process_id: str, admin_user_id: str, note: str) -> Dict[
                                      approved_by=admin_user_id, note=note))
     db.append_audit("ONTOLOGY_PROCESS_APPROVED", actor="admin", approver_id=admin_user_id,
                     summary=f"Admin approved {process_id} for use by Mitra", details={"process": process_id, "content_hash": digest})
+    save_approved_snapshot(process_id)
     _approvals["at"] = float("-inf")  # this instance sees it at once
     return {"process_id": process_id, "content_hash": digest}
 

@@ -8,6 +8,7 @@ deletions that an officer requested. Every route needs the ADMIN role; every cha
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import urllib.request
 from collections import Counter
@@ -20,6 +21,8 @@ from sqlalchemy import select
 from backend import harness, mitra_ops, ontology
 from backend.api_models import HarnessControlsRequest
 from persistence import Base, CustomerDeletionRecord, MitraTurnRecord, OntologyApprovalRecord, utc_dt
+
+logger = logging.getLogger(__name__)
 
 
 def _now() -> str:
@@ -178,11 +181,109 @@ def make_admin_router(db, require_admin, require_csrf):
 
     @router.get("/ontology/{process_id}")
     async def admin_ontology_process(process_id: str, context=Depends(require_admin)):
+        del context
         if process_id not in ontology.load():
             raise HTTPException(status_code=404, detail="Process not found")
         p = ontology.load()[process_id]
-        return {"id": p.id, "name": p.name, "model_view": ontology.view(p.id), "note": p.note, "tables": list(p.tables),
-                "services": sorted(p.services), "care": list(p.care), "activities": list(p.activities)}
+        raw_markdown = ontology._path(p.id).read_text(encoding="utf-8")
+        approved_markdown = ontology.get_approved_snapshot(p.id)
+        diff_entries, diff_summary = ontology.compute_line_diff(approved_markdown, raw_markdown)
+        return {
+            "id": p.id,
+            "name": p.name,
+            "domain": p.domain,
+            "status": p.status,
+            "kosh_status": p.kosh_status,
+            "channels": list(p.channels),
+            "tools": list(p.tools),
+            "skills": list(p.skills),
+            "services": sorted(p.services),
+            "care": list(p.care),
+            "tables": list(p.tables),
+            "activities": list(p.activities),
+            "note": p.note,
+            "model_view": ontology.view(p.id),
+            "raw_markdown": raw_markdown,
+            "approved_markdown": approved_markdown,
+            "content_hash": ontology.content_hash(p.id),
+            "is_approved": ontology.approved(p.id),
+            "diff": diff_entries,
+            "diff_summary": diff_summary,
+        }
+
+    @router.put("/ontology/{process_id}")
+    async def admin_update_process(process_id: str, req: dict, context=Depends(require_csrf)):
+        require_admin(context)
+        if process_id not in ontology.load():
+            raise HTTPException(status_code=404, detail="Process not found")
+        content = req.get("content")
+        if not content or not isinstance(content, str):
+            raise HTTPException(status_code=400, detail="Process markdown content is required")
+        try:
+            ontology.save_process_content(process_id, content)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        should_approve = bool(req.get("approve", False))
+        approval_result = None
+        if should_approve:
+            note = _note(req, minimum=3)
+            approval_result = ontology.record_approval(db, process_id, context.user_id, note)
+
+        db.append_audit(
+            "ONTOLOGY_PROCESS_MODIFIED",
+            actor="admin",
+            approver_id=context.user_id,
+            details={"process_id": process_id, "approved": should_approve},
+        )
+        p = ontology.load()[process_id]
+        raw_markdown = ontology._path(p.id).read_text(encoding="utf-8")
+        approved_markdown = ontology.get_approved_snapshot(p.id)
+        diff_entries, diff_summary = ontology.compute_line_diff(approved_markdown, raw_markdown)
+        return {
+            "id": p.id,
+            "name": p.name,
+            "domain": p.domain,
+            "kosh_status": p.kosh_status,
+            "channels": list(p.channels),
+            "tools": list(p.tools),
+            "services": sorted(p.services),
+            "care": list(p.care),
+            "tables": list(p.tables),
+            "activities": list(p.activities),
+            "note": p.note,
+            "model_view": ontology.view(p.id),
+            "raw_markdown": raw_markdown,
+            "approved_markdown": approved_markdown,
+            "content_hash": ontology.content_hash(p.id),
+            "is_approved": ontology.approved(p.id),
+            "approval_result": approval_result,
+            "diff": diff_entries,
+            "diff_summary": diff_summary,
+        }
+
+    @router.post("/ontology/{process_id}/copilot")
+    async def admin_ontology_copilot(process_id: str, req: dict, context=Depends(require_csrf)):
+        require_admin(context)
+        if process_id not in ontology.load():
+            raise HTTPException(status_code=404, detail="Process not found")
+        message = str(req.get("message", "")).strip()
+        quick_action = req.get("quick_action")
+        if not message and not quick_action:
+            raise HTTPException(status_code=400, detail="A message or quick_action is required")
+        from backend.ontology_copilot import ask_ontology_copilot
+        try:
+            return await ask_ontology_copilot(
+                db,
+                context.user_id,
+                process_id,
+                message=message,
+                quick_action=quick_action,
+                history=req.get("history") or [],
+            )
+        except Exception as exc:
+            logger.exception("Ontology copilot error: %r", exc)
+            raise HTTPException(status_code=500, detail=str(exc))
 
     @router.post("/ontology/{process_id}/approve")
     async def admin_approve_process(process_id: str, req: dict, context=Depends(require_csrf)):
