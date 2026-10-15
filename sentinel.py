@@ -177,6 +177,21 @@ def customer_reason_text(reason: str) -> Optional[str]:
     }.get(reason)
 
 
+def waiting_period_reason(state: Dict[str, Any], customer_id: Optional[str], beneficiary: Dict[str, Any]) -> Optional[str]:
+    """Why a new standing instruction must wait, in the customer's words, or None when it may go ahead. A recurring payment to
+    a payee added minutes ago, or set up right after the mobile or email changed, is the shape of an account takeover."""
+    now = datetime.now(timezone.utc)
+    added = _when((beneficiary or {}).get("created_at"))
+    hours = float(harness.parameter("PARAM_NEW_PAYEE_COOLING_HOURS", 24))
+    if added and now - added < timedelta(hours=hours):
+        return f"This payee was added in the last {int(hours)} hours. A regular payment to a new payee can be set up after that."
+    changed = _when(_customer_in(state, customer_id).get("contact_changed_at"))
+    window = float(harness.parameter("PARAM_CONTACT_CHANGE_COOLING_HOURS", 24))
+    if changed and now - changed < timedelta(hours=window):
+        return f"Your mobile number or email changed in the last {int(window)} hours. For your safety, new regular payments can be set up after that."
+    return None
+
+
 class IntentResolver:
     """Small deterministic resolver for the explicitly supported demo grammar."""
 

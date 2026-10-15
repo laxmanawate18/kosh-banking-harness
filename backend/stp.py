@@ -131,6 +131,10 @@ def _standing_instruction(state, customer_id, customer, f, request_id):
         return None, "Debit account is not active or not owned by the customer"
     if not payee or payee.get("customer_id") != customer_id or payee.get("risk_status") != "NORMAL":
         return None, "Payee is not an active, unflagged payee of this customer"
+    from sentinel import waiting_period_reason
+    wait = waiting_period_reason(state, customer_id, payee)
+    if wait:
+        return None, wait
     amount = int(f["amount_minor"])
     if not 0 < amount <= SI_AUTO_LIMIT_MINOR:
         return None, "Instruction amount is above the straight-through limit"

@@ -10,7 +10,7 @@ from typing import Any
 
 from sqlalchemy import select
 
-from banking_db import BankingDatabase
+from banking_db import BankingDatabase, utc_now
 from persistence import ApprovalActionRecord, BankingWorkflowRecord, ServiceRequestRecord, UserRecord, utc_dt
 
 
@@ -204,11 +204,17 @@ class ServiceRequestService:
                     email = row.collected_data.get("email")
                     mobile = row.collected_data.get("mobile")
                     for cust in customer_targets:
+                        changed = False
                         if email:
+                            changed = changed or email != cust.get("email")
                             cust["email"] = email
                         if mobile:
+                            changed = changed or mobile != cust.get("phone_number")
                             cust["phone_number"] = mobile
                             cust["phone_masked"] = f"+91 ••••• {mobile[-5:]}" if len(mobile) >= 5 else mobile
+                        if changed:
+                            # Sentinel caps transfers, and new standing instructions wait, for a day after a real change.
+                            cust["contact_changed_at"] = utc_now()
                     state_changed = True
 
                 elif row.service_id == "P1-12":  # Address update
