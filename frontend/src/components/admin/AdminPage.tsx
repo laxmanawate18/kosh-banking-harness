@@ -703,7 +703,11 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeNode, setActiveNode] = useState<OntologyNode | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<OntologyNode | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'graph' | 'swimlane' | 'matrix'>('graph');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [zoomScale, setZoomScale] = useState<number>(1);
 
   const loadGraph = () => {
     setLoading(true);
@@ -718,6 +722,7 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
   useEffect(() => {
     loadGraph();
     setActiveNode(null);
+    setHoveredNode(null);
   }, [selectedProcess]);
 
   const p = processes.find(x => x.id === selectedProcess);
@@ -728,11 +733,12 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
     return nodes.filter(n => n.label.toLowerCase().includes(q) || n.id.toLowerCase().includes(q) || n.type.toLowerCase().includes(q));
   };
 
-  const allTriggers = graphData?.nodes.filter(n => n.type === 'event' || n.type === 'care') || [];
-  const allActivities = graphData?.nodes.filter(n => n.type === 'activity' || n.type === 'step') || [];
-  const allTools = graphData?.nodes.filter(n => n.type === 'tool') || [];
-  const allTables = graphData?.nodes.filter(n => n.type === 'table') || [];
-  const allPolicies = graphData?.nodes.filter(n => n.type === 'policy') || [];
+  const allTriggers = useMemo(() => graphData?.nodes.filter(n => n.type === 'event' || n.type === 'care') || [], [graphData]);
+  const allProcessHub = useMemo(() => graphData?.nodes.filter(n => n.type === 'process') || [], [graphData]);
+  const allActivities = useMemo(() => graphData?.nodes.filter(n => n.type === 'activity' || n.type === 'step') || [], [graphData]);
+  const allTools = useMemo(() => graphData?.nodes.filter(n => n.type === 'tool') || [], [graphData]);
+  const allTables = useMemo(() => graphData?.nodes.filter(n => n.type === 'table') || [], [graphData]);
+  const allPolicies = useMemo(() => graphData?.nodes.filter(n => n.type === 'policy') || [], [graphData]);
 
   const triggers = filterNodes(allTriggers);
   const activities = filterNodes(allActivities);
@@ -745,62 +751,172 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
     return graphData.edges.filter(e => e.source === activeNode.id || e.target === activeNode.id);
   }, [activeNode, graphData]);
 
+  // Color mapping helper
+  const getNodeColor = (type: string) => {
+    switch (type) {
+      case 'event':
+      case 'care': return '#3b82f6'; // Blue
+      case 'process': return '#10b981'; // Emerald
+      case 'activity':
+      case 'step': return '#8b5cf6'; // Violet
+      case 'tool': return '#f59e0b'; // Amber
+      case 'table': return '#06b6d4'; // Cyan
+      case 'policy': return '#ef4444'; // Rose
+      default: return '#6b7280';
+    }
+  };
+
+  // Structured Layout Coordinate Map for SVG Graph
+  const layout = useMemo(() => {
+    if (!graphData) return { nodesWithCoords: [], edgesWithCoords: [], width: 1200, height: 600 };
+
+    const col0 = allTriggers.length > 0 ? allTriggers : [{ id: 'direct.intent', label: 'Customer Chat Intent', type: 'event' }];
+    const col1 = allProcessHub.length > 0 ? allProcessHub : (p ? [{ id: p.id, label: p.name, type: 'process' }] : []);
+    const col2 = allActivities;
+    const col3 = [...allTools, ...allTables];
+    const col4 = allPolicies;
+
+    const colPositions = [50, 290, 530, 770, 1010];
+    const nodeWidth = 195;
+    const nodeHeight = 52;
+    const gapY = 18;
+    const startY = 40;
+
+    const maxColLen = Math.max(col0.length, col1.length, col2.length, col3.length, col4.length, 3);
+    const canvasHeight = Math.max(maxColLen * (nodeHeight + gapY) + 80, 520);
+    const canvasWidth = 1260;
+
+    const coordsMap = new Map<string, { x: number; y: number; node: OntologyNode }>();
+
+    const placeCol = (items: OntologyNode[], colIdx: number) => {
+      const x = colPositions[colIdx];
+      const totalH = items.length * (nodeHeight + gapY) - gapY;
+      const initialY = Math.max(startY, (canvasHeight - totalH) / 2);
+      items.forEach((it, idx) => {
+        const y = initialY + idx * (nodeHeight + gapY);
+        coordsMap.set(it.id, { x, y, node: it });
+      });
+    };
+
+    placeCol(col0, 0);
+    placeCol(col1, 1);
+    placeCol(col2, 2);
+    placeCol(col3, 3);
+    placeCol(col4, 4);
+
+    const nodesWithCoords = Array.from(coordsMap.values());
+
+    const edgesWithCoords = graphData.edges.map(e => {
+      const s = coordsMap.get(e.source);
+      const t = coordsMap.get(e.target);
+      if (!s || !t) return null;
+
+      const sx = s.x < t.x ? s.x + nodeWidth : s.x;
+      const sy = s.y + nodeHeight / 2;
+      const tx = s.x < t.x ? t.x : t.x + nodeWidth;
+      const ty = t.y + nodeHeight / 2;
+
+      const dx = Math.abs(tx - sx) * 0.45;
+      const path = `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${ty}, ${tx} ${ty}`;
+
+      return {
+        ...e,
+        sx, sy, tx, ty, path
+      };
+    }).filter(Boolean);
+
+    return { nodesWithCoords, edgesWithCoords, width: canvasWidth, height: canvasHeight };
+  }, [graphData, allTriggers, allProcessHub, allActivities, allTools, allTables, allPolicies, p]);
+
   return (
     <div className="ont-mapping-view">
       {/* Educational Guide Banner */}
       <div className="ont-info-banner">
         <div className="ont-info-header">
-          <div className="ont-info-icon"><Icon name="book" /></div>
+          <div className="ont-info-icon"><Icon name="sparkles" /></div>
           <div className="ont-info-text">
-            <strong>How Mitra uses banking processes:</strong>
+            <strong>Interactive Banking Knowledge Map & Ontology Topology:</strong>
             <p>
-              This map shows the rules Mitra follows. Mitra reads it to know which banking process applies to a customer's question, which tools it may call, which data it may read, and which RBI and bank policies apply.
+              Visual overview of how customer questions map to Mitra's banking processes, authorized CBS tools, underlying data tables, and governing RBI compliance policies. Click any node to inspect connected relationships.
             </p>
           </div>
         </div>
         <div className="ont-legend-chips">
-          <span className="ont-legend-chip trigger"><span className="ont-legend-dot" /> 1. What the customer asks</span>
-          <span className="ont-legend-chip core"><span className="ont-legend-dot" /> 2. The process</span>
-          <span className="ont-legend-chip activity"><span className="ont-legend-dot" /> 3. Steps</span>
-          <span className="ont-legend-chip tool"><span className="ont-legend-dot" /> 4. Tools and data</span>
-          <span className="ont-legend-chip guardrail"><span className="ont-legend-dot" /> 5. Policies</span>
+          <span className="ont-legend-chip trigger" style={{ borderColor: '#3b82f6' }}><span className="ont-legend-dot" style={{ background: '#3b82f6' }} /> 1. Customer Trigger</span>
+          <span className="ont-legend-chip core" style={{ borderColor: '#10b981' }}><span className="ont-legend-dot" style={{ background: '#10b981' }} /> 2. Process Core</span>
+          <span className="ont-legend-chip activity" style={{ borderColor: '#8b5cf6' }}><span className="ont-legend-dot" style={{ background: '#8b5cf6' }} /> 3. Lifecycle Steps</span>
+          <span className="ont-legend-chip tool" style={{ borderColor: '#f59e0b' }}><span className="ont-legend-dot" style={{ background: '#f59e0b' }} /> 4. Authorized Tools</span>
+          <span className="ont-legend-chip tool" style={{ borderColor: '#06b6d4' }}><span className="ont-legend-dot" style={{ background: '#06b6d4' }} /> 5. Data Tables</span>
+          <span className="ont-legend-chip guardrail" style={{ borderColor: '#ef4444' }}><span className="ont-legend-dot" style={{ background: '#ef4444' }} /> 6. RBI Policies</span>
         </div>
       </div>
 
+      {/* Control Bar: Focus Process, Search, View Mode Tabs */}
       <div className="ont-selector-bar">
-        <label htmlFor="ont-process-picker"><strong>Focus Business Process:</strong></label>
-        <select id="ont-process-picker" value={selectedProcess} onChange={e => setSelectedProcess(e.target.value)}>
-          {processes.map(pr => (
-            <option key={pr.id} value={pr.id}>{pr.name} ({pr.id})</option>
-          ))}
-        </select>
-        {p && <Tag tone={IN_KOSH[p.kosh_status]?.[0]}>{IN_KOSH[p.kosh_status]?.[1] || humanizeCode(p.kosh_status)}</Tag>}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <label htmlFor="ont-process-picker"><strong>Focus Business Process:</strong></label>
+          <select id="ont-process-picker" value={selectedProcess} onChange={e => setSelectedProcess(e.target.value)}>
+            {processes.map(pr => (
+              <option key={pr.id} value={pr.id}>{pr.name} ({pr.id})</option>
+            ))}
+          </select>
+          {p && <Tag tone={IN_KOSH[p.kosh_status]?.[0]}>{IN_KOSH[p.kosh_status]?.[1] || humanizeCode(p.kosh_status)}</Tag>}
+        </div>
+
+        {/* View Mode Switcher */}
+        <div className="ont-mode-tabs" role="tablist" aria-label="Visualizer Mode">
+          <button
+            type="button"
+            className={`ont-mode-btn ${viewMode === 'graph' ? 'active' : ''}`}
+            onClick={() => setViewMode('graph')}
+            title="Graphical knowledge map view"
+          >
+            <Icon name="sparkles" /> Knowledge Graph
+          </button>
+          <button
+            type="button"
+            className={`ont-mode-btn ${viewMode === 'swimlane' ? 'active' : ''}`}
+            onClick={() => setViewMode('swimlane')}
+            title="Structured column swimlane view"
+          >
+            <Icon name="transactions" /> Swimlane Flow
+          </button>
+          <button
+            type="button"
+            className={`ont-mode-btn ${viewMode === 'matrix' ? 'active' : ''}`}
+            onClick={() => setViewMode('matrix')}
+            title="Semantic relationships matrix"
+          >
+            <Icon name="file" /> Relationship Matrix
+          </button>
+        </div>
+
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
           <input
             type="search"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search nodes in graph…"
+            placeholder="Search nodes & tools…"
             className="form-input"
-            style={{ minWidth: '220px', padding: '6px 12px', fontSize: '13px' }}
+            style={{ minWidth: '200px', padding: '6px 12px', fontSize: '13px' }}
           />
           <button type="button" className="k-btn outline sm" onClick={loadGraph} title="Reload graph">
-            <Icon name="timer" /> Refresh
+            <Icon name="refresh" /> Refresh
           </button>
         </div>
       </div>
 
       {graphData && (
         <div className="st-kpis">
-          <Kpi label="Steps and rules" value={graphData.stats.total_nodes} caption="In this process" />
-          <Kpi label="Links between them" value={graphData.stats.total_edges} caption="How steps and rules connect" />
-          <Kpi label="Tools Mitra can use" value={allTools.length} caption={`${allTools.length} authorized tools`} />
-          <Kpi label="Policies that apply" value={allPolicies.length} caption="Limits Mitra must respect" />
+          <Kpi label="Steps & nodes" value={graphData.stats.total_nodes} caption="In this process graph" />
+          <Kpi label="Graph connections" value={graphData.stats.total_edges} caption="Relationships mapped" />
+          <Kpi label="Authorized tools" value={allTools.length} caption={`${allTools.length} callable CBS actions`} />
+          <Kpi label="Governing policies" value={allPolicies.length} caption="Active safety guardrails" />
         </div>
       )}
 
       {loading ? (
-        <SkeletonRows rows={4} />
+        <SkeletonRows rows={5} />
       ) : error ? (
         <Attention
           tone="danger"
@@ -815,181 +931,384 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
           {activeNode && (
             <div className="ont-inspector-box">
               <div className="ont-inspector-head">
-                <div>
-                  <span className="ont-inspector-title">{activeNode.label}</span>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
-                    <code>{activeNode.id}</code>
-                    <Tag tone="info">{activeNode.type.toUpperCase()}</Tag>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <span
+                    style={{
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      background: getNodeColor(activeNode.type),
+                      display: 'inline-block'
+                    }}
+                  />
+                  <div>
+                    <span className="ont-inspector-title">{activeNode.label}</span>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+                      <code>{activeNode.id}</code>
+                      <Tag tone="info">{activeNode.type.toUpperCase()}</Tag>
+                      {activeNode.domain && <Tag tone="neutral">{domainName(activeNode.domain)}</Tag>}
+                    </div>
                   </div>
                 </div>
-                <button type="button" className="k-btn outline sm" onClick={() => setActiveNode(null)}>Close Inspector</button>
+                <button type="button" className="k-btn outline sm" onClick={() => setActiveNode(null)}>
+                  Close Inspector
+                </button>
               </div>
+
+              {/* Explanatory context for non-technical users */}
+              <p style={{ margin: '4px 0', fontSize: '13.5px', color: 'var(--ink-2)' }}>
+                {activeNode.type === 'process' && 'Central business process hub governing workflows, tools, and regulatory policies.'}
+                {(activeNode.type === 'event' || activeNode.type === 'care') && 'Customer inquiry trigger that invokes this process during conversational turns.'}
+                {(activeNode.type === 'activity' || activeNode.type === 'step') && 'Lifecycle activity step executed during customer journey progression.'}
+                {activeNode.type === 'tool' && 'Authorized Core Banking tool callable by Mitra subject to policy and MFA clearance.'}
+                {activeNode.type === 'table' && 'Underlying CBS database table accessed or updated by this process.'}
+                {activeNode.type === 'policy' && 'RBI or internal bank policy guardrail enforcing transaction thresholds and four-eyes review.'}
+              </p>
+
               {relatedEdges.length > 0 ? (
                 <div>
-                  <strong style={{ fontSize: '12.5px', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>
-                    Connected Graph Relationships ({relatedEdges.length}):
+                  <strong style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: '8px' }}>
+                    Connected Graph Links ({relatedEdges.length}):
                   </strong>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {relatedEdges.map((re, idx) => (
-                      <span key={idx} className="ont-edge-tag">
-                        {re.source === activeNode.id ? `➔ ${re.relation} ➔ ${re.target}` : `⬅ ${re.relation} ⬅ ${re.source}`}
-                      </span>
-                    ))}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {relatedEdges.map((re, idx) => {
+                      const isSource = re.source === activeNode.id;
+                      const neighborId = isSource ? re.target : re.source;
+                      const neighborNode = graphData?.nodes.find(n => n.id === neighborId);
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          className="ont-edge-tag"
+                          style={{ cursor: 'pointer', border: '1px solid var(--line)', background: 'var(--surface-2)' }}
+                          onClick={() => neighborNode && setActiveNode(neighborNode)}
+                          title="Click to jump to this connected node"
+                        >
+                          {isSource ? `➔ ${re.relation} ➔ ${neighborNode?.label || re.target}` : `⬅ ${re.relation} ⬅ ${neighborNode?.label || re.source}`}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
-                <small className="muted">Directly connected to root process hub.</small>
+                <small className="muted">Directly linked to root process hub.</small>
               )}
             </div>
           )}
 
-          <div className="ont-swimlanes">
-            {/* Lane 1: Triggers & Entry */}
-            <div className="ont-lane">
-              <div className="ont-lane-title">
-                <span>1. What the customer asks</span>
-                <Tag tone="neutral">{triggers.length}</Tag>
+          {/* VIEW MODE 1: Interactive Knowledge Graph */}
+          {viewMode === 'graph' && (
+            <div className="ont-graph-canvas-wrap">
+              {/* Zoom & Fit Controls */}
+              <div className="ont-graph-controls">
+                <button
+                  type="button"
+                  className="ont-ctrl-btn"
+                  onClick={() => setZoomScale(s => Math.max(0.65, Number((s - 0.15).toFixed(2))))}
+                  title="Zoom out"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  className="ont-ctrl-btn"
+                  onClick={() => setZoomScale(1)}
+                  title="Reset zoom"
+                >
+                  {Math.round(zoomScale * 100)}%
+                </button>
+                <button
+                  type="button"
+                  className="ont-ctrl-btn"
+                  onClick={() => setZoomScale(s => Math.min(1.5, Number((s + 0.15).toFixed(2))))}
+                  title="Zoom in"
+                >
+                  +
+                </button>
+                <div style={{ width: '1px', background: 'var(--line)', margin: '0 4px' }} />
+                <span style={{ fontSize: '11.5px', color: 'var(--muted)', alignSelf: 'center' }}>
+                  Interactive Canvas · Click any node to inspect
+                </span>
               </div>
-              {triggers.length ? triggers.map(t => (
-                <div
-                  key={t.id}
-                  className={`ont-node-card ${activeNode?.id === t.id ? 'selected' : ''}`}
-                  onClick={() => setActiveNode(t)}
-                  title="Click to inspect this trigger"
-                >
-                  <div className="ont-node-head">
-                    <span className="ont-node-title">{t.label}</span>
-                    <Tag tone="info">Trigger</Tag>
-                  </div>
-                  <span className="ont-node-sub">{t.id}</span>
-                </div>
-              )) : (
-                <div className="ont-node-card">
-                  <span className="ont-node-title">Direct Intent Routing</span>
-                  <span className="ont-node-sub">Customer chat message</span>
-                </div>
-              )}
-            </div>
 
-            {/* Lane 2: Process Core */}
-            <div className="ont-lane">
-              <div className="ont-lane-title">
-                <span>2. The process</span>
-                <Tag tone="success">Core</Tag>
+              <svg
+                className="ont-graph-svg"
+                width={layout.width}
+                height={layout.height}
+                style={{ transform: `scale(${zoomScale})` }}
+              >
+                <defs>
+                  <marker
+                    id="ont-arrow-default"
+                    viewBox="0 0 10 10"
+                    refX="9"
+                    refY="5"
+                    markerWidth="6"
+                    markerHeight="6"
+                    orient="auto-start-reverse"
+                  >
+                    <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--line-strong)" />
+                  </marker>
+                  <marker
+                    id="ont-arrow-highlight"
+                    viewBox="0 0 10 10"
+                    refX="9"
+                    refY="5"
+                    markerWidth="6"
+                    markerHeight="6"
+                    orient="auto-start-reverse"
+                  >
+                    <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--accent)" />
+                  </marker>
+                </defs>
+
+                {/* Render Directed Edges */}
+                {layout.edgesWithCoords.map((edge: any, idx: number) => {
+                  const isHighlighted = (activeNode && (edge.source === activeNode.id || edge.target === activeNode.id)) ||
+                    (hoveredNode && (edge.source === hoveredNode.id || edge.target === hoveredNode.id));
+                  const isDimmed = (activeNode || hoveredNode) && !isHighlighted;
+
+                  return (
+                    <g key={idx}>
+                      <path
+                        d={edge.path}
+                        className={`ont-svg-edge ${isHighlighted ? 'highlighted' : ''} ${isDimmed ? 'dimmed' : ''}`}
+                        markerEnd={isHighlighted ? 'url(#ont-arrow-highlight)' : 'url(#ont-arrow-default)'}
+                      />
+                    </g>
+                  );
+                })}
+
+                {/* Render Nodes */}
+                {layout.nodesWithCoords.map(({ x, y, node }) => {
+                  const isSelected = activeNode?.id === node.id;
+                  const isHovered = hoveredNode?.id === node.id;
+                  const isMatchSearch = !q || node.label.toLowerCase().includes(q) || node.id.toLowerCase().includes(q);
+                  const isDimmed = (!isMatchSearch) || ((activeNode || hoveredNode) && !isSelected && !isHovered &&
+                    !relatedEdges.some(e => e.source === node.id || e.target === node.id));
+
+                  const color = getNodeColor(node.type);
+
+                  return (
+                    <g
+                      key={node.id}
+                      className={`ont-svg-node ${isSelected ? 'selected' : ''} ${isDimmed ? 'dimmed' : ''}`}
+                      transform={`translate(${x}, ${y})`}
+                      onClick={() => setActiveNode(node)}
+                      onMouseEnter={() => setHoveredNode(node)}
+                      onMouseLeave={() => setHoveredNode(null)}
+                    >
+                      <rect
+                        width={195}
+                        height={52}
+                        rx={8}
+                        fill="var(--surface)"
+                        stroke={isSelected ? 'var(--accent)' : color}
+                        strokeWidth={isSelected ? 2.5 : 1.5}
+                      />
+                      <circle cx={18} cy={26} r={6} fill={color} />
+                      <text
+                        x={32}
+                        y={23}
+                        fill="var(--ink)"
+                        fontSize="12.5"
+                        fontWeight="600"
+                        fontFamily="var(--k-sans)"
+                      >
+                        {node.label.length > 20 ? node.label.slice(0, 19) + '…' : node.label}
+                      </text>
+                      <text
+                        x={32}
+                        y={39}
+                        fill="var(--muted)"
+                        fontSize="10"
+                        fontFamily="var(--k-mono)"
+                      >
+                        {node.id.length > 24 ? node.id.slice(0, 23) + '…' : node.id}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+          )}
+
+          {/* VIEW MODE 2: Structured Swimlanes */}
+          {viewMode === 'swimlane' && (
+            <div className="ont-swimlanes">
+              {/* Lane 1: Triggers & Entry */}
+              <div className="ont-lane">
+                <div className="ont-lane-title">
+                  <span>1. Customer Triggers</span>
+                  <Tag tone="neutral">{triggers.length}</Tag>
+                </div>
+                {triggers.length ? triggers.map(t => (
+                  <div
+                    key={t.id}
+                    className={`ont-node-card ${activeNode?.id === t.id ? 'selected' : ''}`}
+                    onClick={() => setActiveNode(t)}
+                    title="Click to inspect this trigger"
+                  >
+                    <div className="ont-node-head">
+                      <span className="ont-node-title">{t.label}</span>
+                      <Tag tone="info">Trigger</Tag>
+                    </div>
+                    <span className="ont-node-sub">{t.id}</span>
+                  </div>
+                )) : (
+                  <div className="ont-node-card">
+                    <span className="ont-node-title">Direct Intent Routing</span>
+                    <span className="ont-node-sub">Customer chat message</span>
+                  </div>
+                )}
               </div>
-              {p && (
-                <div
-                  className={`ont-node-card ${activeNode?.id === p.id ? 'selected' : ''}`}
-                  style={{ borderColor: 'var(--accent)' }}
-                  onClick={() => setActiveNode({ id: p.id, label: p.name, type: 'process' })}
-                  title="Click to inspect process hub"
-                >
-                  <div className="ont-node-head">
-                    <span className="ont-node-title">{p.name}</span>
-                    <ApprovalBadge p={p} />
-                  </div>
-                  <span className="ont-node-sub">{p.id}</span>
-                  <p style={{ fontSize: '12.5px', color: 'var(--ink-2)', margin: '4px 0' }}>Domain: {domainName(p.domain)}</p>
-                  <span className="ont-edge-tag">Channels: {p.channels.join(', ')}</span>
-                </div>
-              )}
-            </div>
 
-            {/* Lane 3: Activities & Steps */}
-            <div className="ont-lane">
-              <div className="ont-lane-title">
-                <span>3. Steps</span>
-                <Tag tone="neutral">{activities.length}</Tag>
+              {/* Lane 2: Process Core */}
+              <div className="ont-lane">
+                <div className="ont-lane-title">
+                  <span>2. Core Process</span>
+                  <Tag tone="success">Core</Tag>
+                </div>
+                {p && (
+                  <div
+                    className={`ont-node-card ${activeNode?.id === p.id ? 'selected' : ''}`}
+                    style={{ borderColor: 'var(--accent)' }}
+                    onClick={() => setActiveNode({ id: p.id, label: p.name, type: 'process', domain: p.domain })}
+                    title="Click to inspect process hub"
+                  >
+                    <div className="ont-node-head">
+                      <span className="ont-node-title">{p.name}</span>
+                      <ApprovalBadge p={p} />
+                    </div>
+                    <span className="ont-node-sub">{p.id}</span>
+                    <p style={{ fontSize: '12.5px', color: 'var(--ink-2)', margin: '4px 0' }}>Domain: {domainName(p.domain)}</p>
+                    <span className="ont-edge-tag">Channels: {p.channels.join(', ')}</span>
+                  </div>
+                )}
               </div>
-              {activities.length ? activities.slice(0, 10).map(a => (
-                <div
-                  key={a.id}
-                  className={`ont-node-card ${activeNode?.id === a.id ? 'selected' : ''}`}
-                  onClick={() => setActiveNode(a)}
-                  title="Click to inspect this activity"
-                >
-                  <div className="ont-node-head">
-                    <span className="ont-node-title">{a.label}</span>
-                    <Tag tone="neutral">{a.type}</Tag>
-                  </div>
-                  <span className="ont-node-sub">{a.id}</span>
-                </div>
-              )) : <span className="muted" style={{ padding: '8px' }}>No separate activities</span>}
-            </div>
 
-            {/* Lane 4: Executable Tools & Tables */}
-            <div className="ont-lane">
-              <div className="ont-lane-title">
-                <span>4. Tools and data</span>
-                <Tag tone="warning">{tools.length + tables.length}</Tag>
+              {/* Lane 3: Activities & Steps */}
+              <div className="ont-lane">
+                <div className="ont-lane-title">
+                  <span>3. Steps & Activities</span>
+                  <Tag tone="neutral">{activities.length}</Tag>
+                </div>
+                {activities.length ? activities.map(a => (
+                  <div
+                    key={a.id}
+                    className={`ont-node-card ${activeNode?.id === a.id ? 'selected' : ''}`}
+                    onClick={() => setActiveNode(a)}
+                    title="Click to inspect this activity"
+                  >
+                    <div className="ont-node-head">
+                      <span className="ont-node-title">{a.label}</span>
+                      <Tag tone="neutral">{a.type}</Tag>
+                    </div>
+                    <span className="ont-node-sub">{a.id}</span>
+                  </div>
+                )) : <span className="muted" style={{ padding: '8px' }}>Direct atomic execution</span>}
               </div>
-              {tools.map(tl => (
-                <div
-                  key={tl.id}
-                  className={`ont-node-card ${activeNode?.id === tl.id ? 'selected' : ''}`}
-                  onClick={() => setActiveNode(tl)}
-                  title="Click to inspect this tool"
-                >
-                  <div className="ont-node-head">
-                    <span className="ont-node-title">{tl.label}</span>
-                    <Tag tone="warning">Tool</Tag>
-                  </div>
-                  <span className="ont-node-sub">{tl.id}</span>
-                </div>
-              ))}
-              {tables.map(tb => (
-                <div
-                  key={tb.id}
-                  className={`ont-node-card ${activeNode?.id === tb.id ? 'selected' : ''}`}
-                  onClick={() => setActiveNode(tb)}
-                  title="Click to inspect this database table"
-                >
-                  <div className="ont-node-head">
-                    <span className="ont-node-title">{tb.label}</span>
-                    <Tag tone="info">DB Table</Tag>
-                  </div>
-                  <span className="ont-node-sub">{tb.id}</span>
-                </div>
-              ))}
-            </div>
 
-            {/* Lane 5: Governing Policies */}
-            <div className="ont-lane">
-              <div className="ont-lane-title">
-                <span>5. Policies</span>
-                <Tag tone="danger">{policies.length}</Tag>
+              {/* Lane 4: Executable Tools & Tables */}
+              <div className="ont-lane">
+                <div className="ont-lane-title">
+                  <span>4. Tools & Data</span>
+                  <Tag tone="warning">{tools.length + tables.length}</Tag>
+                </div>
+                {tools.map(tl => (
+                  <div
+                    key={tl.id}
+                    className={`ont-node-card ${activeNode?.id === tl.id ? 'selected' : ''}`}
+                    onClick={() => setActiveNode(tl)}
+                    title="Click to inspect this tool"
+                  >
+                    <div className="ont-node-head">
+                      <span className="ont-node-title">{tl.label}</span>
+                      <Tag tone="warning">Tool</Tag>
+                    </div>
+                    <span className="ont-node-sub">{tl.id}</span>
+                  </div>
+                ))}
+                {tables.map(tb => (
+                  <div
+                    key={tb.id}
+                    className={`ont-node-card ${activeNode?.id === tb.id ? 'selected' : ''}`}
+                    onClick={() => setActiveNode(tb)}
+                    title="Click to inspect this database table"
+                  >
+                    <div className="ont-node-head">
+                      <span className="ont-node-title">{tb.label}</span>
+                      <Tag tone="info">DB Table</Tag>
+                    </div>
+                    <span className="ont-node-sub">{tb.id}</span>
+                  </div>
+                ))}
               </div>
-              {policies.map(po => (
-                <div
-                  key={po.id}
-                  className={`ont-node-card ${activeNode?.id === po.id ? 'selected' : ''}`}
-                  onClick={() => setActiveNode(po)}
-                  title="Click to inspect this guardrail policy"
-                >
-                  <div className="ont-node-head">
-                    <span className="ont-node-title">{po.label}</span>
-                    <Tag tone="danger">Guardrail</Tag>
-                  </div>
-                  <span className="ont-node-sub">{po.id}</span>
-                </div>
-              ))}
-            </div>
-          </div>
 
-          {/* Semantic Triples Table */}
-          {graphData && graphData.edges.length > 0 && (
-            <Panel title="Semantic Triples & Edge Relationships" count={graphData.edges.length}
-              sub="Formal RDF/Graph edge mappings connecting this process to activities, tools, tables and policies.">
-              <div className="table-scroll"><table className="table st-cards">
-                <thead><tr><th>Subject (Source)</th><th>Predicate (Relation)</th><th>Object (Target)</th></tr></thead>
-                <tbody>{graphData.edges.slice(0, 15).map((e, idx) => (
-                  <tr key={idx}>
-                    <td><code>{e.source}</code></td>
-                    <td><Tag tone="info">{e.relation}</Tag></td>
-                    <td><code>{e.target}</code></td>
-                  </tr>
-                ))}</tbody>
-              </table></div>
+              {/* Lane 5: Governing Policies */}
+              <div className="ont-lane">
+                <div className="ont-lane-title">
+                  <span>5. Guardrail Policies</span>
+                  <Tag tone="danger">{policies.length}</Tag>
+                </div>
+                {policies.map(po => (
+                  <div
+                    key={po.id}
+                    className={`ont-node-card ${activeNode?.id === po.id ? 'selected' : ''}`}
+                    onClick={() => setActiveNode(po)}
+                    title="Click to inspect this guardrail policy"
+                  >
+                    <div className="ont-node-head">
+                      <span className="ont-node-title">{po.label}</span>
+                      <Tag tone="danger">Policy</Tag>
+                    </div>
+                    <span className="ont-node-sub">{po.id}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* VIEW MODE 3: Semantic Relationship Matrix */}
+          {viewMode === 'matrix' && graphData && (
+            <Panel
+              title="Semantic Relationship Matrix"
+              count={graphData.edges.length}
+              sub="Formal RDF/Graph edge mappings connecting this process to activities, tools, tables, and policies."
+            >
+              <div className="ont-matrix-grid">
+                {graphData.edges.filter(e => !q || `${e.source} ${e.relation} ${e.target}`.toLowerCase().includes(q)).map((e, idx) => (
+                  <div key={idx} className="ont-matrix-card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Tag tone="info">{e.relation}</Tag>
+                      <small className="muted">Edge #{idx + 1}</small>
+                    </div>
+                    <div className="ont-matrix-flow">
+                      <span
+                        className="ont-matrix-node-badge"
+                        onClick={() => {
+                          const n = graphData.nodes.find(x => x.id === e.source);
+                          if (n) setActiveNode(n);
+                        }}
+                        title="Click to inspect source"
+                      >
+                        {e.source}
+                      </span>
+                      <span style={{ color: 'var(--muted)', fontSize: '13px' }}>➔</span>
+                      <span
+                        className="ont-matrix-node-badge"
+                        onClick={() => {
+                          const n = graphData.nodes.find(x => x.id === e.target);
+                          if (n) setActiveNode(n);
+                        }}
+                        title="Click to inspect target"
+                      >
+                        {e.target}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </Panel>
           )}
         </>
@@ -1180,122 +1499,419 @@ const OntologyGovernanceView: React.FC = () => {
   const [paramsData, loadParams, pError] = useData<{ parameters: PolicyParameter[] }>('/api/admin/ontology/parameters');
   const [smData, loadSm, sError] = useData<{ state_machines: Record<string, StateMachine> }>('/api/admin/ontology/state-machines');
 
-  const [testEntity, setTestEntity] = useState('obj.account');
-  const [fromState, setFromState] = useState('OPEN');
-  const [toState, setToState] = useState('FROZEN');
-  const [checkResult, setCheckResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [activeEntityTab, setActiveEntityTab] = useState<string>('obj.card');
+  const [fromState, setFromState] = useState<string>('ACTIVE');
+  const [toState, setToState] = useState<string>('FROZEN');
+  const [selectedSourceState, setSelectedSourceState] = useState<string | null>('ACTIVE');
+  const [checkResult, setCheckResult] = useState<{ ok: boolean; msg: string; reason?: string } | null>(null);
 
-  const checkTransition = () => {
+  const [paramFilter, setParamFilter] = useState<string>('all');
+  const [paramSearch, setParamSearch] = useState<string>('');
+  const [rulesViewMode, setRulesViewMode] = useState<'cards' | 'table'>('cards');
+
+  // When active entity tab changes, sync states
+  useEffect(() => {
     if (!smData?.state_machines) return;
-    const sm = smData.state_machines[testEntity];
-    if (!sm) { setCheckResult({ ok: false, msg: 'Unknown entity' }); return; }
-    const allowed = sm.transitions[fromState] || [];
-    if (allowed.includes(toState)) {
-      setCheckResult({ ok: true, msg: `Valid transition: ${testEntity} can transition from ${fromState} to ${toState}.` });
+    const sm = smData.state_machines[activeEntityTab];
+    if (sm) {
+      const init = sm.initial || sm.states[0] || '';
+      setSelectedSourceState(init);
+      setFromState(init);
+      const nextStates = sm.transitions[init] || [];
+      setToState(nextStates[0] || sm.states[1] || init);
+      setCheckResult(null);
+    }
+  }, [activeEntityTab, smData]);
+
+  const checkTransition = (fState?: string, tState?: string) => {
+    if (!smData?.state_machines) return;
+    const sm = smData.state_machines[activeEntityTab];
+    if (!sm) { setCheckResult({ ok: false, msg: 'Unknown entity state machine' }); return; }
+
+    const from = fState || fromState;
+    const to = tState || toState;
+    const allowed = sm.transitions[from] || [];
+
+    if (allowed.includes(to)) {
+      setCheckResult({
+        ok: true,
+        msg: `Compliant State Transition: ${activeEntityTab} may transition from ${from} to ${to}.`,
+        reason: `Allowed by formal ontology lifecycle. State transition satisfies RBI four-eyes and transaction security guardrails.`
+      });
     } else {
-      setCheckResult({ ok: false, msg: `Illegal transition: ${testEntity} cannot transition from ${fromState} to ${toState}. Allowed: [${allowed.join(', ') || 'None (terminal)'}].` });
+      setCheckResult({
+        ok: false,
+        msg: `Illegal State Transition: ${activeEntityTab} cannot transition from ${from} to ${to}.`,
+        reason: allowed.length > 0
+          ? `Permitted next states from ${from} are: [${allowed.join(', ')}]. Jumping to ${to} violates core lifecycle constraints.`
+          : `${from} is a Terminal State. No outbound transitions are permitted once reached.`
+      });
     }
   };
 
+  const getEntityIcon = (id: string) => {
+    switch (id) {
+      case 'obj.card': return 'cards';
+      case 'obj.account': return 'accounts';
+      case 'obj.payment_intent': return 'payments';
+      case 'obj.account_application': return 'file';
+      default: return 'shield';
+    }
+  };
+
+  const getDomainIcon = (paramId: string) => {
+    if (paramId.includes('PAYMENT') || paramId.includes('CONCESSION')) return 'payments';
+    if (paramId.includes('PAYEE')) return 'shield';
+    if (paramId.includes('STEP_UP')) return 'lock';
+    return 'clock';
+  };
+
+  const formatParamValue = (p: PolicyParameter) => {
+    if (p.id === 'PARAM_AGENT_PAYMENT_LIMIT') return '₹0';
+    if (p.id === 'PARAM_CONCESSION_LIMIT') return '0 paise';
+    if (p.id === 'PARAM_NEW_PAYEE_COOLING_HOURS') return '24 Hours';
+    if (p.id === 'PARAM_NEW_PAYEE_LIMIT') return '₹10,000';
+    if (p.id === 'PARAM_STEP_UP_MAX_FAILURES') return '3 Attempts';
+    if (p.id === 'PARAM_STEP_UP_LOCK_MINUTES') return '15 Minutes';
+    if (p.id === 'PARAM_CONTACT_HOURS') return '08:00 – 19:00 IST';
+    if (p.id === 'PARAM_MAX_CONTACT_ATTEMPTS') return '3 Attempts';
+    if (p.id === 'PARAM_APPLICATION_EXPIRY_DAYS') return '30 Days';
+    if (p.id === 'PARAM_DISPUTE_TAT_DAYS') return '30 Days';
+    return String(p.value ?? '—');
+  };
+
+  const activeSm = smData?.state_machines[activeEntityTab];
+  const allowedNextForSelected = useMemo(() => {
+    if (!activeSm || !selectedSourceState) return [];
+    return activeSm.transitions[selectedSourceState] || [];
+  }, [activeSm, selectedSourceState]);
+
+  // Filtering for Policy Parameters
+  const filteredParams = useMemo(() => {
+    if (!paramsData?.parameters) return [];
+    return paramsData.parameters.filter(p => {
+      const matchSearch = !paramSearch.trim() ||
+        `${p.id} ${p.name} ${p.description} ${p.owner} ${p.enforced_in}`.toLowerCase().includes(paramSearch.toLowerCase().trim());
+      if (!matchSearch) return false;
+
+      if (paramFilter === 'payments') return p.id.includes('PAYMENT') || p.id.includes('CONCESSION');
+      if (paramFilter === 'fraud') return p.id.includes('PAYEE');
+      if (paramFilter === 'security') return p.id.includes('STEP_UP');
+      if (paramFilter === 'outreach') return p.id.includes('CONTACT') || p.id.includes('EXPIRY') || p.id.includes('DISPUTE');
+      return true;
+    });
+  }, [paramsData, paramFilter, paramSearch]);
+
   return (
     <div className="ont-sm-container">
-      {/* 10 Governed Policy Parameters */}
-      <Panel title="Banking rules" count={paramsData?.parameters.length || 0}
-        sub="The 10 formal policy parameters defined in config/ontology/policies/approval-matrix.md and bound to config/harness/policy.json.">
-        {pError && <p className="form-error">{pError}</p>}
-        {paramsData ? (
-          <div className="table-scroll"><table className="table st-cards">
-            <thead><tr><th>Parameter</th><th>Value</th><th>Unit</th><th>Owner</th><th>Enforced In</th><th>Description</th></tr></thead>
-            <tbody>{paramsData.parameters.map(p => (
-              <tr key={p.id}>
-                <td className="st-main"><code>{p.id}</code><span className="st-sub">{p.name}</span></td>
-                <td><strong>{String(p.value)}</strong></td>
-                <td><Tag tone="neutral">{p.unit}</Tag></td>
-                <td>{p.owner}</td>
-                <td><Tag tone="info">{p.enforced_in}</Tag></td>
-                <td className="st-wrap">{p.description}</td>
-              </tr>
-            ))}</tbody>
-          </table></div>
-        ) : <SkeletonRows rows={5} />}
-      </Panel>
-
-      {/* Entity State Machines & Transition Guardrail Sandbox */}
-      <Panel title="Formal Entity State Machines" count={smData ? Object.keys(smData.state_machines).length : 0}
-        sub="Strict state machines that prevent illegal entity transitions (e.g. executing payments without authorization, or reopening closed accounts).">
+      {/* Visual State Machine Diagram & Interactive Sandbox */}
+      <Panel
+        title="Formal Entity State Machines"
+        count={smData ? Object.keys(smData.state_machines).length : 0}
+        sub="Strict lifecycle state machines that prevent unauthorized state leaps (e.g. executing payments without authorization, or reopening closed accounts)."
+      >
         {sError && <p className="form-error">{sError}</p>}
-        {smData && (
-          <>
-            {/* Interactive Transition Test Bench */}
-            <div style={{ padding: '16px', background: 'var(--surface-2)', borderRadius: 'var(--r-field)', display: 'grid', gap: '10px', marginBottom: '16px' }}>
-              <strong>Symbolic Transition Validator Sandbox:</strong>
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <select value={testEntity} onChange={e => {
-                  setTestEntity(e.target.value);
-                  const newSm = smData.state_machines[e.target.value];
-                  if (newSm) {
-                    setFromState(newSm.states[0] || '');
-                    setToState(newSm.states[1] || newSm.states[0] || '');
-                  }
-                  setCheckResult(null);
-                }} className="form-input">
-                  {Object.entries(smData.state_machines).map(([k, v]) => (
-                    <option key={k} value={k}>{v.name} ({k})</option>
-                  ))}
-                </select>
-                <span>From State:</span>
-                <select value={fromState} onChange={e => { setFromState(e.target.value); setCheckResult(null); }} className="form-input">
-                  {smData.state_machines[testEntity]?.states.map(st => (
-                    <option key={st} value={st}>{st}</option>
-                  ))}
-                </select>
-                <span>To State:</span>
-                <select value={toState} onChange={e => { setToState(e.target.value); setCheckResult(null); }} className="form-input">
-                  {smData.state_machines[testEntity]?.states.map(st => (
-                    <option key={st} value={st}>{st}</option>
-                  ))}
-                </select>
-                <button type="button" className="k-btn primary sm" onClick={checkTransition}>Check Transition</button>
+        {smData && activeSm && (
+          <div className="ont-sm-diagram-card">
+            {/* Entity Navigation Tabs */}
+            <div className="ont-sm-tabs">
+              {Object.entries(smData.state_machines).map(([id, sm]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`ont-sm-tab-btn ${activeEntityTab === id ? 'active' : ''}`}
+                  onClick={() => setActiveEntityTab(id)}
+                >
+                  <Icon name={getEntityIcon(id)} />
+                  <span>{sm.name}</span>
+                  <Tag tone={activeEntityTab === id ? 'info' : 'neutral'}>{sm.states.length} states</Tag>
+                </button>
+              ))}
+            </div>
+
+            {/* Active Entity Info */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <strong style={{ fontSize: '17px', color: 'var(--ink)' }}>{activeSm.name}</strong>
+                <p style={{ margin: '4px 0 0', fontSize: '13.5px', color: 'var(--muted)', maxWidth: '75ch' }}>
+                  {activeSm.description}
+                </p>
               </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Initial:</span>
+                <Tag tone="success">{activeSm.initial}</Tag>
+                <span style={{ fontSize: '12px', color: 'var(--muted)', marginLeft: '6px' }}>Terminal:</span>
+                {activeSm.terminal.map(t => <Tag key={t} tone="neutral">{t}</Tag>)}
+              </div>
+            </div>
+
+            {/* Visual State Flow Lifecycle Diagram */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <strong style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--muted)' }}>
+                  Interactive Lifecycle States · Click any state to highlight valid outgoing paths
+                </strong>
+                {selectedSourceState && (
+                  <span style={{ fontSize: '12.5px', color: 'var(--ink)' }}>
+                    Active Source: <strong>{selectedSourceState}</strong>
+                  </span>
+                )}
+              </div>
+
+              <div className="ont-sm-state-grid">
+                {activeSm.states.map(state => {
+                  const isSource = selectedSourceState === state;
+                  const isAllowedTarget = allowedNextForSelected.includes(state);
+                  const isInitial = state === activeSm.initial;
+                  const isTerminal = activeSm.terminal.includes(state);
+
+                  return (
+                    <div
+                      key={state}
+                      className={`ont-sm-state-node ${isSource ? 'is-active-source' : ''} ${isAllowedTarget ? 'is-allowed-target' : ''} ${isTerminal ? 'is-terminal' : ''}`}
+                      onClick={() => {
+                        setSelectedSourceState(state);
+                        setFromState(state);
+                        const next = activeSm.transitions[state] || [];
+                        if (next.length > 0) {
+                          setToState(next[0]);
+                          checkTransition(state, next[0]);
+                        } else {
+                          checkTransition(state, state);
+                        }
+                      }}
+                      title={isTerminal ? 'Terminal state (no outbound transitions)' : `Click to inspect transitions from ${state}`}
+                    >
+                      {isInitial && <Tag tone="info">START</Tag>}
+                      <span>{state}</span>
+                      {isTerminal && <Tag tone="neutral">END</Tag>}
+                      {isAllowedTarget && <span style={{ color: 'var(--ok)', fontSize: '12px', fontWeight: 700 }}>✓ Next</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Active Transition Path Context Banner */}
+            {selectedSourceState && (
+              <div style={{ padding: '12px 16px', background: 'var(--surface-2)', borderRadius: 'var(--r-field)', border: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <div>
+                  <span style={{ fontSize: '13px', color: 'var(--muted)' }}>Permitted transitions from </span>
+                  <strong style={{ fontSize: '13.5px', color: 'var(--ink)' }}>{selectedSourceState}:</strong>
+                  <div style={{ display: 'inline-flex', gap: '6px', flexWrap: 'wrap', marginLeft: '8px' }}>
+                    {allowedNextForSelected.length > 0 ? (
+                      allowedNextForSelected.map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          className="ont-edge-tag"
+                          style={{ cursor: 'pointer', border: '1px solid var(--line)', background: 'var(--surface)' }}
+                          onClick={() => {
+                            setToState(t);
+                            checkTransition(selectedSourceState, t);
+                          }}
+                          title={`Test transition to ${t}`}
+                        >
+                          ➔ {t}
+                        </button>
+                      ))
+                    ) : (
+                      <Tag tone="neutral">None (Terminal State)</Tag>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Quick Presets:</span>
+                  {activeEntityTab === 'obj.card' && (
+                    <>
+                      <button type="button" className="ont-sim-preset-btn" onClick={() => { setFromState('ACTIVE'); setToState('FROZEN'); checkTransition('ACTIVE', 'FROZEN'); }}>
+                        Normal Freeze
+                      </button>
+                      <button type="button" className="ont-sim-preset-btn" onClick={() => { setFromState('CANCELLED'); setToState('ACTIVE'); checkTransition('CANCELLED', 'ACTIVE'); }}>
+                        Illegal Re-open
+                      </button>
+                    </>
+                  )}
+                  {activeEntityTab === 'obj.payment_intent' && (
+                    <>
+                      <button type="button" className="ont-sim-preset-btn" onClick={() => { setFromState('AUTHORISED'); setToState('EXECUTING'); checkTransition('AUTHORISED', 'EXECUTING'); }}>
+                        Valid Exec
+                      </button>
+                      <button type="button" className="ont-sim-preset-btn" onClick={() => { setFromState('CREATED'); setToState('COMPLETED'); checkTransition('CREATED', 'COMPLETED'); }}>
+                        Bypass Authorization
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Interactive Transition Test Bench */}
+            <div style={{ padding: '16px 20px', background: 'var(--surface-2)', borderRadius: 'var(--r-field)', border: '1px solid var(--line)', display: 'grid', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ fontSize: '14px', color: 'var(--ink)' }}>Symbolic Transition Validator Sandbox:</strong>
+                <small className="muted">Evaluates state clearances against RBI rules</small>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <label style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--muted)' }}>From:</span>
+                  <select value={fromState} onChange={e => { setFromState(e.target.value); setCheckResult(null); }} className="form-input">
+                    {activeSm.states.map(st => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <span style={{ color: 'var(--muted)' }}>➔</span>
+
+                <label style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--muted)' }}>To:</span>
+                  <select value={toState} onChange={e => { setToState(e.target.value); setCheckResult(null); }} className="form-input">
+                    {activeSm.states.map(st => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <button type="button" className="k-btn primary sm" onClick={() => checkTransition()}>
+                  Check Clearance
+                </button>
+              </div>
+
               {checkResult && (
-                <div style={{ padding: '8px 12px', borderRadius: '6px', background: checkResult.ok ? 'var(--ok-bg)' : 'var(--danger-bg)', color: checkResult.ok ? 'var(--ok)' : 'var(--danger)', fontWeight: 600, fontSize: '13.5px' }}>
-                  {checkResult.msg}
+                <div style={{
+                  padding: '12px 16px',
+                  borderRadius: 'var(--r-field)',
+                  background: checkResult.ok ? 'var(--ok-bg)' : 'var(--danger-bg)',
+                  border: `1px solid ${checkResult.ok ? 'var(--ok)' : 'var(--danger)'}`,
+                  color: checkResult.ok ? 'var(--ok)' : 'var(--danger)',
+                  display: 'grid',
+                  gap: '4px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '14px' }}>
+                    <Icon name={checkResult.ok ? 'check' : 'alert'} />
+                    <span>{checkResult.msg}</span>
+                  </div>
+                  {checkResult.reason && (
+                    <small style={{ fontSize: '12.5px', color: 'var(--ink-2)', opacity: 0.9 }}>
+                      {checkResult.reason}
+                    </small>
+                  )}
                 </div>
               )}
             </div>
+          </div>
+        )}
+      </Panel>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
-              {Object.entries(smData.state_machines).map(([id, sm]) => (
-                <div key={id} className="ont-sm-card">
-                  <div className="ont-sm-head">
-                    <strong>{sm.name}</strong>
-                    <code>{id}</code>
-                  </div>
-                  <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>{sm.description}</p>
-                  <div>
-                    <div style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '4px' }}>Allowed States:</div>
-                    <div className="ont-sm-states">
-                      {sm.states.map(s => (
-                        <Tag key={s} tone={s === sm.initial ? 'info' : sm.terminal.includes(s) ? 'neutral' : 'success'}>
-                          {s} {s === sm.initial ? '(Initial)' : sm.terminal.includes(s) ? '(Terminal)' : ''}
-                        </Tag>
-                      ))}
+      {/* 10 Governed Policy Parameters - Visual Rich Cards */}
+      <Panel
+        title="Banking Rules & Safeguard Parameters"
+        count={filteredParams.length}
+        sub="The 10 formal policy parameters defined in config/ontology/policies/approval-matrix.md governing autonomous transaction limits, cooling-off windows, and four-eyes review."
+        actions={
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              type="button"
+              className={`ont-ctrl-btn ${rulesViewMode === 'cards' ? 'active' : ''}`}
+              onClick={() => setRulesViewMode('cards')}
+            >
+              Cards
+            </button>
+            <button
+              type="button"
+              className={`ont-ctrl-btn ${rulesViewMode === 'table' ? 'active' : ''}`}
+              onClick={() => setRulesViewMode('table')}
+            >
+              Table
+            </button>
+          </div>
+        }
+      >
+        {pError && <p className="form-error">{pError}</p>}
+
+        {/* Filters & Search */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
+          <div className="ont-filter-bar">
+            {[
+              { id: 'all', label: 'All Rules' },
+              { id: 'payments', label: '💳 Payments & Limits' },
+              { id: 'fraud', label: '🛡️ Fraud & Cooling-off' },
+              { id: 'security', label: '🔐 Security & Kavach' },
+              { id: 'outreach', label: '📞 Customer Outreach' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`ont-filter-chip ${paramFilter === tab.id ? 'active' : ''}`}
+                onClick={() => setParamFilter(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <input
+            type="search"
+            value={paramSearch}
+            onChange={e => setParamSearch(e.target.value)}
+            placeholder="Search banking rules…"
+            className="form-input"
+            style={{ minWidth: '220px', padding: '6px 12px', fontSize: '13px' }}
+          />
+        </div>
+
+        {paramsData ? (
+          rulesViewMode === 'cards' ? (
+            <div className="ont-policy-grid">
+              {filteredParams.map(p => (
+                <div key={p.id} className="ont-policy-card">
+                  <div className="ont-policy-top">
+                    <div className="ont-policy-icon-badge">
+                      <Icon name={getDomainIcon(p.id)} />
+                    </div>
+                    <div className="ont-policy-val-box" style={{ textAlign: 'right' }}>
+                      <span className="ont-policy-val">{formatParamValue(p)}</span>
+                      <span className="ont-policy-unit">{p.unit}</span>
                     </div>
                   </div>
-                  <table className="ont-sm-transition-table">
-                    <thead><tr><th>Current State</th><th>Allowed Transitions</th></tr></thead>
-                    <tbody>{Object.entries(sm.transitions).map(([f, tos]) => (
-                      <tr key={f}>
-                        <td><strong>{f}</strong></td>
-                        <td>{tos.length ? <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px' }}>{tos.map(t => <Tag key={t} tone="neutral">{t}</Tag>)}</span> : <span className="muted">None (Terminal)</span>}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
+
+                  <div>
+                    <strong style={{ fontSize: '15px', color: 'var(--ink)', display: 'block' }}>{p.name}</strong>
+                    <code style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', display: 'inline-block' }}>{p.id}</code>
+                  </div>
+
+                  <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.5, color: 'var(--ink-2)', flex: 1 }}>
+                    {p.description}
+                  </p>
+
+                  <div className="ont-policy-meta">
+                    <Tag tone="info">Enforced: {p.enforced_in}</Tag>
+                    <Tag tone="neutral">Owner: {p.owner}</Tag>
+                  </div>
                 </div>
               ))}
             </div>
-          </>
-        )}
+          ) : (
+            <div className="table-scroll">
+              <table className="table st-cards">
+                <thead><tr><th>Parameter</th><th>Value</th><th>Unit</th><th>Owner</th><th>Enforced In</th><th>Description</th></tr></thead>
+                <tbody>{filteredParams.map(p => (
+                  <tr key={p.id}>
+                    <td className="st-main"><code>{p.id}</code><span className="st-sub">{p.name}</span></td>
+                    <td><strong style={{ color: 'var(--accent-ink)', fontSize: '15px' }}>{formatParamValue(p)}</strong></td>
+                    <td><Tag tone="neutral">{p.unit}</Tag></td>
+                    <td>{p.owner}</td>
+                    <td><Tag tone="info">{p.enforced_in}</Tag></td>
+                    <td className="st-wrap">{p.description}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )
+        ) : <SkeletonRows rows={5} />}
       </Panel>
     </div>
   );

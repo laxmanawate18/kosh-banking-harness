@@ -828,3 +828,369 @@ td:not(.num) > .st-bar-cell { flex-direction: row-reverse; justify-content: flex
   font: 14px var(--k-sans);
 }
 
+/* ---------- Rich Ontology Knowledge Graph & Visualizer ---------- */
+.ont-mode-tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--surface-2);
+  padding: 4px;
+  border-radius: var(--r-field);
+  border: 1px solid var(--line);
+}
+.ont-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font: 600 13px var(--k-sans);
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 140ms ease;
+  white-space: nowrap;
+}
+.ont-mode-btn:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.05);
+}
+.ont-mode-btn.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.ont-graph-canvas-wrap {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: auto;
+  min-height: 520px;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.02);
+  background-image: radial-gradient(circle, var(--line) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.ont-graph-controls {
+  position: sticky;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-field);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  margin-bottom: -46px;
+}
+.ont-ctrl-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font: 600 12px var(--k-sans);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.ont-ctrl-btn:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.ont-graph-svg {
+  display: block;
+  user-select: none;
+  transition: transform 200ms ease;
+  transform-origin: top left;
+}
+
+.ont-svg-edge {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+  stroke-dasharray: 4, 3;
+  opacity: 0.55;
+  transition: all 180ms ease;
+}
+.ont-svg-edge.highlighted {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-dasharray: none;
+  opacity: 1;
+  filter: drop-shadow(0 0 4px var(--accent-fill));
+}
+.ont-svg-edge.dimmed {
+  opacity: 0.1;
+}
+
+.ont-svg-node {
+  cursor: pointer;
+  transition: transform 160ms ease, filter 160ms ease;
+}
+.ont-svg-node:hover {
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.16));
+}
+.ont-svg-node.selected rect {
+  stroke: var(--accent) !important;
+  stroke-width: 2.5px;
+  filter: drop-shadow(0 0 10px var(--accent-fill));
+}
+.ont-svg-node.dimmed {
+  opacity: 0.3;
+}
+
+/* Category Filter Chips */
+.ont-filter-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+.ont-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font: 600 12.5px var(--k-sans);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.ont-filter-chip:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.ont-filter-chip.active {
+  background: var(--ink);
+  color: var(--surface);
+  border-color: var(--ink);
+}
+
+/* Semantic Triples Card Grid */
+.ont-matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 12px;
+}
+.ont-matrix-card {
+  padding: 14px 16px;
+  border-radius: var(--r-field);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 140ms ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+.ont-matrix-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+.ont-matrix-flow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ont-matrix-node-badge {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font: 500 12px var(--k-mono);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+.ont-matrix-node-badge:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ---------- Policy Parameters Rich Cards ---------- */
+.ont-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+.ont-policy-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: var(--r);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transition: all 150ms ease;
+  position: relative;
+  overflow: hidden;
+}
+.ont-policy-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+  transform: translateY(-2px);
+}
+.ont-policy-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.ont-policy-icon-badge {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--tint);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.ont-policy-val-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ont-policy-val {
+  font: 700 22px/1.1 var(--k-display);
+  color: var(--accent-ink);
+  letter-spacing: -0.01em;
+}
+.ont-policy-unit {
+  font: 600 11.5px var(--k-sans);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ont-policy-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 12px;
+}
+
+/* ---------- Visual State Machine Explorer ---------- */
+.ont-sm-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.ont-sm-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--r-field);
+  font: 600 13.5px var(--k-sans);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.ont-sm-tab-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.ont-sm-tab-btn.active {
+  background: var(--accent-fill);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.ont-sm-diagram-card {
+  padding: 20px;
+  border-radius: var(--r);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 18px;
+}
+.ont-sm-state-grid {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 16px;
+  background: var(--surface-2);
+  border-radius: var(--r-field);
+  border: 1px solid var(--line);
+}
+.ont-sm-state-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font: 600 13px var(--k-sans);
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 150ms ease;
+  user-select: none;
+}
+.ont-sm-state-node:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.ont-sm-state-node.is-active-source {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-fill);
+}
+.ont-sm-state-node.is-allowed-target {
+  background: color-mix(in srgb, var(--ok-bg) 60%, var(--surface));
+  color: var(--ok);
+  border-color: var(--ok);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.25);
+  animation: ontPulseTarget 1.8s ease-in-out infinite;
+}
+@keyframes ontPulseTarget {
+  50% { transform: scale(1.04); }
+}
+.ont-sm-state-node.is-terminal {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.ont-sm-svg-wrap {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-field);
+  padding: 12px;
+}
+.ont-sm-svg-canvas {
+  display: block;
+  min-width: 720px;
+}
+.ont-sm-edge-line {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+  transition: all 180ms ease;
+}
+.ont-sm-edge-line.active {
+  stroke: var(--ok);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.4));
+}
+

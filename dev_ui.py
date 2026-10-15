@@ -318,6 +318,19 @@ async def get_index(request: Request):
     host = request.url.hostname or "localhost"
     return RedirectResponse(f"http://{host}:3000/", status_code=307)
 
+
+@app.get("/dev-login/{username}")
+async def dev_login(username: str):
+    if os.getenv("K_SERVICE"):
+        raise HTTPException(status_code=404, detail="Not available in production")
+    try:
+        ctx, raw_token, csrf = auth_service.create_direct_session(username)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    resp = RedirectResponse("/#/", status_code=302)
+    resp.set_cookie(COOKIE_NAME, raw_token, httponly=True, samesite="lax")
+    return resp
+
 from backend.admin_routes import make_admin_router
 app.include_router(make_admin_router(db, require_admin, require_csrf))
 
