@@ -139,7 +139,6 @@ class OAuthService:
             "nonce": nonce,
             "code_challenge": challenge,
             "code_challenge_method": "S256",
-            "prompt": "login",
         })
         return f"{self.authorization_endpoint}?{query}"
 

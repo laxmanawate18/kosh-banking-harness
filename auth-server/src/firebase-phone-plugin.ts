@@ -124,12 +124,22 @@ export function firebasePhoneBridge(): BetterAuthPlugin {
             });
             await setSessionCookie(ctx, { session, user });
             const oauthQuery = ctx.body.oauth_query?.trim();
+            let redirectUri: string | undefined = undefined;
+            if (oauthQuery) {
+              try {
+                const u = new URL(`/api/auth/oauth2/authorize?${oauthQuery}`, config.baseURL);
+                u.searchParams.delete("prompt");
+                redirectUri = `${u.pathname}${u.search}`;
+              } catch {
+                redirectUri = `/api/auth/oauth2/authorize?${oauthQuery}`;
+              }
+            } else {
+              redirectUri = `${config.sentinelWebURL}/api/auth/start`;
+            }
             return ctx.json({
               authenticated: true,
               user: { id: user.id, name: user.name },
-              redirect_uri: oauthQuery
-                ? `/api/auth/oauth2/authorize?${oauthQuery}`
-                : undefined,
+              redirect_uri: redirectUri,
             });
           } catch (err: any) {
             console.error("[firebaseExchange] Error:", err?.status, err?.message, err?.stack || err);

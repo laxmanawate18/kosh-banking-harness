@@ -273,7 +273,15 @@ const server = createServer(async (request, response) => {
         }
         let redirectUri: string | undefined = undefined;
         if (oauth_query) {
-          redirectUri = `/api/auth/oauth2/authorize?${oauth_query}`;
+          try {
+            const u = new URL(`/api/auth/oauth2/authorize?${oauth_query}`, config.baseURL);
+            u.searchParams.delete("prompt");
+            redirectUri = `${u.pathname}${u.search}`;
+          } catch {
+            redirectUri = `/api/auth/oauth2/authorize?${oauth_query}`;
+          }
+        } else {
+          redirectUri = `${config.sentinelWebURL}/api/auth/start`;
         }
         response.writeHead(200, headers);
         response.end(JSON.stringify({ ...data, redirect_uri: redirectUri }));

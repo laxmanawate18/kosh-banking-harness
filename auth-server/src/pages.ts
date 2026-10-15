@@ -84,13 +84,24 @@ const errorBox=document.querySelector('#error'); let confirmation=null; let veri
 const showError=(error)=>{errorBox.textContent=error?.message||String(error);errorBox.classList.remove('hidden')};
 const clearError=()=>errorBox.classList.add('hidden');
 function finishLogin(data){
-  const destination=data?.redirect_uri||data?.url;
-  if(destination){location.assign(destination);return;}
-  if(oauthQuery){location.assign('/api/auth/oauth2/authorize?' + oauthQuery);return;}
-  location.assign(runtime.sentinelURL);
+  let destination = data?.redirect_uri || data?.url;
+  if (!destination) {
+    destination = oauthQuery ? ('/api/auth/oauth2/authorize?' + oauthQuery) : (runtime.sentinelURL + '/api/auth/start');
+  }
+  if (destination.includes('/api/auth/oauth2/authorize')) {
+    try {
+      const u = new URL(destination, location.origin);
+      u.searchParams.delete('prompt');
+      destination = u.pathname + u.search;
+    } catch(e) {}
+  }
+  location.assign(destination);
 }
-document.querySelector('#phoneTab').onclick=()=>{document.querySelector('#phonePane').classList.remove('hidden');document.querySelector('#staffPane').classList.add('hidden');document.querySelector('#phoneTab').classList.add('active');document.querySelector('#staffTab').classList.remove('active')};
-document.querySelector('#staffTab').onclick=()=>{document.querySelector('#staffPane').classList.remove('hidden');document.querySelector('#phonePane').classList.add('hidden');document.querySelector('#staffTab').classList.add('active');document.querySelector('#phoneTab').classList.remove('active')};
+if (location.hash === '#staff' || qs.get('tab') === 'staff') {
+  document.querySelector('#staffTab')?.click();
+}
+document.querySelector('#phoneTab').onclick=()=>{document.querySelector('#phonePane').classList.remove('hidden');document.querySelector('#staffPane').classList.add('hidden');document.querySelector('#phoneTab').classList.add('active');document.querySelector('#staffTab').classList.remove('active');try{history.replaceState(null,'',(location.search||'')+'#phone')}catch(e){}};
+document.querySelector('#staffTab').onclick=()=>{document.querySelector('#staffPane').classList.remove('hidden');document.querySelector('#phonePane').classList.add('hidden');document.querySelector('#staffTab').classList.add('active');document.querySelector('#phoneTab').classList.remove('active');try{history.replaceState(null,'',(location.search||'')+'#staff')}catch(e){}};
 document.querySelector('#fillOfficer')?.addEventListener('click',()=>{
   document.querySelector('#username').value=runtime.staffUsername;
   document.querySelector('#password').value=runtime.staffPassword;

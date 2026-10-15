@@ -25,7 +25,6 @@ def test_pkce_state_is_server_side_and_single_use(oauth):
     query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
     assert query["code_challenge_method"] == ["S256"]
     assert query["resource"] == [oauth.audience]
-    assert query["prompt"] == ["login"]
     assert "code_verifier" not in query
 
     state = query["state"][0]
