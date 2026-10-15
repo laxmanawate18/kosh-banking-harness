@@ -131,17 +131,25 @@ def ensure_secret(name: str, value: str, account: str) -> str:
 
 
 def model_answers(model: str) -> bool:
-    token = run("gcloud", "auth", "print-access-token")
-    url = (f"https://aiplatform.googleapis.com/v1/projects/{PROJECT}/locations/global/publishers/google/models/"
-           f"{model}:generateContent")
-    body = json.dumps({"contents": [{"role": "user", "parts": [{"text": "Reply with OK."}]}]}).encode()
-    request = urllib.request.Request(url, data=body, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(request, timeout=60, context=TLS) as response:
-            return response.status == 200
-    except urllib.error.HTTPError as exc:
-        print(f"    Vertex said {exc.code}: {exc.read()[:200]!r}")
-        return False
+    import time
+    for attempt in range(1, 4):
+        try:
+            token = run("gcloud", "auth", "print-access-token")
+            url = (f"https://aiplatform.googleapis.com/v1/projects/{PROJECT}/locations/global/publishers/google/models/"
+                   f"{model}:generateContent")
+            body = json.dumps({"contents": [{"role": "user", "parts": [{"text": "Reply with OK."}]}]}).encode()
+            request = urllib.request.Request(url, data=body, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+            with urllib.request.urlopen(request, timeout=30, context=TLS) as response:
+                if response.status == 200:
+                    return True
+        except urllib.error.HTTPError as exc:
+            print(f"    Vertex said {exc.code}: {exc.read()[:200]!r}")
+            return False
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            print(f"    Vertex attempt {attempt}/3 notice: {exc}")
+            if attempt < 3:
+                time.sleep(2)
+    return False
 
 
 def deploy(service: str, image: str, plain: dict[str, str], refs: dict[str, str]) -> None:
