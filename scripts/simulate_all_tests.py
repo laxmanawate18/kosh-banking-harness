@@ -214,7 +214,8 @@ def run_scenario_4():
     pay4_data = r_pay4.json()
     status4 = pay4_data.get("status")
     decision4 = pay4_data.get("decision")
-    reason_codes4 = pay4_data.get("reason_codes") or (pay4_data.get("sentinel") or {}).get("reason_codes", [])
+    # Sentinel no longer tells the customer why (no reason codes in the response); the outcome and the plain message remain.
+    reason_codes4 = (pay4_data.get("sentinel") or {}).get("customer_message", "")
     
     is_velocity_denied = (
         decision4 == "DENY" or

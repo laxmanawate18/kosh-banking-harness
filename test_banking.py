@@ -30,6 +30,10 @@ class SentinelBankingTests(unittest.TestCase):
         self.repo.runtime.engine.dispose()
         self.temp.cleanup()
 
+    def record(self, result):
+        """The full Sentinel decision from the store: the customer's result carries only the outcome and plain words."""
+        return next(d for d in self.repo.snapshot()["sentinel_decisions"] if d["id"] == result["sentinel"]["reference"])
+
     def context(self, text, session="TEST-SESSION", device="DEVICE-KNOWN-01"):
         intent = self.resolver.resolve(text, session, f"turn-{len(self.repo.snapshot()['intents']) + 1}")
         return {"session_id": session, "turn_id": intent["turn_id"], "intent": intent,
@@ -50,12 +54,12 @@ class SentinelBankingTests(unittest.TestCase):
         result = self.service.propose_transfer(context, "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")
         self.assertEqual(result["status"], "DENIED")
         self.assertEqual(result["sentinel"]["decision"], "DENY")
-        self.assertIn("KYC_NON_COMPLIANT", result["sentinel"]["reason_codes"])
+        self.assertIn("KYC_NON_COMPLIANT", self.record(result)["reason_codes"])
 
         bill_result = self.service.propose_bill_payment(self.context("Pay my Tata Power electricity bill"), "BILL-TATA-001", "ACC-SAL-001")
         self.assertEqual(bill_result["status"], "DENIED")
         self.assertEqual(bill_result["sentinel"]["decision"], "DENY")
-        self.assertIn("KYC_NON_COMPLIANT", bill_result["sentinel"]["reason_codes"])
+        self.assertIn("KYC_NON_COMPLIANT", self.record(bill_result)["reason_codes"])
 
     def test_initial_kyc_status_presentation_and_validation(self):
         self.repo.update_kyc_status(CUSTOMER_ID, "NOT_DONE")
@@ -125,7 +129,7 @@ class SentinelBankingTests(unittest.TestCase):
     def test_bill_payment_always_needs_customer_approval(self):
         result = self.service.propose_bill_payment(self.context("Pay my Tata Power electricity bill"), "BILL-TATA-001", "ACC-SAL-001")
         self.assertEqual(result["status"], "CHALLENGE_REQUIRED")
-        self.assertEqual(result["sentinel"]["risk_score"], 0)  # low risk still needs the customer's own approval
+        self.assertEqual(self.record(result)["risk_score"], 0)  # low risk still needs the customer's own approval
         self.assertEqual(self.repo.get_bill("BILL-TATA-001")["status"], "DUE")
 
     def test_daily_limit_counts_money_already_moved_today(self):
@@ -134,7 +138,7 @@ class SentinelBankingTests(unittest.TestCase):
         self.assertEqual(self.sentinel.spent_today_minor(CUSTOMER_ID), 243000)
         second = self.service.propose_transfer(self.context("Transfer ₹1,000 to Vikram"), "BEN-VIKRAM", 100000, "ACC-SAL-001")
         self.assertEqual(second["status"], "DENIED")  # 2,430 + 1,000 exceeds the 3,000 daily limit
-        self.assertIn("DELEGATION_SCOPE_EXCEEDED", second["sentinel"]["reason_codes"])
+        self.assertIn("DELEGATION_SCOPE_EXCEEDED", self.record(second)["reason_codes"])
 
     def test_known_bill_allows_executes_once_and_replays_receipt(self):
         context = self.context("Pay my Tata Power electricity bill")
@@ -161,15 +165,15 @@ class SentinelBankingTests(unittest.TestCase):
         before = self.repo.dashboard()["total_available_minor"]
         result = self.service.propose_transfer(context, "BEN-VIKRAM", 7500000, "ACC-SAV-002")
         self.assertEqual(result["sentinel"]["decision"], "DENY")
-        self.assertIn("INTENT_SOURCE_MISMATCH", result["sentinel"]["reason_codes"])
+        self.assertIn("INTENT_SOURCE_MISMATCH", self.record(result)["reason_codes"])
         self.assertEqual(self.repo.dashboard()["total_available_minor"], before)
 
     def test_high_value_new_beneficiary_requires_bound_approval(self):
         result = self.service.propose_transfer(self.context("Transfer ₹75,000 to Vikram"), "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")
         self.assertEqual(result["status"], "CHALLENGE_REQUIRED")
         self.assertEqual(result["sentinel"]["decision"], "CHALLENGE")
-        self.assertEqual(result["sentinel"]["risk_score"], 60)
-        self.assertIn("HIGH_VALUE_TRANSFER", result["sentinel"]["reason_codes"])
+        self.assertEqual(self.record(result)["risk_score"], 60)
+        self.assertIn("HIGH_VALUE_TRANSFER", self.record(result)["reason_codes"])
         payment = self.repo.get_payment_intent(result["challenge"]["id"].replace("CHL", "PAYINT"))
         self.assertIsNone(payment)  # IDs are intentionally unrelated and unguessable.
 
@@ -198,17 +202,17 @@ class SentinelBankingTests(unittest.TestCase):
         self.repo.update_kyc_status(CUSTOMER_ID, "NOT_DONE")
         for amount in (500_000, 600_000, 700_000):
             blocked = self.service.propose_transfer(self.context(f"Transfer ₹{amount // 100:,} to Vikram"), "BEN-VIKRAM", amount, "ACC-SAL-001")
-            self.assertEqual(blocked["sentinel"]["reason_codes"], ["KYC_NON_COMPLIANT"])
+            self.assertEqual(self.record(blocked)["reason_codes"], ["KYC_NON_COMPLIANT"])
         self.repo.update_kyc_status(CUSTOMER_ID, "VERIFIED")
         result = self.service.propose_transfer(self.context("Transfer ₹75,000 to Vikram"), "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")
         self.assertEqual(result["status"], "CHALLENGE_REQUIRED")
-        self.assertNotIn("VELOCITY_LIMIT", result["sentinel"]["reason_codes"])
+        self.assertNotIn("VELOCITY_LIMIT", self.record(result)["reason_codes"])
 
     def test_repeated_real_payment_attempts_still_trigger_velocity(self):
         for amount in (100_000, 110_000, 120_000):
             self.service.propose_transfer(self.context(f"Transfer ₹{amount // 100:,} to Vikram"), "BEN-VIKRAM", amount, "ACC-SAL-001")
         result = self.service.propose_transfer(self.context("Transfer ₹75,000 to Vikram"), "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")
-        self.assertIn("VELOCITY_LIMIT", result["sentinel"]["reason_codes"])
+        self.assertIn("VELOCITY_LIMIT", self.record(result)["reason_codes"])
 
     def test_challenge_digest_tampering_denied_without_debit(self):
         before = self.repo.get_account("ACC-SAL-001")["available_balance_minor"]
@@ -241,19 +245,19 @@ class SentinelBankingTests(unittest.TestCase):
         context = self.context("Pay my Tata Power electricity bill")
         mismatch = self.service.propose_transfer(context, "BEN-FASTCASH", 4_500_000, "ACC-SAL-001")
         self.assertEqual(mismatch["status"], "DENIED")
-        self.assertIn("INTENT_ACTION_MISMATCH", mismatch["sentinel"]["reason_codes"])
-        self.assertIn("KNOWN_MULE_DESTINATION", mismatch["sentinel"]["reason_codes"])
+        self.assertIn("INTENT_ACTION_MISMATCH", self.record(mismatch)["reason_codes"])
+        self.assertIn("KNOWN_MULE_DESTINATION", self.record(mismatch)["reason_codes"])
 
     def test_ambiguous_transfer_needs_clarification(self):
         result = self.service.propose_transfer(self.context("Transfer money to Vikram"), "BEN-VIKRAM", 100_000, "ACC-SAL-001")
         self.assertEqual(result["status"], "DENIED")
-        self.assertIn("INTENT_INCOMPLETE", result["sentinel"]["reason_codes"])
+        self.assertIn("INTENT_INCOMPLETE", self.record(result)["reason_codes"])
 
     def test_poisoned_replay_is_explainable_and_non_mutating(self):
         before = self.repo.get_account("ACC-SAL-001")["available_balance_minor"]
         result = self.service.replay_scenario("prompt-injection", "attack-session")
         self.assertEqual(result["status"], "DENY")
-        self.assertIn("SUSPECTED_INDIRECT_PROMPT_INJECTION", result["sentinel"]["reason_codes"])
+        self.assertIn("SUSPECTED_INDIRECT_PROMPT_INJECTION", self.record(result)["reason_codes"])
         self.assertEqual(self.repo.get_account("ACC-SAL-001")["available_balance_minor"], before)
 
     def test_new_device_and_velocity_raise_score(self):
@@ -261,20 +265,20 @@ class SentinelBankingTests(unittest.TestCase):
         for _ in range(2):
             self.service.propose_transfer(context, "BEN-VIKRAM", 800_000, "ACC-SAL-001")
         result = self.service.propose_transfer(context, "BEN-VIKRAM", 800_000, "ACC-SAL-001")
-        self.assertIn("NEW_DEVICE", result["sentinel"]["reason_codes"])
-        self.assertIn("VELOCITY_LIMIT", result["sentinel"]["reason_codes"])
+        self.assertIn("NEW_DEVICE", self.record(result)["reason_codes"])
+        self.assertIn("VELOCITY_LIMIT", self.record(result)["reason_codes"])
 
     def test_revoked_delegation_denies(self):
         self.repo.transaction(lambda data: data["delegations"]["DLG-BANKING-001"].update({"status": "REVOKED"}))
         result = self.service.propose_bill_payment(self.context("Pay my Tata Power electricity bill"), "BILL-TATA-001", "ACC-SAL-001")
         self.assertEqual(result["status"], "DENIED")
-        self.assertIn("DELEGATION_SCOPE_EXCEEDED", result["sentinel"]["reason_codes"])
+        self.assertIn("DELEGATION_SCOPE_EXCEEDED", self.record(result)["reason_codes"])
 
     def test_expired_delegation_denies(self):
         self.repo.transaction(lambda data: data["delegations"]["DLG-BANKING-001"].update({"expires_at": "2020-01-01T00:00:00Z"}))
         result = self.service.propose_bill_payment(self.context("Pay my Tata Power electricity bill"), "BILL-TATA-001", "ACC-SAL-001")
         self.assertEqual(result["status"], "DENIED")
-        self.assertIn("DELEGATION_SCOPE_EXCEEDED", result["sentinel"]["reason_codes"])
+        self.assertIn("DELEGATION_SCOPE_EXCEEDED", self.record(result)["reason_codes"])
 
     def test_insufficient_funds_has_no_partial_state(self):
         self.repo.transaction(lambda data: data["accounts"]["ACC-SAL-001"].update({"balance_minor": 100, "available_balance_minor": 100}))
@@ -291,7 +295,7 @@ class SentinelBankingTests(unittest.TestCase):
         approved = self.service.approve_challenge(first["challenge"]["id"], first["challenge"]["transaction_digest"])
         changed = self.service.propose_transfer(context, "BEN-VIKRAM", 7_400_000, "ACC-SAL-001")
         self.assertEqual(changed["status"], "DENIED")
-        self.assertIn("IDEMPOTENCY_CONFLICT", changed["sentinel"]["reason_codes"])
+        self.assertIn("IDEMPOTENCY_CONFLICT", self.record(changed)["reason_codes"])
         self.assertEqual(len([t for t in self.repo.snapshot()["transactions"] if t.get("reference") == approved["receipt"]["reference"]]), 1)
 
     def test_corrupt_store_fails_closed(self):

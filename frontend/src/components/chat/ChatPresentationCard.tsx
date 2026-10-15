@@ -183,15 +183,15 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
     );
   }
 
-  // 9. Sentinel Policy Denial
-  if (type === 'SENTINEL_DENIAL' || result.sentinel?.reason_codes) {
-    const reasons = result.sentinel?.reason_codes || pres.sentinel?.reason_codes || [result.reason || 'Policy restriction'];
+  // 9. Sentinel Policy Denial: plain words and a reference to quote, never the reasons behind the decision
+  if (type === 'SENTINEL_DENIAL' || result.sentinel?.customer_message) {
+    const message = result.sentinel?.customer_message || result.error || pres.message || 'This action was not allowed.';
+    const reference = result.sentinel?.reference || pres.sentinel?.reference;
     return (
       <article className="chat-result">
         <h3>{title}</h3>
-        {reasons.map((r: string, idx: number) => (
-          <Row key={idx} label="Policy reason">{String(r).replace(/_/g, ' ')}</Row>
-        ))}
+        <p>{message}</p>
+        {reference && <Row label="Reference">{reference}</Row>}
       </article>
     );
   }

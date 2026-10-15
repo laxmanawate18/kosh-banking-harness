@@ -41,11 +41,18 @@ def _failure_text(exc: Exception) -> str:
 REPEAT_WINDOW = timedelta(minutes=10)  # a write tool repeated with the same arguments in this window returns its first result
 
 
-def _without_token(decision: Dict[str, Any]) -> Dict[str, Any]:
-    safe = copy.deepcopy(decision)
-    safe.pop("authorization_token", None)
-    safe.pop("authorization_token_hash", None)
-    return safe
+GENERIC_REFUSAL = "We can't complete this payment right now. If you need help, contact Kosh support and quote the reference."
+
+
+def _customer_view(decision: Dict[str, Any]) -> Dict[str, Any]:
+    """The part of a Sentinel decision that the customer, Mitra and outside agents may see: the outcome, a reference to quote to
+    support and, for a refusal the customer can act on, plain words. Never the score, the checks or the reason codes: telling
+    someone what tripped the alarm teaches them how to avoid it (guardrail G8). The full record stays in the audit trail."""
+    view = {"reference": decision["id"], "decision": decision["decision"]}
+    if decision["decision"] == "DENY":
+        said = [text for text in map(customer_reason_text, decision.get("reason_codes", [])) if text]
+        view["customer_message"] = said[0] if said else GENERIC_REFUSAL
+    return view
 
 
 # Offer cards for record_customer_lead: catalogue facts only, no "guaranteed", "highest" or invented rate cuts.
@@ -278,11 +285,11 @@ class SecureBankingService:
             "success": False,
             "status": "DENIED",
             "payment_intent_id": payment["id"],
-            "sentinel": _without_token(decision),
+            "sentinel": _customer_view(decision),
             "presentation": {
                 "type": "SENTINEL_DENIAL",
                 "title": "Sentinel blocked this action",
-                "message": "The proposed action did not satisfy the customer's bound intent and safety policy.",
+                "message": _customer_view(decision).get("customer_message") or "This action was not allowed.",
             },
         }
 
@@ -439,7 +446,7 @@ class SecureBankingService:
             "success": True,
             "status": "EXECUTED",
             "receipt": receipt,
-            "sentinel": _without_token(decision),
+            "sentinel": _customer_view(decision),
             "presentation": {"type": "PAYMENT_RECEIPT", "title": "Electricity bill paid"},
         }
 
@@ -488,7 +495,7 @@ class SecureBankingService:
             "success": True,
             "status": "EXECUTED",
             "receipt": receipt,
-            "sentinel": _without_token(decision),
+            "sentinel": _customer_view(decision),
             "presentation": {"type": "PAYMENT_RECEIPT", "title": "Transfer complete"},
         }
 
@@ -557,7 +564,7 @@ class SecureBankingService:
             "status": "CHALLENGE_REQUIRED",
             "challenge_id": challenge_id,
             "payment_intent_id": payment["id"],
-            "sentinel": _without_token(decision),
+            "sentinel": _customer_view(decision),
             "challenge": view,
             "presentation": {
                 "type": "PAYMENT_CHALLENGE",
@@ -670,7 +677,7 @@ class SecureBankingService:
             "success": True,
             "status": "EXECUTED",
             "receipt": receipt,
-            "sentinel": _without_token(decision),
+            "sentinel": _customer_view(decision),
             "presentation": {"type": "PAYMENT_RECEIPT", "title": "Payment complete"},
         }
 
@@ -731,7 +738,7 @@ class SecureBankingService:
             "success": True,
             "status": "FROZEN",
             "card": frozen,
-            "sentinel": _without_token(decision),
+            "sentinel": _customer_view(decision),
             "presentation": {"type": "CARD_FROZEN", "title": "Card frozen"},
         }
 
@@ -842,7 +849,7 @@ class SecureBankingService:
             "intent": intent, "untrusted_content_detected": True}, proposal)
         decision = self.sentinel.evaluate(context)
         return {"success": True, "status": decision["decision"], "executed": False,
-                "sentinel": _without_token(decision),
+                "sentinel": _customer_view(decision),
                 "presentation": {"type": "SENTINEL_DENIAL", "title": "Security replay evaluated"}}
 
 

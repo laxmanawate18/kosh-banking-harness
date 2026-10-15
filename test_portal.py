@@ -24,6 +24,10 @@ class PortalTests(unittest.TestCase):
         self.headers = {'X-CSRF-Token': csrf}
         self.post('/api/consent', {'accepted': True})
 
+    def record(self, result):
+        """The full Sentinel decision from the store: the customer's result carries only the outcome and plain words."""
+        return next(d for d in dev_ui.db.snapshot()['sentinel_decisions'] if d['id'] == result['sentinel']['reference'])
+
     def post(self, path, payload=None):
         return self.client.post(path, headers=self.headers, json=payload or {})
 
@@ -113,7 +117,7 @@ class PortalTests(unittest.TestCase):
     def test_intent_source_is_bound_and_mule_is_denied(self):
         result = self.post('/api/portal/payments', self.transfer(beneficiary_id='BEN-FASTCASH')).json()
         self.assertEqual(result['sentinel']['decision'], 'DENY')
-        self.assertIn('KNOWN_MULE_DESTINATION', result['sentinel']['reason_codes'])
+        self.assertIn('KNOWN_MULE_DESTINATION', self.record(result)['reason_codes'])
         intent = dev_ui.db.snapshot()['intents'][-1]
         self.assertEqual(intent['fields']['source_account_id'], 'ACC-SAL-001')
 
@@ -208,7 +212,7 @@ class PortalTests(unittest.TestCase):
         proposal = self.post('/api/portal/payments', self.transfer()).json()
         self.assertEqual(proposal['status'], 'DENIED')
         self.assertEqual(proposal['sentinel']['decision'], 'DENY')
-        self.assertIn('KYC_NON_COMPLIANT', proposal['sentinel']['reason_codes'])
+        self.assertIn('KYC_NON_COMPLIANT', self.record(proposal)['reason_codes'])
 
     def test_initial_kyc_onboarding_and_officer_approval_unblocks_transfers(self):
         from workflow_test_support import submit_kyc, VERIFICATION
