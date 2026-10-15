@@ -201,11 +201,20 @@ class BankingDatabase:
             row = session.get(BankDocumentRecord, ("harness_controls", "current"))
             return {"disabled_channels": [], "disabled_tools": [], **(dict(row.data) if row else {})}
 
+    def effective_disabled_tools(self) -> List[str]:
+        """The tools that cannot run now: the admin's switches plus any automatic pause that has not ended. One primary-key read."""
+        from backend import auto_controls
+        controls = self.get_controls()
+        return sorted(set(controls.get("disabled_tools", [])) | set(auto_controls.active(controls)))
+
     def set_controls(self, *, disabled_channels: List[str], disabled_tools: List[str], reason: str, officer_user_id: str) -> Dict[str, Any]:
         controls = {"disabled_channels": sorted(set(disabled_channels)), "disabled_tools": sorted(set(disabled_tools)),
                     "reason": reason, "updated_by": officer_user_id, "updated_at": utc_now()}
 
         def mutate(data: Dict[str, Any]) -> None:
+            automatic = (data.get("harness_controls", {}).get("current") or {}).get("auto_trips")
+            if automatic:  # the admin's switches never erase an automatic pause; only its time or "Resume" ends it
+                controls["auto_trips"] = automatic
             data.setdefault("harness_controls", {})["current"] = controls
             data.setdefault("audit_events", []).append({
                 "id": new_id("AUD"), "event_type": "HARNESS_CONTROL_CHANGED", "actor": "officer", "approver_id": officer_user_id,

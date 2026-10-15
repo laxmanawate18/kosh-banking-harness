@@ -2453,7 +2453,9 @@ const QualityTab: React.FC = () => {
 };
 
 /* ---------------- Kill switches ---------------- */
-type Controls = { disabled_channels: string[]; disabled_tools: string[]; reason?: string; updated_by?: string; updated_at?: string; channels: string[]; tools: string[] };
+type AutoPause = { tool: string; reason: string; since: string; until: string };
+type Controls = { disabled_channels: string[]; disabled_tools: string[]; reason?: string; updated_by?: string; updated_at?: string; channels: string[]; tools: string[];
+  auto_pauses?: AutoPause[]; auto_pause_rule?: { refusals: number; within_minutes: number; pause_minutes: number } };
 const CHANNEL_HELP: Record<string, string> = {
   VISITOR: 'Mitra on the public website, for people who are not signed in.',
   CUSTOMER: 'Mitra in the signed-in app: balances, payments and service requests.',
@@ -2552,6 +2554,11 @@ const ControlsTab: React.FC = () => {
       toast({ message: 'Kill switches saved. They apply at once.' });
     } catch (e) { setSaveError(errorText(e)); setConfirming(false); } finally { setBusy(false); }
   };
+  const resumeAuto = async () => {
+    setBusy(true); setSaveError(null);
+    try { await post('/api/admin/controls/resume', {}); load(); toast({ message: 'Money tools resumed.' }); }
+    catch (e) { setSaveError(errorText(e)); } finally { setBusy(false); }
+  };
   const submit = (e: React.FormEvent) => {
     e.preventDefault(); setTouched(true);
     if (reasonShort) return;
@@ -2576,7 +2583,16 @@ const ControlsTab: React.FC = () => {
           title={[savedCh.length && `${savedCh.map(channelName).join(', ')} paused`, savedTools.length && `${plural(savedTools.length, 'tool')} blocked`].filter(Boolean).join(' · ')}>
           {lastChange}
         </Attention>
-      ) : <Attention tone="ok" title="All channels live · no tools blocked">{lastChange}</Attention>}
+      ) : !data.auto_pauses?.length && <Attention tone="ok" title="All channels live · no tools blocked">{lastChange}</Attention>}
+
+      {data.auto_pauses?.length ? (
+        <Attention tone="danger" title="Money tools paused automatically"
+          actions={<button type="button" className="k-btn outline sm" disabled={busy} onClick={resumeAuto}>Resume now</button>}>
+          {data.auto_pauses[0].reason}. {data.auto_pauses.map(p => humanizeCode(p.tool)).join(' and ')} stay off until {when(data.auto_pauses[0].until)}, then resume by themselves. Chat and enquiries are not affected.
+        </Attention>
+      ) : data.auto_pause_rule && (
+        <p className="muted">Automatic pause: if Sentinel refuses {data.auto_pause_rule.refusals} payments within {data.auto_pause_rule.within_minutes} minutes, the transfer and bill-payment tools stop for {data.auto_pause_rule.pause_minutes} minutes.</p>
+      )}
 
       <form onSubmit={submit} className="k-page-stack">
         <p className="sr-only" aria-live="polite">{said}</p>
@@ -2698,9 +2714,98 @@ const AuditTab: React.FC = () => {
   );
 };
 
+/* ---------------- Sentinel decisions ---------------- */
+type Explained = {
+  id: string; at: string | null; decision: 'ALLOW' | 'CHALLENGE' | 'DENY'; risk_score: number | null; challenge_at: number; deny_at: number;
+  action: { type: string | null; amount_minor: number | null } | null;
+  reasons: { code: string; meaning: string; points: number | null; kind: 'signal' | 'rule' }[];
+  checks: { name: string; status: string; detail: string }[]; obligations: string[]; customer_was_told: string;
+  policy_version: string | null; session_id: string | null;
+};
+const DECISION_OUTCOME = {
+  ALLOW: { tone: 'success', label: 'Allowed' }, CHALLENGE: { tone: 'warning', label: 'Extra verification' }, DENY: { tone: 'danger', label: 'Refused' },
+} as const;
+const rupees = (minor?: number | null) => (!minor ? '—' : `₹${(minor / 100).toLocaleString('en-IN')}`);
+const points = (n: number | null) => (n == null ? 'Rule' : `${n > 0 ? '+' : ''}${n} points`);
+
+const DecisionDialog: React.FC<{ d: Explained; close: () => void }> = ({ d, close }) => (
+  <Modal isOpen onClose={close} wide title={`${DECISION_OUTCOME[d.decision].label}: ${d.action?.type ? humanizeCode(d.action.type) : 'decision'} ${rupees(d.action?.amount_minor)}`}
+    subtitle={`Reference ${d.id} · ${when(d.at)}`}>
+    <div className="k-page-stack">
+      <p>Risk score <strong>{d.risk_score ?? '—'}</strong>. A score of {d.challenge_at} or more needs extra verification, and {d.deny_at} or more is refused.
+        Rules can refuse a payment whatever the score is.</p>
+      <Panel title="Why" count={d.reasons.length} sub="Each reason with what it means and what it added to the score.">
+        {d.reasons.length ? (
+          <div className="table-scroll"><table className="table st-cards">
+            <thead><tr><th>Reason</th><th>What it means</th><th>Effect</th></tr></thead>
+            <tbody>{d.reasons.map(r => (
+              <tr key={r.code}>
+                <td className="st-main"><code>{r.code}</code></td>
+                <td data-label="What it means">{r.meaning}</td>
+                <td data-label="Effect"><Tag tone={r.points == null ? 'neutral' : r.points > 0 ? 'warning' : 'success'}>{points(r.points)}</Tag></td>
+              </tr>))}</tbody>
+          </table></div>
+        ) : <Empty title="No reasons were recorded">Nothing raised the score, and no rule applied.</Empty>}
+      </Panel>
+      <Panel title="Checks" count={d.checks.length} sub="What Sentinel verified before scoring.">
+        {d.checks.length ? (
+          <div className="table-scroll"><table className="table st-cards">
+            <thead><tr><th>Check</th><th>Result</th><th>Detail</th></tr></thead>
+            <tbody>{d.checks.map(c => (
+              <tr key={c.name}>
+                <td className="st-main">{c.name}</td>
+                <td data-label="Result"><Tag tone={c.status === 'PASS' ? 'success' : 'danger'}>{c.status === 'PASS' ? 'Passed' : 'Failed'}</Tag></td>
+                <td data-label="Detail">{c.detail}</td>
+              </tr>))}</tbody>
+          </table></div>
+        ) : <Empty title="No checks recorded">This decision has no check list on file.</Empty>}
+      </Panel>
+      <Panel title="What the customer saw" sub="Customers and Mitra never see the reasons or the score, so nobody can learn how to avoid them.">
+        <div className="panel-body st-tight"><p>{d.customer_was_told}</p></div>
+      </Panel>
+    </div>
+  </Modal>
+);
+
+const DecisionsTab: React.FC = () => {
+  const [data, load, error] = useData<{ decisions: Explained[] }>('/api/admin/decisions?limit=100');
+  const [filter, setFilter] = useState('ALL');
+  const [open, setOpen] = useState<Explained | null>(null);
+  const head = <Head tab="admin-decisions" sub="Why Sentinel allowed, challenged or refused each payment. Only the admin sees this." />;
+  if (!data) return <>{head}<Loading error={error} retry={load} /></>;
+  const rows = data.decisions.filter(d => filter === 'ALL' || d.decision === filter);
+  const of = (k: string) => data.decisions.filter(d => d.decision === k).length;
+  return (
+    <>
+      {head}
+      <Panel title="Recent decisions" count={rows.length} sub="The newest 100, newest first."
+        actions={<FilterTabs name="decision" label="Filter decisions by outcome" value={filter} onChange={setFilter}
+          tabs={[{ id: 'ALL', label: 'All', count: data.decisions.length }, { id: 'DENY', label: 'Refused', count: of('DENY') },
+            { id: 'CHALLENGE', label: 'Extra verification', count: of('CHALLENGE') }, { id: 'ALLOW', label: 'Allowed', count: of('ALLOW') }]} />}>
+        {rows.length ? (
+          <div className="table-scroll"><table className="table st-cards st-sticky">
+            <thead><tr><th>When</th><th>Payment</th><th>Outcome</th><th>Score</th><th>Top reason</th><th><span className="sr-only">Action</span></th></tr></thead>
+            <tbody><AnimatePresence>{rows.map((d, i) => (
+              <motion.tr key={d.id} {...rowMotion(i)}>
+                <td className="st-main">{when(d.at)}<span className="st-sub"><code>{d.id}</code></span></td>
+                <td data-label="Payment">{d.action?.type ? humanizeCode(d.action.type) : '—'} <span className="st-sub">{rupees(d.action?.amount_minor)}</span></td>
+                <td data-label="Outcome"><Tag tone={DECISION_OUTCOME[d.decision].tone}>{DECISION_OUTCOME[d.decision].label}</Tag></td>
+                <td data-label="Score">{d.risk_score ?? '—'}</td>
+                <td data-label="Top reason">{d.reasons[0] ? d.reasons[0].meaning : <span className="muted">None</span>}</td>
+                <td className="st-act"><div className="row-actions"><button type="button" className="k-btn outline sm" onClick={() => setOpen(d)}>Explain…</button></div></td>
+              </motion.tr>))}</AnimatePresence></tbody>
+          </table></div>
+        ) : <Empty title="No decisions here">{filter === 'ALL' ? 'Decisions appear after a payment is proposed.' : 'No decision has this outcome yet.'}</Empty>}
+      </Panel>
+      {open && <DecisionDialog d={open} close={() => setOpen(null)} />}
+    </>
+  );
+};
+
 const TABS: Record<string, React.FC<{ go: (route: string) => void }>> = {
   'admin-approvals': ApprovalsTab, 'admin-ontology': OntologyTab, 'admin-skills': SkillsTab, 'admin-sources': SourcesTab,
   'admin-usage': UsageTab, 'admin-quality': QualityTab, 'admin-controls': ControlsTab, 'admin-audit': AuditTab,
+  'admin-decisions': DecisionsTab,
 };
 
 export const AdminPage: React.FC<{ tab: string; onNavigate: (route: string) => void }> = ({ tab, onNavigate }) => {

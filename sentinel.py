@@ -681,6 +681,12 @@ class SentinelService:
                 )
 
             self.db.transaction(mutate)
+            if decision == "DENY":
+                try:  # a burst of refusals pauses the money tools for a while (backend/auto_controls.py)
+                    from backend import auto_controls
+                    auto_controls.after_refusal(self.db)
+                except Exception:  # monitoring must never break a decision
+                    pass
 
         response = dict(record)
         response["authorization_token"] = token

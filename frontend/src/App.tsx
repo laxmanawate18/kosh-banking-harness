@@ -45,7 +45,7 @@ const AssistantDrawer: React.FC = () => {
 
 const CUSTOMER_ROUTES = ['overview', 'ai-banker', 'accounts', 'transactions', 'upi', 'payments', 'beneficiaries', 'bills', 'cards', 'deposits', 'services', 'requests', 'security', 'settings'];
 const OFFICER_ROUTES = ['operations', 'leads', 'history', 'audit'];
-const ADMIN_ROUTES = ['admin-approvals', 'admin-ontology', 'admin-skills', 'admin-sources', 'admin-usage', 'admin-quality', 'admin-controls', 'admin-audit'];
+const ADMIN_ROUTES = ['admin-approvals', 'admin-ontology', 'admin-skills', 'admin-sources', 'admin-usage', 'admin-quality', 'admin-controls', 'admin-decisions', 'admin-audit'];
 const ROUTES: Record<string, string[]> = { CUSTOMER: CUSTOMER_ROUTES, OFFICER: OFFICER_ROUTES, ADMIN: ADMIN_ROUTES };
 
 const routeFromHash = (role: string): string => {

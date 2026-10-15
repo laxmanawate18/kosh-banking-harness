@@ -251,7 +251,7 @@ class SecureToolGateHook(hooks.PreToolCallDecideHook):
     def decide(self, data: types.ToolCall) -> types.HookResult:
         name = str(data.name)
         args = _real_args(data, self.trusted_context)
-        if name in db.get_controls().get("disabled_tools", []):
+        if name in db.effective_disabled_tools():
             return types.HookResult(allow=False, message="TOOL_PAUSED: The bank has paused this action. Tell the customer it is temporarily unavailable in chat and offer the helpline.")
         calls = self.trusted_context["tool_calls_this_turn"] = self.trusted_context.get("tool_calls_this_turn", 0) + 1
         if calls > MAX_TOOL_CALLS_PER_TURN:  # a looping agent stops here instead of hammering core banking
@@ -310,7 +310,7 @@ class PublicSalesToolGateHook(hooks.PreToolCallDecideHook):
     def decide(self, data: types.ToolCall) -> types.HookResult:
         name = str(data.name)
         args = _real_args(data, {"vault": self.vault})
-        if name in db.get_controls().get("disabled_tools", []):
+        if name in db.effective_disabled_tools():
             return types.HookResult(allow=False, message="TOOL_PAUSED: The bank has paused this action. Tell the visitor it is temporarily unavailable and offer the helpline.")
         if harness.tool_spec("visitor", name) is None:
             if name in BANKING_TOOL_NAMES:
@@ -378,7 +378,7 @@ class HarnessGateHook(hooks.PreToolCallDecideHook):
     def decide(self, data: types.ToolCall) -> types.HookResult:
         name = str(data.name)
         args = _real_args(data, self.trusted_context)
-        if name in db.get_controls().get("disabled_tools", []):
+        if name in db.effective_disabled_tools():
             return types.HookResult(allow=False, message="TOOL_PAUSED: The bank has paused this action.")
         calls = self.trusted_context["tool_calls_this_turn"] = self.trusted_context.get("tool_calls_this_turn", 0) + 1
         if calls > MAX_TOOL_CALLS_PER_TURN:
