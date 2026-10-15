@@ -27,7 +27,8 @@ from persistence import ModelRegistryRecord, OntologyApprovalRecord
 from backend.mitra_ops import prompt_version, GATE_CATEGORIES
 from backend import ontology
 
-CLOUD_SQL_URL = "postgresql+psycopg://sentinel:REDACTED_DB_PASSWORD@CLOUD_SQL_HOST:5432/sentinel"
+# The production database address and password never live in this file: set CLOUD_SQL_DATABASE_URL in .env or the shell.
+CLOUD_SQL_URL = os.environ.get("CLOUD_SQL_DATABASE_URL", "")
 LOCAL_SQL_URL = "sqlite+pysqlite:///data/sentinel_local.sqlite3"
 SENTINEL_SQL_URL = "sqlite+pysqlite:///data/sentinel.sqlite3"
 
@@ -163,14 +164,19 @@ def main():
     parser.add_argument("--cloud-only", action="store_true", help="Only update Cloud SQL PostgreSQL")
     args = parser.parse_args()
 
+    cloud = [(CLOUD_SQL_URL, "Cloud SQL PostgreSQL (Production)")] if CLOUD_SQL_URL else []
+    if not CLOUD_SQL_URL:
+        print("[SKIP] CLOUD_SQL_DATABASE_URL is not set, so the production database is not touched.")
     targets = [
         (LOCAL_SQL_URL, "Local SQLite (sentinel_local.sqlite3)"),
         (SENTINEL_SQL_URL, "Local SQLite (sentinel.sqlite3)"),
-        (CLOUD_SQL_URL, "Cloud SQL PostgreSQL (Production)"),
+        *cloud,
     ]
 
     if args.cloud_only:
-        targets = [(CLOUD_SQL_URL, "Cloud SQL PostgreSQL (Production)")]
+        if not cloud:
+            raise SystemExit("--cloud-only needs CLOUD_SQL_DATABASE_URL.")
+        targets = cloud
 
     for url, label in targets:
         approve_in_engine(url, label, target_versions=args.version, eval_only=args.eval_only)

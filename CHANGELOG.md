@@ -35,7 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Fallback Model Clearance**:
   - Evaluated and recorded benchmark verification for fallback model (`gemini-3.7-flash`) in `backup_evaluations`, resolving the `"no evaluation of the backup recorded"` block.
 - **Multi-Database Synchronization**:
-  - Upgraded [`scripts/approve_current_version.py`](file:///f:/Personal/AI-Project/Antigravity/builder_ai/scripts/approve_current_version.py) to target both local SQLite (`data/sentinel_local.sqlite3`) and production Cloud SQL PostgreSQL (`CLOUD_SQL_HOST`).
+  - Upgraded [`scripts/approve_current_version.py`](file:///f:/Personal/AI-Project/Antigravity/builder_ai/scripts/approve_current_version.py) to target both local SQLite (`data/sentinel_local.sqlite3`) and production Cloud SQL PostgreSQL (address and password come from `CLOUD_SQL_DATABASE_URL`, never from the repository).
   - Added CLI flags `--version` (arbitrary version hash clearance), `--eval-only` (staging clearance without signing), and `--cloud-only`.
   - Cleared both running version (`686af0787c2a`) and previous hash (`f5deab48fdcb`).
 - **Ontology Release Approvals**:
