@@ -22,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [2.4.0] - 2026-10-15
 
-### Fixed & Enhanced - AI Governance & Release Gate Approvals (`b4935ea`)
+### Fixed & Enhanced - AI Governance & Release Gate Approvals (`8a5df72`)
 - **Release Gate Benchmark Clearance**:
   - Populated 100% benchmark score (`107/107` test cases passed) for primary model (`gemini-3.8-flash`) across all 7 mandatory release gate categories:
     - `care_fraud: 12/12`
@@ -47,7 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [2.3.0] - 2026-10-15
 
-### Added - Interactive Knowledge Graph & Visual State Machine Explorer (`fba6fa5`)
+### Added - Interactive Knowledge Graph & Visual State Machine Explorer (`315d52e`)
 - **Interactive Knowledge Graph Canvas**:
   - Replaced static text lists and raw markdown with an interactive HTML5 Canvas visual knowledge graph (`#admin-ontology`).
   - Implemented automatic layout with smooth pan, zoom, pinch controls, and search filtering.
@@ -75,7 +75,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [2.2.0] - 2026-10-14
 
-### Fixed - UI Layout & App Shell Stability (`84217dd`)
+### Fixed - UI Layout & App Shell Stability (`3ede84e`)
 - **Scroll Trap Elimination**:
   - Fixed sticky panel overflow traps on long admin tables and governance views.
   - Established system-agnostic container shell ensuring smooth scrolling on macOS, Windows, and Linux.
@@ -86,7 +86,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [2.1.0] - 2026-10-14
 
-### Fixed & Enhanced - Authentication & Developer Experience (`0bed4f5`, `c30e7bd`, `1bfa634`)
+### Fixed & Enhanced - Authentication & Developer Experience (`2cfdc88`, `444e743`, `dbcfc0f`)
 - **Admin/Officer Redirect Loop**:
   - Fixed infinite `prompt=login` redirect loops preventing Admin and Officer users from accessing staff dashboards.
 - **Quick-Fill Credentials**:
@@ -98,7 +98,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [2.0.0] - 2026-10-13
 
-### Performance & Core Harness Modernization (`db8abcd`, `59d35ed`)
+### Performance & Core Harness Modernization (`f07e227`, `2beb7b7`)
 - **Server-Sent Events (SSE)**:
   - Implemented SSE streaming for Officer Copilot real-time responses.
 - **Multi-Tier Caching Service**:
