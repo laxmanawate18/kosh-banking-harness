@@ -285,6 +285,24 @@ def make_session_router(
             raise HTTPException(status_code=503, detail="The officer copilot is paused by the bank.")
         if over_rate_limit(f"officer:{context.user_id}"):
             raise HTTPException(status_code=429, detail="Too many questions; wait a minute.")
+
+        if req.stream:
+            from fastapi.responses import StreamingResponse
+
+            async def event_generator():
+                try:
+                    async for ev in copilot.ask_stream(
+                        agent_factory, db, request_service, officer_user_id=context.user_id, message=req.message,
+                        history=[m.model_dump() for m in req.history], request_id=req.request_id,
+                    ):
+                        yield f"data: {json.dumps(ev)}\n\n"
+                    yield "data: [DONE]\n\n"
+                except Exception as exc:
+                    logger.exception("Officer copilot stream error: %r", exc)
+                    yield f"data: {json.dumps({'type': 'error', 'message': 'The copilot could not answer right now.'})}\n\n"
+
+            return StreamingResponse(event_generator(), media_type="text/event-stream")
+
         try:
             return await copilot.ask(agent_factory, db, request_service, officer_user_id=context.user_id, message=req.message,
                                      history=[m.model_dump() for m in req.history], request_id=req.request_id)

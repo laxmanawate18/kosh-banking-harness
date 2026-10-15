@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { post } from '../../services/api';
+import { post, postStream } from '../../services/api';
 import { Icon } from '../common/Icon';
 import { AnimatePresence, motion, DUR, EASE } from '../common/Animate';
 import { Panel, errorText } from './StaffKit';
@@ -20,13 +20,53 @@ export const OfficerCopilot: React.FC<{ requestId?: string }> = ({ requestId }) 
     if (!text || busy) return;
     setBusy(true); setError(''); setMessage('');
     setTurns(t => [...t, { role: 'officer', text }]);
+    let currentReply = '';
+    let copilotTurnIndex = -1;
+
     try {
-      const res = await post<{ reply: string }>('/api/officer/copilot', {
-        message: text, history: turns.slice(-10), ...(requestId ? { request_id: requestId } : {}),
-      });
-      setTurns(t => [...t, { role: 'copilot', text: res.reply || 'No answer.' }]);
+      const res = await postStream(
+        '/api/officer/copilot',
+        {
+          message: text,
+          history: turns.slice(-10),
+          ...(requestId ? { request_id: requestId } : {}),
+        },
+        (delta: string) => {
+          currentReply += delta;
+          setTurns(t => {
+            if (copilotTurnIndex === -1) {
+              copilotTurnIndex = t.length;
+              return [...t, { role: 'copilot', text: currentReply }];
+            }
+            return t.map((turn, i) => (i === copilotTurnIndex ? { ...turn, text: currentReply } : turn));
+          });
+        }
+      );
+      if (res.reply) {
+        setTurns(t => {
+          if (copilotTurnIndex >= 0 && copilotTurnIndex < t.length) {
+            return t.map((turn, i) => (i === copilotTurnIndex ? { ...turn, text: res.reply } : turn));
+          }
+          return [...t, { role: 'copilot', text: res.reply }];
+        });
+      }
     } catch (err) {
-      setError(errorText(err, 'The copilot could not answer right now.'));
+      try {
+        const fallback = await post<{ reply: string }>('/api/officer/copilot', {
+          message: text,
+          history: turns.slice(-10),
+          ...(requestId ? { request_id: requestId } : {}),
+          stream: false,
+        });
+        setTurns(t => {
+          if (copilotTurnIndex >= 0 && copilotTurnIndex < t.length) {
+            return t.map((turn, i) => (i === copilotTurnIndex ? { ...turn, text: fallback.reply } : turn));
+          }
+          return [...t, { role: 'copilot', text: fallback.reply || 'No answer.' }];
+        });
+      } catch (fallbackErr) {
+        setError(errorText(fallbackErr, 'The copilot could not answer right now.'));
+      }
     } finally {
       setBusy(false);
     }

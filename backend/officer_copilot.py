@@ -106,9 +106,9 @@ def build_officer_tools(db, request_service, officer_user_id: str) -> List[Calla
             get_last_reconciliation, verify_audit_trail, query_bank_knowledge, draft_decision_note]
 
 
-async def ask(agent_factory, db, request_service, *, officer_user_id: str, message: str,
-              history: List[Dict[str, str]], request_id: str | None = None) -> Dict[str, Any]:
-    """One copilot turn. The server keeps no conversation: the console sends the last few messages back."""
+async def ask_stream(agent_factory, db, request_service, *, officer_user_id: str, message: str,
+                     history: List[Dict[str, str]], request_id: str | None = None):
+    """Stream copilot events: token deltas and tool notifications, ending with done event."""
     session_id = f"OFFICER-{officer_user_id}-{uuid.uuid4().hex[:8]}"
     vault = Vault()
     context = {"session_id": session_id, "user_id": officer_user_id, "customer_id": None, "scopes": SCOPES, "tool_calls_this_turn": 0,
@@ -128,17 +128,21 @@ async def ask(agent_factory, db, request_service, *, officer_user_id: str, messa
     from google.antigravity import types
     text, tools_used = "", []
 
-    async def run_once(config) -> None:
-        nonlocal text
-        async with agent_factory(config) as agent:
+    async def stream_agent(chosen_model):
+        nonlocal text, tools_used
+        async with agent_factory(config_for(chosen_model)) as agent:
             response = await agent.chat(prompt)
             async for chunk in response.chunks:
                 if isinstance(chunk, types.Text) and chunk.text:
                     text += chunk.text
+                    yield {"type": "token", "delta": vault.fill(chunk.text)}
                 elif isinstance(chunk, types.ToolCall):
                     tools_used.append(str(chunk.name))
+                    yield {"type": "tool", "name": str(chunk.name)}
+
     try:
-        await asyncio.wait_for(run_once(config_for(model)), TURN_SECONDS)
+        async for ev in stream_agent(model):
+            yield ev
     except Exception as exc:
         if not mitra_ops.overloaded(exc) or "draft_decision_note" in tools_used:  # a retry could save the note twice
             raise
@@ -147,10 +151,28 @@ async def ask(agent_factory, db, request_service, *, officer_user_id: str, messa
         model = model or mitra_ops.backup_model()
         text, tools_used = "", []
         context["tool_calls_this_turn"] = 0
-        await asyncio.wait_for(run_once(config_for(model)), TURN_SECONDS)
+        async for ev in stream_agent(model):
+            yield ev
+
     audit_hits(vault, db, session_id=session_id, customer_id=None)
     db.append_audit("COPILOT_TURN", actor="officer", approver_id=officer_user_id, session_id=session_id,
                     summary="Officer copilot answered", details={"tools": tools_used, "instructions_version": instructions_version(),
                                                                  "model": model or DEFAULT_MODEL,
-                             **({"process": process_id} if process_id else {})})
-    return {"reply": mask_deep(vault.fill(text.strip())), "tools": tools_used, "instructions_version": instructions_version()}
+                                                                 **({"process": process_id} if process_id else {})})
+    final_reply = mask_deep(vault.fill(text.strip()))
+    yield {"type": "done", "reply": final_reply, "tools": tools_used, "instructions_version": instructions_version()}
+
+
+async def ask(agent_factory, db, request_service, *, officer_user_id: str, message: str,
+              history: List[Dict[str, str]], request_id: str | None = None) -> Dict[str, Any]:
+    """One copilot turn. The server keeps no conversation: the console sends the last few messages back."""
+    final_event = {}
+    async for ev in ask_stream(agent_factory, db, request_service, officer_user_id=officer_user_id,
+                              message=message, history=history, request_id=request_id):
+        if ev.get("type") == "done":
+            final_event = ev
+    return {
+        "reply": final_event.get("reply", ""),
+        "tools": final_event.get("tools", []),
+        "instructions_version": final_event.get("instructions_version") or instructions_version(),
+    }

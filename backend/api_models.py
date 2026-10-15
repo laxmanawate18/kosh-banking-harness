@@ -75,6 +75,7 @@ class OfficerCopilotRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     history: list[CopilotMessage] = Field(default_factory=list, max_length=20)
     request_id: str | None = Field(default=None, pattern="^REQ-[A-Z0-9]{1,40}$")
+    stream: bool = False
 
 
 class HarnessControlsRequest(BaseModel):

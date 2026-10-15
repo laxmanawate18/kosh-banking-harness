@@ -148,6 +148,15 @@ async def ask_ontology_copilot(
     approved_snapshot = ontology.get_approved_snapshot(process_id)
     diff_entries, diff_summary = ontology.compute_line_diff(approved_snapshot, raw_content)
 
+    # Check cache keyed by process_id, content_hash, and action
+    content_hash = ontology.content_hash(process_id)
+    msg_digest = hashlib.sha256(message.strip().encode("utf-8")).hexdigest()[:16] if message else "default"
+    cache_key = f"admin_copilot:{process_id}:{content_hash}:{quick_action or 'custom'}:{msg_digest}"
+    from backend.cache_service import cache
+    cached = await cache.aget(cache_key)
+    if cached is not None and isinstance(cached, dict):
+        return {**cached, "cached": True}
+
     # First attempt LLM inference via agent_factory if available
     try:
         from backend.agent_config import create_harness_agent_config
@@ -209,12 +218,14 @@ Instructions:
                     approver_id=admin_user_id,
                     details={"process_id": process_id, "quick_action": quick_action, "method": "llm"},
                 )
-                return {
+                res = {
                     "reply": text.strip(),
                     "risk_level": "LOW" if "approved" in text.lower() else "MEDIUM",
                     "quick_action": quick_action,
                     "process_id": process_id,
                 }
+                await cache.aset(cache_key, res, ttl_seconds=86400)
+                return res
     except Exception as exc:
         logger.info("Ontology copilot falling back to deterministic analysis: %r", exc)
 
@@ -234,4 +245,5 @@ Instructions:
         approver_id=admin_user_id,
         details={"process_id": process_id, "quick_action": quick_action, "method": "deterministic"},
     )
+    await cache.aset(cache_key, result, ttl_seconds=86400)
     return result

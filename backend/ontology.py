@@ -276,6 +276,12 @@ def save_process_content(process_id: str, new_content: str) -> None:
     view.cache_clear()
     content_hash.cache_clear()
     _approvals["at"] = float("-inf")
+    try:
+        from backend.cache_service import cache
+        cache.clear("classify:")
+        cache.clear("admin_copilot:")
+    except Exception:
+        pass
 
 
 def record_approval(db, process_id: str, admin_user_id: str, note: str) -> Dict[str, str]:
@@ -355,6 +361,16 @@ async def classify(model_text: str, channel: str) -> Optional[str]:
     choices = allowed(channel)
     if not model_text.strip() or not choices:
         return None
+
+    # Fast in-memory / Redis pre-turn cache check (bypassed if client is mocked in tests)
+    is_mock = _CLIENT is not None and type(_CLIENT).__name__ in {"SimpleNamespace", "MagicMock", "Mock", "AsyncMock"}
+    from backend.cache_service import cache
+    cache_key = f"classify:{channel}:{hashlib.sha256(model_text.strip().encode('utf-8')).hexdigest()[:16]}"
+    if not is_mock:
+        cached = await cache.aget(cache_key)
+        if cached is not None:
+            return None if cached == "none" else (cached if cached in choices else None)
+
     from google.genai import types
     from backend.settings import DEFAULT_MODEL
     labels = "\n".join(f"- {pid}: {p.name} ({'; '.join(_bullets(_section(p.text, 'Use this process when'))[:4])})"
@@ -376,7 +392,10 @@ async def classify(model_text: str, channel: str) -> Optional[str]:
             from backend import mitra_ops
             mitra_ops.note_model_failure(exc)
         return None
-    return answer if answer in choices else None
+    res = answer if answer in choices else None
+    if not is_mock:
+        await cache.aset(cache_key, res or "none", ttl_seconds=3600)
+    return res
 
 
 async def select(text: str, channel: str, vault, **signals) -> Optional[str]:

@@ -77,6 +77,84 @@ export const put = <T = any>(url: string, body: any = {}, options: RequestInit =
 export const del = <T = any>(url: string, options: RequestInit = {}) =>
   request<T>(url, { method: 'DELETE', ...options });
 
+export async function postStream(
+  url: string,
+  body: any,
+  onDelta: (delta: string) => void,
+  options: RequestInit = {}
+): Promise<{ reply: string; tools?: string[] }> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'text/event-stream',
+    ...(options.headers as Record<string, string> || {}),
+  };
+  if (csrfToken) {
+    headers['X-CSRF-Token'] = csrfToken;
+  }
+  const response = await fetch(url, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers,
+    body: JSON.stringify({ ...body, stream: true }),
+    ...options,
+  });
+
+  if (!response.ok) {
+    let errMsg = `Request failed (${response.status})`;
+    try {
+      const errJson = await response.json();
+      errMsg = errJson.detail || errMsg;
+    } catch {
+      // ignore
+    }
+    throw new Error(errMsg);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('Streaming not supported');
+  }
+
+  const decoder = new TextDecoder('utf-8');
+  let accumulated = '';
+  let tools: string[] = [];
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const dataStr = trimmed.slice(5).trim();
+      if (!dataStr || dataStr === '[DONE]') continue;
+      try {
+        const event = JSON.parse(dataStr);
+        if (event.type === 'token' && event.delta) {
+          accumulated += event.delta;
+          onDelta(event.delta);
+        } else if (event.type === 'tool' && event.name) {
+          tools.push(event.name);
+        } else if (event.type === 'done' && event.reply) {
+          accumulated = event.reply;
+          if (event.tools) tools = event.tools;
+        } else if (event.type === 'error' && event.message) {
+          throw new Error(event.message);
+        }
+      } catch (err: any) {
+        if (err.message && err.message !== 'Unexpected end of JSON input') {
+          throw err;
+        }
+      }
+    }
+  }
+
+  return { reply: accumulated, tools };
+}
+
 export const apiGet = get;
 export const apiPost = post;
 export const apiPatch = patch;
