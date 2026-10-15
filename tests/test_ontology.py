@@ -285,7 +285,7 @@ class OntologyMappingAndStateEngineTests(unittest.TestCase):
 
     def test_governed_ontology_parameters(self):
         params = ontology.ontology_parameters()
-        self.assertEqual(len(params), 10)
+        self.assertEqual(len(params), 12)
         param_ids = {p["id"] for p in params}
         self.assertIn("PARAM_AGENT_PAYMENT_LIMIT", param_ids)
         self.assertIn("PARAM_STEP_UP_MAX_FAILURES", param_ids)
@@ -293,6 +293,9 @@ class OntologyMappingAndStateEngineTests(unittest.TestCase):
         for p in params:
             self.assertTrue(p["is_set"])
             self.assertIsNotNone(p["value"])
+            self.assertIn("enforced", p)
+            if not p["enforced"]:  # a parameter nothing reads must say so, not claim a component enforces it
+                self.assertTrue(p["enforced_in"].startswith("Not enforced"), p["id"])
 
     def test_runtime_card_state_machine_enforcement(self):
         from core_banking import MockCoreBanking

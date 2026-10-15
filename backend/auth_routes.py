@@ -15,6 +15,7 @@ from backend.api_models import (
     GCPPhoneLoginRequest,
 )
 from auth_service import COOKIE_NAME, TERMS_VERSION, secure_cookie_enabled
+from oauth_service import StepUpLocked
 
 
 
@@ -88,7 +89,13 @@ def make_auth_router(
             )
         except ConnectionError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except StepUpLocked as exc:
+            db.append_audit("STEP_UP_LOCKED", actor="customer", session_id=context.session_id, severity="WARNING",
+                            summary="Step-up locked after repeated wrong codes", details={"user_id": context.user_id, "lock_minutes": exc.minutes})
+            raise HTTPException(status_code=429, detail=str(exc), headers={"Retry-After": str(exc.minutes * 60)}) from exc
         except PermissionError as exc:
+            db.append_audit("STEP_UP_FAILED", actor="customer", session_id=context.session_id, severity="WARNING",
+                            summary="A step-up code was rejected", details={"user_id": context.user_id})
             raise HTTPException(status_code=401, detail=str(exc)) from exc
         db.append_audit(
             "STEP_UP_SUCCEEDED",

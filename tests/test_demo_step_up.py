@@ -18,7 +18,8 @@ class DemoStepUpTests(unittest.TestCase):
             return response
         grant = MagicMock(provider_session_id="PSID", id="G1")
         with patch.object(oauth.runtime, "sessions") as sessions, patch("oauth_service.urllib.request.urlopen", fake_urlopen), \
-                patch.object(oauth, "_refresh_grant", return_value=(None, "L3")):
+                patch.object(oauth, "_refresh_grant", return_value=(None, "L3")), patch.object(oauth, "_refuse_while_locked"), \
+                patch.object(oauth, "_step_up_succeeded"):  # this test is about the request sent; the lock has its own tests
             sessions.return_value.__enter__.return_value.scalar.return_value = grant
             try:
                 oauth.step_up_with_firebase("S1", None, code="246810", phone="+919876543210")
