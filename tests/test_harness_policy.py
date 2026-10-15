@@ -26,7 +26,9 @@ class PolicyTests(unittest.TestCase):
     def transfer(self):
         intent = self.resolver.resolve("Transfer ₹75,000 to Vikram", "S-POL", f"t-{len(self.repo.snapshot()['intents'])}")
         context = {"session_id": "S-POL", "turn_id": intent["turn_id"], "intent": intent, "device_id": "DEVICE-KNOWN-01"}
-        return self.service.propose_transfer(context, "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")["sentinel"]
+        result = self.service.propose_transfer(context, "BEN-VIKRAM", 7_500_000, "ACC-SAL-001")
+        # the full stored record: the customer's result carries only the outcome and plain words
+        return next(d for d in self.repo.snapshot()["sentinel_decisions"] if d["id"] == result["sentinel"]["reference"])
 
     def test_decision_records_the_policy_version(self):
         self.assertEqual(self.transfer()["policy_version"], harness.policy_version())

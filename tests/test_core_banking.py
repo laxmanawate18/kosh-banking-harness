@@ -10,6 +10,8 @@ from core_banking import MockCoreBanking, reconcile
 from sentinel import CUSTOMER_ID, IntentResolver, SentinelService
 
 
+# reconcile(stale_after_seconds=-1) means "older than now by any amount": with 0, a coarse clock (Windows) can return equal timestamps
+# for the payment and the check, and the stuck payment is not seen as stale.
 class CoreBankingTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -58,7 +60,7 @@ class CoreBankingTests(unittest.TestCase):
             self.pay_bill()
         self.assertEqual(self.balance(), before - 243000)  # the core did move the money
         payment = next(p for p in self.repo.snapshot()["payment_intents"] if p["status"] == "POSTING")
-        report = reconcile(self.repo, self.core, stale_after_seconds=0)
+        report = reconcile(self.repo, self.core, stale_after_seconds=-1)
         self.assertEqual(report["settled"], [{"payment_id": payment["id"], "outcome": "RECORDED_AS_EXECUTED"}])
         self.assertEqual(self.repo.get_payment_intent(payment["id"])["status"], "EXECUTED")
 
@@ -66,7 +68,7 @@ class CoreBankingTests(unittest.TestCase):
         before = self.balance()
         with patch.object(self.core, "post_payment", side_effect=RuntimeError("network to core lost")), self.assertRaises(RuntimeError):
             self.pay_bill()
-        report = reconcile(self.repo, self.core, stale_after_seconds=0)
+        report = reconcile(self.repo, self.core, stale_after_seconds=-1)
         self.assertEqual(report["settled"][0]["outcome"], "MARKED_FAILED_NOT_POSTED")
         self.assertEqual(self.balance(), before)
 

@@ -685,6 +685,7 @@ type PolicyParameter = {
   owner: string;
   description: string;
   enforced_in: string;
+  enforced: boolean;
   is_set: boolean;
 };
 
@@ -1888,7 +1889,7 @@ const OntologyGovernanceView: React.FC = () => {
                   </p>
 
                   <div className="ont-policy-meta">
-                    <Tag tone="info">Enforced: {p.enforced_in}</Tag>
+                    <Tag tone={p.enforced ? 'info' : 'warning'}>{p.enforced ? `Enforced: ${p.enforced_in}` : p.enforced_in}</Tag>
                     <Tag tone="neutral">Owner: {p.owner}</Tag>
                   </div>
                 </div>
@@ -1904,7 +1905,7 @@ const OntologyGovernanceView: React.FC = () => {
                     <td><strong style={{ color: 'var(--accent-ink)', fontSize: '15px' }}>{formatParamValue(p)}</strong></td>
                     <td><Tag tone="neutral">{p.unit}</Tag></td>
                     <td>{p.owner}</td>
-                    <td><Tag tone="info">{p.enforced_in}</Tag></td>
+                    <td><Tag tone={p.enforced ? 'info' : 'warning'}>{p.enforced_in}</Tag></td>
                     <td className="st-wrap">{p.description}</td>
                   </tr>
                 ))}</tbody>

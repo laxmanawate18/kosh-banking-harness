@@ -17,16 +17,42 @@ from backend import harness
 from core_banking import CoreBanking, core_for
 from banking_db import BankingDatabase, db, new_id, utc_now
 from product_service import get_product_by_id, inr
-from sentinel import AGENT_ID, CUSTOMER_ID, KNOWN_DEVICE_ID, SentinelService, sentinel
+from sentinel import AGENT_ID, CUSTOMER_ID, KNOWN_DEVICE_ID, SentinelService, customer_reason_text, limit_checks, sentinel
+
+class LimitExceeded(PermissionError):
+    """A money limit no longer holds at the moment the payment is posted. Carries words the customer can read."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+        self.customer_message = (customer_reason_text(reason) or "This payment cannot be completed right now.") + " Nothing was sent."
+
+
+def _failure_text(exc: Exception) -> str:
+    """What the customer reads when posting fails: our words for a limit, the core's words for a business refusal (for
+    example insufficient funds), and never an internal code."""
+    if isinstance(exc, LimitExceeded):
+        return exc.customer_message
+    if isinstance(exc, ValueError):
+        return str(exc)
+    return "This payment could not be completed. Nothing was sent."
+
 
 REPEAT_WINDOW = timedelta(minutes=10)  # a write tool repeated with the same arguments in this window returns its first result
 
 
-def _without_token(decision: Dict[str, Any]) -> Dict[str, Any]:
-    safe = copy.deepcopy(decision)
-    safe.pop("authorization_token", None)
-    safe.pop("authorization_token_hash", None)
-    return safe
+GENERIC_REFUSAL = "We can't complete this payment right now. If you need help, contact Kosh support and quote the reference."
+
+
+def _customer_view(decision: Dict[str, Any]) -> Dict[str, Any]:
+    """The part of a Sentinel decision that the customer, Mitra and outside agents may see: the outcome, a reference to quote to
+    support and, for a refusal the customer can act on, plain words. Never the score, the checks or the reason codes: telling
+    someone what tripped the alarm teaches them how to avoid it (guardrail G8). The full record stays in the audit trail."""
+    view = {"reference": decision["id"], "decision": decision["decision"]}
+    if decision["decision"] == "DENY":
+        said = [text for text in map(customer_reason_text, decision.get("reason_codes", [])) if text]
+        view["customer_message"] = said[0] if said else GENERIC_REFUSAL
+    return view
 
 
 # Offer cards for record_customer_lead: catalogue facts only, no "guaranteed", "highest" or invented rate cuts.
@@ -259,11 +285,11 @@ class SecureBankingService:
             "success": False,
             "status": "DENIED",
             "payment_intent_id": payment["id"],
-            "sentinel": _without_token(decision),
+            "sentinel": _customer_view(decision),
             "presentation": {
                 "type": "SENTINEL_DENIAL",
                 "title": "Sentinel blocked this action",
-                "message": "The proposed action did not satisfy the customer's bound intent and safety policy.",
+                "message": _customer_view(decision).get("customer_message") or "This action was not allowed.",
             },
         }
 
@@ -292,11 +318,25 @@ class SecureBankingService:
                 stored_decision = next(item for item in data["sentinel_decisions"] if item["id"] == decision["id"])
                 if stored_decision.get("consumed_at"):
                     raise PermissionError("AUTHORIZATION_REUSED_OR_UNKNOWN")
+                # The limits were checked when Sentinel decided. Check them again, on the live state and inside this
+                # transaction, counting payments already posting, so two approvals cannot both pass.
+                delegation = next((d for d in data.get("delegations", {}).values() if d.get("customer_id") == stored_payment.get("customer_id")), {})
+                broken = [c for c in limit_checks(data, customer_id=stored_payment.get("customer_id"), action=stored_payment["action"],
+                                                  delegation=delegation, payment_id=stored_payment["id"]) if not c["ok"]]
+                if broken:
+                    raise LimitExceeded(broken[0]["reason"])
                 stored_decision["consumed_at"] = utc_now()
                 stored_payment.update(status="POSTING", updated_at=utc_now())
                 return copy.deepcopy(stored_payment)
 
-            stored = self.db.transaction(claim)
+            try:
+                stored = self.db.transaction(claim)
+            except LimitExceeded as exc:
+                self._update_payment(payment["id"], status="DENIED")
+                self.db.append_audit("PAYMENT_BLOCKED_AT_POSTING", session_id=payment.get("session_id"), intent_id=payment.get("intent_id"),
+                                     decision_id=decision["id"], summary="A limit no longer held when the payment was posted",
+                                     details={"reason": exc.reason, "payment_intent_id": payment["id"]}, severity="WARNING")
+                raise
             action = stored["action"]
             # 2. The core posts it (idempotent on Kosh's key). If Kosh stops here, reconciliation settles it.
             try:
@@ -398,14 +438,15 @@ class SecureBankingService:
         try:
             receipt = self._execute_payment(payment, decision, decision["authorization_token"])
         except (ValueError, PermissionError) as exc:
-            self._update_payment(payment["id"], status="FAILED")
-            return {"success": False, "status": "FAILED", "error": str(exc),
+            if not isinstance(exc, LimitExceeded):
+                self._update_payment(payment["id"], status="FAILED")
+            return {"success": False, "status": "DENIED" if isinstance(exc, LimitExceeded) else "FAILED", "error": _failure_text(exc),
                     "presentation": {"type": "SENTINEL_DENIAL", "title": "Payment could not be completed"}}
         return {
             "success": True,
             "status": "EXECUTED",
             "receipt": receipt,
-            "sentinel": _without_token(decision),
+            "sentinel": _customer_view(decision),
             "presentation": {"type": "PAYMENT_RECEIPT", "title": "Electricity bill paid"},
         }
 
@@ -426,20 +467,6 @@ class SecureBankingService:
                 "message": "Choose a known beneficiary before continuing.",
                 "presentation": {"type": "CLARIFICATION", "title": "Beneficiary needed"},
             }
-        # Governed ontology parameters check
-        onto_params = harness.policy().get("ontology_parameters", {})
-        cooling_hours = onto_params.get("PARAM_NEW_PAYEE_COOLING_HOURS", 24)
-        cooling_limit = onto_params.get("PARAM_NEW_PAYEE_COOLING_LIMIT_MINOR", 1000000)
-        if beneficiary.get("created_at"):
-            try:
-                b_created = datetime.fromisoformat(beneficiary["created_at"].replace("Z", "+00:00"))
-                if (datetime.now(timezone.utc) - b_created).total_seconds() < cooling_hours * 3600:
-                    session_context["new_payee_cooling_active"] = True
-                    if amount_minor > cooling_limit:
-                        session_context["cooling_off_limit_exceeded"] = True
-            except Exception:
-                pass
-
         action = {
             "action_type": "TRANSFER",
             "source_account_id": source_account_id.upper(),
@@ -459,12 +486,16 @@ class SecureBankingService:
             return self._denial_result(payment, decision)
         if decision["decision"] == "CHALLENGE":
             return self._create_challenge(payment, decision)
-        receipt = self._execute_payment(payment, decision, decision["authorization_token"])
+        try:
+            receipt = self._execute_payment(payment, decision, decision["authorization_token"])
+        except (ValueError, PermissionError) as exc:
+            return {"success": False, "status": "DENIED" if isinstance(exc, LimitExceeded) else "FAILED", "error": _failure_text(exc),
+                    "presentation": {"type": "SENTINEL_DENIAL", "title": "Payment could not be completed"}}
         return {
             "success": True,
             "status": "EXECUTED",
             "receipt": receipt,
-            "sentinel": _without_token(decision),
+            "sentinel": _customer_view(decision),
             "presentation": {"type": "PAYMENT_RECEIPT", "title": "Transfer complete"},
         }
 
@@ -533,7 +564,7 @@ class SecureBankingService:
             "status": "CHALLENGE_REQUIRED",
             "challenge_id": challenge_id,
             "payment_intent_id": payment["id"],
-            "sentinel": _without_token(decision),
+            "sentinel": _customer_view(decision),
             "challenge": view,
             "presentation": {
                 "type": "PAYMENT_CHALLENGE",
@@ -591,8 +622,9 @@ class SecureBankingService:
         try:
             receipt = self._execute_payment(payment, decision, decision["authorization_token"])
         except (ValueError, PermissionError) as exc:
-            self._update_payment(payment["id"], status="FAILED")
-            return {"success": False, "status": "FAILED", "error": str(exc)}
+            if not isinstance(exc, LimitExceeded):
+                self._update_payment(payment["id"], status="FAILED")
+            return {"success": False, "status": "DENIED" if isinstance(exc, LimitExceeded) else "FAILED", "error": _failure_text(exc)}
 
         # Record receipt into the conversation session so the chat history reflects the execution
         session_id = payment.get("session_id")
@@ -645,7 +677,7 @@ class SecureBankingService:
             "success": True,
             "status": "EXECUTED",
             "receipt": receipt,
-            "sentinel": _without_token(decision),
+            "sentinel": _customer_view(decision),
             "presentation": {"type": "PAYMENT_RECEIPT", "title": "Payment complete"},
         }
 
@@ -706,7 +738,7 @@ class SecureBankingService:
             "success": True,
             "status": "FROZEN",
             "card": frozen,
-            "sentinel": _without_token(decision),
+            "sentinel": _customer_view(decision),
             "presentation": {"type": "CARD_FROZEN", "title": "Card frozen"},
         }
 
@@ -817,7 +849,7 @@ class SecureBankingService:
             "intent": intent, "untrusted_content_detected": True}, proposal)
         decision = self.sentinel.evaluate(context)
         return {"success": True, "status": decision["decision"], "executed": False,
-                "sentinel": _without_token(decision),
+                "sentinel": _customer_view(decision),
                 "presentation": {"type": "SENTINEL_DENIAL", "title": "Security replay evaluated"}}
 
 

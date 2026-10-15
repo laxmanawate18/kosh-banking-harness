@@ -92,6 +92,11 @@ def policy() -> Dict[str, Any]:
     return json.loads(POLICY_PATH.read_text(encoding="utf-8"))
 
 
+def parameter(name: str, default: Any = None) -> Any:
+    """A governed banking parameter from policy.json (ontology_parameters). One reader, so a name cannot drift between files."""
+    return policy().get("ontology_parameters", {}).get(name, default)
+
+
 @lru_cache(maxsize=1)
 def policy_version() -> str:
     """The reviewed version plus a hash of the file, so an unreviewed edit still shows on every decision."""

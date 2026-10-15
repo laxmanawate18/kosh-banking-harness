@@ -53,6 +53,145 @@ def _money_from_text(text: str) -> Optional[int]:
     return None
 
 
+# ---- Limits that must hold when Sentinel decides AND again when the payment is posted -------------------------------------
+_COUNTED = {"POSTING", "EXECUTED"}  # money moved or being posted; a payment still awaiting approval has taken nothing yet
+
+
+def _when(value: Any) -> Optional[datetime]:
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _customer_in(state: Dict[str, Any], customer_id: Optional[str]) -> Dict[str, Any]:
+    customers = state.get("customers", {})
+    if customer_id in customers:
+        return customers[customer_id]
+    legacy = state.get("customer", {})
+    return legacy if legacy.get("id") == customer_id else {}
+
+
+def _amount_of(payment: Dict[str, Any]) -> int:
+    receipt = payment.get("receipt") or {}
+    return int(receipt.get("amount_minor") or (payment.get("action") or {}).get("amount_minor") or 0)
+
+
+def _counted_payments(state: Dict[str, Any], customer_id: Optional[str], exclude: Optional[str]):
+    for payment in state.get("payment_intents", []):
+        action = payment.get("action") or {}
+        if (payment.get("customer_id") == customer_id and payment.get("status") in _COUNTED and payment.get("id") != exclude
+                and action.get("action_type") in {"PAY_BILL", "TRANSFER"}):
+            yield payment, action
+
+
+def money_out_today_minor(state: Dict[str, Any], customer_id: Optional[str], exclude: Optional[str] = None) -> int:
+    """Money this customer has moved, or is posting, through the agent today (India calendar day)."""
+    today = datetime.now(IST).date()
+    total = 0
+    for payment, _ in _counted_payments(state, customer_id, exclude):
+        when = _when((payment.get("receipt") or {}).get("executed_at") or payment.get("updated_at") or payment.get("created_at"))
+        if when and when.astimezone(IST).date() == today:
+            total += _amount_of(payment)
+    return total
+
+
+def _transfers_since_minor(state: Dict[str, Any], customer_id: Optional[str], since: datetime, *, beneficiary_id: Optional[str] = None,
+                           exclude: Optional[str] = None) -> int:
+    total = 0
+    for payment, action in _counted_payments(state, customer_id, exclude):
+        if action.get("action_type") != "TRANSFER" or (beneficiary_id and action.get("beneficiary_id") != beneficiary_id):
+            continue
+        when = _when(payment.get("created_at"))
+        if when and when >= since:
+            total += _amount_of(payment)
+    return total
+
+
+def limit_checks(state: Dict[str, Any], *, customer_id: Optional[str], action: Dict[str, Any], delegation: Dict[str, Any],
+                 payment_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """The hard money limits as check records: {name, ok, detail, reason}. Sentinel runs them to decide, and the payment runs
+    them again, on the live state, in the transaction that claims the approval, so two approvals cannot both pass."""
+    action_type = action.get("action_type")
+    if action_type not in {"PAY_BILL", "TRANSFER"}:
+        return []
+    amount = action.get("amount_minor", 0)
+    valid = isinstance(amount, int) and not isinstance(amount, bool) and amount > 0
+    now = datetime.now(timezone.utc)
+    checks: List[Dict[str, Any]] = []
+
+    spent = money_out_today_minor(state, customer_id, payment_id)
+    max_daily = int(delegation.get("max_daily_minor", 0))
+    checks.append({"name": "Delegated daily amount", "ok": bool(valid and spent + amount <= max_daily), "reason": "DELEGATION_SCOPE_EXCEEDED",
+                   "detail": f"Spent today {spent}; this payment {amount}; daily limit {max_daily}"})
+    if action_type != "TRANSFER" or not valid:
+        return checks
+
+    beneficiary = state.get("beneficiaries", {}).get(str(action.get("beneficiary_id", "")).upper()) or {}
+    added = _when(beneficiary.get("created_at"))
+    cooling = timedelta(hours=float(harness.parameter("PARAM_NEW_PAYEE_COOLING_HOURS", 24)))
+    if added and now - added < cooling:
+        limit = int(harness.parameter("PARAM_NEW_PAYEE_LIMIT", 2500000))
+        sent = _transfers_since_minor(state, customer_id, added, beneficiary_id=beneficiary.get("id"), exclude=payment_id)
+        checks.append({"name": "New-payee limit", "ok": sent + amount <= limit, "reason": "NEW_PAYEE_LIMIT_EXCEEDED",
+                       "detail": f"Payee added within {int(cooling.total_seconds() // 3600)} hours; already sent {sent}; this payment {amount}; limit {limit}"})
+
+    changed = _when(_customer_in(state, customer_id).get("contact_changed_at"))
+    window = timedelta(hours=float(harness.parameter("PARAM_CONTACT_CHANGE_COOLING_HOURS", 24)))
+    if changed and now - changed < window:
+        limit = int(harness.parameter("PARAM_CONTACT_CHANGE_LIMIT", 2500000))
+        sent = _transfers_since_minor(state, customer_id, changed, exclude=payment_id)
+        checks.append({"name": "Recent contact change", "ok": sent + amount <= limit, "reason": "RECENT_CONTACT_CHANGE",
+                       "detail": f"Mobile or email changed within {int(window.total_seconds() // 3600)} hours; sent since {sent}; this payment {amount}; limit {limit}"})
+    return checks
+
+
+def _rupees(minor: Any) -> str:
+    return "₹" + f"{int(minor) // 100:,}"
+
+
+def customer_reason_text(reason: str) -> Optional[str]:
+    """Plain words for a refusal the customer can act on. Fraud and risk reasons (a flagged payee, velocity, a new device,
+    injected content) return None on purpose: telling the person what tripped the alarm teaches them how to avoid it."""
+    hours = int(float(harness.parameter("PARAM_NEW_PAYEE_COOLING_HOURS", 24)))
+    return {
+        "KYC_NON_COMPLIANT": "Complete your KYC to send money.",
+        "DELEGATION_SCOPE_EXCEEDED": "This is above the daily limit for payments made through Mitra.",
+        "NEW_PAYEE_LIMIT_EXCEEDED": f"A new payee can receive up to {_rupees(harness.parameter('PARAM_NEW_PAYEE_LIMIT', 2500000))} in the first {hours} hours.",
+        "RECENT_CONTACT_CHANGE": (f"For your safety, payments are limited to {_rupees(harness.parameter('PARAM_CONTACT_CHANGE_LIMIT', 2500000))} for "
+                                  f"{int(float(harness.parameter('PARAM_CONTACT_CHANGE_COOLING_HOURS', 24)))} hours after your mobile number or email changes."),
+        "INVALID_AMOUNT": "Enter a valid amount.",
+        "INTENT_ACTION_MISMATCH": "The payment details did not match what you asked for. Please start again.",
+        "INTENT_AMOUNT_MISMATCH": "The payment details did not match what you asked for. Please start again.",
+        "INTENT_DESTINATION_MISMATCH": "The payment details did not match what you asked for. Please start again.",
+        "INTENT_SOURCE_MISMATCH": "The payment details did not match what you asked for. Please start again.",
+        "INTENT_INCOMPLETE": "Tell Mitra the amount and who to pay, then try again.",
+        "INTENT_EXPIRED": "That request has expired. Please start again.",
+        "BILL_BINDING_MISMATCH": "That bill could not be matched. Please start again.",
+        "CARD_NOT_AUTHORIZED": "That card cannot be changed from here.",
+        "SOURCE_ACCOUNT_NOT_AUTHORIZED": "That account cannot be used for this payment.",
+        "DESTINATION_NOT_AUTHORIZED": "That payee cannot be used for this payment.",
+        "IDEMPOTENCY_CONFLICT": "This request clashes with an earlier one. Please start again.",
+        "ACTION_NOT_REGISTERED": "That action is not available.",
+    }.get(reason)
+
+
+def waiting_period_reason(state: Dict[str, Any], customer_id: Optional[str], beneficiary: Dict[str, Any]) -> Optional[str]:
+    """Why a new standing instruction must wait, in the customer's words, or None when it may go ahead. A recurring payment to
+    a payee added minutes ago, or set up right after the mobile or email changed, is the shape of an account takeover."""
+    now = datetime.now(timezone.utc)
+    added = _when((beneficiary or {}).get("created_at"))
+    hours = float(harness.parameter("PARAM_NEW_PAYEE_COOLING_HOURS", 24))
+    if added and now - added < timedelta(hours=hours):
+        return f"This payee was added in the last {int(hours)} hours. A regular payment to a new payee can be set up after that."
+    changed = _when(_customer_in(state, customer_id).get("contact_changed_at"))
+    window = float(harness.parameter("PARAM_CONTACT_CHANGE_COOLING_HOURS", 24))
+    if changed and now - changed < timedelta(hours=window):
+        return f"Your mobile number or email changed in the last {int(window)} hours. For your safety, new regular payments can be set up after that."
+    return None
+
+
 class IntentResolver:
     """Small deterministic resolver for the explicitly supported demo grammar."""
 
@@ -254,15 +393,7 @@ class SentinelService:
 
     def spent_today_minor(self, customer_id: Optional[str]) -> int:
         """Money already moved by this customer through the agent today (India calendar day)."""
-        today = datetime.now(IST).date()
-        total = 0
-        for payment in self.db.snapshot().get("payment_intents", []):
-            receipt = payment.get("receipt") or {}
-            if payment.get("customer_id") != customer_id or payment.get("status") != "EXECUTED" or not receipt.get("executed_at"):
-                continue
-            if datetime.fromisoformat(receipt["executed_at"].replace("Z", "+00:00")).astimezone(IST).date() == today:
-                total += int(receipt.get("amount_minor") or 0)
-        return total
+        return money_out_today_minor(self.db.snapshot(), customer_id)
 
     def evaluate(self, context: Dict[str, Any], *, persist: bool = True) -> Dict[str, Any]:
         now = datetime.now(timezone.utc)
@@ -275,6 +406,7 @@ class SentinelService:
         score = 0
 
         request_digest = self.request_digest(context)
+        state = self.db.snapshot()
 
         def check(name: str, passed: bool, detail: str, reason: Optional[str] = None) -> None:
             checks.append({"name": name, "status": "PASS" if passed else "FAIL", "detail": detail})
@@ -351,11 +483,9 @@ class SentinelService:
         if action_type in {"PAY_BILL", "TRANSFER"}:
             valid_amount = valid_amount and amount_minor > 0
         check("Money precision", valid_amount, "Integer paise required", "INVALID_AMOUNT")
-        max_daily = int(delegation.get("max_daily_minor", 0))
-        spent_today = self.spent_today_minor(customer_id) if action_type in {"PAY_BILL", "TRANSFER"} else 0
-        within_daily_scope = action_type == "FREEZE_CARD" or (valid_amount and spent_today + amount_minor <= max_daily)
-        check("Delegated daily amount", within_daily_scope,
-              f"Spent today {spent_today}; this payment {amount_minor}; daily limit {max_daily}", "DELEGATION_SCOPE_EXCEEDED")
+        for item in limit_checks(state, customer_id=customer_id, action=action, delegation=delegation,
+                                 payment_id=context.get("payment_intent_id")):
+            check(item["name"], item["ok"], item["detail"], item["reason"])
 
         beneficiary = None
         bill = None
@@ -431,23 +561,14 @@ class SentinelService:
             if beneficiary and beneficiary.get("relationship") == "TRUSTED":
                 signal("TRUSTED_PRIOR_BENEFICIARY")
 
-            # Check cooling-off period and limits from ontology parameters
-            onto_params = harness.policy().get("ontology_parameters", {})
-            cooling_hours = onto_params.get("PARAM_NEW_PAYEE_COOLING_HOURS", 24)
-            cooling_limit = onto_params.get("PARAM_NEW_PAYEE_COOLING_LIMIT_MINOR", 1000000)
-            agent_payment_limit = onto_params.get("PARAM_AGENT_PAYMENT_LIMIT", 2500000)
-            if beneficiary and beneficiary.get("created_at"):
-                try:
-                    b_dt = datetime.fromisoformat(beneficiary["created_at"].replace("Z", "+00:00"))
-                    if (now - b_dt).total_seconds() < cooling_hours * 3600:
-                        reasons.append("COOLING_OFF_PERIOD_ACTIVE")
-                        if "NEW_BENEFICIARY" not in reasons:
-                            signal("NEW_BENEFICIARY")
-                        if amount_minor > cooling_limit and "HIGH_VALUE_TRANSFER" not in reasons:
-                            signal("HIGH_VALUE_TRANSFER")
-                            reasons.append("COOLING_OFF_LIMIT_EXCEEDED")
-                except Exception:
-                    pass
+            # A payee added inside the cooling window is a risk signal; what it may receive is a hard check (limit_checks).
+            cooling_hours = harness.parameter("PARAM_NEW_PAYEE_COOLING_HOURS", 24)
+            agent_payment_limit = harness.parameter("PARAM_AGENT_PAYMENT_LIMIT", 2500000)
+            added = _when((beneficiary or {}).get("created_at"))
+            if added and (now - added).total_seconds() < cooling_hours * 3600:
+                reasons.append("COOLING_OFF_PERIOD_ACTIVE")
+                if "NEW_BENEFICIARY" not in reasons:
+                    signal("NEW_BENEFICIARY")
 
             if action_type == "TRANSFER" and amount_minor > agent_payment_limit:
                 if "AMOUNT_ABOVE_BASELINE" not in reasons:
@@ -478,7 +599,6 @@ class SentinelService:
 
             recent_attempts = 0
             now = datetime.now(timezone.utc)
-            state = self.db.snapshot()
             # Attempts refused only because initial KYC was incomplete are compliance blocks, not fraud signals.
             kyc_blocked = {d["id"] for d in state.get("sentinel_decisions", []) if d.get("reason_codes") == ["KYC_NON_COMPLIANT"]}
             for proposal in state.get("payment_intents", []):

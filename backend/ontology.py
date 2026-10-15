@@ -774,30 +774,47 @@ def get_state_machines() -> Dict[str, Any]:
 
 
 def ontology_parameters() -> List[Dict[str, Any]]:
-    """Return the 10 governed ontology parameters with values and bound status."""
+    """The governed banking parameters with their values, and whether anything in Kosh reads them.
+    `enforced` is true only when code acts on the value; the others are recorded for the bank's policy and say so."""
     from backend import harness
     pol = harness.policy().get("ontology_parameters", {})
     defs = [
-        {"id": "PARAM_AGENT_PAYMENT_LIMIT", "name": "Agent Payment Limit", "unit": "INR", "owner": "Payments head",
-         "description": "Highest payment an agent may complete alone (Mitra: ₹0, always needs Kavach step-up)", "enforced_in": "Sentinel & Kavach"},
-        {"id": "PARAM_CONCESSION_LIMIT", "name": "Concession Limit", "unit": "paise", "owner": "Retail head",
-         "description": "Largest fee or rate concession an agent may offer without officer sign-off", "enforced_in": "Offers & Service Desk"},
-        {"id": "PARAM_NEW_PAYEE_COOLING_HOURS", "name": "New Payee Cooling-off Hours", "unit": "hours", "owner": "Fraud head",
-         "description": "Cooling-off duration for new payees before high-value transfers are permitted", "enforced_in": "Sentinel"},
-        {"id": "PARAM_NEW_PAYEE_LIMIT", "name": "New Payee Limit", "unit": "paise", "owner": "Fraud head",
-         "description": "Reduced transfer ceiling during cooling-off window", "enforced_in": "Sentinel"},
-        {"id": "PARAM_STEP_UP_MAX_FAILURES", "name": "Step-up Max Failures", "unit": "attempts", "owner": "Security head",
-         "description": "Failed Kavach challenges before step-up lockout", "enforced_in": "Kavach"},
-        {"id": "PARAM_STEP_UP_LOCK_MINUTES", "name": "Step-up Lockout Minutes", "unit": "minutes", "owner": "Security head",
-         "description": "Lock duration after step-up failure threshold", "enforced_in": "Kavach & Applications"},
-        {"id": "PARAM_CONTACT_HOURS", "name": "Permitted Contact Hours", "unit": "IST window", "owner": "Collections head",
-         "description": "Permitted window for automated reminders and notifications", "enforced_in": "Notifications"},
-        {"id": "PARAM_MAX_CONTACT_ATTEMPTS", "name": "Max Contact Attempts", "unit": "attempts", "owner": "Collections head",
-         "description": "Maximum outreach attempts before escalation to human care", "enforced_in": "Care Queue"},
-        {"id": "PARAM_APPLICATION_EXPIRY_DAYS", "name": "Application Expiry Days", "unit": "days", "owner": "Retail head",
-         "description": "Days before an unsubmitted/abandoned application expires", "enforced_in": "Account Applications"},
-        {"id": "PARAM_DISPUTE_TAT_DAYS", "name": "Dispute TAT Days", "unit": "days", "owner": "Operations head",
-         "description": "Dispute turnaround time under applicable RBI ombudsman rules", "enforced_in": "Care Queue"},
+        {"id": "PARAM_AGENT_PAYMENT_LIMIT", "name": "Agent Payment Limit", "unit": "paise", "owner": "Payments head", "enforced": True,
+         "description": "Highest payment an agent may complete alone (Mitra: ₹0, so every payment needs the customer's Kavach approval)",
+         "enforced_in": "Sentinel and Kavach"},
+        {"id": "PARAM_CONCESSION_LIMIT", "name": "Concession Limit", "unit": "paise", "owner": "Retail head", "enforced": False,
+         "description": "Largest fee or rate concession an agent may offer without officer sign-off",
+         "enforced_in": "Not enforced: Kosh has no fee or rate concession capability, so nothing reads this value"},
+        {"id": "PARAM_NEW_PAYEE_COOLING_HOURS", "name": "New Payee Cooling-off Hours", "unit": "hours", "owner": "Fraud head", "enforced": True,
+         "description": "How long a new payee counts as new: it is capped (see New Payee Limit) and cannot receive a regular payment",
+         "enforced_in": "Sentinel and new standing instructions"},
+        {"id": "PARAM_NEW_PAYEE_LIMIT", "name": "New Payee Limit", "unit": "paise", "owner": "Fraud head", "enforced": True,
+         "description": "The most a new payee may receive in total during the cooling-off window. Checked again when the payment is posted",
+         "enforced_in": "Sentinel (hard cap)"},
+        {"id": "PARAM_CONTACT_CHANGE_COOLING_HOURS", "name": "Contact Change Cooling-off Hours", "unit": "hours", "owner": "Fraud head", "enforced": True,
+         "description": "After the mobile number or email changes, transfers are capped and no new regular payment can be set up for this long",
+         "enforced_in": "Sentinel and new standing instructions"},
+        {"id": "PARAM_CONTACT_CHANGE_LIMIT", "name": "Contact Change Limit", "unit": "paise", "owner": "Fraud head", "enforced": True,
+         "description": "The most that can be transferred in total during the contact-change cooling-off window",
+         "enforced_in": "Sentinel (hard cap)"},
+        {"id": "PARAM_STEP_UP_MAX_FAILURES", "name": "Step-up Max Failures", "unit": "attempts", "owner": "Security head", "enforced": True,
+         "description": "Wrong step-up codes on one sign-in session before step-up is locked on it",
+         "enforced_in": "Step-up sign-in (per session)"},
+        {"id": "PARAM_STEP_UP_LOCK_MINUTES", "name": "Step-up Lockout Minutes", "unit": "minutes", "owner": "Security head", "enforced": True,
+         "description": "How long step-up stays locked on a session after too many wrong codes",
+         "enforced_in": "Step-up sign-in (per session)"},
+        {"id": "PARAM_CONTACT_HOURS", "name": "Permitted Contact Hours", "unit": "IST window", "owner": "Collections head", "enforced": False,
+         "description": "Permitted window for automated reminders and notifications",
+         "enforced_in": "Not enforced: Kosh makes no collections calls, and notifications are not limited to a window"},
+        {"id": "PARAM_MAX_CONTACT_ATTEMPTS", "name": "Max Contact Attempts", "unit": "attempts", "owner": "Collections head", "enforced": False,
+         "description": "Maximum outreach attempts before escalation to human care",
+         "enforced_in": "Not enforced: outreach attempts are not counted"},
+        {"id": "PARAM_APPLICATION_EXPIRY_DAYS", "name": "Application Expiry Days", "unit": "days", "owner": "Retail head", "enforced": False,
+         "description": "Days before an unsubmitted or abandoned application expires",
+         "enforced_in": "Not enforced: applications do not expire yet"},
+        {"id": "PARAM_DISPUTE_TAT_DAYS", "name": "Complaint Resolution Days", "unit": "days", "owner": "Operations head", "enforced": True,
+         "description": "Days a complaint may stay open before it is overdue, under RBI ombudsman rules",
+         "enforced_in": "Customer care (the due date of a complaint)"},
     ]
     result = []
     for d in defs:

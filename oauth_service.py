@@ -32,6 +32,14 @@ from persistence import (
 )
 
 
+class StepUpLocked(PermissionError):
+    """Too many wrong codes on this sign-in session. Locks the session, not the person, so a shared demo number is not a lockout."""
+
+    def __init__(self, minutes: int):
+        self.minutes = max(1, minutes)
+        super().__init__(f"Too many wrong codes. Try again in {self.minutes} minute{'s' if self.minutes != 1 else ''}.")
+
+
 ASSURANCE_CLAIM = "https://sentinel/auth/assurance"
 ASSURANCE_EXPIRES_CLAIM = "https://sentinel/auth/assurance_expires_at"
 SENTINEL_USER_CLAIM = "https://sentinel/auth/sentinel_user_id"
@@ -504,6 +512,7 @@ class OAuthService:
     def step_up_with_firebase(self, auth_session_id: str, id_token: str | None, *, code: str | None = None,
                               phone: str | None = None) -> int:
         """Reauthenticate at Firebase, then rotate the grant so new JWTs carry L3."""
+        self._refuse_while_locked(auth_session_id)
         with self.runtime.sessions() as session:
             grant = session.scalar(select(OAuthGrantRecord).where(
                 OAuthGrantRecord.auth_session_id == auth_session_id,
@@ -527,11 +536,48 @@ class OAuthService:
                 if response.status >= 300:
                     raise PermissionError("Firebase step-up was rejected")
         except urllib.error.HTTPError as exc:
+            self._step_up_failed(auth_session_id)  # a wrong or expired code counts; an unreachable service (below) does not
             raise PermissionError("Firebase step-up was rejected") from exc
         except (urllib.error.URLError, TimeoutError) as exc:
             raise ConnectionError("OAuth authority is unavailable") from exc
+        except PermissionError:
+            self._step_up_failed(auth_session_id)
+            raise
 
         _, assurance = self._refresh_grant(grant_id)  # rotates the grant; new JWTs carry the step-up
         if assurance != "L3":
             raise PermissionError("Refreshed token did not satisfy L3 assurance")
+        self._step_up_succeeded(auth_session_id)
         return 300
+
+    # --- PARAM_STEP_UP_MAX_FAILURES wrong codes lock step-up on this session for PARAM_STEP_UP_LOCK_MINUTES
+    def _refuse_while_locked(self, auth_session_id: str) -> None:
+        with self.runtime.sessions() as session:
+            row = session.get(AuthSessionRecord, auth_session_id)
+            until = _aware(row.step_up_locked_until) if row and row.step_up_locked_until else None
+        if until and until > utc_dt():
+            raise StepUpLocked(int((until - utc_dt()).total_seconds() // 60) + 1)
+
+    def _step_up_failed(self, auth_session_id: str) -> None:
+        from backend import harness
+        limit = int(harness.parameter("PARAM_STEP_UP_MAX_FAILURES", 3))
+        minutes = int(harness.parameter("PARAM_STEP_UP_LOCK_MINUTES", 30))
+        locked = False
+        with self.runtime.sessions.begin() as session:
+            row = session.get(AuthSessionRecord, auth_session_id)
+            if not row:
+                return
+            row.step_up_failures = (row.step_up_failures or 0) + 1
+            if row.step_up_failures >= limit:
+                row.step_up_locked_until = utc_dt() + timedelta(minutes=minutes)
+                row.step_up_failures = 0
+                locked = True
+        if locked:
+            raise StepUpLocked(minutes)
+
+    def _step_up_succeeded(self, auth_session_id: str) -> None:
+        with self.runtime.sessions.begin() as session:
+            row = session.get(AuthSessionRecord, auth_session_id)
+            if row:
+                row.step_up_failures = 0
+                row.step_up_locked_until = None

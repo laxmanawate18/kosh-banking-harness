@@ -10,7 +10,7 @@ Backend code is organized under `backend/`: route modules own public, authentica
 
 1. The Antigravity agent safely retrieves accounts, recent spending, bills, and alerts.
 2. A known ₹2,430 Tata Power bill is low risk, but like every money movement it waits for the customer's approval in Kavach before it executes.
-3. A new-beneficiary ₹75,000 transfer returns `CHALLENGE` and requires fresh Firebase phone verification in the trusted Kavach approval dialog.
+3. A new-beneficiary ₹75,000 transfer returns `CHALLENGE` and requires fresh Firebase phone verification in the trusted Kavach approval dialog. (Vikram was added weeks ago. A payee added in the last 24 hours can receive at most ₹25,000 in total, and a transfer above that is refused.)
 4. A poisoned biller proposal to `fastcash@upi` returns `DENY` before ledger execution.
 5. Repeated identical requests produce one ledger effect and return the existing receipt.
 6. A protective debit-card freeze remains low friction and fully audited.

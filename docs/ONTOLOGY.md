@@ -72,7 +72,7 @@ Checked against the code on 2026-10-07.
 Four-eyes for officer decisions (an officer cannot decide on their own account; an escalated request is approved by someone else) meets guardrail G5.
 
 ### Parameters
-`PARAM_AGENT_PAYMENT_LIMIT` (₹0: Mitra never completes a payment alone) and `PARAM_STEP_UP_MAX_FAILURES` (3 Kavach attempts, 300-second expiry) are bound to `config/harness/policy.json`. The other eight parameters are unset; the ontology treats an unset parameter as most restrictive.
+Enforced by code and set in `config/harness/policy.json`: `PARAM_AGENT_PAYMENT_LIMIT` (₹0: Mitra never completes a payment alone), `PARAM_NEW_PAYEE_COOLING_HOURS` (24) and `PARAM_NEW_PAYEE_LIMIT` (₹25,000 in total to a payee added in that time), `PARAM_CONTACT_CHANGE_COOLING_HOURS` (24) and `PARAM_CONTACT_CHANGE_LIMIT` (₹25,000 after a mobile or email change), `PARAM_STEP_UP_MAX_FAILURES` (3 wrong codes) with `PARAM_STEP_UP_LOCK_MINUTES` (30, per session), and `PARAM_DISPUTE_TAT_DAYS` (30). The admin page marks the remaining four as *Not enforced*: nothing in Kosh reads them. The ontology treats an unset parameter as most restrictive.
 
 ## Shadow check on the evaluation set
 
