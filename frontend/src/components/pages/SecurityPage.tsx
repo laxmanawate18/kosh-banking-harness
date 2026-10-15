@@ -25,6 +25,7 @@ const EVENT_LABELS = (t: T): Record<string, [string, 'ok' | 'warn' | 'info']> =>
   OAUTH_AUTHENTICATION_SUCCEEDED: [t('You signed in'), 'info'],
   STEP_UP_SUCCEEDED: [t('You confirmed it was you with an OTP'), 'ok'],
   STEP_UP_FAILED: [t('An OTP check failed'), 'warn'],
+  STEP_UP_LOCKED: [t('Verification was locked after repeated wrong codes'), 'warn'],
   SESSION_REVOKED: [t('A device was signed out'), 'info'],
   AGENT_ACCESS_REVOKED: [t('You removed an assistant app’s access'), 'info'],
   PAYMENT_PROPOSED: [t('Mitra prepared an action for your approval'), 'info'],

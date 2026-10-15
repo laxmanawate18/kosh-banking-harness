@@ -115,7 +115,7 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
     # What a customer's activity feed may show: their own actions and outcomes. Never internal plumbing (agent tool calls,
     # intent binding, model withholding) or Sentinel's risk decisions and reason codes (no tipping off, guardrail G8).
     CUSTOMER_EVENT_TYPES = {
-        "OAUTH_AUTHENTICATION_SUCCEEDED", "STEP_UP_SUCCEEDED", "STEP_UP_FAILED", "SESSION_REVOKED", "AGENT_ACCESS_REVOKED",
+        "OAUTH_AUTHENTICATION_SUCCEEDED", "STEP_UP_SUCCEEDED", "STEP_UP_FAILED", "STEP_UP_LOCKED", "SESSION_REVOKED", "AGENT_ACCESS_REVOKED",
         "PAYMENT_PROPOSED", "CHALLENGE_ISSUED", "PAYMENT_EXECUTED", "PAYMENT_CANCELLED", "CARD_FROZEN", "CARD_UNFROZEN",
         "PREFERENCES_UPDATED", "MARKETING_CONSENT_GRANTED", "MARKETING_CONSENT_WITHDRAWN", "CONSENT_GRANTED", "CONSENT_REVOKED",
         "WORKFLOW_STARTED", "WORKFLOW_SUBMITTED", "DOCUMENT_CAPTURED", "EKYC_VERIFIED", "SERVICE_REQUEST_CREATED",

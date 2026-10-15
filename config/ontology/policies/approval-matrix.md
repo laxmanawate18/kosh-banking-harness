@@ -61,7 +61,7 @@ A value marked *Kosh* is what the Kosh code enforces today (set in `config/harne
 | `PARAM_NEW_PAYEE_LIMIT` | The most a new payee may receive in total while it is new | Fraud head | Kosh: ₹25,000. A hard check in Sentinel, run again when the payment is posted. |
 | `PARAM_CONTACT_CHANGE_COOLING_HOURS` | Waiting period after a mobile number or email change | Fraud head | Kosh: 24 hours. Transfers are capped and no new standing instruction can be set up. |
 | `PARAM_CONTACT_CHANGE_LIMIT` | The most that can be transferred in total during that waiting period | Fraud head | Kosh: ₹25,000. A hard check in Sentinel, run again when the payment is posted. |
-| `PARAM_STEP_UP_MAX_FAILURES` | Wrong step-up codes before the session is locked | Security | Kosh: 3 on a sign-in session (each payment challenge also allows 3 attempts, `sentinel.challenge_max_attempts`, and expires after 300 s). |
+| `PARAM_STEP_UP_MAX_FAILURES` | Wrong step-up codes before the session is locked | Security | Kosh: 3 on a sign-in session. A payment challenge expires after 300 s; its own attempt counter (`sentinel.challenge_max_attempts`) is recorded but not enforced, the session lock is what limits wrong codes. |
 | `PARAM_STEP_UP_LOCK_MINUTES` | Lock duration after those failures | Security | Kosh: 30 minutes, per sign-in session, not per person. |
 | `PARAM_CONTACT_HOURS` | Permitted contact window for collections | Collections head | Not enforced. Kosh makes no collections calls. |
 | `PARAM_MAX_CONTACT_ATTEMPTS` | Attempts before escalation | Collections head | Not enforced. Outreach attempts are not counted. |
