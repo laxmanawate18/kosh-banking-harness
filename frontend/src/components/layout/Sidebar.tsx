@@ -52,6 +52,7 @@ export const ADMIN_NAV: [string, NavItem[]][] = [
     { id: 'admin-approvals', title: 'Approvals', icon: 'check' },
     { id: 'admin-ontology', title: 'Banking processes', icon: 'book' },
     { id: 'admin-controls', title: 'Kill switches', icon: 'pause' },
+    { id: 'admin-decisions', title: 'Sentinel decisions', icon: 'shield' },
     { id: 'admin-audit', title: 'Audit chain', icon: 'lock' },
   ]],
   ['Mitra', [
