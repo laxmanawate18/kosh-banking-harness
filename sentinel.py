@@ -147,6 +147,36 @@ def limit_checks(state: Dict[str, Any], *, customer_id: Optional[str], action: D
     return checks
 
 
+def _rupees(minor: Any) -> str:
+    return "₹" + f"{int(minor) // 100:,}"
+
+
+def customer_reason_text(reason: str) -> Optional[str]:
+    """Plain words for a refusal the customer can act on. Fraud and risk reasons (a flagged payee, velocity, a new device,
+    injected content) return None on purpose: telling the person what tripped the alarm teaches them how to avoid it."""
+    hours = int(float(harness.parameter("PARAM_NEW_PAYEE_COOLING_HOURS", 24)))
+    return {
+        "KYC_NON_COMPLIANT": "Complete your KYC to send money.",
+        "DELEGATION_SCOPE_EXCEEDED": "This is above the daily limit for payments made through Mitra.",
+        "NEW_PAYEE_LIMIT_EXCEEDED": f"A new payee can receive up to {_rupees(harness.parameter('PARAM_NEW_PAYEE_LIMIT', 2500000))} in the first {hours} hours.",
+        "RECENT_CONTACT_CHANGE": (f"For your safety, payments are limited to {_rupees(harness.parameter('PARAM_CONTACT_CHANGE_LIMIT', 2500000))} for "
+                                  f"{int(float(harness.parameter('PARAM_CONTACT_CHANGE_COOLING_HOURS', 24)))} hours after your mobile number or email changes."),
+        "INVALID_AMOUNT": "Enter a valid amount.",
+        "INTENT_ACTION_MISMATCH": "The payment details did not match what you asked for. Please start again.",
+        "INTENT_AMOUNT_MISMATCH": "The payment details did not match what you asked for. Please start again.",
+        "INTENT_DESTINATION_MISMATCH": "The payment details did not match what you asked for. Please start again.",
+        "INTENT_SOURCE_MISMATCH": "The payment details did not match what you asked for. Please start again.",
+        "INTENT_INCOMPLETE": "Tell Mitra the amount and who to pay, then try again.",
+        "INTENT_EXPIRED": "That request has expired. Please start again.",
+        "BILL_BINDING_MISMATCH": "That bill could not be matched. Please start again.",
+        "CARD_NOT_AUTHORIZED": "That card cannot be changed from here.",
+        "SOURCE_ACCOUNT_NOT_AUTHORIZED": "That account cannot be used for this payment.",
+        "DESTINATION_NOT_AUTHORIZED": "That payee cannot be used for this payment.",
+        "IDEMPOTENCY_CONFLICT": "This request clashes with an earlier one. Please start again.",
+        "ACTION_NOT_REGISTERED": "That action is not available.",
+    }.get(reason)
+
+
 class IntentResolver:
     """Small deterministic resolver for the explicitly supported demo grammar."""
 

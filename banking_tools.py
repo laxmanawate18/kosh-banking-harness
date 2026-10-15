@@ -17,7 +17,26 @@ from backend import harness
 from core_banking import CoreBanking, core_for
 from banking_db import BankingDatabase, db, new_id, utc_now
 from product_service import get_product_by_id, inr
-from sentinel import AGENT_ID, CUSTOMER_ID, KNOWN_DEVICE_ID, SentinelService, sentinel
+from sentinel import AGENT_ID, CUSTOMER_ID, KNOWN_DEVICE_ID, SentinelService, customer_reason_text, limit_checks, sentinel
+
+class LimitExceeded(PermissionError):
+    """A money limit no longer holds at the moment the payment is posted. Carries words the customer can read."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+        self.customer_message = (customer_reason_text(reason) or "This payment cannot be completed right now.") + " Nothing was sent."
+
+
+def _failure_text(exc: Exception) -> str:
+    """What the customer reads when posting fails: our words for a limit, the core's words for a business refusal (for
+    example insufficient funds), and never an internal code."""
+    if isinstance(exc, LimitExceeded):
+        return exc.customer_message
+    if isinstance(exc, ValueError):
+        return str(exc)
+    return "This payment could not be completed. Nothing was sent."
+
 
 REPEAT_WINDOW = timedelta(minutes=10)  # a write tool repeated with the same arguments in this window returns its first result
 
@@ -292,11 +311,25 @@ class SecureBankingService:
                 stored_decision = next(item for item in data["sentinel_decisions"] if item["id"] == decision["id"])
                 if stored_decision.get("consumed_at"):
                     raise PermissionError("AUTHORIZATION_REUSED_OR_UNKNOWN")
+                # The limits were checked when Sentinel decided. Check them again, on the live state and inside this
+                # transaction, counting payments already posting, so two approvals cannot both pass.
+                delegation = next((d for d in data.get("delegations", {}).values() if d.get("customer_id") == stored_payment.get("customer_id")), {})
+                broken = [c for c in limit_checks(data, customer_id=stored_payment.get("customer_id"), action=stored_payment["action"],
+                                                  delegation=delegation, payment_id=stored_payment["id"]) if not c["ok"]]
+                if broken:
+                    raise LimitExceeded(broken[0]["reason"])
                 stored_decision["consumed_at"] = utc_now()
                 stored_payment.update(status="POSTING", updated_at=utc_now())
                 return copy.deepcopy(stored_payment)
 
-            stored = self.db.transaction(claim)
+            try:
+                stored = self.db.transaction(claim)
+            except LimitExceeded as exc:
+                self._update_payment(payment["id"], status="DENIED")
+                self.db.append_audit("PAYMENT_BLOCKED_AT_POSTING", session_id=payment.get("session_id"), intent_id=payment.get("intent_id"),
+                                     decision_id=decision["id"], summary="A limit no longer held when the payment was posted",
+                                     details={"reason": exc.reason, "payment_intent_id": payment["id"]}, severity="WARNING")
+                raise
             action = stored["action"]
             # 2. The core posts it (idempotent on Kosh's key). If Kosh stops here, reconciliation settles it.
             try:
@@ -398,8 +431,9 @@ class SecureBankingService:
         try:
             receipt = self._execute_payment(payment, decision, decision["authorization_token"])
         except (ValueError, PermissionError) as exc:
-            self._update_payment(payment["id"], status="FAILED")
-            return {"success": False, "status": "FAILED", "error": str(exc),
+            if not isinstance(exc, LimitExceeded):
+                self._update_payment(payment["id"], status="FAILED")
+            return {"success": False, "status": "DENIED" if isinstance(exc, LimitExceeded) else "FAILED", "error": _failure_text(exc),
                     "presentation": {"type": "SENTINEL_DENIAL", "title": "Payment could not be completed"}}
         return {
             "success": True,
@@ -445,7 +479,11 @@ class SecureBankingService:
             return self._denial_result(payment, decision)
         if decision["decision"] == "CHALLENGE":
             return self._create_challenge(payment, decision)
-        receipt = self._execute_payment(payment, decision, decision["authorization_token"])
+        try:
+            receipt = self._execute_payment(payment, decision, decision["authorization_token"])
+        except (ValueError, PermissionError) as exc:
+            return {"success": False, "status": "DENIED" if isinstance(exc, LimitExceeded) else "FAILED", "error": _failure_text(exc),
+                    "presentation": {"type": "SENTINEL_DENIAL", "title": "Payment could not be completed"}}
         return {
             "success": True,
             "status": "EXECUTED",
@@ -577,8 +615,9 @@ class SecureBankingService:
         try:
             receipt = self._execute_payment(payment, decision, decision["authorization_token"])
         except (ValueError, PermissionError) as exc:
-            self._update_payment(payment["id"], status="FAILED")
-            return {"success": False, "status": "FAILED", "error": str(exc)}
+            if not isinstance(exc, LimitExceeded):
+                self._update_payment(payment["id"], status="FAILED")
+            return {"success": False, "status": "DENIED" if isinstance(exc, LimitExceeded) else "FAILED", "error": _failure_text(exc)}
 
         # Record receipt into the conversation session so the chat history reflects the execution
         session_id = payment.get("session_id")
