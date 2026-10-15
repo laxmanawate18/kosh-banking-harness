@@ -129,6 +129,9 @@ export const AuthScreen: React.FC = () => {
             <button type="button" className="k-btn primary wide" onClick={continueSecurely}>
               Continue securely <span aria-hidden="true">→</span>
             </button>
+            <p className="k-hint" style={{ marginTop: 14, fontSize: '12px', color: '#9c9ea6', lineHeight: 1.5 }}>
+              Demo sign-in: Customer (Mobile OTP: <code>246810</code>), Bank Officer (<code>Officer@2468</code>), and Admin AI (<code>Admin@2468</code>).
+            </p>
           </div>
         </div>
       </dialog>

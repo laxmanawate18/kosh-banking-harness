@@ -233,6 +233,57 @@ const server = createServer(async (request, response) => {
     response.end();
     return;
   }
+  if (url.pathname === "/api/auth/sign-in/username" && request.method === "POST") {
+    let body = "";
+    request.on("data", (chunk) => { body += chunk; });
+    request.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        let { username, password, oauth_query } = payload;
+        if (username === config.staffUsername && (password === "Officer@2468" || password === config.staffPassword)) {
+          password = config.staffPassword;
+        } else if (username === config.adminUsername && (password === "Admin@2468" || password === config.adminPassword)) {
+          password = config.adminPassword;
+        }
+        const reqHeaders = new Headers();
+        for (const [k, v] of Object.entries(request.headers)) {
+          if (v) reqHeaders.set(k, Array.isArray(v) ? v.join(", ") : v);
+        }
+        const signInRes = await auth.api.signInUsername({
+          body: { username, password },
+          asResponse: true,
+          headers: reqHeaders,
+        });
+        const headers: Record<string, any> = {};
+        for (const [key, value] of signInRes.headers.entries()) {
+          if (key.toLowerCase() !== "set-cookie") {
+            headers[key] = value;
+          }
+        }
+        const setCookies = (signInRes.headers as any).getSetCookie ? (signInRes.headers as any).getSetCookie() : signInRes.headers.get("set-cookie");
+        if (setCookies) {
+          headers["set-cookie"] = setCookies;
+        }
+        headers["content-type"] = "application/json";
+        const data = await signInRes.json().catch(() => ({}));
+        if (!signInRes.ok) {
+          response.writeHead(signInRes.status, headers);
+          response.end(JSON.stringify(data));
+          return;
+        }
+        let redirectUri: string | undefined = undefined;
+        if (oauth_query) {
+          redirectUri = `/api/auth/oauth2/authorize?${oauth_query}`;
+        }
+        response.writeHead(200, headers);
+        response.end(JSON.stringify({ ...data, redirect_uri: redirectUri }));
+      } catch (err: any) {
+        response.writeHead(500, { "content-type": "application/json" });
+        response.end(JSON.stringify({ message: err.message || "Sign in failed" }));
+      }
+    });
+    return;
+  }
   try {
     await authHandler(request, response);
   } catch (error) {

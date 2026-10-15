@@ -68,11 +68,22 @@ export async function bootstrap() {
       'SELECT "id" FROM "user" WHERE "sentinelUserId" = $1 OR "username" = $2 OR "email" = $3 LIMIT 1',
       [account.sentinelUserId, account.username, account.email],
     );
-    const userId = staff.rowCount
-      ? staff.rows[0].id
-      : (await auth.api.signUpEmail({
-          body: { name: account.name, email: account.email, password: account.password, username: account.username },
-        })).user.id;
+    let userId: string;
+    if (!staff.rowCount) {
+      const created = await auth.api.signUpEmail({
+        body: { name: account.name, email: account.email, password: account.password, username: account.username },
+      });
+      userId = created.user.id;
+    } else {
+      userId = staff.rows[0].id;
+      const hashedPassword = await authContext.password.hash(account.password);
+      const accounts = await authContext.internalAdapter.findAccounts(userId);
+      if (accounts.some((a: any) => a.providerId === "credential")) {
+        await authContext.internalAdapter.updatePassword(userId, hashedPassword);
+      } else {
+        await authContext.internalAdapter.linkAccount({ userId, accountId: userId, providerId: "credential", password: hashedPassword });
+      }
+    }
     await authPool.query('UPDATE "user" SET "sentinelUserId" = $1 WHERE "id" = $2', [account.sentinelUserId, userId]);
   }
   const adminSignIn = await auth.api.signInUsername({

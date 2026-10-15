@@ -50,7 +50,12 @@ export function signInPage(): string {
     // Only the demo's registered numbers may receive a code; no SMS is ever requested for anyone else.
     demoPhones: Object.keys(config.firebaseIdentities),
     demoOtp: Boolean(config.demoOtp),
+    demoOtpCode: config.demoOtp || config.localFirebaseTestCode || "246810",
     testCode: config.localFirebaseTestCode,
+    staffUsername: config.staffUsername,
+    staffPassword: config.staffPassword,
+    adminUsername: config.adminUsername,
+    adminPassword: config.adminPassword,
   }).replaceAll("<", "\\u003c");
   return shell(
     "Sign in | Kosh, a product demo",
@@ -60,9 +65,15 @@ export function signInPage(): string {
 <section id="phonePane"><label>Registered mobile number<input id="phone" type="tel" autocomplete="tel" value="${config.localFirebaseTestPhone}"></label>
 <div id="captcha"></div><button id="send" class="primary">Send verification code</button>
 <div id="verifyPane" class="hidden"><label>Verification code<input id="code" class="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label><button id="verify" class="primary">Verify and continue</button></div>
-<p class="hint">${config.demoOtp ? `Demo sign-in: no SMS is sent. Use a registered demo number and the code ${config.demoOtp}.` : "Local development uses the configured Firebase test number. Real SMS requires the authorized HTTPS auth domain."}</p></section>
-<section id="staffPane" class="hidden"><label>Registered Username / Net Banking ID<input id="username" autocomplete="username" placeholder="e.g. sudhir56a7 or officer.mumbai"></label><label>Password<input id="password" type="password" autocomplete="current-password" placeholder="Enter Net Banking or Staff password"></label><button id="staffSignIn" class="primary">Sign in and continue</button>
-<p class="hint">Approved retail banking customers & staff operations can sign in with their temporary or assigned credentials.</p></section>
+<p class="hint">${config.demoOtp ? `Demo sign-in: no SMS is sent. Use registered demo number <code>${config.localFirebaseTestPhone}</code> and code <code>${config.demoOtp}</code>.` : "Local development uses the configured Firebase test number. Real SMS requires the authorized HTTPS auth domain."}</p></section>
+<section id="staffPane" class="hidden"><label>Registered Username / Net Banking ID<input id="username" autocomplete="username" placeholder="e.g. officer.mumbai or admin.kosh"></label><label>Password<input id="password" type="password" autocomplete="current-password" placeholder="Enter Net Banking or Staff password"></label><button id="staffSignIn" class="primary">Sign in and continue</button>
+<div class="row" style="margin-top:14px;gap:8px">
+  <button type="button" id="fillOfficer" class="secondary" style="font-size:12px;padding:9px 12px;border-radius:10px">Fill Officer Demo</button>
+  <button type="button" id="fillAdmin" class="secondary" style="font-size:12px;padding:9px 12px;border-radius:10px">Fill Admin AI Demo</button>
+</div>
+<p class="hint">Demo credentials (click above or enter password):<br>
+&bull; <strong>Bank Officer</strong>: username <code>${escapeHtml(config.staffUsername)}</code> &bull; password <code>${escapeHtml(config.staffPassword)}</code><br>
+&bull; <strong>Admin AI</strong>: username <code>${escapeHtml(config.adminUsername)}</code> &bull; password <code>${escapeHtml(config.adminPassword)}</code></p></section>
 <div id="error" class="error hidden" role="alert"></div>`,
     `<script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
@@ -80,6 +91,16 @@ function finishLogin(data){
 }
 document.querySelector('#phoneTab').onclick=()=>{document.querySelector('#phonePane').classList.remove('hidden');document.querySelector('#staffPane').classList.add('hidden');document.querySelector('#phoneTab').classList.add('active');document.querySelector('#staffTab').classList.remove('active')};
 document.querySelector('#staffTab').onclick=()=>{document.querySelector('#staffPane').classList.remove('hidden');document.querySelector('#phonePane').classList.add('hidden');document.querySelector('#staffTab').classList.add('active');document.querySelector('#phoneTab').classList.remove('active')};
+document.querySelector('#fillOfficer')?.addEventListener('click',()=>{
+  document.querySelector('#username').value=runtime.staffUsername;
+  document.querySelector('#password').value=runtime.staffPassword;
+  clearError();
+});
+document.querySelector('#fillAdmin')?.addEventListener('click',()=>{
+  document.querySelector('#username').value=runtime.adminUsername;
+  document.querySelector('#password').value=runtime.adminPassword;
+  clearError();
+});
 document.querySelector('#send').onclick=async()=>{clearError();try{
   let phone=document.querySelector('#phone').value.trim().replace(/[^+\\d]/g,'');
   if(!phone.startsWith('+')){
@@ -87,7 +108,7 @@ document.querySelector('#send').onclick=async()=>{clearError();try{
     else phone='+'+phone;
   }
   if(!runtime.demoPhones.includes(phone)) throw new Error('This is a demo: only the registered demo mobile numbers can sign in.');
-  if(runtime.demoOtp){ demoPhone=phone; document.querySelector('#verifyPane').classList.remove('hidden'); return; }  // no Firebase, no SMS
+  if(runtime.demoOtp){ demoPhone=phone; document.querySelector('#verifyPane').classList.remove('hidden'); document.querySelector('#code').value=runtime.demoOtpCode; return; }  // no Firebase, no SMS
   const local=['localhost','127.0.0.1','::1'].includes(location.hostname);
   const auth=getAuth(initializeApp(firebaseConfig));
   auth.settings.appVerificationDisabledForTesting=(local || phone===runtime.testPhone) && phone===runtime.testPhone;

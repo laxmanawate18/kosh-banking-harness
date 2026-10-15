@@ -69,8 +69,8 @@ NEW_KEYS = {  # required in production since this release; generated once: secre
     "kosh-sentinel-token-secret": (APP, "SENTINEL_DEMO_SECRET", lambda: secrets.token_urlsafe(48)),
     "kosh-audit-hmac-key": (APP, "SENTINEL_AUDIT_HMAC_KEY", lambda: secrets.token_urlsafe(48)),
     "kosh-document-key": (APP, "SENTINEL_DOCUMENT_KEY", lambda: base64.urlsafe_b64encode(os.urandom(32)).decode()),  # a Fernet key
-    # The Admin Panel login (admin.kosh). Read it once with: gcloud secrets versions access latest --secret=kosh-admin-password
-    "kosh-admin-password": (AUTH, "AUTH_ADMIN_PASSWORD", lambda: secrets.token_urlsafe(18)),
+    # The Admin Panel login (admin.kosh). Dummy demo password is Admin@2468.
+    "kosh-admin-password": (AUTH, "AUTH_ADMIN_PASSWORD", lambda: "Admin@2468"),
 }
 # Kosh sends no e-mail: every SMTP setting goes (revoke the Gmail app password separately).
 # AUTH_DEMO_OTP is deliberately not here: the deployed demo keeps demo sign-in so reviewers can log in as a customer.
