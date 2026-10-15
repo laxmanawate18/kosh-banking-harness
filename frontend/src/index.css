@@ -28,6 +28,10 @@
 
 html {
   scroll-padding-top: 64px;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 :where(
   .sidebar,.messages,#searchResults,.ai-sidebar-panel,.ai-sessions-list,.ai-messages-scroll,.wf-body
@@ -47,6 +51,17 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100dvh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100dvh;
+  overflow-x: hidden;
 }
 
 /* Sleek, unobtrusive scrollbars for Windows browsers without arrow buttons */

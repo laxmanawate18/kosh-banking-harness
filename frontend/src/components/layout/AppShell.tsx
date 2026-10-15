@@ -68,14 +68,17 @@ export const AppShell: React.FC<AppShellProps> = ({ activeRoute, onRouteChange, 
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  useEffect(() => { window.scrollTo({ top: 0 }); }, [activeRoute]);
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+    document.getElementById('mainBody')?.scrollTo({ top: 0 });
+  }, [activeRoute]);
   useEffect(() => { document.title = `${t(ROUTE_TITLES[activeRoute] || ADMIN_TITLES[activeRoute] || 'Home')} | Kosh`; }, [activeRoute, t]);
 
   return (
     <div id="appShell" className="k-shell">
       <Sidebar activeRoute={activeRoute} onRouteChange={onRouteChange} isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
 
-      <div className="k-body">
+      <div className="k-body" id="mainBody">
         <Topbar
           activeRouteLabel={t(ROUTE_TITLES[activeRoute] || ADMIN_TITLES[activeRoute] || 'Home')}
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
