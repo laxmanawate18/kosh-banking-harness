@@ -51,17 +51,19 @@ Read this file whenever a step has an approval gate, or when you are unsure whet
 | 21 | Insurance advice for complex products or vulnerable customers | Human only | licensed_advisor | Regulated activity |
 
 ## Parameters (set by the bank)
-A value marked *Kosh* is what the Kosh code enforces today, with where it is set. Everything else is unset: treat it as most restrictive.
+A value marked *Kosh* is what the Kosh code enforces today (set in `config/harness/policy.json`). A parameter marked *Not enforced* has no code behind it in Kosh: treat the action as most restrictive.
 
 | Parameter | Meaning | Owner | Value |
 |---|---|---|---|
 | `PARAM_AGENT_PAYMENT_LIMIT` | Highest payment an agent may complete alone | Payments head | Kosh: ₹0. Mitra never completes a payment alone; every transfer and bill payment needs the customer's Kavach approval (`config/harness/policy.json` `sentinel.always_customer_approval`) |
-| `PARAM_CONCESSION_LIMIT` | Largest fee or rate concession an agent may offer | Retail head | not set |
-| `PARAM_NEW_PAYEE_COOLING_HOURS` | Cooling-off period for a new payee | Fraud head | not set |
-| `PARAM_NEW_PAYEE_LIMIT` | Reduced limit during cooling-off | Fraud head | not set |
-| `PARAM_STEP_UP_MAX_FAILURES` | Failed challenges before lock | Security | Kosh: 3 attempts per Kavach payment challenge (`sentinel.challenge_max_attempts`), which expires after 300 s (`sentinel.challenge_ttl_seconds`). Sign-in step-up limits: not set here |
-| `PARAM_STEP_UP_LOCK_MINUTES` | Lock duration after failures | Security | not set |
-| `PARAM_CONTACT_HOURS` | Permitted contact window for collections | Collections head | not set |
-| `PARAM_MAX_CONTACT_ATTEMPTS` | Attempts before escalation | Collections head | not set |
-| `PARAM_APPLICATION_EXPIRY_DAYS` | Days before an abandoned application expires | Retail head | not set |
-| `PARAM_DISPUTE_TAT_DAYS` | Dispute turnaround under the applicable rules | Operations | not set |
+| `PARAM_CONCESSION_LIMIT` | Largest fee or rate concession an agent may offer | Retail head | Not enforced. Kosh has no concession capability, so nothing reads it. |
+| `PARAM_NEW_PAYEE_COOLING_HOURS` | Cooling-off period for a new payee | Fraud head | Kosh: 24 hours (`policy.json`). A payee added within it is capped (next row) and cannot receive a new standing instruction. |
+| `PARAM_NEW_PAYEE_LIMIT` | The most a new payee may receive in total while it is new | Fraud head | Kosh: ₹25,000. A hard check in Sentinel, run again when the payment is posted. |
+| `PARAM_CONTACT_CHANGE_COOLING_HOURS` | Waiting period after a mobile number or email change | Fraud head | Kosh: 24 hours. Transfers are capped and no new standing instruction can be set up. |
+| `PARAM_CONTACT_CHANGE_LIMIT` | The most that can be transferred in total during that waiting period | Fraud head | Kosh: ₹25,000. A hard check in Sentinel, run again when the payment is posted. |
+| `PARAM_STEP_UP_MAX_FAILURES` | Wrong step-up codes before the session is locked | Security | Kosh: 3 on a sign-in session (each payment challenge also allows 3 attempts, `sentinel.challenge_max_attempts`, and expires after 300 s). |
+| `PARAM_STEP_UP_LOCK_MINUTES` | Lock duration after those failures | Security | Kosh: 30 minutes, per sign-in session, not per person. |
+| `PARAM_CONTACT_HOURS` | Permitted contact window for collections | Collections head | Not enforced. Kosh makes no collections calls. |
+| `PARAM_MAX_CONTACT_ATTEMPTS` | Attempts before escalation | Collections head | Not enforced. Outreach attempts are not counted. |
+| `PARAM_APPLICATION_EXPIRY_DAYS` | Days before an abandoned application expires | Retail head | Not enforced. Applications do not expire yet. |
+| `PARAM_DISPUTE_TAT_DAYS` | Dispute turnaround under the applicable rules | Operations | Kosh: 30 days. It sets the due date of a complaint. |
