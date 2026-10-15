@@ -380,11 +380,11 @@ class OntologyMappingAndStateEngineTests(unittest.TestCase):
             "session_id": "S-PARAM", "turn_id": intent["turn_id"], "intent": intent,
             "customer_id": "CUST-1001", "device_id": "DEVICE-KNOWN-01"
         }
-        res = service.propose_transfer(context, "BEN-VIKRAM", 3000000, "ACC-SAL-001")
-        decision = res.get("sentinel") or {}
+        service.propose_transfer(context, "BEN-VIKRAM", 3000000, "ACC-SAL-001")
+        decision = repo.snapshot()["sentinel_decisions"][-1]  # the full record; the customer's result no longer carries detection reasons
         self.assertIn("EXCEEDS_AGENT_PAYMENT_LIMIT", decision.get("reason_codes", []))
 
-        # 2. Transfer to newly added beneficiary in cooling-off period (₹15,000 > ₹10,000 limit)
+        # 2. A payee added today may receive up to PARAM_NEW_PAYEE_LIMIT (₹25,000) in its first 24 hours: ₹15,000 is allowed to proceed to approval, ₹30,000 is refused
         now_iso = (datetime.now(timezone.utc)).isoformat().replace("+00:00", "Z")
         repo.transaction(lambda data: data["beneficiaries"].update({
             "BEN-NEW-TEST": {
@@ -399,9 +399,18 @@ class OntologyMappingAndStateEngineTests(unittest.TestCase):
             "customer_id": "CUST-1001", "device_id": "DEVICE-KNOWN-01"
         }
         res_cool = service.propose_transfer(context_cool, "BEN-NEW-TEST", 1500000, "ACC-SAL-001")
-        decision_cool = res_cool.get("sentinel") or {}
+        decision_cool = repo.snapshot()["sentinel_decisions"][-1]
+        self.assertEqual(res_cool["status"], "CHALLENGE_REQUIRED")
         self.assertIn("COOLING_OFF_PERIOD_ACTIVE", decision_cool.get("reason_codes", []))
-        self.assertIn("COOLING_OFF_LIMIT_EXCEEDED", decision_cool.get("reason_codes", []))
+        self.assertNotIn("NEW_PAYEE_LIMIT_EXCEEDED", decision_cool.get("reason_codes", []))
+
+        intent_over = resolver.resolve("Transfer ₹30,000 to New Contact", "S-COOL2", "t-cool-2")
+        context_over = {"session_id": "S-COOL2", "turn_id": intent_over["turn_id"], "intent": intent_over,
+                        "customer_id": "CUST-1001", "device_id": "DEVICE-KNOWN-01"}
+        res_over = service.propose_transfer(context_over, "BEN-NEW-TEST", 3000000, "ACC-SAL-001")
+        decision_over = repo.snapshot()["sentinel_decisions"][-1]
+        self.assertEqual(res_over["status"], "DENIED")
+        self.assertIn("NEW_PAYEE_LIMIT_EXCEEDED", decision_over.get("reason_codes", []))
 
 
 if __name__ == "__main__":
