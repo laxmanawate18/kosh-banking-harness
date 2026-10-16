@@ -20,3 +20,4 @@ docs/schema/
 docs/schema.zip
 # local working documents (hackathon submission template); never build or commit them
 *.pptx
+scratch/
