@@ -329,7 +329,7 @@ class OAuthService:
             ))
         return context, raw_cookie, csrf_token
 
-    def _refresh_grant(self, grant_id: str) -> tuple[tuple[str, ...], str]:
+    def _refresh_grant(self, grant_id: str, *, force: bool = False) -> tuple[tuple[str, ...], str]:
         with self._refresh_lock:
             with self.runtime.sessions() as session:
                 grant = session.get(OAuthGrantRecord, grant_id)
@@ -340,9 +340,11 @@ class OAuthService:
                     or (grant.refresh_expires_at and _aware(grant.refresh_expires_at) <= utc_dt())
                 ):
                     raise PermissionError("OAuth grant is no longer refreshable")
-                # If another concurrent request just refreshed this grant while we waited for the lock:
-                if _aware(grant.access_expires_at) > utc_dt():
-                    return tuple(grant.scopes or []), grant.assurance_level
+                # If not forcing and another concurrent request just refreshed this grant while we waited for the lock:
+                if not force and _aware(grant.access_expires_at) > utc_dt():
+                    auth_session = session.get(AuthSessionRecord, grant.auth_session_id)
+                    assurance = auth_session.assurance_level if auth_session else "L2"
+                    return tuple(grant.scopes or []), assurance
                 refresh_token = self.cipher.decrypt(grant.encrypted_refresh_token)
                 client_id = grant.client_id
                 auth_subject = grant.auth_subject
@@ -364,7 +366,9 @@ class OAuthService:
                     stored = session.get(OAuthGrantRecord, grant_id)
                     if stored and _aware(stored.access_expires_at) > utc_dt():
                         # A concurrent request already refreshed the grant successfully
-                        return tuple(stored.scopes or []), stored.assurance_level
+                        auth_session = session.get(AuthSessionRecord, stored.auth_session_id)
+                        assurance = auth_session.assurance_level if auth_session else "L2"
+                        return tuple(stored.scopes or []), assurance
                 with self.runtime.sessions.begin() as session:
                     stored = session.get(OAuthGrantRecord, grant_id)
                     if stored and not stored.revoked_at and _aware(stored.access_expires_at) <= utc_dt():
@@ -392,7 +396,7 @@ class OAuthService:
                         raw_expiry = claims.get(ASSURANCE_EXPIRES_CLAIM)
                         auth_session.step_up_expires_at = datetime.fromisoformat(
                             str(raw_expiry).replace("Z", "+00:00")
-                        )
+                        ) if raw_expiry else now + timedelta(seconds=300)
                     else:
                         auth_session.step_up_expires_at = None
             return scopes, assurance
@@ -544,7 +548,7 @@ class OAuthService:
             self._step_up_failed(auth_session_id)
             raise
 
-        _, assurance = self._refresh_grant(grant_id)  # rotates the grant; new JWTs carry the step-up
+        _, assurance = self._refresh_grant(grant_id, force=True)  # rotates the grant; new JWTs carry the step-up
         if assurance != "L3":
             raise PermissionError("Refreshed token did not satisfy L3 assurance")
         self._step_up_succeeded(auth_session_id)

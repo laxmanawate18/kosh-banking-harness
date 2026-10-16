@@ -84,26 +84,25 @@ Unlike conversational chatbots that directly call banking APIs with LLM-generate
 ### Pillar I: Advanced Conversational Reasoning & Regulatory Grounding
 
 #### Use Case 1: Multi-Turn Contextual Intent & Account Resolution
-* **Core Superpower:** *Stateful Conversation Memory, Ambiguity Detection & Context Merging*
+* **Core Superpower:** *Stateful Conversation Memory, Primary Account Auto-Resolution & Context Switching*
 * **Actor:** Customer: Sudhir Jaiswal (`CUST-1002`)
-* **Context:** Sudhir holds multiple savings accounts: Priority Salary (`ACC-SAL-102`, ₹4,85,000) and Global Tech Advantage (`ACC-SAV-103`, ₹9,20,000).
+* **Context:** Sudhir holds multiple savings accounts: Priority Salary (`ACC-SAL-102`, ₹4,85,000, designated `is_primary: true`) and Global Tech Advantage (`ACC-SAV-103`, ₹9,20,000).
 * **Execution Steps:**
   1. Sign in as Sudhir: Mobile `+919839774797`, Demo OTP `246810`.
   2. Open **AI Banker** (`/#ai-banker`).
-  3. Enter Turn 1 (Ambiguous prompt):
+  3. Enter Turn 1:
      ```text
      Transfer ₹10,000 to Rahul.
      ```
-  4. Observe Mitra's response: Mitra resolves beneficiary Rahul Sharma (`BEN-RAHUL`), but detects ambiguity in the funding source. It asks:
-     *"Which account would you like to transfer from: Priority Salary Account (•••• 4797) or Global Tech Advantage (•••• 8820)?"*
-  5. Enter Turn 2 (Clarification):
+  4. **Observe Primary Account Default:** Mitra resolves beneficiary Rahul Sharma (`BEN-RAHUL`) and automatically binds Sudhir's primary Priority Salary Account (`•••• 4797`), generating a Kavach transfer proposal card.
+  5. Enter Turn 2 (Contextual account switch):
      ```text
-     From my Global Tech account please.
+     Wait, please send this from my Global Tech account instead.
      ```
 * **System Proof & Technical Verification:**
-  - Mitra merges Turn 1 and Turn 2, grounds the intent to `source_account_id="ACC-SAV-103"` and `amount_minor=1000000`.
-  - Sentinel receives the complete bound proposal and validates ownership.
-  - The Kavach modal opens with exact details: *Rahul Sharma*, *₹10,000*, *Global Tech Advantage*.
+  - Mitra merges Turn 1 and Turn 2, preserving recipient (*Rahul Sharma*) and amount (*₹10,000*), while switching `source_account_id` to `ACC-SAV-103` (`Global Tech Advantage`).
+  - Sentinel receives the updated bound proposal and verifies ownership.
+  - The Kavach modal updates in real time to reflect the new debit account.
 
 ---
 
@@ -147,21 +146,22 @@ Unlike conversational chatbots that directly call banking APIs with LLM-generate
 * **Core Superpower:** *RBI KYC Direction, Zero Outward Mutation Gating & V-CIP Transition*
 * **Actor:** Customer: Aarav Mehta (`CUST-1001`)
 * **Execution Steps:**
-  1. Reset demo (`POST /api/demo/reset`). Sign in as Aarav: `+919876543210` / `246810`.
-  2. In **AI Banker**, attempt to transfer:
+  1. Click **Reset demo** in the UI footer (or issue `POST /api/demo/reset`) to ensure Aarav's baseline state is `NOT_DONE`.
+  2. Sign in as Aarav: `+919876543210` / Demo OTP `246810`.
+  3. In **AI Banker**, attempt to transfer:
      ```text
      Transfer ₹5,000 to Home Rent from my Salary Account.
      ```
-  3. Observe Sentinel Block: Sentinel flags `KYC_NON_COMPLIANT`. Zero paise debited.
-  4. Navigate to **Overview** (`/#overview`), click the alert banner: **Video KYC now**.
-  5. On the simulated V-CIP sandbox page (`/ekyc/sandbox/`), click **Simulate: all checks pass**.
-  6. Return to **AI Banker** and re-run:
+  4. **Observe Sentinel KYC Block:** Sentinel enforces a hard stop with reason `KYC_NON_COMPLIANT`: *"Complete your KYC to send money."* Zero paise debited.
+  5. Navigate to **Overview** (`/#overview`), click the warning alert banner: **Video KYC now**.
+  6. On the simulated V-CIP sandbox page (`/ekyc/sandbox/`), click **Simulate: all checks pass**.
+  7. Return to **AI Banker** and re-run:
      ```text
      Transfer ₹5,000 to Home Rent from my Salary Account.
      ```
 * **System Proof & Technical Verification:**
-  - Before V-CIP: Sentinel policy completely rejects outward debits.
-  - After V-CIP: Customer state transitions to `VERIFIED`. Sentinel evaluates the transfer, produces `CHALLENGE` (or `ALLOW_WITH_APPROVAL`), and permits execution.
+  - Before V-CIP: Customer KYC is `NOT_DONE`; Sentinel policy completely rejects outward debits.
+  - After V-CIP: Customer state transitions to `VERIFIED`. Sentinel evaluates the transfer, produces `CHALLENGE` (or `ALLOW_WITH_APPROVAL`), and permits Kavach authorization.
   - Notification table logs an outbox SMS confirmation: `kyc_verified`.
 
 ---
@@ -174,12 +174,11 @@ Unlike conversational chatbots that directly call banking APIs with LLM-generate
      ```text
      Transfer ₹15,000 to Fast Cash Services from my Salary Account.
      ```
-* **System Proof & Technical Verification:**
-  - Beneficiary `BEN-FASTCASH` (`fastcash@upi`) is registered with `risk_status="BLOCKED_MULE"`.
-  - Sentinel issues an instant hard **DENY** with risk score 100.
-  - **Zero Debit:** Both balance and ledger remain completely untouched.
-  - **Anti-Tipping-Off Compliance:** Mitra displays a neutral refusal quoting a customer care reference, strictly concealing that the destination is an AML-flagged mule account.
-  - The Sentinel Inspector rail records reason code `MULE_BENEFICIARY_BLOCKED`.
+* **System Proof & Technical Verification (Dual-Layer Defense):**
+  - **Layer 1 (Conversational Agent Guardrail - SKILL.md Rule 2):** Mitra inspects the directory via `get_customer_summary` and sees `Fast Cash Services` (`BEN-FASTCASH`) has `risk_status="BLOCKED_MULE"`. Mitra immediately refuses to propose any payment to this payee (*"I cannot initiate a transfer to Fast Cash Services because this beneficiary is currently blocked in your beneficiary directory..."*).
+  - **Layer 2 (Deterministic Sentinel PDP Hard Deny):** If an API caller, script, or prompt injection bypasses Mitra and attempts direct posting to `BEN-FASTCASH`, Sentinel evaluates the intent and triggers an instant hard **DENY** with risk score 100 (`KNOWN_MULE_DESTINATION`).
+  - **Anti-Tipping-Off Compliance:** In both layers, the customer is shown only a neutral refusal with a customer support reference, strictly concealing that the destination is an AML-flagged criminal mule account.
+  - **Zero Debit:** Both account balance and ledger remain untouched.
 
 ---
 
@@ -191,14 +190,14 @@ Unlike conversational chatbots that directly call banking APIs with LLM-generate
      ```text
      Transfer ₹75,000 to Vikram from my Rent Reserve account.
      ```
-  2. Observe Sentinel Challenge: New beneficiary + high-value ($\ge$ ₹50,000) drives risk score into `CHALLENGE`.
+  2. Observe Sentinel Challenge: High-value ($\ge$ ₹50,000) drives risk score into `CHALLENGE`.
   3. Click **Review & verify** on the challenge card.
-  4. The Kavach dialog demands fresh verification to elevate assurance to **L3**.
-  5. Click **Send fresh verification code** $\rightarrow$ enter `246810` $\rightarrow$ click **Verify and Authorize**.
+  4. In the Kavach modal, click **Approve and pay** (Demo OTP `246810` is pre-filled).
 * **System Proof & Technical Verification:**
-  - The OAuth session elevates from assurance level `L2` to `L3` for exactly 5 minutes.
-  - The transaction executes once. Rent Reserve (`ACC-SAV-002`) balance drops by ₹75,000.
-  - Subsequent low-risk actions during the 5-minute window inherit the elevated assurance.
+  - The frontend submits OTP verification to `POST /api/auth/firebase-step-up`.
+  - The OAuth service elevates session assurance level from `L2` to `L3` for 5 minutes.
+  - The transaction executes exactly once. Rent Reserve (`ACC-SAV-002`) balance drops by ₹75,000.
+  - The ledger posts the transfer and returns a cryptographic CBS reference (e.g. `TXNREF-433393A283B5`).
 
 ---
 
@@ -209,15 +208,16 @@ Unlike conversational chatbots that directly call banking APIs with LLM-generate
 * **Execution Steps (API Proof):**
   1. When a challenge is generated, the server issues a tamper-evident HMAC digest:
      `transaction_digest = HMAC_SHA256(secret, customer_id + amount + beneficiary_id + nonce)`
-  2. In browser DevTools / Postman, attempt to verify the challenge with a modified digest or altered payload:
+  2. Attempt to verify the challenge with a modified digest or altered payload:
      ```bash
      POST /api/challenges/CHAL-XXXX/verify
-     {"transaction_digest": "tampered_digest_value_99999"}
+     {"transaction_digest": "tampered_sha256_hash_value_99999"}
      ```
 * **System Proof & Technical Verification:**
-  - The backend decrypts and recalculates the expected HMAC signature.
-  - **Fails Closed:** Returns `403 FORBIDDEN` with error *"Digest mismatch: transaction parameters have been altered"*.
-  - Zero debit occurs; a critical security audit record is appended to the tamper-evident log.
+  - The backend performs constant-time verification using `hmac.compare_digest`.
+  - **Fails Closed:** Returns `{"success": false, "error": "Transaction details changed after approval.", "status": "DENIED"}`.
+  - The challenge is permanently burned to `DENIED` status, preventing replay attacks.
+  - Zero debit occurs; ledger integrity is preserved.
 
 ---
 
@@ -225,16 +225,16 @@ Unlike conversational chatbots that directly call banking APIs with LLM-generate
 * **Core Superpower:** *RBI Cyber Security Framework, Aggregate Beneficiary Velocity Cap*
 * **Actor:** Customer: Aarav Mehta (`CUST-1001`)
 * **Execution Steps:**
-  1. Vikram (`BEN-VIKRAM`) was added recently. Sentinel policy enforces a strict ₹25,000 aggregate cap for payees added in the last 24 hours.
+  1. Vikram (`BEN-VIKRAM`) has `relationship="NEW"` (added within the last 24 hours). Sentinel enforces a strict ₹25,000 aggregate cap for payees inside this cooling window.
   2. In **AI Banker**, attempt:
      ```text
      Transfer ₹25,001 to Vikram from my Salary Account.
      ```
 * **System Proof & Technical Verification:**
-  - Sentinel evaluates `payee_age < 24 hours`.
-  - Calculates `amount_minor = 2500100 > 2500000`.
-  - Sentinel triggers hard refusal: `NEW_PAYEE_LIMIT_EXCEEDED`.
-  - Mitra explains: *"For your security, transfers to payees added within the last 24 hours are limited to ₹25,000 in total."*
+  - Sentinel evaluates `payee_age < 24 hours` and `amount_minor = 2500100 > 2500000`.
+  - Sentinel triggers hard denial: `NEW_PAYEE_LIMIT_EXCEEDED`.
+  - Customer message: *"A new payee can receive up to ₹25,000 in the first 24 hours."*
+  - Transfers within the ₹25,000 limit (e.g. ₹20,000) are permitted and proceed to approval.
 
 ---
 
@@ -244,13 +244,14 @@ Unlike conversational chatbots that directly call banking APIs with LLM-generate
 * **Execution Steps:**
   1. A customer requests a mobile number update via Service Request `P1-11`.
   2. Bank Officer approves the request in `/operations`. Customer's `contact_changed_at` timestamp is set to `now()`.
-  3. Attacker (or customer) immediately attempts a high-value transfer:
+  3. Attacker (or customer) immediately attempts a transfer exceeding ₹25,000:
      ```text
      Transfer ₹30,000 to Home Rent from my Salary Account.
      ```
 * **System Proof & Technical Verification:**
-  - Even though Home Rent is a long-standing trusted payee, Sentinel detects that contact details were altered in the last 24 hours.
-  - Sentinel enforces the emergency ₹25,000 safety ceiling, denying the transfer with reason code `RECENT_CONTACT_CHANGE`.
+  - Even though Home Rent is an established, trusted payee, Sentinel detects that contact details were altered in the last 24 hours.
+  - Sentinel enforces the emergency ₹25,000 ATO safety ceiling, denying the transfer with reason code `RECENT_CONTACT_CHANGE`.
+  - Customer message: *"For your safety, payments are limited to ₹25,000 for 24 hours after your mobile number or email changes."*
   - Proves that even if an attacker compromises a user's phone number via SIM-swap, they cannot drain the account.
 
 ---
@@ -260,12 +261,12 @@ Unlike conversational chatbots that directly call banking APIs with LLM-generate
 * **Actor:** Customer: Aarav Mehta (`CUST-1001`)
 * **Execution Steps:**
   1. Execute a ₹10,000 transfer to Home Rent.
-  2. Immediately execute a second ₹10,000 transfer to Home Rent.
-  3. Attempt a third transfer within 10 minutes.
+  2. Execute a second ₹10,000 transfer to Home Rent within minutes.
+  3. Attempt a third transfer within the 10-minute sliding window.
 * **System Proof & Technical Verification:**
-  - Sentinel tracks payment velocity across a 600-second window (`policy.velocity_window_seconds = 600`, limit = 3).
-  - On the third attempt, Sentinel flags `VELOCITY_LIMIT`.
-  - Normal low-risk transfers escalate to high-risk challenges or denials, stopping automated bot drain attacks.
+  - Sentinel tracks payment velocity across a 600-second window (`policy.velocity_window_seconds = 600`).
+  - On the third attempt, Sentinel flags `VELOCITY_LIMIT` (+20 risk points).
+  - Normal low-risk transfers escalate to high-friction challenges or denials, stopping automated bot drain attacks.
 
 ---
 

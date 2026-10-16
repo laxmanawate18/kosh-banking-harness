@@ -8,7 +8,7 @@ import hmac
 import json
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypeVar
 
@@ -101,6 +101,11 @@ class BankingDatabase:
             raise RuntimeError(f"Banking seed is corrupt: {self.seed_path}") from exc
         if not isinstance(seed, dict) or seed.get("schema_version") != 2:
             raise RuntimeError("Unsupported banking seed schema")
+        # Ensure 'NEW' relationship beneficiaries (e.g. Vikram) are anchored inside the 24-hour cooling window:
+        now_dt = utc_dt()
+        for b in seed.get("beneficiaries", {}).values():
+            if b.get("relationship") == "NEW" and b.get("risk_status") != "BLOCKED_MULE":
+                b["created_at"] = (now_dt - timedelta(hours=2)).isoformat()
         return seed
 
     def _ensure_seeded(self) -> None:
