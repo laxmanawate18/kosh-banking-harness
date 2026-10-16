@@ -40,7 +40,7 @@ The AI agent never completes a payment alone. Every money movement goes through 
 
 ## Evidence on Hand
 
-- A working demo with seeded customers, an officer and an admin; documentation in `README.md`, `docs/AI_GOVERNANCE.md` and `docs/ONTOLOGY.md`; a test report in `KOSH_TEST_REPORT.md`.
+- A working demo with seeded customers, an officer and an admin; documentation in `README.md`, `docs/AI_GOVERNANCE.md`, `docs/JUDGE_WALKTHROUGH.md` and `docs/ONTOLOGY.md`; a test report in `KOSH_TEST_REPORT.md`.
 - No real customers, testimonials, regulator approvals or production deployment figures exist. Future work must not invent them.
 
 ## Product Principles

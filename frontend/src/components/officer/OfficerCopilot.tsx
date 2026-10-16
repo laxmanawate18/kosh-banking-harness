@@ -50,7 +50,7 @@ export const OfficerCopilot: React.FC<{ requestId?: string }> = ({ requestId }) 
           return [...t, { role: 'copilot', text: res.reply }];
         });
       }
-    } catch (err) {
+    } catch {
       try {
         const fallback = await post<{ reply: string }>('/api/officer/copilot', {
           message: text,

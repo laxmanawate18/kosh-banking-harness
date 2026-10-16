@@ -448,7 +448,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({
       const sent = await sendStepUpCode(auth.user.phone_number, publicConfig, 'step-up-recaptcha');
       setStepUpConfirmation(sent.confirmation);
       setStepUpCode(sent.prefill || defaultCode);
-    } catch (err: any) {
+    } catch {
       setStepUpCode(defaultCode);
       setStepUpError('SMS could not be delivered for this region. Demo OTP 246810 has been auto-filled.');
     } finally {

@@ -104,6 +104,33 @@
           "FATCA / PEP Declaration"
         ]
       }
+    },
+    "CUST-1003": {
+      "id": "CUST-1003", "cif_number": "CIF0001003",
+      "first_name": "Priya",
+      "last_name": "Sharma",
+      "display_name": "Priya Sharma",
+      "email": "priya.sharma@example.test",
+      "phone_masked": "+91 ••••• 23344",
+      "city": "New Delhi",
+      "tier": "Select",
+      "member_since": "2023-01-20",
+      "normal_transfer_minor": 1000000,
+      "primary_device_id": "DEVICE-PRIYA-01",
+      "kyc": {
+        "status": "VERIFIED",
+        "kyc_type": "INITIAL_KYC",
+        "due_date": "2028-01-20",
+        "risk_category": "LOW",
+        "pan_masked": "ABCPS••••K",
+        "aadhaar_masked": "•••• •••• 3344",
+        "address": "B-402, Green Meadows, Saket, New Delhi 110017",
+        "occupation": "Senior Consultant",
+        "annual_income_slab": "15L_TO_50L",
+        "is_pep": false,
+        "last_verified_at": "2024-01-15T10:00:00Z",
+        "pending_requirements": []
+      }
     }
   },
   "accounts": {
@@ -131,6 +158,11 @@
       "id": "ACC-FD-104", "customer_id": "CUST-1002", "name": "High Yield Term Deposit",
       "type": "FIXED_DEPOSIT", "balance_minor": 150000000, "available_balance_minor": 150000000,
       "currency": "INR", "status": "ACTIVE", "account_number_masked": "•••• 1042", "cbs_account_number": "FD0000001042", "is_primary": false
+    },
+    "ACC-SAL-003": {
+      "id": "ACC-SAL-003", "customer_id": "CUST-1003", "name": "Corporate Salary Account",
+      "type": "SAVINGS", "balance_minor": 34000000, "available_balance_minor": 34000000,
+      "currency": "INR", "status": "ACTIVE", "account_number_masked": "•••• 3344", "cbs_account_number": "109200003344", "is_primary": true
     }
   },
   "cards": {
@@ -143,6 +175,11 @@
       "id": "CARD-DEBIT-4797", "customer_id": "CUST-1002", "account_id": "ACC-SAL-102",
       "card_number_masked": "•••• 4797", "network": "Visa Signature", "type": "DEBIT",
       "status": "ACTIVE", "daily_limit_minor": 2500000
+    },
+    "CARD-DEBIT-3344": {
+      "id": "CARD-DEBIT-3344", "customer_id": "CUST-1003", "account_id": "ACC-SAL-003",
+      "card_number_masked": "•••• 3344", "network": "RuPay Platinum", "type": "DEBIT",
+      "status": "ACTIVE", "daily_limit_minor": 1500000
     }
   },
   "bills": {
@@ -163,6 +200,12 @@
       "biller_name": "Airtel Broadband & Fiber", "category": "INTERNET", "amount_minor": 117900,
       "currency": "INR", "due_date": "2026-09-25", "status": "DUE", "autopay_eligible": true,
       "reference_masked": "ACCT •••• 9839"
+    },
+    "BILL-BSES-301": {
+      "id": "BILL-BSES-301", "customer_id": "CUST-1003", "biller_id": "BEN-BSES-DELHI",
+      "biller_name": "BSES Rajdhani Delhi", "category": "ELECTRICITY", "amount_minor": 185000,
+      "currency": "INR", "due_date": "2026-09-28", "status": "DUE", "autopay_eligible": true,
+      "reference_masked": "CA •••• 3344"
     }
   },
   "beneficiaries": {
@@ -205,6 +248,21 @@
       "id": "BEN-RAHUL", "customer_id": "CUST-1002", "display_name": "Rahul Sharma",
       "destination_masked": "HDFC Bank •••• 5590", "upi_id": "rahul.sharma@okhdfcbank",
       "kind": "PERSON", "relationship": "NEW", "created_at": "2026-09-10T09:15:00Z", "risk_status": "NORMAL"
+    },
+    "BEN-BSES-DELHI": {
+      "id": "BEN-BSES-DELHI", "customer_id": "CUST-1003", "display_name": "BSES Rajdhani Delhi",
+      "destination_masked": "Verified biller • 3344", "upi_id": "bses.bill@icici",
+      "kind": "BILLER", "relationship": "TRUSTED", "created_at": "2024-05-10T08:00:00Z", "risk_status": "NORMAL"
+    },
+    "BEN-SUNITA": {
+      "id": "BEN-SUNITA", "customer_id": "CUST-1003", "display_name": "Sunita Sharma",
+      "destination_masked": "HDFC Bank •••• 7712", "upi_id": "sunita@okhdfcbank",
+      "kind": "PERSON", "relationship": "TRUSTED", "created_at": "2024-06-01T08:00:00Z", "risk_status": "NORMAL"
+    },
+    "BEN-PRIYA-RENT": {
+      "id": "BEN-PRIYA-RENT", "customer_id": "CUST-1003", "display_name": "House Rent Delhi",
+      "destination_masked": "ICICI Bank •••• 9921", "upi_id": "saket.rent@icici",
+      "kind": "PERSON", "relationship": "TRUSTED", "created_at": "2024-02-01T08:00:00Z", "risk_status": "NORMAL"
     }
   },
   "transactions": [
@@ -218,7 +276,10 @@
     {"id": "TXN-2003", "customer_id": "CUST-1002", "account_id": "ACC-SAL-102", "created_at": "2026-09-07T18:45:00Z", "description": "UPI • Nature's Basket", "category": "GROCERIES", "amount_minor": -342000, "currency": "INR", "status": "COMPLETED"},
     {"id": "TXN-2004", "customer_id": "CUST-1002", "account_id": "ACC-SAL-102", "created_at": "2026-09-09T20:10:00Z", "description": "UPI • BookMyShow IMAX", "category": "ENTERTAINMENT", "amount_minor": -129900, "currency": "INR", "status": "COMPLETED"},
     {"id": "TXN-2005", "customer_id": "CUST-1002", "account_id": "ACC-SAL-102", "created_at": "2026-09-10T08:30:00Z", "description": "BBPS • BESCOM Electricity", "category": "UTILITIES", "amount_minor": -345000, "currency": "INR", "beneficiary_id": "BEN-BESCOM", "status": "COMPLETED"},
-    {"id": "TXN-2006", "customer_id": "CUST-1002", "account_id": "ACC-SAV-103", "created_at": "2026-09-11T00:00:00Z", "description": "Quarterly Interest Credit", "category": "OTHER", "amount_minor": 1200000, "currency": "INR", "status": "COMPLETED"}
+    {"id": "TXN-2006", "customer_id": "CUST-1002", "account_id": "ACC-SAV-103", "created_at": "2026-09-11T00:00:00Z", "description": "Quarterly Interest Credit", "category": "OTHER", "amount_minor": 1200000, "currency": "INR", "status": "COMPLETED"},
+    {"id": "TXN-3001", "customer_id": "CUST-1003", "account_id": "ACC-SAL-003", "created_at": "2026-09-01T09:00:00Z", "description": "Salary • Apex Financial Technologies", "category": "SALARY", "amount_minor": 18000000, "currency": "INR", "status": "COMPLETED"},
+    {"id": "TXN-3002", "customer_id": "CUST-1003", "account_id": "ACC-SAL-003", "created_at": "2026-09-03T11:00:00Z", "description": "UPI • House Rent Delhi", "category": "P2P_TRANSFER", "amount_minor": -3500000, "currency": "INR", "beneficiary_id": "BEN-PRIYA-RENT", "status": "COMPLETED"},
+    {"id": "TXN-3003", "customer_id": "CUST-1003", "account_id": "ACC-SAL-003", "created_at": "2026-09-06T18:00:00Z", "description": "UPI • Nature's Basket Delhi", "category": "GROCERIES", "amount_minor": -280000, "currency": "INR", "status": "COMPLETED"}
   ],
   "security_alerts": [
     {
@@ -248,12 +309,28 @@
       "allowed_actions": ["READ_ACCOUNTS", "READ_TRANSACTIONS", "READ_BILLS", "READ_ALERTS", "PAY_BILL", "TRANSFER", "FREEZE_CARD"],
       "allowed_accounts": ["ACC-SAL-102", "ACC-SAV-103", "ACC-FD-104"], "max_autonomous_bill_minor": 1000000,
       "max_daily_minor": 50000000, "expires_at": "2027-12-31T23:59:59Z"
+    },
+    "DLG-BANKING-003": {
+      "id": "DLG-BANKING-003", "customer_id": "CUST-1003", "agent_id": "banking-agent-v1", "status": "ACTIVE",
+      "allowed_actions": ["READ_ACCOUNTS", "READ_TRANSACTIONS", "READ_BILLS", "READ_ALERTS", "PAY_BILL", "TRANSFER", "FREEZE_CARD"],
+      "allowed_accounts": ["ACC-SAL-003"], "max_autonomous_bill_minor": 500000,
+      "max_daily_minor": 20000000, "expires_at": "2027-12-31T23:59:59Z"
     }
   },
   "devices": {
     "DEVICE-KNOWN-01": {"id": "DEVICE-KNOWN-01", "customer_id": "CUST-1001", "status": "TRUSTED", "first_seen_at": "2024-04-18T10:00:00Z", "label": "Aarav's phone"},
     "DEVICE-NEW-99": {"id": "DEVICE-NEW-99", "customer_id": "CUST-1001", "status": "NEW", "first_seen_at": "2026-09-12T07:05:00Z", "label": "Unknown browser"},
-    "DEVICE-SUDHIR-01": {"id": "DEVICE-SUDHIR-01", "customer_id": "CUST-1002", "status": "TRUSTED", "first_seen_at": "2024-06-10T08:00:00Z", "label": "Sudhir's MacBook Pro"}
+    "DEVICE-SUDHIR-01": {"id": "DEVICE-SUDHIR-01", "customer_id": "CUST-1002", "status": "TRUSTED", "first_seen_at": "2024-06-10T08:00:00Z", "label": "Sudhir's MacBook Pro"},
+    "DEVICE-PRIYA-01": {"id": "DEVICE-PRIYA-01", "customer_id": "CUST-1003", "status": "TRUSTED", "first_seen_at": "2024-05-15T10:00:00Z", "label": "Priya's iPhone"}
+  },
+  "preferences": {
+    "CUST-1003": {
+      "marketing_offers": true,
+      "email_updates": true,
+      "payment_alerts": true,
+      "monthly_statement": true,
+      "whatsapp_updates": false
+    }
   },
   "policy_config": {
     "version": "sentinel-demo-v1", "allow_max": 29, "challenge_max": 79,

@@ -6,6 +6,7 @@ export type FirebaseIdentity = {
 const DEFAULT_IDENTITIES: Record<string, FirebaseIdentity> = {
   "+919876543210": { name: "Aarav Mehta", sentinelUserId: "USR-CUSTOMER-001" },
   "+919839774797": { name: "Sudhir Jaiswal", sentinelUserId: "USR-CUSTOMER-002" },
+  "+919811223344": { name: "Priya Sharma", sentinelUserId: "USR-CUSTOMER-003" },
 };
 
 function parseOrigins(value: string | undefined, fallback: string[]): string[] {

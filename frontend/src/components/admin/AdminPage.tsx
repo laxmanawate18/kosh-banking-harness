@@ -707,7 +707,6 @@ const OntologyMappingView: React.FC<{ processes: Process[] }> = ({ processes }) 
   const [hoveredNode, setHoveredNode] = useState<OntologyNode | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'graph' | 'swimlane' | 'matrix'>('graph');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
   const [zoomScale, setZoomScale] = useState<number>(1);
 
   const loadGraph = () => {
@@ -1497,8 +1496,8 @@ const OntologySimulatorView: React.FC = () => {
 };
 
 const OntologyGovernanceView: React.FC = () => {
-  const [paramsData, loadParams, pError] = useData<{ parameters: PolicyParameter[] }>('/api/admin/ontology/parameters');
-  const [smData, loadSm, sError] = useData<{ state_machines: Record<string, StateMachine> }>('/api/admin/ontology/state-machines');
+  const [paramsData, , pError] = useData<{ parameters: PolicyParameter[] }>('/api/admin/ontology/parameters');
+  const [smData, , sError] = useData<{ state_machines: Record<string, StateMachine> }>('/api/admin/ontology/state-machines');
 
   const [activeEntityTab, setActiveEntityTab] = useState<string>('obj.card');
   const [fromState, setFromState] = useState<string>('ACTIVE');

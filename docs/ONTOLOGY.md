@@ -82,5 +82,5 @@ The deterministic router was run over all 294 evaluation cases offline. Changes 
 - The classifier is not used for visitors: most of their messages are product questions, so it would add a model call to nearly every turn for little gain.
 
 ## Not built yet
-- The roughly 100 tables proposed in `sentinel_updated_schema - Relationships.csv` (`core_*`, `crm_*`, `gl_*`, `los_*`, `ins_*`, `ret_*`, `dl_*`). Add them when a process that needs them comes into scope. Alembic must run on deploy first; today the app creates tables itself.
+- The roughly 100 tables proposed in `docs/schema/sentinel_updated_schema - Relationships.csv` (`core_*`, `crm_*`, `gl_*`, `los_*`, `ins_*`, `ret_*`, `dl_*`). Add them when a process that needs them comes into scope. Alembic must run on deploy first; today the app creates tables itself.
 - A compliance officer separate from the operations officer, for high-risk onboarding (approval matrix row 11). Needs a second officer login.

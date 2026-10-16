@@ -64,6 +64,8 @@ Signed-out visitors use a separate Antigravity sales configuration with four rea
 
 ## Judge walkthrough
 
+> 📘 **Detailed 15-Use Case Evaluation Guide:** For an in-depth walkthrough with step-by-step instructions across all 5 evaluation pillars (Visitor Advisory, KYC & Banking, Anti-Fraud & Risk, Officer RPA, and AI Admin Governance), see [docs/JUDGE_WALKTHROUGH.md](docs/JUDGE_WALKTHROUGH.md).
+
 Click **Reset demo**, then run these prompts/actions in order:
 
 1. `Show my accounts and recent spending.`

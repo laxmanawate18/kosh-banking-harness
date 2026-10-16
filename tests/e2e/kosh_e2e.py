@@ -1332,7 +1332,7 @@ def stage_e(b, R):
             not kavach_fraud, f"{len(kavach_fraud)} hits: " + " || ".join(kavach_fraud[:8]))
     R.check("E03", area, "Brand is fixed at the source (no runtime Sentinel→Kosh text rewriting in the browser)",
             not (ROOT / "frontend/src/branding.ts").exists(), "frontend/src/branding.ts rewrites text at runtime" if (ROOT / "frontend/src/branding.ts").exists() else "removed")
-    olds = [f"{f}:{n}" for rel in USER_FACING + ["test_dev_ui.py", "tests", ".env.example", "Dockerfile", "docker-compose.yml"]
+    olds = [f"{f}:{n}" for rel in USER_FACING + ["tests", ".env.example", "Dockerfile", "docker-compose.yml"]
             for f, n, l in iter_lines(rel) if re.search(r"gemini-(2\.5|2\.0|1\.5)-(?!\w*-?tts)", l)]  # TTS has no 3.8 model yet
     settings = (ROOT / "backend/settings.py").read_text()
     default = re.search(r'DEFAULT_MODEL\s*=\s*"([^"]+)"', settings)

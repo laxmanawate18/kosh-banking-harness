@@ -81,6 +81,7 @@ class AuthService:
         demo_users = [
             ("USR-CUSTOMER-001", "aarav", "+919876543210", "Aarav Mehta", "CUSTOMER", "CUST-1001"),
             ("USR-CUSTOMER-002", "sudhir", "+919839774797", "Sudhir Jaiswal", "CUSTOMER", "CUST-1002"),
+            ("USR-CUSTOMER-003", "priya", "+919811223344", "Priya Sharma", "CUSTOMER", "CUST-1003"),
             ("USR-OFFICER-001", "officer.mumbai", None, "Neha Rao", "OFFICER", None),
             # The AI and platform admin: governs Mitra (versions, ontology, switches, cost), never banking decisions.
             ("USR-ADMIN-001", "admin.kosh", None, "Kosh AI Admin", "ADMIN", None),

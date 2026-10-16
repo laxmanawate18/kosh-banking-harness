@@ -1,4 +1,4 @@
-import { get, post, patch } from './api';
+import { get, post } from './api';
 import type { PortalOverview, AuditEvent } from '../types/banking';
 
 export async function fetchOverview(): Promise<PortalOverview> {

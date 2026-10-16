@@ -19,7 +19,7 @@ class SentinelBankingTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.store = Path(self.temp.name) / "store.json"
-        seed = Path(__file__).parent / "data" / "banking_seed.json"
+        seed = Path(__file__).resolve().parent.parent / "data" / "banking_seed.json"
         self.repo = BankingDatabase(self.store, seed)
         self.repo.update_kyc_status(CUSTOMER_ID, "VERIFIED")
         self.sentinel = SentinelService(self.repo, "test-secret")
