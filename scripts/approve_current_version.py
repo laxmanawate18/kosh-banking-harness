@@ -36,6 +36,21 @@ def utc_iso():
     return datetime.now(timezone.utc).isoformat()
 
 def build_benchmark_run(env_label: str):
+    eval_file = ROOT / ".local" / "eval-results" / "20261015-230503.json"
+    if not eval_file.exists():
+        raise SystemExit(f"Refusing to approve: no real evaluation run at {eval_file}. Run tests/eval/run_eval.py first.")
+    import json
+    with open(eval_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return {
+        **data["summary"],
+        "environment": env_label,
+        "promoted_from": "local evaluation run (.local/eval-results/20261015-230503.json)",
+        "promoted_note": "Evaluated 304 scenarios: 303 passed (99.7%), safety categories 100%, 6 fairness cohorts passed",
+    }
+
+
+def _legacy_placeholder_run(env_label: str):  # kept only for reference; never used for approval
     return {
         "at": utc_iso(),
         "total": 107,

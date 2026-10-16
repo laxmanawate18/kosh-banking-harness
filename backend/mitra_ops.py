@@ -89,7 +89,7 @@ def prompt_version() -> str:
     # every ontology guide exactly as the model reads it: covers the files and the code that renders them
     parts += ["ontology=on"] + [ontology.view(pid) for pid in sorted(ontology.load())]
     skills = Path(__file__).resolve().parent.parent / "skills"
-    parts += [p.read_text(encoding="utf-8") for p in sorted(skills.glob("*/SKILL.md")) + sorted(skills.glob("*.md"))]
+    parts += [p.read_text(encoding="utf-8").replace("\r\n", "\n") for p in sorted(skills.glob("*/SKILL.md")) + sorted(skills.glob("*.md"))]
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:12]
 
 

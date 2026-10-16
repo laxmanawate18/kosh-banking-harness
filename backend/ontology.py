@@ -119,7 +119,9 @@ def version() -> str:
     """Hash of every ontology file, so any edit is a new prompt version (see mitra_ops.prompt_version)."""
     digest = hashlib.sha256()
     for path in sorted(ROOT.rglob("*.md")):
-        digest.update(str(path.relative_to(ROOT)).encode() + b"\0" + path.read_bytes() + b"\0")
+        rel = path.relative_to(ROOT).as_posix().encode("utf-8")
+        content = path.read_bytes().replace(b"\r\n", b"\n")
+        digest.update(rel + b"\0" + content + b"\0")
     return digest.hexdigest()[:12]
 
 
@@ -136,7 +138,7 @@ def _path(node_id: str) -> Path:
 def content_hash(process_id: str) -> str:
     """Hash of everything the process's agent view is built from: its file, the activities it uses and the guardrails."""
     files = [_path(process_id), *(_path(a) for a in load()[process_id].activities), ROOT / "policies" / "agent-guardrails.md"]
-    return hashlib.sha256(b"\0".join(f.read_bytes() for f in files)).hexdigest()[:16]
+    return hashlib.sha256(b"\0".join(f.read_bytes().replace(b"\r\n", b"\n") for f in files)).hexdigest()[:16]
 
 
 APPROVAL_TTL_SECONDS = 30  # each server instance re-reads approvals this often
