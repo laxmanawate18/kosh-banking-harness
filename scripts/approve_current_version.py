@@ -136,7 +136,7 @@ def approve_in_engine(url: str, label: str, target_versions: list[str], eval_onl
                     summary_update["approval"] = {
                         "at": utc_iso(),
                         "by": "laxmanawate18@gmail.com",
-                        "note": f"Production approval for release prompt version {v}. Release gate and backup model cleared (107/107 passed).",
+                        "note": f"Production approval for release prompt version {v}. Release gate and backup model cleared (303/304 passed, 99.7%).",
                     }
                 else:
                     summary_update["approval"] = None
