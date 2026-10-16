@@ -349,6 +349,7 @@ class WorkflowService:
             if any(c["blocking"] for c in checks): raise HTTPException(409, "Banking details have changed. Review the form again")
             p = copy.deepcopy(row.payload)
             f = copy.deepcopy(p["fields"])
+            request_id = None  # a statement completes with a download and creates no service request
             if row.skill_id == "statement":
                 p["download"] = "/api/portal/statement.csv?" + urlencode({k:f[k] for k in ("account_id","start","end")})
                 row.status = "COMPLETED"
@@ -389,7 +390,7 @@ class WorkflowService:
             row.payload, row.updated_at = p, utc_dt()
             self.audit(session, row, "WORKFLOW_SUBMITTED", "Customer reviewed and submitted banking workflow")
             view = self.view(row)
-            stp = (row.id, request_id, row.skill_id, row.customer_id, f) if row.skill_id in STP_SKILLS else None
+            stp = (row.id, request_id, row.skill_id, row.customer_id, f) if request_id and row.skill_id in STP_SKILLS else None
         # Straight-through processing runs after the submission is committed (its ledger change is its own transaction).
         return self.straight_through(*stp) if stp else view
 
