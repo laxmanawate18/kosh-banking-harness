@@ -152,4 +152,12 @@ def make_public_router(db, auth_service: AuthService, limiter, applications=None
             raise HTTPException(422, "Mitra could not hear any speech. Please try again closer to the microphone.")
         return {"text": text[:4000]}
 
+    @router.post("/api/demo/reset")
+    async def demo_reset():
+        """Resets banking database to clean seed state for evaluators and tests."""
+        db.reset_to_seed()
+        return {"ok": True, "message": "Demo data reset to baseline seed"}
+
     return router
+
+
