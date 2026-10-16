@@ -41,8 +41,8 @@ NEXT = {  # the only moves the pipeline allows
     "SUBMITTED": {"QUEUED_FOR_CBS", "REJECTED"},
     "QUEUED_FOR_CBS": {"RPA_EXECUTING"},
     "RPA_EXECUTING": {"CBS_MAKER_DONE", "RPA_FAILED", "CBS_REJECTED", "QUEUED_FOR_CBS"},
-    "CBS_MAKER_DONE": {"CBS_AUTHORISED", "RPA_FAILED", "CBS_REJECTED"},
-    "CBS_AUTHORISED": {"OPENED"},
+    "CBS_MAKER_DONE": {"CBS_AUTHORISED", "RPA_FAILED", "CBS_REJECTED", "QUEUED_FOR_CBS"},
+    "CBS_AUTHORISED": {"OPENED", "RPA_FAILED", "CBS_REJECTED", "QUEUED_FOR_CBS"},
     "RPA_FAILED": {"QUEUED_FOR_CBS", "REJECTED"},
     "CBS_REJECTED": {"QUEUED_FOR_CBS", "REJECTED"},
     "OPENED": set(),
@@ -200,8 +200,8 @@ class AccountApplicationService:
         """Queue the core-banking entry again after the robot failed or the core refused it."""
         with self.db._lock, self.runtime.sessions.begin() as session:
             row = self._locked(session, reference)
-            if row.status not in {"RPA_FAILED", "CBS_REJECTED"}:
-                raise ApplicationError("Only a failed core-banking entry can be retried.")
+            if row.status not in {"RPA_FAILED", "CBS_REJECTED", "CBS_MAKER_DONE", "CBS_AUTHORISED"}:
+                raise ApplicationError("Only a failed or stalled core-banking entry can be retried.")
             self._move(session, row, "QUEUED_FOR_CBS", by=officer_user_id, actor="officer", note="Officer retried the core-banking entry")
         self._queued(reference)
         return self.get(reference)

@@ -14,8 +14,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("auth_sessions", sa.Column("step_up_failures", sa.Integer(), nullable=False, server_default="0"))
-    op.add_column("auth_sessions", sa.Column("step_up_locked_until", sa.DateTime(timezone=True), nullable=True))
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    cols = {c["name"] for c in insp.get_columns("auth_sessions")}
+    if "step_up_failures" not in cols:
+        op.add_column("auth_sessions", sa.Column("step_up_failures", sa.Integer(), nullable=False, server_default="0"))
+    if "step_up_locked_until" not in cols:
+        op.add_column("auth_sessions", sa.Column("step_up_locked_until", sa.DateTime(timezone=True), nullable=True))
 
 
 def downgrade() -> None:

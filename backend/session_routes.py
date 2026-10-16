@@ -207,14 +207,35 @@ def make_session_router(
         username = _free_username(auth_service, full_name, pref.get("requested_username"))
         temp_password = _temp_password()
 
-        onboarded = db.onboard_customer_with_product(
-            product=product,
-            full_name=full_name,
-            phone_number=phone,
-            username=username,
-            email=email,
-        )
-        customer_id = onboarded["customer_id"]
+        # Check if customer was already created in an earlier partial attempt
+        existing_cid = lead.get("customer_id")
+        created_fresh = False
+        if existing_cid and db.get_customer(existing_cid):
+            customer_id = existing_cid
+        else:
+            onboarded = db.onboard_customer_with_product(
+                product=product,
+                full_name=full_name,
+                phone_number=phone,
+                username=username,
+                email=email,
+            )
+            customer_id = onboarded["customer_id"]
+            created_fresh = True
+
+        def _cleanup_customer():
+            if created_fresh:
+                def _rollback(state: Dict[str, Any]) -> None:
+                    custs = state.get("customers", {})
+                    accs = state.get("accounts", {})
+                    crds = state.get("cards", {})
+                    custs.pop(customer_id, None)
+                    for aid in [k for k, a in accs.items() if a.get("customer_id") == customer_id]:
+                        accs.pop(aid, None)
+                    for cid in [k for k, c in crds.items() if c.get("customer_id") == customer_id]:
+                        crds.pop(cid, None)
+                db.transaction(_rollback)
+
         try:
             auth_service.create_onboarded_profile(
                 full_name=full_name,
@@ -223,9 +244,11 @@ def make_session_router(
                 customer_id=customer_id,
             )
         except ValueError as exc:
+            _cleanup_customer()
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         if not _auth_server("provision-user", {"name": full_name, "email": email, "username": username,
                                                "password": temp_password, "sentinelUserId": customer_id, "phoneNumber": phone}):
+            _cleanup_customer()
             raise HTTPException(status_code=502, detail="Sign-in credentials could not be provisioned. No email was sent; please retry.")
 
         notify(db, "application_approved", phone, customer_id=customer_id, reference=pref.get("app_ref"),

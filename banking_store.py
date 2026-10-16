@@ -125,6 +125,9 @@ def _save_typed(session, name: str, spec: Spec, before: Any, after: Any) -> None
     for key, record in items:
         pk = key if spec.kind == "dict" and isinstance(after, dict) else _pk(spec, record, key)
         if str(pk) in new:
+            if name == "idempotency_records":
+                new[str(pk)] = record
+                continue
             raise RuntimeError(f"Duplicate {name} key {pk}")
         new[str(pk)] = record
     gone = [k for k in old if k not in new]

@@ -876,8 +876,15 @@ def build_banking_tools(context_provider: Callable[[], Dict[str, Any]]) -> List[
                 return {**earlier["result"], "repeated_request": True}
             result = fn(**kwargs)
             if isinstance(result, dict) and result.get("success", True) is not False:
-                db.transaction(lambda data: data.setdefault("idempotency_records", []).append(
-                    {"key": key, "request_digest": digest, "result": result, "created_at": utc_now()}))
+                def _record(data: Dict[str, Any]) -> None:
+                    records = data.setdefault("idempotency_records", [])
+                    entry = {"key": key, "request_digest": digest, "result": result, "created_at": utc_now()}
+                    for i, r in enumerate(records):
+                        if r.get("key") == key:
+                            records[i] = entry
+                            return
+                    records.append(entry)
+                db.transaction(_record)
             return result
         return call
 

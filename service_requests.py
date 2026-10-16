@@ -119,7 +119,7 @@ class ServiceRequestService:
                 ServiceRequestRecord.id == request_id).with_for_update()).scalar_one_or_none()
             if not row:
                 raise KeyError("Request not found")
-            if row.status not in {"PENDING_APPROVAL", "ESCALATED", "MORE_INFO_REQUIRED", "RPA_FAILED"}:
+            if row.status not in {"SUBMITTED", "PENDING_APPROVAL", "ESCALATED", "MORE_INFO_REQUIRED", "RPA_FAILED"}:
                 raise ValueError("Request is not awaiting an officer decision")
             officer = session.get(UserRecord, officer_user_id)
             if officer and officer.customer_id and officer.customer_id == row.customer_id:
@@ -173,7 +173,51 @@ class ServiceRequestService:
                     customer_targets.append(cust_entry)
                 state_changed = False
 
-                if row.service_id == "P1-08":  # Debit card reissue
+                if row.service_id == "P1-04":  # Cheque book request (referred STP)
+                    books = state.setdefault("cheque_books", {})
+                    acc_id = row.collected_data.get("account_id")
+                    leaves = int(row.collected_data.get("leaves") or 25)
+                    first = 100001 + 50 * len(books)
+                    cb_id = f"CHQ-{row.id[-8:]}"
+                    books[cb_id] = {
+                        "id": cb_id,
+                        "customer_id": row.customer_id,
+                        "account_id": acc_id,
+                        "leaves": leaves,
+                        "first_cheque": f"{first:06d}",
+                        "last_cheque": f"{first + leaves - 1:06d}",
+                        "delivery": row.collected_data.get("delivery", "REGISTERED_POST"),
+                        "status": "DISPATCHED",
+                        "issued_at": utc_now(),
+                    }
+                    state_changed = True
+
+                elif row.service_id == "P1-05":  # Stop cheque (referred STP)
+                    stopped = state.setdefault("stopped_cheques", {})
+                    acc_id = row.collected_data.get("account_id")
+                    cheque = str(row.collected_data.get("cheque_number") or "")
+                    stop_id = f"STP-{row.id[-8:]}"
+                    stopped[stop_id] = {
+                        "id": stop_id,
+                        "customer_id": row.customer_id,
+                        "account_id": acc_id,
+                        "cheque_number": cheque,
+                        "reason": row.collected_data.get("reason", "Customer request"),
+                        "stopped_at": utc_now(),
+                    }
+                    state_changed = True
+
+                elif row.service_id == "P1-07":  # Debit card block (referred STP)
+                    card_id = row.collected_data.get("card_id")
+                    cards = state.get("cards", {})
+                    for c in cards.values():
+                        if c.get("id") == card_id or (c.get("customer_id") == row.customer_id and (not card_id or c.get("status") == "ACTIVE")):
+                            c["status"] = "BLOCKED"
+                            c["blocked_at"] = utc_now()
+                            c["block_reason"] = row.collected_data.get("reason", "Officer approved card block")
+                            state_changed = True
+
+                elif row.service_id == "P1-08":  # Debit card reissue
                     cards = state.setdefault("cards", {})
                     for c in cards.values():
                         if c.get("customer_id") == row.customer_id and c.get("status") == "ACTIVE":
@@ -200,6 +244,19 @@ class ServiceRequestService:
                     row.collected_data = {**row.collected_data, "issued_card": new_card, "card_id": new_card_id}
                     state_changed = True
 
+                elif row.service_id == "P1-10":  # Card controls (referred STP)
+                    card_id = row.collected_data.get("card_id")
+                    cards = state.get("cards", {})
+                    for c in cards.values():
+                        if c.get("id") == card_id or (c.get("customer_id") == row.customer_id and not card_id):
+                            for k in ("online_enabled", "international_enabled", "contactless_enabled", "atm_enabled"):
+                                if k in row.collected_data:
+                                    c[k] = bool(row.collected_data[k])
+                            if "daily_limit_minor" in row.collected_data:
+                                c["daily_limit_minor"] = int(row.collected_data["daily_limit_minor"])
+                            c["updated_at"] = utc_now()
+                            state_changed = True
+
                 elif row.service_id == "P1-11":  # Contact detail update
                     email = row.collected_data.get("email")
                     mobile = row.collected_data.get("mobile")
@@ -218,12 +275,17 @@ class ServiceRequestService:
                     state_changed = True
 
                 elif row.service_id == "P1-12":  # Address update
+                    new_addr = row.collected_data.get("new_address") or row.collected_data.get("address")
                     for cust in customer_targets:
-                        for k in ("address", "city", "state", "pincode"):
+                        if new_addr:
+                            cust["address"] = new_addr
+                        for k in ("city", "state", "pincode"):
                             if row.collected_data.get(k):
                                 cust[k] = row.collected_data[k]
                         if "kyc" in cust and isinstance(cust["kyc"], dict):
-                            for k in ("address", "city", "state", "pincode"):
+                            if new_addr:
+                                cust["kyc"]["address"] = new_addr
+                            for k in ("city", "state", "pincode"):
                                 if row.collected_data.get(k):
                                     cust["kyc"][k] = row.collected_data[k]
                     state_changed = True
@@ -264,6 +326,37 @@ class ServiceRequestService:
                         state["accounts"][acc_id]["has_lien"] = False
                         state["accounts"][acc_id]["lien_amount_minor"] = 0
                         state_changed = True
+
+                elif row.service_id in ("P1-19", "P1-20"):  # Deposit opening (referred)
+                    from backend.stp import _deposit
+                    cust = state.get("customers", {}).get(row.customer_id) or state.get("customer", {})
+                    f = {
+                        "account_id": row.collected_data.get("account_id"),
+                        "amount_minor": int(row.collected_data.get("amount_minor") or (float(row.collected_data.get("amount", 0)) * 100)),
+                        "tenure_months": int(row.collected_data.get("tenure_months") or 12),
+                        "deposit_type": "RECURRING" if row.service_id == "P1-20" else "FIXED",
+                        "maturity_instruction": row.collected_data.get("maturity_instruction", "REINVEST"),
+                    }
+                    if f["account_id"] and f["amount_minor"]:
+                        fulfilment, _ = _deposit(state, row.customer_id, cust, f, row.id)
+                        if fulfilment:
+                            row.collected_data = {**row.collected_data, "deposit": fulfilment.get("deposit")}
+                            state_changed = True
+
+                elif row.service_id == "P2-10":  # Standing instruction setup (referred)
+                    sis = state.setdefault("standing_instructions", {})
+                    si_id = f"SI-{row.id[-8:]}"
+                    sis[si_id] = {
+                        "id": si_id,
+                        "customer_id": row.customer_id,
+                        "source_account_id": row.collected_data.get("account_id"),
+                        "beneficiary_id": row.collected_data.get("beneficiary_id"),
+                        "amount_minor": int(row.collected_data.get("amount_minor") or (float(row.collected_data.get("amount", 0)) * 100)),
+                        "frequency": row.collected_data.get("frequency", "MONTHLY"),
+                        "status": "ACTIVE",
+                        "created_at": utc_now(),
+                    }
+                    state_changed = True
 
                 elif row.service_id == "P2-11":  # Standing instruction cancellation
                     si_id = row.collected_data.get("instruction_id") or row.collected_data.get("si_id")

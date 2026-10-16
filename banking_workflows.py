@@ -183,7 +183,9 @@ class WorkflowService:
             add("ACCOUNT_OWNERSHIP", bool(acc and acc["customer_id"] == row.customer_id and acc["status"] == "ACTIVE"), "Active account belongs to you")
         if f.get("beneficiary_id"):
             b = self.db.snapshot()["beneficiaries"].get(f["beneficiary_id"], {})
-            add("PAYEE_ELIGIBILITY", b.get("customer_id") == row.customer_id and not (b.get("is_mule") or "BLOCK" in b.get("status", "") or b.get("risk_level") == "HIGH"), "Payee belongs to your directory and is eligible")
+            is_blocked_mule = (b.get("risk_status") == "BLOCKED_MULE" or bool(b.get("is_mule")) or
+                               "BLOCK" in b.get("status", "") or b.get("risk_level") == "HIGH")
+            add("PAYEE_ELIGIBILITY", b.get("customer_id") == row.customer_id and not is_blocked_mule, "Payee belongs to your directory and is eligible")
         if f.get("amount"):
             add("EXACT_INR_AMOUNT", bool(re.fullmatch(r"[0-9]+(?:\.[0-9]{1,2})?", f["amount"])) and Decimal(f["amount"] if re.fullmatch(r"[0-9]+(?:\.[0-9]{1,2})?", f["amount"]) else "0") > 0, "Amount is positive INR with at most two decimal places")
         try:

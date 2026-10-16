@@ -25,3 +25,4 @@ config/ontology_snapshots/*.md
 !config/ontology_snapshots/.gitkeep
 # local working documents (hackathon submission template); never build or commit them
 *.pptx
+scratch/

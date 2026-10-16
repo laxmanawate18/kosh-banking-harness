@@ -32,6 +32,14 @@ class RPAJobQueue:
         with self._jobs_lock:
             existing = self._jobs.get(request_id)
             if existing:
+                if existing.get("status") == JobStatus.COMPLETED.value and existing.get("cif_number"):
+                    return copy.deepcopy(existing)
+                existing["payload"] = copy.deepcopy(payload)
+                existing["status"] = JobStatus.PENDING.value
+                existing["enqueued_at"] = _now()
+                existing["error"] = None
+                self._append_event_locked(request_id, {"phase": "QUEUED", "label": "RPA job re-queued for retry"})
+                self._q.put({"request_id": request_id})
                 return copy.deepcopy(existing)
             job_record = {
                 "request_id": request_id,
