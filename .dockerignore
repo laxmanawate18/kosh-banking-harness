@@ -15,3 +15,5 @@ tests/__pycache__
 .local
 data/*.sqlite3*
 data/*.key
+# local working documents (hackathon submission template); never build or commit them
+*.pptx

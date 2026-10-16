@@ -23,3 +23,5 @@ latest_conversation.txt
 *credentials*.json
 config/ontology_snapshots/*.md
 !config/ontology_snapshots/.gitkeep
+# local working documents (hackathon submission template); never build or commit them
+*.pptx
