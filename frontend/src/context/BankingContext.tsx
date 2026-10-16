@@ -40,6 +40,17 @@ interface BankingContextValue {
 }
 
 
+/** The server answers a refused payment with success:false, not with an error status. Turn it into an error so no page reports it as done. */
+const refusedAsError = <T,>(res: T): T => {
+  const r = res as any;
+  if (r && r.success === false && !r.challenge) {
+    const said = r.sentinel?.customer_message || r.presentation?.message || r.error || 'This was not completed. Nothing was changed.';
+    // The message may ask the customer to quote the reference, so show it.
+    throw new Error(r.sentinel?.reference && /reference/i.test(said) ? `${said} Reference: ${r.sentinel.reference}` : said);
+  }
+  return res;
+};
+
 const BankingContext = createContext<BankingContextValue | undefined>(undefined);
 
 export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -176,7 +187,7 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
   }, [auth, user, refreshOverview]);
 
   const transferMoney = async (payload: { source_account_id: string; beneficiary_id?: string; amount_minor: number; note?: string }) => {
-    const res = await bankingService.transferMoney(payload);
+    const res = refusedAsError(await bankingService.transferMoney(payload));
     if (res?.challenge) {
       setActiveChallenge(res.challenge);
     } else {
@@ -199,7 +210,7 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const payBill = async (billId: string, sourceAccountId?: string) => {
     const accId = sourceAccountId || overview?.accounts[0]?.id || '';
-    const res = await bankingService.payBill({ bill_id: billId, source_account_id: accId });
+    const res = refusedAsError(await bankingService.payBill({ bill_id: billId, source_account_id: accId }));
     if (res?.challenge) {
       setActiveChallenge(res.challenge);
     } else {
@@ -210,7 +221,7 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const toggleCardFreeze = async (cardId: string, freeze: boolean) => {
     const nextStatus = freeze ? 'FROZEN' : 'ACTIVE';
-    await bankingService.setCardStatus(cardId, nextStatus);
+    refusedAsError(await bankingService.setCardStatus(cardId, nextStatus));
     await refreshOverview();
   };
 
@@ -220,7 +231,7 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
       transaction_digest: activeChallenge.transaction_digest || '',
     });
     if (res.success || res.status === 'SUCCESS' || res.status === 'APPROVED') {
-      setActiveChallenge(null);
+      // The dialog closes itself after it has shown the receipt; clearing the challenge here would remove it first.
       await refreshOverview();
     }
     return res;

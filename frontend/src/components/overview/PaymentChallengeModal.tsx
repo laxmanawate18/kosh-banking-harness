@@ -105,6 +105,11 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({ ch
   const left = useSecondsLeft(receipt ? undefined : challenge?.expires_at);
   const total = useRef<number | null>(null);
   if (left !== null && total.current === null) total.current = Math.max(left, 1);
+  // The dialog stays mounted for the whole app: a new payment must not open on the last one's receipt, error or countdown.
+  const challengeId = challenge?.id;
+  useEffect(() => {
+    setReceipt(null); setError(''); setAttempt(0); setConfirmation(null); setCode(defaultOtp); total.current = null;
+  }, [challengeId]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!challenge) return null;
   const expired = left === 0 && !receipt;
@@ -134,6 +139,7 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({ ch
     e.preventDefault();
     setError('');
     setIsLoading(true);
+    let stage: 'code' | 'approval' = 'code';
     try {
       const codeToUse = code.trim() || defaultOtp;
       if (demo || !confirmation) {
@@ -146,6 +152,7 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({ ch
           await demoStepUp(codeToUse);
         }
       }
+      stage = 'approval';
       const res = await verifyChallenge();
       if (res.success || res.status === 'SUCCESS' || res.status === 'APPROVED') {
         const done = res.receipt || {
@@ -159,11 +166,16 @@ export const PaymentChallengeModal: React.FC<PaymentChallengeModalProps> = ({ ch
         recordPaymentSuccess(done);
         setReceipt(done);
       } else {
-        setError(res.error || t('That did not go through. Check the code and try again.'));
-        setAttempt(a => a + 1);
+        // Sentinel can refuse after the code is accepted. Say what it allows us to say, not that the code was wrong.
+        const refused = res.status === 'DENIED' || res.sentinel?.decision === 'DENY';
+        setError(res.sentinel?.customer_message || res.presentation?.message || res.error
+          || (refused ? t('We cannot complete this payment right now. Nothing has left your account.') : t('That did not go through. Check the code and try again.')));
+        if (!refused) setAttempt(a => a + 1);
       }
     } catch (err: any) {
-      if (err.message?.toLowerCase().includes('authentication') || err.status === 401) {
+      if (stage === 'code' && err.status === 401) {
+        setError(t('That code did not match. Check it and try again.'));
+      } else if (err.message?.toLowerCase().includes('authentication') || err.status === 401) {
         setError(t('Your session expired. Please sign in again to approve this transfer.'));
       } else {
         setError(err.message || t('That code did not match. Check it and try again.'));
