@@ -1,9 +1,13 @@
+from html import escape
+
 from fastapi import APIRouter, FastAPI, Form
 from fastapi.responses import HTMLResponse
 
 mock_cbs_app = FastAPI(title="Mock CBS Retail Core Banking System")
 cbs_router = APIRouter()
 submitted_records = []
+MAX_KEPT = 500  # this page is public on the deployed app: keep memory bounded
+_submitted_total = 0
 
 
 @cbs_router.get("/cbs/retail/account_opening", response_class=HTMLResponse)
@@ -62,8 +66,10 @@ async def submit_ao_form(
     panNumber: str = Form(...),
     portalReference: str = Form(...),
 ):
-    cif = f"CIF-{len(submitted_records) + 5001}"
-    acct = f"1092{len(submitted_records) + 4821:06d}"
+    global _submitted_total
+    cif = f"CIF-{_submitted_total + 5001}"
+    acct = f"1092{_submitted_total + 4821:06d}"
+    _submitted_total += 1
     record = {
         "cif": cif,
         "accountNumber": acct,
@@ -72,6 +78,7 @@ async def submit_ao_form(
         "portalReference": portalReference,
     }
     submitted_records.append(record)
+    del submitted_records[:-MAX_KEPT]
     return f"""
     <!DOCTYPE html>
     <html>
@@ -80,7 +87,7 @@ async def submit_ao_form(
                 <h2>Record Successfully Submitted to Checker Queue</h2>
                 <p>Generated CIF: <strong id="lblCifNumber">{cif}</strong></p>
                 <p>Generated Account: <strong id="lblAcctNumber">{acct}</strong></p>
-                <p>Application Ref: <span id="lblRef">{portalReference}</span></p>
+                <p>Application Ref: <span id="lblRef">{escape(portalReference)}</span></p>
                 <p>CBS Status: <span id="lblCbsStatus">PENDING_CHECKER_APPROVAL</span></p>
             </div>
         </body>

@@ -36,8 +36,10 @@ export const BillsPage: React.FC = () => {
     setIsLoading(true);
     setPayError('');
     try {
-      await payBill(selectedBill.id, selectedAccountId || accounts[0]?.id);
-      setToastMsg(t('Payment recorded for {name}', { name: selectedBill.biller_name }));
+      const res = await payBill(selectedBill.id, selectedAccountId || accounts[0]?.id);
+      // A payment always waits for the customer's Kavach approval, which has its own success screen.
+      setToastMsg(res?.challenge ? t('Approve the payment for {name} to complete it.', { name: selectedBill.biller_name })
+        : t('Payment recorded for {name}', { name: selectedBill.biller_name }));
       setSelectedBill(null);
       setTimeout(() => setToastMsg(''), 4000);
     } catch (err: any) {

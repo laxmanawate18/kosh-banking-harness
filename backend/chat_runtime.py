@@ -205,15 +205,25 @@ class SessionManager:
         }
         self.agent = None
         self.agent_model: Optional[str] = None
+        self.agent_scope: Optional[frozenset] = None  # the tools the current agent was built with; None means all of them
         self.active_task: Optional[asyncio.Task] = None
         self.active_response: Optional[types.ChatResponse] = None
 
+    @staticmethod
+    def scope_covers(built: Optional[frozenset], wanted: Optional[frozenset]) -> bool:
+        """Whether an agent built with the `built` tools can serve a turn that needs the `wanted` ones."""
+        return built is None or (wanted is not None and wanted <= built)
+
     async def get_or_create_agent(self, model: Optional[str] = None):
-        if self.agent is not None and self.agent_model != model:  # the main model is resting, or is back
-            stale, self.agent = self.agent, None
+        # The agent's tool list is pruned to the turn's ontology process when it is built. Without this check the first turn
+        # fixes the list for the whole chat: a chat that opens on "add a payee" could never pay later.
+        scope = ontology.scoped_tool_names(self.tool_context.get("process_id"))
+        if self.agent is not None and (self.agent_model != model or not self.scope_covers(self.agent_scope, scope)):
+            stale, self.agent = self.agent, None  # the main model is resting or is back, or the process needs other tools
             asyncio.ensure_future(stale.__aexit__(None, None, None))
         if self.agent is None:
             self.agent_model = model
+            self.agent_scope = scope
             self.agent = self.agent_factory(create_agent_config(
                 session_id=self.session_id,
                 session_context=self.tool_context,
