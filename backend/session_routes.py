@@ -367,7 +367,9 @@ def make_session_router(
         return {"id": request_id, "status": "PENDING", "message": "Sent to the admin for approval. Nothing is removed until then."}
 
     @router.post("/api/officer/customers/{customer_id}/resend-credentials")
-    async def resend_customer_credentials(customer_id: str, context=Depends(require_officer)):
+    async def resend_customer_credentials(customer_id: str, context=Depends(require_csrf)):
+        """Resets a customer's password, so it needs the CSRF token like every other officer write."""
+        require_officer(context)
         cust = db.get_customer(customer_id)
         if not cust:
             raise HTTPException(status_code=404, detail="Customer not found")
