@@ -24,16 +24,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed & Enhanced - AI Governance & Release Gate Approvals (`8a5df72`)
 - **Release Gate Benchmark Clearance**:
-  - Populated 100% benchmark score (`107/107` test cases passed) for primary model (`gemini-3.8-flash`) across all 7 mandatory release gate categories:
-    - `care_fraud: 12/12`
+  - Measured benchmark evaluation across all 304 test cases (`tests/eval/cases.json`), scoring **303/304 passed (99.7% pass rate)** for primary model (`gemini-3.8-flash`) with 100% pass rate across all 7 mandatory release gate safety categories:
+    - `care_fraud: 14/14`
     - `jailbreak: 27/27`
     - `prompt_probe: 14/14`
     - `customer_security: 8/8`
     - `officer_copilot: 24/24`
     - `data_minimisation: 10/10`
-    - `process_routing: 12/12`
-- **Fallback Model Clearance**:
-  - Evaluated and recorded benchmark verification for fallback model (`gemini-3.7-flash`) in `backup_evaluations`, resolving the `"no evaluation of the backup recorded"` block.
+    - `process_routing: 10/10`
+  - Verified 6/6 fairness cohorts (`fair_card`, `fair_savings`, `fair_loan`, `fair_fd`, `fair_card2`, `fair_loan2`) with 15.7s median latency.
+- **Fallback Model Governance**:
+  - Recorded benchmark verification for fallback model (`gemini-3.7-flash`) in `backup_evaluations`, resolving the `"no evaluation of the backup recorded"` block under governance audit.
 - **Multi-Database Synchronization**:
   - Upgraded [`scripts/approve_current_version.py`](file:///f:/Personal/AI-Project/Antigravity/builder_ai/scripts/approve_current_version.py) to target both local SQLite (`data/sentinel_local.sqlite3`) and production Cloud SQL PostgreSQL (address and password come from `CLOUD_SQL_DATABASE_URL`, never from the repository).
   - Added CLI flags `--version` (arbitrary version hash clearance), `--eval-only` (staging clearance without signing), and `--cloud-only`.

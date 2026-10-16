@@ -361,7 +361,7 @@ Unlike conversational chatbots that directly call banking APIs with LLM-generate
   2. Navigate to the **Admin Panel** (`/#admin`).
   3. **Inspect Prompt Version Hash:**
      - Note the immutable SHA-256 version hash (`fdcbae65c8f4`).
-     - Review the 294-test pre-flight evaluation gate (100% pass rate on safety, jailbreak, and care categories).
+     - Review the 304-test pre-flight evaluation gate (303/304 passed, 99.7% pass rate, 100% on safety, jailbreak, and care categories).
   4. **Trigger Emergency Circuit Breaker (Kill Switch):**
      - Go to **Kill switches**. Toggle `VISITOR` to `PAUSED`. Enter audit reason: *"Scheduled compliance audit"*. Click **Apply**.
      - In an incognito tab, navigate to [http://127.0.0.1:8017](http://127.0.0.1:8017). Observe that visitor chat is gracefully disabled with helpline contact details.

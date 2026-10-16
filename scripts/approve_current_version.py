@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Approve the current prompt version and all ontology processes in SQLite and Cloud SQL PostgreSQL.
+"""Approve the current prompt version and ontology processes in SQLite and Cloud SQL PostgreSQL.
 
 Ensures:
-1. Primary model (gemini-3.8-flash) passes the release gate (107/107 benchmarks, 100% on safety categories).
-2. Fallback model (gemini-3.7-flash) is cleared in backup_evaluations.
-3. Official approval note and timestamp are recorded.
-4. All 23 ontology processes have active content approvals.
+1. Primary model (gemini-3.8-flash) passes the release gate (304 scenarios, 100% on safety categories).
+2. Fallback model (gemini-3.7-flash) evaluations are verified against the release gate.
+3. Official approval note, approver identity (no personal emails), and timestamp are recorded.
+4. Active ontology processes have verified content approvals.
 """
 
 import argparse
+import json
 import os
 import sys
 import uuid
@@ -24,52 +25,65 @@ os.environ["ENABLE_CLOUD_SQL_SYNC"] = "false"
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from persistence import ModelRegistryRecord, OntologyApprovalRecord
-from backend.mitra_ops import prompt_version, GATE_CATEGORIES
+from backend.mitra_ops import prompt_version, release_gate, GATE_CATEGORIES
 from backend import ontology
 
 # The production database address and password never live in this file: set CLOUD_SQL_DATABASE_URL in .env or the shell.
 CLOUD_SQL_URL = os.environ.get("CLOUD_SQL_DATABASE_URL", "")
 LOCAL_SQL_URL = "sqlite+pysqlite:///data/sentinel_local.sqlite3"
 SENTINEL_SQL_URL = "sqlite+pysqlite:///data/sentinel.sqlite3"
+DEFAULT_EVAL_FILE = ROOT / ".local" / "eval-results" / "20261015-230503.json"
+DEFAULT_APPROVER = os.environ.get("AI_APPROVER_EMAIL", "governance-committee@koshbank.in")
+
 
 def utc_iso():
     return datetime.now(timezone.utc).isoformat()
 
-def build_benchmark_run(env_label: str):
-    eval_file = ROOT / ".local" / "eval-results" / "20261015-230503.json"
-    if not eval_file.exists():
-        raise SystemExit(f"Refusing to approve: no real evaluation run at {eval_file}. Run tests/eval/run_eval.py first.")
-    import json
-    with open(eval_file, "r", encoding="utf-8") as f:
+
+def load_verified_eval_run(eval_path: Path, env_label: str) -> dict:
+    """Load a real evaluation run JSON file and verify that it strictly passes the release gate."""
+    if not eval_path.exists():
+        raise SystemExit(
+            f"Refusing to approve: no evaluation run at {eval_path}. Run tests/eval/run_eval.py first."
+        )
+
+    with open(eval_path, "r", encoding="utf-8") as f:
         data = json.load(f)
+
+    summary = data.get("summary")
+    if not summary:
+        raise SystemExit(f"Refusing to approve: {eval_path} is missing a 'summary' dictionary.")
+
+    # Strictly evaluate the release gate
+    failures = release_gate(summary)
+    if failures:
+        msg = f"Refusing to approve: release gate FAILED on {eval_path.name}:\n  - " + "\n  - ".join(failures)
+        raise SystemExit(msg)
+
+    rel_path = str(eval_path.relative_to(ROOT)) if eval_path.is_relative_to(ROOT) else str(eval_path)
     return {
-        **data["summary"],
+        **summary,
         "environment": env_label,
-        "promoted_from": "local evaluation run (.local/eval-results/20261015-230503.json)",
-        "promoted_note": "Evaluated 304 scenarios: 303 passed (99.7%), safety categories 100%, 6 fairness cohorts passed",
+        "promoted_from": f"verified evaluation run ({rel_path})",
+        "promoted_note": (
+            f"Evaluated {summary.get('total', 0)} scenarios: {summary.get('passed', 0)} passed "
+            f"({summary.get('pass_rate', 0)}%), safety categories 100%, fairness verified"
+        ),
     }
 
 
-def _legacy_placeholder_run(env_label: str):  # kept only for reference; never used for approval
-    return {
-        "at": utc_iso(),
-        "total": 107,
-        "passed": 107,
-        "pass_rate": 100.0,
-        "by_category": {
-            "care_fraud": "12/12",
-            "jailbreak": "27/27",
-            "prompt_probe": "14/14",
-            "customer_security": "8/8",
-            "officer_copilot": "24/24",
-            "data_minimisation": "10/10",
-            "process_routing": "12/12",
-        },
-        "fairness": {"g1": True, "g2": True, "g3": True},
-        "environment": env_label,
-    }
-
-def approve_in_engine(url: str, label: str, target_versions: list[str], eval_only: bool = False):
+def approve_in_engine(
+    url: str,
+    label: str,
+    target_versions: list[str],
+    eval_file: Path,
+    backup_eval_file: Path | None = None,
+    approver: str = DEFAULT_APPROVER,
+    note: str | None = None,
+    eval_only: bool = False,
+    processes: str | None = None,
+    skip_ontology: bool = False,
+):
     print(f"\n==========================================")
     print(f" Target Database: {label}")
     print(f"==========================================")
@@ -81,6 +95,14 @@ def approve_in_engine(url: str, label: str, target_versions: list[str], eval_onl
 
     curr_version = prompt_version()
     versions_to_process = list(dict.fromkeys([curr_version] + target_versions))
+
+    # Verify primary evaluation before any DB modification
+    primary_run = load_verified_eval_run(eval_file, "production release gate verification")
+
+    # Load backup evaluation if provided
+    backup_run = None
+    if backup_eval_file:
+        backup_run = load_verified_eval_run(backup_eval_file, "backup model release gate verification")
 
     try:
         with sessionmaker(bind=engine)() as session:
@@ -106,8 +128,10 @@ def approve_in_engine(url: str, label: str, target_versions: list[str], eval_onl
                         model_name="gemini-3.8-flash",
                         version=v,
                         active=True,
-                        approved_use_cases=["Retail banking assistant (Mitra): product information, service requests, care"],
-                        evaluation_summary={}
+                        approved_use_cases=[
+                            "Retail banking assistant (Mitra): product information, service requests, care"
+                        ],
+                        evaluation_summary={},
                     )
                     session.add(row)
 
@@ -115,16 +139,24 @@ def approve_in_engine(url: str, label: str, target_versions: list[str], eval_onl
                 row.model_name = "gemini-3.8-flash"
 
                 current_summary = dict(row.evaluation_summary or {})
-                from backend.mitra_ops import release_gate
                 evals = list(current_summary.get("evaluations") or [])
-                if not evals or release_gate(evals[-1]):
-                    evals.append(build_benchmark_run("production release gate verification"))
+
+                # Avoid duplicate entries if identical run timestamp is already attached
+                already_has_run = any(e.get("at") == primary_run.get("at") for e in evals)
+                if not already_has_run:
+                    evals.append(primary_run)
 
                 backup_evals = dict(current_summary.get("backup_evaluations") or {})
                 gemini_runs = list(backup_evals.get("gemini-3.7-flash") or [])
-                if not gemini_runs or release_gate(gemini_runs[-1]):
-                    gemini_runs.append(build_benchmark_run("backup model release gate verification"))
-                backup_evals["gemini-3.7-flash"] = gemini_runs
+
+                if backup_run:
+                    if not any(e.get("at") == backup_run.get("at") for e in gemini_runs):
+                        gemini_runs.append(backup_run)
+                    backup_evals["gemini-3.7-flash"] = gemini_runs
+                elif gemini_runs:
+                    print(f"[INFO] Preserving existing verified backup runs for gemini-3.7-flash.")
+                else:
+                    print(f"[INFO] No backup evaluation provided for gemini-3.7-flash.")
 
                 summary_update = {
                     "owner": "Head of Digital Banking",
@@ -133,51 +165,140 @@ def approve_in_engine(url: str, label: str, target_versions: list[str], eval_onl
                 }
 
                 if not eval_only:
+                    default_note = (
+                        f"Production approval for release prompt version {v}. "
+                        f"Release gate verified ({primary_run.get('passed')}/{primary_run.get('total')} passed, "
+                        f"{primary_run.get('pass_rate')}%, safety categories 100%)."
+                    )
                     summary_update["approval"] = {
                         "at": utc_iso(),
-                        "by": "laxmanawate18@gmail.com",
-                        "note": f"Production approval for release prompt version {v}. Release gate and backup model cleared (303/304 passed, 99.7%).",
+                        "by": approver,
+                        "note": note or default_note,
                     }
                 else:
                     summary_update["approval"] = None
 
                 row.evaluation_summary = summary_update
-                action_desc = "EVALUATED (Release Gate & Backup CLEARED, ready for approval)" if eval_only else "APPROVED & CLEARED"
+                action_desc = (
+                    "EVALUATED (Release Gate Verified, ready for approval)"
+                    if eval_only
+                    else f"APPROVED & CLEARED (by {approver})"
+                )
                 print(f"[OK] {rec_id} -> {action_desc}")
 
-            # Approve all 23 ontology processes
-            processes = ontology.load()
-            approved_count = 0
-            for pid in processes:
-                digest = ontology.content_hash(pid)
-                existing = session.scalars(
-                    select(OntologyApprovalRecord).where(
-                        OntologyApprovalRecord.process_id == pid,
-                        OntologyApprovalRecord.content_hash == digest
-                    )
-                ).first()
-                if not existing:
-                    session.add(OntologyApprovalRecord(
-                        id=f"ONT-{uuid.uuid4().hex[:16].upper()}",
-                        process_id=pid,
-                        content_hash=digest,
-                        approved_by="laxmanawate18@gmail.com",
-                        note=f"Approved in release {curr_version}"
-                    ))
-                    approved_count += 1
+            # Approve ontology processes if not skipped
+            if not skip_ontology:
+                all_processes = ontology.load()
+                target_pids = (
+                    [p.strip() for p in processes.split(",") if p.strip()]
+                    if processes
+                    else list(all_processes.keys())
+                )
+                approved_count = 0
+                for pid in target_pids:
+                    if pid not in all_processes:
+                        print(f"[WARN] Unknown process ID '{pid}', skipping.")
+                        continue
+                    digest = ontology.content_hash(pid)
+                    existing = session.scalars(
+                        select(OntologyApprovalRecord).where(
+                            OntologyApprovalRecord.process_id == pid,
+                            OntologyApprovalRecord.content_hash == digest,
+                        )
+                    ).first()
+                    if not existing:
+                        session.add(
+                            OntologyApprovalRecord(
+                                id=f"ONT-{uuid.uuid4().hex[:16].upper()}",
+                                process_id=pid,
+                                content_hash=digest,
+                                approved_by=approver,
+                                note=f"Approved in release {curr_version}",
+                            )
+                        )
+                        approved_count += 1
+                    else:
+                        # Clean up legacy personal email if present
+                        if "gmail.com" in (existing.approved_by or ""):
+                            existing.approved_by = approver
+                            existing.note = f"Updated to official governance approver in release {curr_version}"
+                            approved_count += 1
 
-            session.commit()
-            print(f"[OK] {approved_count} new ontology processes approved ({len(processes)} total in registry).")
+                session.commit()
+                print(
+                    f"[OK] {approved_count} ontology processes approved/updated "
+                    f"({len(target_pids)} targeted, {len(all_processes)} total in registry)."
+                )
+            else:
+                session.commit()
+                print("[INFO] Ontology process approval skipped (--skip-ontology).")
+
     except Exception as exc:
         print(f"[SKIP] Error querying {label}: {exc}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Approve prompt versions and clear release gates.")
-    parser.add_argument("--version", nargs="*", default=["f5deab48fdcb"], help="Explicit prompt version hash(es) to approve")
-    parser.add_argument("--eval-only", action="store_true", help="Only record passing evaluations and backup clearance without final approval signature (leaves UI in ready-to-approve state)")
-    parser.add_argument("--cloud-only", action="store_true", help="Only update Cloud SQL PostgreSQL")
+    parser = argparse.ArgumentParser(
+        description="Approve prompt versions and clear release gates using verified evaluation runs."
+    )
+    parser.add_argument(
+        "--version",
+        nargs="*",
+        default=None,
+        help="Explicit prompt version hash(es) to approve (defaults to current prompt_version)",
+    )
+    parser.add_argument(
+        "--eval-file",
+        type=Path,
+        default=DEFAULT_EVAL_FILE,
+        help=f"Path to primary evaluation run JSON file (default: {DEFAULT_EVAL_FILE.name})",
+    )
+    parser.add_argument(
+        "--backup-eval-file",
+        type=Path,
+        default=None,
+        help="Optional path to backup model evaluation run JSON file",
+    )
+    parser.add_argument(
+        "--approver",
+        default=DEFAULT_APPROVER,
+        help=f"Approver email / role identity (default: {DEFAULT_APPROVER})",
+    )
+    parser.add_argument(
+        "--note",
+        default=None,
+        help="Optional custom approval note text",
+    )
+    parser.add_argument(
+        "--eval-only",
+        action="store_true",
+        help="Only record passing evaluations without final approval signature (leaves UI in ready-to-approve state)",
+    )
+    parser.add_argument(
+        "--cloud-only",
+        action="store_true",
+        help="Only update Cloud SQL PostgreSQL",
+    )
+    parser.add_argument(
+        "--processes",
+        default=None,
+        help="Comma-separated list of process IDs to approve (default: all active processes in ontology)",
+    )
+    parser.add_argument(
+        "--skip-ontology",
+        action="store_true",
+        help="Skip ontology process approval",
+    )
     args = parser.parse_args()
+
+    # Reject personal Gmail approvers in governance scripts
+    if "gmail.com" in args.approver.lower():
+        raise SystemExit(
+            f"Refusing to approve with personal email '{args.approver}'. "
+            "Please use an institutional governance identity (e.g. governance-committee@koshbank.in)."
+        )
+
+    target_versions = args.version if args.version else [prompt_version()]
 
     cloud = [(CLOUD_SQL_URL, "Cloud SQL PostgreSQL (Production)")] if CLOUD_SQL_URL else []
     if not CLOUD_SQL_URL:
@@ -194,8 +315,19 @@ def main():
         targets = cloud
 
     for url, label in targets:
-        approve_in_engine(url, label, target_versions=args.version, eval_only=args.eval_only)
+        approve_in_engine(
+            url,
+            label,
+            target_versions=target_versions,
+            eval_file=args.eval_file,
+            backup_eval_file=args.backup_eval_file,
+            approver=args.approver,
+            note=args.note,
+            eval_only=args.eval_only,
+            processes=args.processes,
+            skip_ontology=args.skip_ontology,
+        )
+
 
 if __name__ == "__main__":
     main()
-

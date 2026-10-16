@@ -76,7 +76,7 @@ Enforced by code and set in `config/harness/policy.json`: `PARAM_AGENT_PAYMENT_L
 
 ## Shadow check on the evaluation set
 
-The deterministic router was run over all 294 evaluation cases offline. Changes made from it:
+The deterministic router was run over all 304 evaluation cases offline. Changes made from it:
 - Loan triggers were *personal loan* and *home loan*, which caught product-rate questions; they are now *apply for a personal loan* and *apply for a home loan*.
 - A not-available process no longer stops Mitra answering from published facts ("Do I need insurance to get a home loan?" matches Insurance Sale).
 - The classifier is not used for visitors: most of their messages are product questions, so it would add a model call to nearly every turn for little gain.
