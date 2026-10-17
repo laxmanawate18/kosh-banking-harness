@@ -44,12 +44,20 @@ def _page(title: str, body: str, operator: Optional[tuple[str, str]] = None, sta
     who = (f'<span id="lblOperator">{escape(operator[0])} ({escape(operator[1])})</span> · <a id="lnkMenu" href="/menu">Menu</a>'
            f' · <a id="lnkLogout" href="/logout">Sign out</a>') if operator else ""
     return HTMLResponse(f"""<!DOCTYPE html><html><head><title>{escape(title)} - Kosh Core Banking</title><style>
-body{{font:13px Tahoma,Verdana,sans-serif;margin:0;background:#d4d0c8}} header{{background:#0a246a;color:#fff;padding:6px 12px}}
-header b{{font-size:15px}} header a{{color:#fff}} main{{padding:14px}} fieldset{{background:#ece9d8;border:1px solid #808080;margin-bottom:10px}}
-label{{display:inline-block;width:220px}} input,select{{width:260px;margin:3px 0}} table{{border-collapse:collapse;background:#fff}}
-td,th{{border:1px solid #808080;padding:3px 8px}} .err{{background:#ffe0e0;border:1px solid #c00;padding:8px;margin-bottom:10px}}
+body{{font:13px Tahoma,Verdana,sans-serif;margin:0;background:#d4d0c8}}
+.chr-bar{{background:#202124;color:#e8eaed;padding:6px 10px;font:12px system-ui,sans-serif;display:flex;align-items:center;gap:10px;border-bottom:1px solid #3c4043}}
+.chr-tab{{background:#35363a;padding:4px 12px;border-radius:6px 6px 0 0;font-weight:600;color:#fff;font-size:11px}}
+.chr-url{{background:#292a2d;color:#9aa0a6;padding:4px 12px;border-radius:14px;flex:1;font-family:monospace;font-size:11px}}
+header{{background:#0a246a;color:#fff;padding:8px 12px}}
+header b{{font-size:15px}} header a{{color:#fff}} main{{padding:16px}} fieldset{{background:#ece9d8;border:1px solid #808080;margin-bottom:12px;padding:12px}}
+label{{display:inline-block;width:220px;font-weight:600}} input,select{{width:280px;margin:4px 0;padding:4px 6px;border:1px solid #7f9db9;font:13px Tahoma,sans-serif}}
+input:focus,select:focus{{outline:2px solid #f59e0b;background:#fffbeb;border-color:#d97706}}
+button{{padding:5px 14px;margin-top:6px;font-weight:700;background:#0a246a;color:#fff;border:1px solid #051338;cursor:pointer}}
+table{{border-collapse:collapse;background:#fff;width:100%}}
+td,th{{border:1px solid #808080;padding:5px 8px}} .err{{background:#ffe0e0;border:1px solid #c00;padding:8px;margin-bottom:10px}}
 .ok{{background:#e0ffe0;border:1px solid #070;padding:8px;margin-bottom:10px}} a{{color:#0a246a}}</style></head>
-<body><header><b>KOSH CORE BANKING</b> &nbsp;legacy retail core · demo system, not a real bank &nbsp;<span style="float:right">{who}</span></header>
+<body><div class="chr-bar"><span class="chr-tab">Chromium · {escape(title)}</span><span class="chr-url">http://127.0.0.1:8995 · Kosh Finacle 10.x Core</span></div>
+<header><b>KOSH CORE BANKING</b> &nbsp;legacy retail core · internal terminal &nbsp;<span style="float:right">{who}</span></header>
 <main><h3>{escape(title)}</h3>{body}</main></body></html>""", status_code=status_code)
 
 

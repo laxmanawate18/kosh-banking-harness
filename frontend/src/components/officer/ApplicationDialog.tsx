@@ -42,7 +42,7 @@ export const ApplicationDialog: React.FC<{ reference: string; onClose: () => voi
     .catch(e => setError(errorText(e, 'The application could not be loaded'))), [reference]);
   useEffect(() => { load(); }, [load]);
 
-  // While the robot works, follow it once a second: its steps, the core's numbers and its latest screenshot.
+  // While the robot works, follow it in real time: its steps, the core's numbers and its live Chromium screenshot.
   const working = a && AT_CORE.includes(a.status);
   useEffect(() => {
     if (!working) return;
@@ -52,7 +52,7 @@ export const ApplicationDialog: React.FC<{ reference: string; onClose: () => voi
         setA((prev: any) => ({ ...prev, ...robot }));
         if (!AT_CORE.includes(robot.status)) { load(); onChanged(); }
       } catch { window.clearInterval(timer); }
-    }, 1000);
+    }, 350);
     return () => window.clearInterval(timer);
   }, [working, reference, load, onChanged]);
 
@@ -90,6 +90,7 @@ export const ApplicationDialog: React.FC<{ reference: string; onClose: () => voi
   const fields = Object.entries(a.payload || {}).filter(([k, v]) => LABELS[k] && v !== '' && v != null);
   const events: any[] = a.events || [];
   const doneSteps = new Set(events.filter(e => e.phase === 'COMPLETED').map(e => e.step));
+  const runningEvent = [...events].reverse().find(e => e.phase === 'RUNNING' && !doneSteps.has(e.step));
   const failedStep = events.find(e => e.phase === 'FAILED');
   const relevant = STEPS.filter(([id]) => (a.kind === 'FD' ? id !== 'NEW_CUSTOMER' && id !== 'NEW_ACCOUNT' : id !== 'NEW_DEPOSIT')
     && (id !== 'NEW_CUSTOMER' || a.track === 'NEW_TO_BANK'));
@@ -134,10 +135,10 @@ export const ApplicationDialog: React.FC<{ reference: string; onClose: () => voi
             <div className="rpa-live-grid">
               <div className="rpa-timeline-col">
                 <div className="rpa-timeline">{relevant.map(([id, label]) => {
-                  const state = doneSteps.has(id) ? 'done' : failedStep?.step === id ? 'failed' : 'waiting';
+                  const state = doneSteps.has(id) ? 'done' : failedStep?.step === id ? 'failed' : runningEvent?.step === id ? 'running' : 'waiting';
                   return <div className={`rpa-step ${state}`} key={id}>
                     <span className="rpa-step-dot">{state === 'done' ? <Icon name="check" /> : state === 'failed' ? <Icon name="close" /> : null}</span>
-                    <div><strong>{label}</strong><small>{state === 'done' ? 'Done' : state === 'failed' ? 'Failed' : 'Waiting'}</small></div>
+                    <div><strong>{label}</strong><small>{state === 'running' ? (runningEvent?.label || 'In progress…') : state === 'done' ? 'Done' : state === 'failed' ? 'Failed' : 'Waiting'}</small></div>
                   </div>;
                 })}</div>
                 {(a.cbs?.cif_number || a.cbs?.account_number || a.cbs?.fd_number) && <div className="rpa-result">

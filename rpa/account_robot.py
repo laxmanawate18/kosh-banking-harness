@@ -54,10 +54,12 @@ def legacy_fields(payload: dict[str, Any]) -> dict[str, str]:
 
 class AccountRobot:
     def __init__(self, base_url: str, *, headless: Optional[bool] = None, typing_delay_ms: Optional[int] = None,
-                 progress: Optional[Progress] = None):
+                 step_delay_ms: Optional[int] = None, progress: Optional[Progress] = None):
         self.base_url = base_url.rstrip("/")
         self.headless = os.getenv("RPA_HEADLESS", "true").lower() in {"1", "true", "yes", "on"} if headless is None else headless
         self.typing_delay_ms = (0 if self.headless else 25) if typing_delay_ms is None else typing_delay_ms
+        default_step_delay = 550 if os.getenv("K_SERVICE") else 0
+        self.step_delay_ms = int(os.getenv("RPA_STEP_DELAY_MS", str(default_step_delay))) if step_delay_ms is None else step_delay_ms
         self.progress = progress or (lambda event: None)
         self.page: Optional[Page] = None
 
@@ -93,21 +95,26 @@ class AccountRobot:
 
     # ---- screens ---------------------------------------------------------------------------------------------
     async def _sign_in(self, role: str) -> None:
+        step_id = f"SIGN_IN_{role}"
         operator, password = _operator(role)
         await self.page.goto(f"{self.base_url}/login")
-        await self._type({"txtOperatorId": operator})
+        await self._step(step_id, f"Opening operator login for {operator}…", phase="RUNNING")
+        await self._type({"txtOperatorId": operator}, step=step_id)
         await self.page.fill("#txtPassword", password)  # never typed slowly or shown in progress events
+        await self._step(step_id, f"Submitting credentials for {operator}…", phase="RUNNING")
         await self.page.click("#btnLogin")
         if not await self.page.locator("#mnuMain").count():
             raise RuntimeError(f"Could not sign in to the core as {operator}")
-        await self._step(f"SIGN_IN_{role}", f"Signed in to the core as {operator}")
+        await self._step(step_id, f"Signed in to the core as {operator}")
 
     async def _sign_out(self) -> None:
+        await self._step("SIGN_OUT", "Signing out of maker session…", phase="RUNNING")
         await self.page.click("#lnkLogout")
         await self._step("SIGN_OUT", "Signed out of the core")
 
     async def _enquire(self, ref: str) -> list[dict[str, str]]:
         await self.page.goto(f"{self.base_url}/enquiry?ref={ref}")
+        await self._step("ENQUIRY", f"Looking up portal reference {ref} in core…", phase="RUNNING")
         rows = await self.page.locator("tr.result-row").evaluate_all(
             "rows => rows.map(r => ({kind: r.dataset.kind, number: r.dataset.number, cif: r.dataset.cif, status: r.dataset.status}))")
         await self._step("ENQUIRY", f"Enquiry for {ref}: {len(rows)} record(s) in the core")
@@ -115,8 +122,9 @@ class AccountRobot:
 
     async def _new_customer(self, payload: dict[str, Any], ref: str) -> str:
         await self.page.goto(f"{self.base_url}/customer/new")
+        await self._step("NEW_CUSTOMER", "Opened New Customer (CIF) screen in core…", phase="RUNNING")
         fields = {**legacy_fields(payload), "txtExtRef": ref}
-        await self._type(fields)
+        await self._type(fields, step="NEW_CUSTOMER")
         await self._save("#btnSaveCustomer", fields, "NEW_CUSTOMER")
         cif = (await self.page.locator("#lblCifNumber").text_content()).strip()
         await self._step("NEW_CUSTOMER", f"Customer {cif} saved for authorisation")
@@ -125,12 +133,13 @@ class AccountRobot:
     async def _new_account(self, cif: str, application: dict[str, Any], ref: str) -> str:
         payload = application["payload"]
         await self.page.goto(f"{self.base_url}/account/new?cif={cif}")
+        await self._step("NEW_ACCOUNT", f"Opened New Savings Account screen for CIF {cif}…", phase="RUNNING")
         await self.page.select_option("#ddlScheme", SCHEME.get(application["product_id"], "SB_GEN_IND"))
         fields = {"txtExtRef": ref}
         if payload.get("nominee_name"):
             fields["txtNominee"] = sanitize_field(str(payload["nominee_name"]), "name")
             await self.page.select_option("#ddlNomineeRel", str(payload.get("nominee_relationship") or "OTHER").upper())
-        await self._type(fields)
+        await self._type(fields, step="NEW_ACCOUNT")
         await self._save("#btnSaveAccount", {**fields, "txtCif": cif}, "NEW_ACCOUNT")
         number = (await self.page.locator("#lblAcctNumber").text_content()).strip()
         await self._step("NEW_ACCOUNT", f"Savings account {number} saved for authorisation")
@@ -142,10 +151,11 @@ class AccountRobot:
         if maturity not in MATURITY:
             raise ValueError(f"Unknown maturity instruction {maturity}")
         await self.page.goto(f"{self.base_url}/deposit/new?cif={cif}")
+        await self._step("NEW_DEPOSIT", f"Opened Fixed Deposit screen for CIF {cif}…", phase="RUNNING")
         await self.page.select_option("#ddlMaturity", maturity)
         fields = {"txtFundingAcct": str(context["funding_account"]), "txtAmount": f"{amount // 100}.{amount % 100:02d}",
                   "txtTenure": str(int(payload["tenure_months"])), "txtExtRef": ref}
-        await self._type(fields)
+        await self._type(fields, step="NEW_DEPOSIT")
         await self._save("#btnSaveDeposit", {**fields, "txtCif": cif}, "NEW_DEPOSIT")
         number = (await self.page.locator("#lblFdNumber").text_content()).strip()
         await self._step("NEW_DEPOSIT", f"Fixed deposit {number} saved for authorisation")
@@ -153,7 +163,8 @@ class AccountRobot:
 
     async def _authorise(self, ref: str) -> dict[str, Any]:
         await self.page.goto(f"{self.base_url}/authorise?ref={ref}")
-        await self._type({"txtExtRef": ref})
+        await self._step("AUTHORISE", f"Checker reviewing pending entry {ref}…", phase="RUNNING")
+        await self._type({"txtExtRef": ref}, step="AUTHORISE")
         await self.page.click("#btnAuthorise")
         await self._refused("AUTHORISE")
         checker_reference = await self._text("#lblCheckerRef")
@@ -165,14 +176,34 @@ class AccountRobot:
         return result
 
     # ---- helpers ---------------------------------------------------------------------------------------------
-    async def _type(self, fields: dict[str, str]) -> None:
+    async def _type(self, fields: dict[str, str], step: Optional[str] = None) -> None:
+        field_names = {
+            "txtOperatorId": "Operator ID",
+            "txtCustName": "Customer Name",
+            "txtPanNo": "PAN Number",
+            "txtDob": "Date of Birth",
+            "txtMobile": "Mobile Number",
+            "txtEmail": "Email Address",
+            "txtAddress": "Residential Address",
+            "txtCity": "City",
+            "txtPin": "PIN Code",
+            "txtExtRef": "Portal Reference",
+            "txtNominee": "Nominee Name",
+            "txtFundingAcct": "Funding Account",
+            "txtAmount": "Deposit Amount",
+            "txtTenure": "Tenure (Months)",
+        }
         for element, value in fields.items():
             box = self.page.locator(f"#{element}")
+            await box.click()
             await box.fill("")
             if self.typing_delay_ms:
                 await box.type(value, delay=self.typing_delay_ms)
             else:
                 await box.fill(value)
+            if step and self.step_delay_ms:
+                friendly = field_names.get(element, element)
+                await self._step(step, f"Keying {friendly}: {value}", phase="RUNNING", delay_divisor=2)
 
     async def _save(self, button: str, expected: dict[str, str], step: str) -> None:
         await verify_dom_read_back(self.page, expected)  # what is on screen is exactly what the bank approved
@@ -197,10 +228,12 @@ class AccountRobot:
         deposit = next((row["number"] for row in rows if row["kind"] == "DEPOSIT"), None)
         return {"cif_number": rows[0]["cif"], "account_number": account, "fd_number": deposit, "checker_reference": checker_reference}
 
-    async def _step(self, step: str, label: str, phase: str = "COMPLETED") -> None:
+    async def _step(self, step: str, label: str, phase: str = "COMPLETED", delay_divisor: int = 1) -> None:
         shot = None
         try:
-            shot = "data:image/jpeg;base64," + base64.b64encode(await self.page.screenshot(type="jpeg", quality=60)).decode()
+            shot = "data:image/jpeg;base64," + base64.b64encode(await self.page.screenshot(type="jpeg", quality=70)).decode()
         except Exception:
             pass
         self.progress({"step": step, "phase": phase, "label": label, "screenshot": shot})
+        if self.step_delay_ms > 0:
+            await self.page.wait_for_timeout(max(120, self.step_delay_ms // delay_divisor))

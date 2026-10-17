@@ -327,8 +327,15 @@ class AccountApplicationService:
         with self.db._lock, self.runtime.sessions.begin() as session:
             row = self._locked(session, reference, missing_ok=True)
             if row:
-                events = [*((row.rpa or {}).get("events") or []), {**event, "at": utc_dt().isoformat()}][-40:]
-                updated_rpa = {**(row.rpa or {}), "events": events}
+                phase = event.get("phase", "COMPLETED")
+                stamped = {**event, "at": utc_dt().isoformat()}
+                updated_rpa = dict(row.rpa or {})
+                if phase == "RUNNING":
+                    updated_rpa["active_event"] = stamped
+                else:
+                    events = [*(updated_rpa.get("events") or []), stamped][-40:]
+                    updated_rpa["events"] = events
+                    updated_rpa["active_event"] = None
                 if screenshot:
                     updated_rpa["latest_screenshot"] = screenshot
                 row.rpa = updated_rpa

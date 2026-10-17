@@ -68,12 +68,14 @@ def make_account_application_router(service, db, require_officer, require_csrf) 
                         approval_request_id=application["reference"], customer_id=application.get("customer_id"),
                         summary=f"Officer opened application {application['reference']}")
         worker = getattr(service, "worker", None)
+        rpa = application.get("rpa") or {}
         mem_shot = worker.latest_screenshot.get(application["reference"]) if worker else None
-        db_shot = (application.get("rpa") or {}).get("latest_screenshot")
+        db_shot = rpa.get("latest_screenshot")
+        events = [*(rpa.get("events") or []), *([rpa["active_event"]] if rpa.get("active_event") else [])]
         return {**summary(application), "payload": service.payload(application["reference"]),
                 "documents": application["documents"], "findings": application.get("findings", []), "decision": application["decision"],
                 "kyc_verification": application["kyc_verification"], "cbs": application["cbs"],
-                "history": application["history"], "events": (application.get("rpa") or {}).get("events", []),
+                "history": application["history"], "events": events,
                 "screenshot": mem_shot or db_shot,
                 "robot_running": bool(worker), "kyc_checks": sorted(KYC_CHECKS)}
 
@@ -96,10 +98,12 @@ def make_account_application_router(service, db, require_officer, require_csrf) 
         del context
         application = found(reference)
         worker = getattr(service, "worker", None)
+        rpa = application.get("rpa") or {}
         mem_shot = worker.latest_screenshot.get(application["reference"]) if worker else None
-        db_shot = (application.get("rpa") or {}).get("latest_screenshot")
-        return {"status": application["status"], "cbs": application["cbs"], "attempts": (application.get("rpa") or {}).get("attempts", 0),
-                "last_error": (application.get("rpa") or {}).get("last_error"), "events": (application.get("rpa") or {}).get("events", []),
+        db_shot = rpa.get("latest_screenshot")
+        events = [*(rpa.get("events") or []), *([rpa["active_event"]] if rpa.get("active_event") else [])]
+        return {"status": application["status"], "cbs": application["cbs"], "attempts": rpa.get("attempts", 0),
+                "last_error": rpa.get("last_error"), "events": events,
                 "screenshot": mem_shot or db_shot}
 
     @router.post("/{reference}/decision")
