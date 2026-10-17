@@ -144,8 +144,16 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
   const { user } = useAuth();
   const { sendMessage } = useChat();
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [latestEkyc, setLatestEkyc] = useState<{ session_id: string; status: string; outcome?: string; face_match_score?: number } | null>(null);
   const lastLogin = useLastLogin();
   const seenSince = useSeenSince(overview?.transactions);
+
+  useEffect(() => {
+    if (!overview) return;
+    get<{ session: { session_id: string; status: string; outcome?: string; face_match_score?: number } | null }>('/api/portal/ekyc/sessions/latest')
+      .then(r => setLatestEkyc(r?.session || null))
+      .catch(() => setLatestEkyc(null));
+  }, [overview?.kyc?.status, overview?.customer?.kyc?.status]);
 
   const accounts = overview?.accounts || [];
   const totalBalance = overview?.total_available_minor ?? accounts.reduce((s, a) => s + (a.available_balance_minor || 0), 0);
@@ -164,13 +172,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
   const debits = transactions.filter(x => amt(x) < 0).reduce((s, x) => s - amt(x), 0);
   const festive = !!document.documentElement.dataset.festival;
   const marketingOffersOn = Boolean((overview as any)?.preferences?.marketing_offers);
-
-  const [latestEkyc, setLatestEkyc] = useState<{ session_id: string; status: string; outcome?: string; face_match_score?: number } | null>(null);
-  useEffect(() => {
-    get<{ session: { session_id: string; status: string; outcome?: string; face_match_score?: number } | null }>('/api/portal/ekyc/sessions/latest')
-      .then(r => setLatestEkyc(r?.session || null))
-      .catch(() => setLatestEkyc(null));
-  }, [overview?.kyc?.status, overview?.customer?.kyc?.status]);
 
   const startKyc = () => {
     onNavigate('ai-banker');
