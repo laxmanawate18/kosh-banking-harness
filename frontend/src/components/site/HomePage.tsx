@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { Editorial, LuxHero, Rewards, SafetyStatement, UpgradeRail } from './Lux';
 import { CardFan, Dust, FinaleCard, Torch, TravelingCard } from './Journey';
-import { DoorFinale, Manifesto, Stats } from './Story';
+import { DoorFinale, Leaflet, Manifesto, Stats } from './Story';
 
 interface HomeProps {
   onLogin: () => void;
@@ -23,6 +23,7 @@ export const HomePage: React.FC<HomeProps> = ({ onLogin, onAsk }) => {
         <Rewards />
         <SafetyStatement />
         <Stats />
+        <Leaflet />
         <DoorFinale onOpen={openAccount} onAsk={onAsk}><FinaleCard /></DoorFinale>
       </div>
       <TravelingCard />

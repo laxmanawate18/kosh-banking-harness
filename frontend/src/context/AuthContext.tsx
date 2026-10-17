@@ -47,16 +47,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   useEffect(() => {
-    async function init() {
-      try {
-        const cfg = await authService.fetchPublicConfig();
-        setPublicConfig(cfg);
-      } catch (e) {
-        console.warn('Could not fetch public auth config', e);
-      }
-      await refreshSession();
-    }
-    init();
+    authService
+      .fetchPublicConfig()
+      .then((cfg) => setPublicConfig(cfg))
+      .catch((e) => console.warn('Could not fetch public auth config', e));
+    refreshSession();
 
     // Periodic heartbeat: keeps session alive and touches last_seen_at while tab is active
     const heartbeat = setInterval(() => {

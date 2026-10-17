@@ -144,7 +144,14 @@
 @keyframes kf-shade { from { opacity: 0; } to { opacity: .55; } }
 @keyframes kf-glint { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
 
-/* ---------------------------------------------------------------- folding leaflet (products page) */
+/* ---------------------------------------------------------------- folding leaflet (home & products page) */
+.is-lux .ks-leaflet-section { max-width: none; padding: clamp(72px, 9vw, 130px) clamp(20px, 5vw, 72px); background: var(--lux-bg); color: var(--lux-ink); border-top: 1px solid var(--lux-line); }
+.is-lux .ks-leaflet-section > * { max-width: 1360px; margin-inline: auto; }
+.is-lux .ks-leaflet-section h2 { margin: 12px 0 36px; font-family: var(--k-serif); font-weight: 400; font-size: clamp(40px, 5vw, 76px); line-height: .98; letter-spacing: -.03em; color: var(--lux-ink); }
+.is-lux .ks-leaflet-section h2 em { color: var(--champagne); }
+.is-lux .ks-panel { color: var(--lux-ink); background: linear-gradient(165deg, var(--lux-bg-2) 40%, var(--lux-bg-3)); border-color: var(--lux-line); }
+.is-lux .ks-panel small { color: var(--lux-muted); }
+.is-lux .ks-panel-go { color: var(--lux-thread); }
 .ks-leaflet { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); perspective: 1800px; }
 .ks-panel { --unfold: clamp(0, calc(var(--p, 1) * 1.25), 1); position: relative; display: flex; flex-direction: column; gap: 10px; min-height: 320px; padding: 26px 20px; color: var(--ink); text-decoration: none; background: linear-gradient(165deg, var(--surface) 40%, var(--surface-2)); border: 1px solid var(--line); border-left-width: 0; transform-origin: right center; transform: rotateY(calc((1 - var(--unfold)) * 58deg)); transition: transform 120ms linear, translate 250ms var(--ease-out), box-shadow 250ms ease; }
 .ks-panel:nth-child(even) { transform-origin: left center; transform: rotateY(calc((1 - var(--unfold)) * -58deg)); }

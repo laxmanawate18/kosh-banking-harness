@@ -89,7 +89,7 @@ export const TravelingCard: React.FC = () => {
     const from = document.querySelector('.kh-3d'), to = document.querySelector('.kj-fan-slot');
     if (!from || !to) { geo.current = null; return; }
     const f = centre(from), d = centre(to);
-    geo.current = { from: f, to: d, a: window.innerHeight * 0.06, b: d.y - window.innerHeight / 2 };
+    geo.current = { from: f, to: d, a: window.innerHeight * 0.06, b: d.y - window.innerHeight * 0.65 };
     setW(f.w);
     place(window.scrollY);
   }, on);
@@ -116,7 +116,7 @@ export const CardFan: React.FC = () => {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] });
-  const fan = useTransform(scrollYProgress, v => (reduce ? 1 : clamp01((v - 0.47) / 0.17)));
+  const fan = useTransform(scrollYProgress, v => (reduce ? 1 : clamp01((v - 0.22) / 0.22)));
   const left = { x: useTransform(fan, v => `${-36 * v}%`), y: useTransform(fan, v => `${7 * v}%`), rotate: useTransform(fan, v => -14 * v), scale: useTransform(fan, v => 1 - 0.07 * v) };
   const right = { x: useTransform(fan, v => `${33 * v}%`), y: useTransform(fan, v => `${3 * v}%`), rotate: useTransform(fan, v => 11 * v), scale: useTransform(fan, v => 1 - 0.04 * v) };
 

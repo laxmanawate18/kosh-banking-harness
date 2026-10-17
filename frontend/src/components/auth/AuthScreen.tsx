@@ -7,14 +7,21 @@ import { useAuth } from '../../context/AuthContext';
 import { useI18n } from '../../i18n';
 import { UtilityBar, SiteHeader, SiteFooter, useHashRoute } from '../site/SiteChrome';
 import { HomePage } from '../site/HomePage';
-import { ProductsPage } from '../site/ProductsPage';
-import { CalculatorsPage } from '../site/Calculators';
-import { TrackApplicationPage } from '../site/TrackApplication';
-import { RatesPage, FeesPage, HelpPage, FaqsPage, SegmentsPage, LearnPage, NotFound } from '../site/InfoPages';
 import type { Product, ProductCategory } from '../../types/products';
 import { motion, pageMotion } from '../common/Animate';
 import { useMotionValueEvent, useScroll } from 'framer-motion';
 import { ScrollProgress } from '../site/Story';
+
+const ProductsPage = React.lazy(() => import('../site/ProductsPage').then(m => ({ default: m.ProductsPage })));
+const CalculatorsPage = React.lazy(() => import('../site/Calculators').then(m => ({ default: m.CalculatorsPage })));
+const TrackApplicationPage = React.lazy(() => import('../site/TrackApplication').then(m => ({ default: m.TrackApplicationPage })));
+const RatesPage = React.lazy(() => import('../site/InfoPages').then(m => ({ default: m.RatesPage })));
+const FeesPage = React.lazy(() => import('../site/InfoPages').then(m => ({ default: m.FeesPage })));
+const HelpPage = React.lazy(() => import('../site/InfoPages').then(m => ({ default: m.HelpPage })));
+const FaqsPage = React.lazy(() => import('../site/InfoPages').then(m => ({ default: m.FaqsPage })));
+const SegmentsPage = React.lazy(() => import('../site/InfoPages').then(m => ({ default: m.SegmentsPage })));
+const LearnPage = React.lazy(() => import('../site/InfoPages').then(m => ({ default: m.LearnPage })));
+const NotFound = React.lazy(() => import('../site/InfoPages').then(m => ({ default: m.NotFound })));
 
 /** Long pages you read top to bottom get the reading-progress bar ('' is Home). */
 const READING = ['', 'rates', 'fees', 'help', 'faqs', 'for', 'learn'];
@@ -30,6 +37,7 @@ export const AuthScreen: React.FC = () => {
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('all');
+  const fetchedProductsRef = useRef(false);
 
   // Each page names itself in the browser tab and to screen readers: the page's own heading, once it has rendered.
   useEffect(() => {
@@ -41,11 +49,24 @@ export const AuthScreen: React.FC = () => {
   }, [route.join('/')]);
 
   useEffect(() => {
-    fetchProducts('all')
-      .then(d => { setProducts(d.products || []); setCategories(d.categories || []); })
-      .catch(err => console.error('Error loading products:', err))
-      .finally(() => setLoading(false));
-  }, []);
+    if (fetchedProductsRef.current) return;
+    const loadProducts = () => {
+      if (fetchedProductsRef.current) return;
+      fetchedProductsRef.current = true;
+      fetchProducts('all')
+        .then(d => { setProducts(d.products || []); setCategories(d.categories || []); })
+        .catch(err => console.error('Error loading products:', err))
+        .finally(() => setLoading(false));
+    };
+
+    if (route[0] === 'products' || route[0] === 'rates') {
+      loadProducts();
+      return;
+    }
+
+    const timer = window.setTimeout(loadProducts, 1200);
+    return () => window.clearTimeout(timer);
+  }, [route[0]]);
 
   useEffect(() => {
     if (route[0] === 'products') setCategory(route[1] || 'all');
@@ -104,7 +125,11 @@ export const AuthScreen: React.FC = () => {
       {READING.includes(route[0] ?? '') && <ScrollProgress />}
       <UtilityBar />
       <SiteHeader route={route} onLogin={openLogin} />
-      <motion.main id="main" tabIndex={-1} key={route[0] || 'home'} style={{ outline: 'none' }} {...pageMotion}>{page}</motion.main>
+      <motion.main id="main" tabIndex={-1} key={route[0] || 'home'} style={{ outline: 'none' }} {...pageMotion}>
+        <React.Suspense fallback={<div style={{ minHeight: '60vh' }} />}>
+          {page}
+        </React.Suspense>
+      </motion.main>
       <SiteFooter onAsk={askMitra} />
 
       <dialog ref={loginRef} className="k-login" aria-labelledby="login-title"

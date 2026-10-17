@@ -118,7 +118,7 @@
 body[data-card="flying"] .kh-3d, body[data-card="ring"] .kh-3d { visibility: hidden; }
 body[data-card="flying"] .kh-orbits, body[data-card="ring"] .kh-orbits, body[data-card="flying"] .kh-hint, body[data-card="ring"] .kh-hint,
 body[data-card="flying"] .kh-floor, body[data-card="ring"] .kh-floor { opacity: 0; transition: opacity .35s; }
-body[data-card="hero"] .kj-fan-card, body[data-card="flying"] .kj-fan-card { visibility: hidden; }  /* the hand appears when the card lands */
+body[data-card="hero"] .kj-fan-main, body[data-card="flying"] .kj-fan-main { visibility: hidden; }  /* the main card appears when the traveler lands */
 .kj-traveler { position: fixed; inset: 0; z-index: 4; pointer-events: none; visibility: hidden; }
 body[data-card="flying"] .kj-traveler { visibility: visible; }
 .kj-traveler-card { position: absolute; left: 0; top: 0; width: var(--w); aspect-ratio: 1.586; perspective: 1500px; will-change: transform; }

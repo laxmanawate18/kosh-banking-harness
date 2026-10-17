@@ -33,8 +33,8 @@ const STACK: Layer[] = [
   { key: 'gloss', tag: 'Sentinel shield', far: 1120, burst: 240, rest: 3.2 },
 ];
 const EDGE = Array.from({ length: 9 }, (_, i) => -0.7 * (i + 1));  // slices behind the face: a 6 px metal slab
-const FORGE_AT = 1000;  // ms: the stack hangs exploded for a beat, then slams shut
-const LIVE_AT = 1650;
+const FORGE_AT = 450;  // ms: the stack hangs exploded briefly, then slams shut
+const LIVE_AT = 900;
 
 const pose: Variants = {
   gather: { rotateX: 58, rotateY: 0, rotateZ: -34, scale: 0.7 },

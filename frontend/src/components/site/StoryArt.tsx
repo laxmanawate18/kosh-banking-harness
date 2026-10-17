@@ -71,7 +71,7 @@ export const Glyph: React.FC<{ n: number }> = ({ n }) => React.createElement(GLY
 
 /* ------------------------------------------------------------------ split-flap board */
 
-const FLIP_MS = 150;  // one character change: the top half falls (75 ms), the bottom half lands (75 ms)
+const FLIP_MS = 55;  // one character change: fast split-flap snap so numbers settle quickly
 const DRUMS = ['0123456789', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 
 /** The characters a flap shows on its way to `c`: digits and letters roll through their drum, symbols flip once. */
@@ -83,7 +83,7 @@ const drum = (c: string, flips: number) => {
 };
 
 const FlapCell: React.FC<{ char: string; run: boolean; still: boolean; delay: number; flips: number }> = ({ char, run, still, delay, flips }) => {
-  const [f, setF] = useState({ cur: ' ', next: ' ', n: 0, done: false });
+  const [f, setF] = useState({ cur: char, next: char, n: 0, done: false });
   useEffect(() => {
     if (!run || still) return;
     const seq = drum(char, flips);
@@ -115,7 +115,7 @@ const FlapCell: React.FC<{ char: string; run: boolean; still: boolean; delay: nu
 /** A figure on the departure board. Decorative: the caller gives screen readers the value. */
 export const FlapBoard: React.FC<{ text: string; run: boolean; still: boolean; delay: number }> = ({ text, run, still, delay }) => (
   <span className="kf" aria-hidden="true">
-    {[...text].map((c, i) => <FlapCell key={i} char={c} run={run} still={still} delay={delay + i * 120} flips={5 + i * 2} />)}
+    {[...text].map((c, i) => <FlapCell key={i} char={c} run={run} still={still} delay={delay + i * 45} flips={3 + i} />)}
   </span>
 );
 

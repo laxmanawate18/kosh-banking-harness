@@ -161,14 +161,14 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
           setEvents((((ops as any).events || []) as AuditEvent[]));
         }
       } else {
-        const [ovData, evData] = await Promise.all([
-          bankingService.fetchOverview().catch(() => null),
-          bankingService.fetchEvents().catch(() => ({ events: [] })),
-        ]);
+        bankingService
+          .fetchEvents()
+          .then((evData) => setEvents(((evData?.events || []) as AuditEvent[])))
+          .catch(() => setEvents([]));
+        const ovData = await bankingService.fetchOverview().catch(() => null);
         if (ovData) {
           setOverview(normalizeOverview(ovData));
         }
-        setEvents(((evData?.events || []) as AuditEvent[]));
       }
     } catch (e) {
       console.error('Failed to load banking overview:', e);

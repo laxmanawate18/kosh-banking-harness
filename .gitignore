@@ -26,3 +26,5 @@ config/ontology_snapshots/*.md
 # local working documents (hackathon submission template); never build or commit them
 *.pptx
 scratch/
+brag-output*/
+

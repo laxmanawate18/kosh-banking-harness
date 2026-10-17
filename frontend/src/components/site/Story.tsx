@@ -25,7 +25,7 @@ export function useScrollProgress<T extends HTMLElement>(mode: 'pin' | 'view' = 
     const update = () => {
       raf = 0;
       const r = el.getBoundingClientRect(), vh = window.innerHeight;
-      const raw = mode === 'pin' ? -r.top / Math.max(1, r.height - vh) : (vh - r.top) / (vh * 0.6 + r.height * 0.5);
+      const raw = mode === 'pin' ? -r.top / Math.max(1, r.height - vh) : (vh - r.top) / (vh * 0.44 + r.height * 0.36);
       const p = Math.min(1, Math.max(0, raw));
       el.style.setProperty('--p', p.toFixed(4));
       cb.current?.(p);
@@ -131,7 +131,7 @@ export const Stats: React.FC = () => {
           {STATS.map((s, i) => (
             <div key={s.label} className="reveal">
               <dt>{t(s.label)}</dt>
-              <dd><span className="sr-only">{`${s.prefix || ''}${s.to}${s.suffix || ''}`}</span><span aria-hidden="true"><FlapBoard text={figure(s)} run={run} still={still} delay={i * 300} /></span></dd>
+              <dd><span className="sr-only">{`${s.prefix || ''}${s.to}${s.suffix || ''}`}</span><span aria-hidden="true"><FlapBoard text={figure(s)} run={run} still={still} delay={i * 70} /></span></dd>
             </div>
           ))}
         </dl>

@@ -8,7 +8,6 @@ import { AppShell } from './components/layout/AppShell';
 import { PaymentChallengeModal } from './components/overview/PaymentChallengeModal';
 import { LotusMark } from './components/common/KoshLogo';
 import { OverviewPage } from './components/overview/OverviewPage';
-import { NotFound } from './components/site/InfoPages';
 import { MotionProvider } from './components/common/Animate';
 import { LotusLoader } from './components/common/LotusLoader';
 import { ToastProvider } from './components/common/Toast';
@@ -16,6 +15,7 @@ import { ToastProvider } from './components/common/Toast';
 // Route-level code splitting: each page (and the heavy workflow dialog) loads on first visit.
 const named = <K extends string>(loader: () => Promise<Record<K, React.ComponentType<any>>>, key: K) =>
   lazy(() => loader().then(m => ({ default: m[key] })));
+const NotFound = named(() => import('./components/site/InfoPages'), 'NotFound');
 const AIBankerPage = named(() => import('./components/pages/AIBankerPage'), 'AIBankerPage');
 const AccountsPage = named(() => import('./components/pages/AccountsPage'), 'AccountsPage');
 const TransactionsPage = named(() => import('./components/pages/TransactionsPage'), 'TransactionsPage');

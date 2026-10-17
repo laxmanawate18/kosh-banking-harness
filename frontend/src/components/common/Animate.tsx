@@ -11,10 +11,10 @@ export const MotionProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   <MotionConfig reducedMotion="user" transition={{ duration: DUR.base, ease: EASE }}>{children}</MotionConfig>
 );
 
-/** A page arriving: short rise + fade. No exit animation, so navigation never waits. */
+/** A page arriving: short fade. No transform on <main>, so position: sticky sections on Home stay pinned to the viewport. */
 export const pageMotion = {
-  initial: { opacity: 0, y: 10 },
-  animate: { opacity: 1, y: 0, transition: { duration: DUR.slow, ease: EASE } },
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: DUR.slow, ease: EASE } },
 };
 
 const group: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.045, delayChildren: 0.04 } } };
