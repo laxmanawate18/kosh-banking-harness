@@ -26,7 +26,7 @@ const masked = (v?: string) => (v && v.includes('•') ? v : '');
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ onStartKyc }) => {
   const { auth, user, setConsent } = useAuth();
-  const { overview, profile, kyc, refreshOverview } = useBanking();
+  const { overview, profile, kyc, refreshOverview, updatePreferences } = useBanking();
   const { t } = useI18n();
   const [prefs, setPrefs] = useState<Prefs>({ email_updates: true, payment_alerts: true, monthly_statement: true, whatsapp_updates: false, marketing_offers: false });
   const [saved, setSaved] = useState(prefs);
@@ -50,15 +50,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onStartKyc }) => {
 
   const flash = (s: { ok: boolean; text: string }) => { setStatus(s); setTimeout(() => setStatus(null), 3500); };
 
-  const savePrefs = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const persistPrefs = async (next: Prefs) => {
+    updatePreferences(next);
     try {
-      await apiPatch('/api/portal/preferences', prefs);
-      setSaved(prefs);
+      await apiPatch('/api/portal/preferences', next);
+      setSaved(next);
+      updatePreferences(next);
       flash({ ok: true, text: t('Preferences saved.') });
+      refreshOverview();
     } catch (err: any) {
       flash({ ok: false, text: err.message || t('Could not save your preferences. Please try again.') });
     }
+  };
+
+  const savePrefs = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await persistPrefs(prefs);
   };
 
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
@@ -152,7 +159,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onStartKyc }) => {
             </div>
           </section>
 
-          <form className="k-panel" onSubmit={savePrefs}>
+          <form id="preferencesForm" className="k-panel" onSubmit={savePrefs}>
             <header className="k-panel-head"><div><h2>{t('Notification preferences')}</h2><p>{t('Choose which updates you would like to receive.')}</p></div></header>
             <div className="k-panel-body">
               {toggles.map(([key, icon, title, sub]) => (
@@ -166,7 +173,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onStartKyc }) => {
                         <small className="c-paused">{t('Offer suggestions are paused until {date}.', { date: formatDate(prefs.offers_paused_until!) })}</small>}
                     </div>
                   </div>
-                  <input type="checkbox" className="k-switch" name={key} checked={Boolean(prefs[key])} onChange={e => setPrefs(p => ({ ...p, [key]: e.target.checked }))} />
+                  <input
+                    type="checkbox"
+                    className="k-switch"
+                    name={key}
+                    checked={Boolean(prefs[key])}
+                    onChange={e => {
+                      const next = { ...prefs, [key]: e.target.checked };
+                      setPrefs(next);
+                      setSaved(next);
+                      void persistPrefs(next);
+                    }}
+                  />
                 </label>
               ))}
               <p className="form-hint">{t('Preferences are saved here. Delivery requires a connected notification provider.')}</p>

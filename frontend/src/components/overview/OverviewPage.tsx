@@ -77,21 +77,35 @@ function useLastLogin() {
 type Offer = { product_id: string; title: string; headline_rate: string; reason: string };
 
 /** Personalised offers from the bank's rules (consent, KYC, caps and suppression are enforced server-side). */
-function PersonalOffers({ onNavigate, ask }: { onNavigate: (r: string) => void; ask: (q: string) => void }) {
+function PersonalOffers({ ask, enabled }: { onNavigate: (r: string) => void; ask: (q: string) => void; enabled: boolean }) {
   const { t, lang } = useI18n();
   const { startWorkflowById } = useBanking();
   const [state, setState] = useState<{ offers: Offer[]; blocked: string | null } | null>(null);
   const [done, setDone] = useState<Record<string, string>>({});
-  useEffect(() => { get(`/api/portal/offers?lang=${lang}`).then(setState).catch(() => setState(null)); }, [lang]);
-  if (!state) return null;
-  if (state.blocked === 'MARKETING_CONSENT_REQUIRED') {
-    return (
-      <button type="button" className="k-offer" onClick={() => onNavigate('settings')}>
-        <Icon name="sparkles" /><span><strong>{t('Offers picked for you')}</strong>
-          <small>{t('Turn on personalised offers in Settings to see offers based on your own banking. You can turn it off any time.')}</small></span>
-      </button>
-    );
-  }
+  useEffect(() => {
+    if (!enabled) {
+      setState(null);
+      return;
+    }
+    let cancelled = false;
+    const load = (attempt = 0) => {
+      get<{ offers: Offer[]; blocked: string | null }>(`/api/portal/offers?lang=${lang}`)
+        .then(res => {
+          if (cancelled) return;
+          if (res?.blocked === 'MARKETING_CONSENT_REQUIRED' && attempt < 2) {
+            setTimeout(() => load(attempt + 1), 220);
+            return;
+          }
+          setState(res);
+        })
+        .catch(() => {
+          if (!cancelled) setState(null);
+        });
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [lang, enabled]);
+  if (!enabled || !state || !state.offers?.length) return null;
   const act = async (o: Offer, action: 'CLICKED' | 'DISMISSED' | 'APPLY') => {
     try {
       const res = await post<{ open_workflow?: string }>(`/api/portal/offers/${o.product_id}`, { action });
@@ -149,6 +163,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
   const credits = transactions.filter(x => amt(x) > 0).reduce((s, x) => s + amt(x), 0);
   const debits = transactions.filter(x => amt(x) < 0).reduce((s, x) => s - amt(x), 0);
   const festive = !!document.documentElement.dataset.festival;
+  const marketingOffersOn = Boolean((overview as any)?.preferences?.marketing_offers);
 
   const startKyc = () => {
     onNavigate('ai-banker');
@@ -219,16 +234,18 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
         ))}
       </Stagger>
 
-      <section aria-label={t('Offers for you')}>
-        <div className="k-offers">
-          {festive && (
-            <button type="button" className="k-offer festive" onClick={() => ask(t('Tell me about festive offers on Kosh cards.'))}>
-              <Icon name="sparkles" /><span><strong>{t('Festive cashback')}</strong><small>{t('10% back on shopping with Kosh cards this festival week, up to ₹1,500.')}</small></span>
-            </button>
-          )}
-          <PersonalOffers onNavigate={onNavigate} ask={ask} />
-        </div>
-      </section>
+      {marketingOffersOn && (
+        <section aria-label={t('Offers for you')}>
+          <div className="k-offers">
+            {festive && (
+              <button type="button" className="k-offer festive" onClick={() => ask(t('Tell me about festive offers on Kosh cards.'))}>
+                <Icon name="sparkles" /><span><strong>{t('Festive cashback')}</strong><small>{t('10% back on shopping with Kosh cards this festival week, up to ₹1,500.')}</small></span>
+              </button>
+            )}
+            <PersonalOffers onNavigate={onNavigate} ask={ask} enabled={marketingOffersOn} />
+          </div>
+        </section>
+      )}
 
       <Stagger as="section" className="k-acc-grid" aria-label={t('Your accounts')}>
         {accounts.map(a => (

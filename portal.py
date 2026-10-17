@@ -105,8 +105,14 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
                                   if b["customer_id"] == context.customer_id]
         result["transactions"] = [t for t in snapshot["transactions"] if t["customer_id"] == context.customer_id]
         result["transactions"].sort(key=lambda t: t["created_at"], reverse=True)
-        result["preferences"] = snapshot.get("preferences", {}).get(context.customer_id,
-            {"email_updates": True, "payment_alerts": True, "monthly_statement": True})
+        result["preferences"] = {
+            "email_updates": True,
+            "payment_alerts": True,
+            "monthly_statement": True,
+            "whatsapp_updates": False,
+            "marketing_offers": False,
+            **(snapshot.get("preferences", {}).get(context.customer_id) or {}),
+        }
         result["requests"] = requests.list_for_customer(context.customer_id)
         result["delegation"] = db.get_delegation(context.customer_id)
         result["kyc"] = db.get_kyc_profile(context.customer_id)
@@ -282,13 +288,15 @@ def make_portal_router(db, banking, auth, requests, customer, customer_csrf, off
     @router.patch("/preferences")
     def preferences(body: PreferenceBody, context=Depends(customer_csrf)):
         def mutate(data):
-            before = (data.get("preferences", {}).get(context.customer_id) or {}).get("marketing_offers", False)
-            data.setdefault("preferences", {})[context.customer_id] = body.model_dump()
+            current = data.get("preferences", {}).get(context.customer_id) or {}
+            before = bool(current.get("marketing_offers", False))
+            updated = {**current, **body.model_dump()}
+            data.setdefault("preferences", {})[context.customer_id] = updated
             audit(data, context, "PREFERENCES_UPDATED", "Notification preferences updated")
             if body.marketing_offers != before:
                 audit(data, context, "MARKETING_CONSENT_GRANTED" if body.marketing_offers else "MARKETING_CONSENT_WITHDRAWN",
                       "Personalised offers " + ("turned on" if body.marketing_offers else "turned off"))
-            return body.model_dump()
+            return updated
         return db.transaction(mutate)
 
     @router.get("/approvals")

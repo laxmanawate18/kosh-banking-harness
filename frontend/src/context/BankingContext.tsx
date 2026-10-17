@@ -32,6 +32,7 @@ interface BankingContextValue {
   openWorkflow: (id: string) => void;
   startWorkflowById: (skillId: string) => Promise<void>;
   refreshOverview: () => Promise<void>;
+  updatePreferences: (prefs: Record<string, any>) => void;
   transferMoney: (payload: { source_account_id: string; beneficiary_id?: string; amount_minor: number; note?: string }) => Promise<any>;
   addBeneficiary: (payload: { name: string; account_number: string; ifsc_code?: string; bank_name?: string; nickname?: string; transfer_limit_paise?: number }) => Promise<any>;
   payBill: (billId: string, sourceAccountId?: string) => Promise<any>;
@@ -144,9 +145,16 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
     };
   };
 
+  const updatePreferences = useCallback((prefs: Record<string, any>) => {
+    setOverview(prev => prev ? ({ ...prev, preferences: { ...(prev as any).preferences, ...prefs } } as any) : prev);
+  }, []);
+
   const refreshOverview = useCallback(async () => {
     if (!auth && !user) return;
-    setIsLoading(true);
+    setOverview(prev => {
+      if (!prev) setIsLoading(true);
+      return prev;
+    });
     try {
       if (user?.role === 'ADMIN') {
         // The Admin Panel loads its own data; an admin has no banking overview.
@@ -255,6 +263,7 @@ export const BankingProvider: React.FC<{ children: ReactNode }> = ({ children })
         openWorkflow,
         startWorkflowById,
         refreshOverview,
+        updatePreferences,
         transferMoney,
         addBeneficiary,
         payBill,

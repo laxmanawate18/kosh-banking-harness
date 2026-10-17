@@ -119,7 +119,8 @@ def row_key(model, row) -> str:
 
 def _save_typed(session, name: str, spec: Spec, before: Any, after: Any) -> None:
     model = spec.model
-    old = {_pk(spec, r, i): r for i, r in enumerate(before.values() if isinstance(before, dict) else before or [])}
+    old_items = list(before.items()) if isinstance(before, dict) else list(enumerate(before or []))
+    old = {(str(k) if spec.kind == "dict" and isinstance(before, dict) else _pk(spec, r, k)): r for k, r in old_items}
     items = list(after.items()) if isinstance(after, dict) else list(enumerate(after or []))
     new: Dict[str, Any] = {}
     for key, record in items:

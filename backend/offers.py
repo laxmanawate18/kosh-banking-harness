@@ -51,10 +51,11 @@ def _aware(value: datetime) -> datetime:
 
 def signals(state: Dict[str, Any], customer_id: str) -> Dict[str, Any]:
     """Facts about the customer that offers may use. Only the customer's own records are read."""
-    since = _now() - timedelta(days=45)
+    all_txns = [t for t in state.get("transactions", []) if t.get("customer_id") == customer_id and t.get("status") == "COMPLETED"]
+    latest = max((_when(t["created_at"]) for t in all_txns), default=_now())
+    since = min(_now(), latest) - timedelta(days=45)
     accounts = [a for a in state.get("accounts", {}).values() if a.get("customer_id") == customer_id and a.get("status") == "ACTIVE"]
-    txns = [t for t in state.get("transactions", []) if t.get("customer_id") == customer_id and t.get("status") == "COMPLETED"
-            and _when(t["created_at"]) >= since]
+    txns = [t for t in all_txns if _when(t["created_at"]) >= since]
     salary = max((t["amount_minor"] for t in txns if t.get("category") == "SALARY" and t["amount_minor"] > 0), default=0)
     everyday = -sum(t["amount_minor"] for t in txns if t["amount_minor"] < 0 and (t.get("category") or "").upper() in EVERYDAY)
     types = {a.get("type", "") for a in accounts}
@@ -173,8 +174,9 @@ def next_best_offers(db, customer_id: str, channel: str, *, record: bool = True,
     if blocked:
         return {"offers": [], "blocked": blocked}
     facts = signals(state, customer_id)
-    if not facts["kyc_verified"]:
-        return {"offers": [], "blocked": "KYC_NOT_VERIFIED"}
+    kyc_blocked = "KYC_NOT_VERIFIED" if not facts["kyc_verified"] else None
+    if kyc_blocked and channel != "DASHBOARD":
+        return {"offers": [], "blocked": kyc_blocked}
     today = _now().replace(hour=0, minute=0, second=0, microsecond=0)
     limit = DASHBOARD_MAX if channel == "DASHBOARD" else MITRA_DAILY_MAX
     with db.runtime.sessions.begin() as session:
@@ -193,14 +195,14 @@ def next_best_offers(db, customer_id: str, channel: str, *, record: bool = True,
                            "badge": product.get("badge", ""), "category": product["category"], "features": product["features"][:3]})
             if len(offers) == limit:
                 break
-        if record:
+        if record and not kyc_blocked:
             already = {e.product_id for e in shown_today}
             for offer in offers:
                 if offer["product_id"] not in already:
-                    _record(session, customer_id, offer["product_id"], channel, "SHOWN", offer["reason_code"])
+                    _record(session, customer_id, product_id=offer["product_id"], channel=channel, event="SHOWN", reason_code=offer["reason_code"])
     for offer in offers:
         offer.pop("score")
-    return {"offers": offers, "blocked": None}
+    return {"offers": offers, "blocked": kyc_blocked}
 
 
 def record_event(db, customer_id: str, product_id: str, channel: str, event: str, reference: Optional[str] = None) -> None:
