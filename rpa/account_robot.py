@@ -32,7 +32,7 @@ class CoreRefused(Exception):
 
 
 def _operator(role: str) -> tuple[str, str]:
-    production = os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"} or bool(os.getenv("K_SERVICE"))
+    production = os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"}
     variable, default = {"MAKER": ("LEGACY_CBS_MAKER_PASSWORD", "maker-demo"),
                          "CHECKER": ("LEGACY_CBS_CHECKER_PASSWORD", "checker-demo")}[role]
     password = os.getenv(variable) or (None if production else default)

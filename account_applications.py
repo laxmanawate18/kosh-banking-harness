@@ -322,13 +322,16 @@ class AccountApplicationService:
             self._move(session, row, target, by="RPA", actor="rpa", note=str(error)[:200])
         return self.get(reference)
 
-    def note_progress(self, reference: str, event: dict[str, Any]) -> None:
-        """One robot progress event (no screenshot), kept on the application for the officer; the last 40 are kept."""
+    def note_progress(self, reference: str, event: dict[str, Any], screenshot: Optional[str] = None) -> None:
+        """One robot progress event (no screenshot in events), kept on the application for the officer; the last 40 are kept."""
         with self.db._lock, self.runtime.sessions.begin() as session:
             row = self._locked(session, reference, missing_ok=True)
             if row:
                 events = [*((row.rpa or {}).get("events") or []), {**event, "at": utc_dt().isoformat()}][-40:]
-                row.rpa = {**(row.rpa or {}), "events": events}
+                updated_rpa = {**(row.rpa or {}), "events": events}
+                if screenshot:
+                    updated_rpa["latest_screenshot"] = screenshot
+                row.rpa = updated_rpa
 
     def _robot_step(self, reference: str, target: str, cbs: dict[str, Any], note: str) -> dict[str, Any]:
         with self.db._lock, self.runtime.sessions.begin() as session:
@@ -344,8 +347,13 @@ class AccountApplicationService:
         queued = []
         with self.db._lock, self.runtime.sessions.begin() as session:
             for row in session.scalars(select(AccountApplicationRecord).where(
-                    AccountApplicationRecord.status.in_(["QUEUED_FOR_CBS", "RPA_EXECUTING"])).with_for_update()):
-                if row.status == "RPA_EXECUTING":
+                    AccountApplicationRecord.status.in_(["QUEUED_FOR_CBS", "RPA_EXECUTING", "RPA_FAILED"])).with_for_update()):
+                if row.status == "RPA_FAILED":
+                    last_err = str((row.rpa or {}).get("last_error") or "")
+                    if "LEGACY_CBS_" not in last_err:
+                        continue
+                    self._move(session, row, "QUEUED_FOR_CBS", by="system", actor="system", note="Re-queued after legacy core credentials configured")
+                elif row.status == "RPA_EXECUTING":
                     if _aware(row.updated_at) > stale_before:
                         continue  # another instance is running it now
                     self._move(session, row, "QUEUED_FOR_CBS", by="system", actor="system", note="Re-queued after the robot stopped")

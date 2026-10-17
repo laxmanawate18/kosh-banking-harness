@@ -53,9 +53,10 @@ class AccountRobotWorker:
         payload = self.service.payload(reference)
 
         def progress(event: dict[str, Any]) -> None:
-            if event.get("screenshot"):
-                self.latest_screenshot[reference] = event["screenshot"]
-            self.service.note_progress(reference, {k: v for k, v in event.items() if k != "screenshot"})
+            shot = event.get("screenshot")
+            if shot:
+                self.latest_screenshot[reference] = shot
+            self.service.note_progress(reference, {k: v for k, v in event.items() if k != "screenshot"}, screenshot=shot)
 
         def maker_saved(maker_reference: str, cif: str) -> None:
             self.service.maker_done(reference, maker_reference=maker_reference, cif_number=cif)

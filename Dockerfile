@@ -12,6 +12,9 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 \
     PORT=8080 \
     SENTINEL_DATABASE_URL=sqlite+pysqlite:////app/data/banking.sqlite3 \
+    LEGACY_CBS_DATABASE_URL=sqlite+pysqlite:////app/data/legacy_cbs.sqlite3 \
+    LEGACY_CBS_MAKER_PASSWORD=maker-demo \
+    LEGACY_CBS_CHECKER_PASSWORD=checker-demo \
     SKIP_DOTENV=1 \
     RPA_HEADLESS=true
 

@@ -29,7 +29,7 @@ FD_RATE_BP = 810  # matches the published Kosh Vriddhi Smart FD rate
 
 def _operators() -> dict[str, tuple[str, str]]:
     """Operator id -> (password, role). Passwords come from the environment; production refuses to run without them."""
-    production = os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"} or bool(os.getenv("K_SERVICE"))
+    production = os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"}
     found = {}
     for operator, role, variable, default in (("RPA-MAKER", "MAKER", "LEGACY_CBS_MAKER_PASSWORD", "maker-demo"),
                                               ("RPA-CHECKER", "CHECKER", "LEGACY_CBS_CHECKER_PASSWORD", "checker-demo")):

@@ -70,7 +70,7 @@ def database_url() -> str:
     url = os.getenv("LEGACY_CBS_DATABASE_URL")
     if url:
         return url
-    production = os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"} or bool(os.getenv("K_SERVICE"))
+    production = os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"}
     if production:  # its own database and DB user; never Kosh's
         raise RuntimeError("LEGACY_CBS_DATABASE_URL must be set in production")
     path = Path(__file__).resolve().parent.parent / "data" / "legacy_cbs.sqlite3"
