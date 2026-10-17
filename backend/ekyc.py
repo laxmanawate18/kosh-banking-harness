@@ -107,6 +107,105 @@ def start(db, customer_id: str) -> Dict[str, Any]:
     return {"session_id": session_id, "provider": provider(), "sandbox": provider() == "sandbox", "url": url}
 
 
+def _outcome_kind(result: Dict[str, Any], ok: bool) -> str:
+    if ok:
+        return "pass"
+    if result.get("status") == "ABANDONED":
+        return "abandoned"
+    checks = result.get("checks") or {}
+    if not checks.get("geo_in_india", True):
+        return "outside_india"
+    if float(checks.get("face_match_score") or 0) < FACE_MATCH_MIN:
+        return "face_mismatch"
+    return "failed"
+
+
+def _mitra_outcome_message(outcome: str, session_id: str, checks: Dict[str, Any]) -> Dict[str, Any]:
+    score = float(checks.get("face_match_score") or 0)
+    score_pct = f"{int(round(score * 100))}%"
+    if outcome == "pass":
+        text = (
+            f"Thank you! Your Video KYC (V-CIP) verification (Session `{session_id}`) is complete and all checks have passed "
+            f"(Aadhaar e-KYC, PAN verification, live liveness check, geo-location in India, and {score_pct} face match). "
+            "Your account KYC status is now **VERIFIED** and all outward transfers (UPI, IMPS, NEFT, RTGS) and debit card limits are unlocked."
+        )
+        title = "Video KYC completed & verified"
+    elif outcome == "face_mismatch":
+        text = (
+            f"Your Video KYC session (`{session_id}`) could not be completed because the live facial verification did not match "
+            f"your Aadhaar photograph (match score: {score_pct}; minimum required: 80%). "
+            "Kindly try Video KYC again in good lighting after 24 hours, or visit your nearest Kosh branch with your original PAN and Aadhaar card."
+        )
+        title = "Video KYC not verified — Face did not match"
+    elif outcome == "outside_india":
+        text = (
+            f"Your Video KYC session (`{session_id}`) could not be completed because RBI V-CIP guidelines require your live geo-location "
+            "to be physically within India during the video call. "
+            "Please disable any VPN and try again from within India, or visit a Kosh branch to complete your KYC."
+        )
+        title = "Video KYC not verified — Location outside India"
+    elif outcome == "abandoned":
+        text = (
+            f"Your Video KYC call (`{session_id}`) ended before the verification steps could be completed. "
+            "Your KYC status remains unchanged. Whenever you are ready, you can start a new Video KYC session with your PAN card handy, or visit a Kosh branch."
+        )
+        title = "Video KYC call ended early"
+    else:
+        text = (
+            f"Your Video KYC session (`{session_id}`) could not be verified. "
+            "Kindly try again after 24 hours or visit your nearest Kosh branch with your original KYC documents."
+        )
+        title = "Video KYC not verified"
+
+    pres = {
+        "type": "VIDEO_KYC_OUTCOME",
+        "title": title,
+        "session_id": session_id,
+        "outcome": outcome,
+        "status": "VERIFIED" if outcome == "pass" else ("ABANDONED" if outcome == "abandoned" else "NOT_VERIFIED"),
+        "face_match_score": score,
+    }
+    return {
+        "role": "assistant",
+        "text": text,
+        "timestamp": utc_dt().timestamp(),
+        "presentation": pres,
+        "presentations": [pres],
+    }
+
+
+def _append_mitra_ekyc_message(db, customer_id: str, outcome: str, session_id: str, checks: Dict[str, Any]) -> None:
+    from persistence import ConversationRecord, UserRecord
+    msg = _mitra_outcome_message(outcome, session_id, checks)
+    now = utc_dt()
+    with db.runtime.sessions.begin() as s:
+        conv = s.scalar(
+            select(ConversationRecord)
+            .where(ConversationRecord.customer_id == customer_id)
+            .order_by(ConversationRecord.updated_at.desc())
+            .limit(1)
+        )
+        if conv is not None:
+            existing_msgs = list(conv.messages or [])
+            if not any((m.get("presentation") or {}).get("session_id") == session_id for m in existing_msgs if isinstance(m, dict)):
+                existing_msgs.append(msg)
+                conv.messages = existing_msgs
+                conv.updated_at = now
+        else:
+            user = s.scalar(select(UserRecord).where(UserRecord.customer_id == customer_id).limit(1))
+            s.add(ConversationRecord(
+                id=new_id("CHAT"),
+                user_id=user.id if user else None,
+                customer_id=customer_id,
+                title="Video KYC Verification",
+                product="sentinel-v2",
+                messages=[msg],
+                traces=[],
+                created_at=now,
+                updated_at=now,
+            ))
+
+
 def complete(db, payload: Dict[str, Any]) -> Dict[str, Any]:
     """Apply one signed provider result exactly once."""
     result = _normalise(payload)
@@ -128,25 +227,45 @@ def complete(db, payload: Dict[str, Any]) -> Dict[str, Any]:
                                                              "face_match_score": result["checks"]["face_match_score"],
                                                              "agent_id": result["agent_id"], "completed_at": utc_now()}})
     failed = [k for k in CHECKS if not result["checks"].get(k)]
+    outcome = _outcome_kind(result, ok)
 
     def audit(state):
         state.setdefault("audit_events", []).append({
             "id": new_id("AUD"), "event_type": "EKYC_VERIFIED" if ok else "EKYC_NOT_VERIFIED", "customer_id": customer_id,
             "actor": source, "created_at": utc_now(), "severity": "INFO" if ok else "WARNING",
             "summary": f"{method}: {'all checks passed' if ok else 'not verified (' + (', '.join(failed) or result['status'].lower()) + ')'}",
-            "details": {"session_id": session_id, "checks": result["checks"]}})
+            "details": {"session_id": session_id, "checks": result["checks"], "outcome": outcome}})
     db.transaction(audit)
+    try:
+        _append_mitra_ekyc_message(db, customer_id, outcome, session_id, result["checks"])
+    except Exception:
+        pass
     if result["status"] != "ABANDONED":
         notify(db, "kyc_verified" if ok else "kyc_not_verified", phone_for(db, customer_id), customer_id=customer_id, reference=session_id)
-    return {"session_id": session_id, "status": "VERIFIED" if ok else "NOT_VERIFIED", "failed_checks": failed}
+    return {"session_id": session_id, "status": "VERIFIED" if ok else "NOT_VERIFIED", "failed_checks": failed, "outcome": outcome}
 
 
 def latest(db, customer_id: str) -> Optional[Dict[str, Any]]:
     with db.runtime.sessions() as s:
         row = s.scalar(select(EkycSessionRecord).where(EkycSessionRecord.customer_id == customer_id)
                        .order_by(EkycSessionRecord.created_at.desc()).limit(1))
-        return row and {"session_id": row.id, "provider": row.provider, "status": row.status, "sandbox": row.provider == "sandbox",
-                        "created_at": row.created_at.isoformat(), "failed_checks": [k for k in CHECKS if row.result and not row.result["checks"].get(k)]}
+        if not row:
+            return None
+        res = row.result or {}
+        checks = res.get("checks") or {}
+        ok = row.status == "VERIFIED"
+        outcome = _outcome_kind(res, ok) if res else ("pass" if ok else "in_progress")
+        return {
+            "session_id": row.id,
+            "provider": row.provider,
+            "status": row.status,
+            "outcome": outcome,
+            "sandbox": row.provider == "sandbox",
+            "created_at": row.created_at.isoformat(),
+            "updated_at": row.updated_at.isoformat() if row.updated_at else row.created_at.isoformat(),
+            "face_match_score": checks.get("face_match_score"),
+            "failed_checks": [k for k in CHECKS if res and not checks.get(k)],
+        }
 
 
 SANDBOX_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><title>SANDBOX Video KYC · Kosh</title>
@@ -214,6 +333,6 @@ def make_ekyc_router(db, customer, customer_csrf, limiter) -> APIRouter:
         if outcome not in SANDBOX_OUTCOMES:
             raise HTTPException(422, "Unknown outcome")
         complete(db, {"session_id": session_id, "agent_id": "SANDBOX-AGENT", "video_ref": None, **SANDBOX_OUTCOMES[outcome]})
-        return RedirectResponse("/#overview", status_code=303)
+        return RedirectResponse(f"/?ekyc_session={session_id}&ekyc_outcome={outcome}#ai-banker", status_code=303)
 
     return router

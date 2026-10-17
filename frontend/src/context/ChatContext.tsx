@@ -233,6 +233,10 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
                     })
                   );
                 }
+                if (typeof window !== 'undefined' && window.location.search.includes('ekyc_')) {
+                  const cleanUrl = `${window.location.pathname}${window.location.hash || '#ai-banker'}`;
+                  window.history.replaceState({}, '', cleanUrl);
+                }
               }).catch(console.warn);
             } else {
               setCurrentSessionId(null);

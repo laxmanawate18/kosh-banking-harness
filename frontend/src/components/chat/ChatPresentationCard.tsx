@@ -357,6 +357,38 @@ export const ChatPresentationCard: React.FC<ChatPresentationCardProps> = ({
     );
   }
 
+  if (type === 'VIDEO_KYC_OUTCOME') {
+    const outcome = pres.outcome || result.outcome || '';
+    const verified = outcome === 'pass' || pres.status === 'VERIFIED';
+    const sessionId = pres.session_id || result.session_id;
+    const score = typeof pres.face_match_score === 'number' && pres.face_match_score > 0 ? `${Math.round(pres.face_match_score * 100)}%` : null;
+    const reasonLabel =
+      outcome === 'face_mismatch' ? 'Face did not match Aadhaar photo' :
+      outcome === 'outside_india' ? 'Geo-location outside India' :
+      outcome === 'abandoned' ? 'Customer left the video call early' :
+      verified ? 'All V-CIP checks passed' : 'Verification incomplete';
+    return (
+      <article className={`chat-result ${verified ? 'c-edge-ok' : 'c-edge-warn'}`}>
+        <div className="c-result-head">
+          <h3>{pres.title || (verified ? 'Video KYC completed' : 'Video KYC not verified')}</h3>
+          <Badge status={verified ? 'VERIFIED' : outcome === 'abandoned' ? 'ABANDONED' : 'NOT_VERIFIED'} />
+        </div>
+        {sessionId && <Row label="Session">{sessionId}</Row>}
+        <Row label="Outcome">{reasonLabel}</Row>
+        {score && <Row label="Face match score">{score}</Row>}
+        {verified ? (
+          <div className="cr-ok"><Icon name="check" /><span>Your KYC is now verified. Outward transfers and card limits are unlocked.</span></div>
+        ) : (
+          <div className="c-mt">
+            <button type="button" className="k-btn primary sm" onClick={() => startVideoKyc().catch((e) => alert(e.message))}>
+              Try Video KYC again
+            </button>
+          </div>
+        )}
+      </article>
+    );
+  }
+
   if (type === 'CROSS_SELL_OFFER') {
     const badge = pres.badge || 'Exclusive Offer';
     const headline = pres.headline_rate || '';

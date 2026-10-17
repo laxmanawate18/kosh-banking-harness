@@ -47,6 +47,10 @@ class EkycTests(unittest.TestCase):
         self.assertEqual(kyc["status"], "VERIFIED")
         self.assertIn("sandbox", kyc["verification"]["method"])
         self.assertTrue(any(n["event"] == "kyc_verified" and n["reference"] == s["session_id"] for n in notifications.recent(dev_ui.db, 20)))
+        convs = dev_ui.db.list_conversations()
+        self.assertTrue(convs)
+        latest_conv = dev_ui.db.get_conversation(convs[0]["id"])
+        self.assertTrue(any((m.get("presentation") or {}).get("session_id") == s["session_id"] and (m.get("presentation") or {}).get("outcome") == "pass" for m in latest_conv["messages"]))
         # a second submission cannot change the recorded result
         dev_ui.db.update_kyc_status("CUST-1001", "NOT_DONE")
         self.client.post(f"/ekyc/sandbox/{s['session_id']}", data={"token": token, "outcome": "pass"}, follow_redirects=False)
@@ -59,7 +63,11 @@ class EkycTests(unittest.TestCase):
         self.assertEqual(self.kyc()["status"], "NOT_DONE")
         latest = self.client.get("/api/portal/ekyc/sessions/latest").json()["session"]
         self.assertEqual(latest["status"], "NOT_VERIFIED")
+        self.assertEqual(latest["outcome"], "face_mismatch")
         self.assertIn("agent_approved", latest["failed_checks"])
+        convs = dev_ui.db.list_conversations()
+        latest_conv = dev_ui.db.get_conversation(convs[0]["id"])
+        self.assertTrue(any((m.get("presentation") or {}).get("session_id") == s["session_id"] and (m.get("presentation") or {}).get("outcome") == "face_mismatch" for m in latest_conv["messages"]))
 
     def test_verified_customers_and_production_cannot_start_the_sandbox(self):
         with patch.dict(os.environ, {"KOSH_ENV": "production"}):

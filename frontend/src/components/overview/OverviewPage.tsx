@@ -165,6 +165,13 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
   const festive = !!document.documentElement.dataset.festival;
   const marketingOffersOn = Boolean((overview as any)?.preferences?.marketing_offers);
 
+  const [latestEkyc, setLatestEkyc] = useState<{ session_id: string; status: string; outcome?: string; face_match_score?: number } | null>(null);
+  useEffect(() => {
+    get<{ session: { session_id: string; status: string; outcome?: string; face_match_score?: number } | null }>('/api/portal/ekyc/sessions/latest')
+      .then(r => setLatestEkyc(r?.session || null))
+      .catch(() => setLatestEkyc(null));
+  }, [overview?.kyc?.status, overview?.customer?.kyc?.status]);
+
   const startKyc = () => {
     onNavigate('ai-banker');
     setTimeout(() => sendMessage(t('I would like to complete my pending KYC verification.')), 200);
@@ -172,6 +179,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
   const ask = (q: string) => { onNavigate('ai-banker'); setTimeout(() => sendMessage(q), 200); };
 
   const kycState = kyc && ['NOT_DONE', 'PENDING_RE_KYC', 'SUBMITTED_FOR_REVIEW'].includes(kyc.status) ? kyc.status : null;
+  const failedEkyc = kycState && latestEkyc && (latestEkyc.status === 'NOT_VERIFIED' || latestEkyc.status === 'ABANDONED') ? latestEkyc : null;
 
   return (
     <div className="k-dash">
@@ -219,6 +227,19 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
               : kycState === 'SUBMITTED_FOR_REVIEW'
                 ? t('Documents submitted. A bank officer will approve them shortly.')
                 : t('Complete verification by {date} to keep your accounts active.', { date: formatDate(kyc?.due_date || '') })}</p>
+            {failedEkyc && (
+              <p role="status">
+                <strong>
+                  {failedEkyc.outcome === 'face_mismatch'
+                    ? t('Last Video KYC ({id}): Face did not match Aadhaar photo. Kindly try again after 24 hours or visit a Kosh branch.', { id: failedEkyc.session_id })
+                    : failedEkyc.outcome === 'outside_india'
+                      ? t('Last Video KYC ({id}): Geo-location must be within India as per RBI V-CIP rules. Please disable VPN or visit a Kosh branch.', { id: failedEkyc.session_id })
+                      : failedEkyc.outcome === 'abandoned'
+                        ? t('Last Video KYC ({id}): Call ended before verification finished. You can restart Video KYC anytime.', { id: failedEkyc.session_id })
+                        : t('Last Video KYC ({id}) could not be verified. Kindly try again after 24 hours or visit a Kosh branch.', { id: failedEkyc.session_id })}
+                </strong>
+              </p>
+            )}
           </div>
           {kycState !== 'SUBMITTED_FOR_REVIEW' && <button type="button" className="k-btn primary" onClick={startKyc}>{t('Complete KYC with Mitra')}</button>}
           {kycState === 'NOT_DONE' && <button type="button" className="k-link" onClick={() => startVideoKyc().catch(() => undefined)}>{t('Video KYC now')}</button>}
