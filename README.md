@@ -83,6 +83,34 @@ The **Admin Console** (`backend/admin_routes.py`, `backend/mitra_ops.py`, `backe
 
 ## System Architecture
 
+![Kosh Secure Agentic Digital Banking Harness & Data Protection Controls](docs/architecture/Kosh%20_%20Banking%20Harness.png)
+
+### Multi-Layer Defense-in-Depth Architecture
+
+Kosh implements an enterprise-grade defense-in-depth model across three distinct infrastructure and application layers:
+
+#### Layer 3 (Day N): Secure Agentic Digital Banking Harness & Data Protection Controls
+* **Mitra AI Agent (Google Antigravity SDK & Vertex AI `gemini-3.8-flash`)**: Reasons over customer queries, performs FTS5 bank knowledge retrieval, and proposes structured intents. Mitra operates with strictly scoped read and propose tools — **it has zero direct mutation or ledger write capabilities**.
+* **Sentinel Policy Decision Point (PDP)**: Independent 7-stage deterministic risk engine (`ALLOW`, `CHALLENGE`, `DENY`) that inspects every money proposal against customer intent digests, 24-hour payee cooling caps, mule registries, and ATO flags before issuing a single-use HMAC execution token.
+* **Kavach Out-of-Band Customer Approval**: Trusted browser modal collecting explicit customer consent outside the LLM context window, backed by Firebase Phone L3 OTP step-up verification.
+* **LLM Boundary Vault & Cloud DLP**: Inbound prompt-injection scanning (15+ signatures) and outbound PII redaction (Aadhaar, PAN, card numbers, OTPs) ensuring raw customer identifiers never enter external foundation model prompts.
+* **Cryptographic Hash-Linked Audit Chain**: Every proposal, Sentinel decision, officer approval, and ledger entry is sealed into an append-only SHA-256 HMAC hash chain, verifiable in real time from the Admin Console.
+* **Playwright Autonomous RPA Robot**: Bridges legacy, API-less core banking screens (`Finacle 10.x` style) using real headless Chromium with field-by-field keying, DOM read-back verification, and dual-operator Maker-Checker separation.
+
+#### Layer 2 (Day 1): Foundation Controls
+* **Google Cloud Secret Manager**: Hardware-backed isolation for OAuth signing keys, database credentials, and API secrets.
+* **IAM Least Privilege**: Role-based service accounts for Cloud Run (`kosh-app`, `kosh-auth`), Cloud Build, and Cloud SQL.
+* **Enterprise Observability & Recovery**: Cloud Monitoring latency telemetry, Cloud Logging audit persistence, and automated Cloud SQL point-in-time recovery.
+
+#### Layer 1 (Day 0): Google's Built-In Security Foundations
+* **Google Titan Security Chips**: Hardware root of trust across Google Cloud data center infrastructure.
+* **Default Encryption**: AES-256 encryption at rest and TLS 1.3 in transit by default across all service endpoints.
+* **Cloud Armor & L4 DDoS Protection**: Edge perimeter defense safeguarding backend APIs against automated bot traffic, scraping, and volumetric attacks.
+
+---
+
+### Service Interaction & Runtime Flow
+
 ```mermaid
 flowchart TB
     subgraph Client["Trusted Browser & External Clients"]
@@ -342,7 +370,7 @@ gcloud run deploy kosh-app \
 - **Mitra AI Chat & Voice**: `GET /api/sessions`, `GET /api/sessions/{id}/history`, `WS /ws/chat`, `POST /api/voice/turn`
 - **Account Applications (Visitor & Customer)**: `POST /api/applications/account`, `POST /api/applications/status`, `POST /api/applications/prefill`, `POST /api/applications/activate`, `POST /api/portal/applications/savings`, `POST /api/portal/applications/fd`
 - **Officer Operations & Live RPA**: `GET /api/officer/applications`, `GET /api/officer/applications/{ref}`, `GET /api/officer/applications/{ref}/robot`, `POST /api/officer/applications/{ref}/decision`, `POST /api/officer/applications/{ref}/retry`, `GET /api/officer/queue`, `POST /api/officer/requests/{id}/decision`, `GET|POST /api/officer/care-cases`
-- **AI & Platform Admin**: `/api/admin/overview`, `/api/admin/prompts/*`, `/api/admin/ontology/*`, `/api/admin/controls`, `/api/admin/audit/verify`, `/api/admin/deletions/*`
+- **AI & Platform Admin**: `GET /api/admin/skills`, `GET /api/admin/data-sources`, `GET /api/admin/ontology`, `GET /api/admin/usage`, `GET /api/admin/quality`, `GET|PUT /api/admin/controls`, `POST /api/admin/controls/resume`, `GET /api/admin/decisions`, `GET /api/admin/audit/verify`, `GET /api/admin/approvals`
 
 ---
 
