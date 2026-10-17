@@ -175,24 +175,34 @@ def _mitra_outcome_message(outcome: str, session_id: str, checks: Dict[str, Any]
 
 
 def _append_mitra_ekyc_message(db, customer_id: str, outcome: str, session_id: str, checks: Dict[str, Any]) -> None:
+    from sqlalchemy import or_
     from persistence import ConversationRecord, UserRecord
     msg = _mitra_outcome_message(outcome, session_id, checks)
     now = utc_dt()
     with db.runtime.sessions.begin() as s:
+        user = s.scalar(select(UserRecord).where(UserRecord.customer_id == customer_id).limit(1))
+        cond = (
+            or_(ConversationRecord.customer_id == customer_id, ConversationRecord.user_id == user.id)
+            if user is not None
+            else (ConversationRecord.customer_id == customer_id)
+        )
         conv = s.scalar(
             select(ConversationRecord)
-            .where(ConversationRecord.customer_id == customer_id)
+            .where(cond)
             .order_by(ConversationRecord.updated_at.desc())
             .limit(1)
         )
         if conv is not None:
+            if user is not None and not conv.user_id:
+                conv.user_id = user.id
+            if not conv.customer_id:
+                conv.customer_id = customer_id
             existing_msgs = list(conv.messages or [])
             if not any((m.get("presentation") or {}).get("session_id") == session_id for m in existing_msgs if isinstance(m, dict)):
                 existing_msgs.append(msg)
                 conv.messages = existing_msgs
                 conv.updated_at = now
         else:
-            user = s.scalar(select(UserRecord).where(UserRecord.customer_id == customer_id).limit(1))
             s.add(ConversationRecord(
                 id=new_id("CHAT"),
                 user_id=user.id if user else None,

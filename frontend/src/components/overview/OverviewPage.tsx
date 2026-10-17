@@ -181,6 +181,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
 
   const kycState = kyc && ['NOT_DONE', 'PENDING_RE_KYC', 'SUBMITTED_FOR_REVIEW'].includes(kyc.status) ? kyc.status : null;
   const failedEkyc = kycState && latestEkyc && (latestEkyc.status === 'NOT_VERIFIED' || latestEkyc.status === 'ABANDONED') ? latestEkyc : null;
+  const passedEkyc = !kycState && latestEkyc && latestEkyc.status === 'VERIFIED' ? latestEkyc : null;
 
   return (
     <div className="k-dash">
@@ -244,6 +245,17 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate }) => {
           </div>
           {kycState !== 'SUBMITTED_FOR_REVIEW' && <button type="button" className="k-btn primary" onClick={startKyc}>{t('Complete KYC with Mitra')}</button>}
           {kycState === 'NOT_DONE' && <button type="button" className="k-link" onClick={() => startVideoKyc().catch(() => undefined)}>{t('Video KYC now')}</button>}
+        </section>
+      )}
+
+      {passedEkyc && (
+        <section className="k-alert calm" role="status">
+          <Icon name="check" />
+          <div>
+            <strong>{t('Video KYC completed & verified')}</strong>
+            <p>{t('Thank you! Your Video KYC session ({id}) passed all verification checks. Your account is fully verified and all outward transfers and card limits are unlocked.', { id: passedEkyc.session_id })}</p>
+          </div>
+          <button type="button" className="k-link" onClick={() => onNavigate('ai-banker')}>{t('View in Mitra')}</button>
         </section>
       )}
 

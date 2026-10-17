@@ -167,7 +167,9 @@ export class ChatSocketManager {
 export const chatSocket = new ChatSocketManager();
 
 export async function listSessions(): Promise<{ sessions: SessionInfo[] }> {
-  return get('/api/sessions');
+  const res = await get<any>('/api/sessions');
+  if (Array.isArray(res)) return { sessions: res };
+  return { sessions: res?.sessions || [] };
 }
 
 export async function createSession(title: string = 'New Conversation', messages?: any[]): Promise<SessionInfo> {

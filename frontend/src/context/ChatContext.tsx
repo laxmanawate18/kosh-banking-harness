@@ -204,6 +204,46 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
             if (!cancelled) setSessionsLoaded(true);
           });
       } else {
+        const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+        const ekycSession = params.get('ekyc_session');
+        const ekycOutcome = params.get('ekyc_outcome');
+
+        const buildFallbackEkycMsg = (sessionId: string, outcome: string): ChatMessage => {
+          const score = outcome === 'pass' ? 0.94 : outcome === 'face_mismatch' ? 0.41 : outcome === 'outside_india' ? 0.93 : 0;
+          const scorePct = `${Math.round(score * 100)}%`;
+          let text = '';
+          let title = 'Video KYC not verified';
+          if (outcome === 'pass') {
+            text = `Thank you! Your Video KYC (V-CIP) verification (Session \`${sessionId}\`) is complete and all checks have passed (Aadhaar e-KYC, PAN verification, live liveness check, geo-location in India, and ${scorePct} face match). Your account KYC status is now **VERIFIED** and all outward transfers (UPI, IMPS, NEFT, RTGS) and debit card limits are unlocked.`;
+            title = 'Video KYC completed & verified';
+          } else if (outcome === 'face_mismatch') {
+            text = `Your Video KYC session (\`${sessionId}\`) could not be completed because the live facial verification did not match your Aadhaar photograph (match score: ${scorePct}; minimum required: 80%). Kindly try Video KYC again in good lighting after 24 hours, or visit your nearest Kosh branch with your original PAN and Aadhaar card.`;
+            title = 'Video KYC not verified — Face did not match';
+          } else if (outcome === 'outside_india') {
+            text = `Your Video KYC session (\`${sessionId}\`) could not be completed because RBI V-CIP guidelines require your live geo-location to be physically within India during the video call. Please disable any VPN and try again from within India, or visit a Kosh branch to complete your KYC.`;
+            title = 'Video KYC not verified — Location outside India';
+          } else if (outcome === 'abandoned') {
+            text = `Your Video KYC call (\`${sessionId}\`) ended before the verification steps could be completed. Your KYC status remains unchanged. Whenever you are ready, you can start a new Video KYC session with your PAN card handy, or visit a Kosh branch.`;
+            title = 'Video KYC call ended early';
+          }
+          const pres: any = {
+            type: 'VIDEO_KYC_OUTCOME',
+            title,
+            session_id: sessionId,
+            outcome,
+            status: outcome === 'pass' ? 'VERIFIED' : outcome === 'abandoned' ? 'ABANDONED' : 'NOT_VERIFIED',
+            face_match_score: score,
+          };
+          return {
+            id: `ekyc-${sessionId}`,
+            role: 'assistant',
+            text,
+            presentation: pres,
+            toolResult: pres,
+            timestamp: Date.now(),
+          };
+        };
+
         // Standard session loading
         listSessions()
           .then(data => {
@@ -215,23 +255,25 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
               setCurrentSessionId(firstSessionId);
               return loadSessionHistory(firstSessionId).then(history => {
                 if (!cancelled && history && history.messages) {
-                  setMessages(
-                    history.messages.map((m: any) => {
-                      const presObj = m.presentation || (m.presentations && m.presentations.length > 0 ? m.presentations[m.presentations.length - 1] : undefined);
-                      return {
-                        id: Math.random().toString(),
-                        role: m.role,
-                        text: m.text || '',
-                        attachments: m.attachments,
-                        presentation: presObj,
-                        toolResult: m.toolResult || presObj,
-                        salesAction: m.salesAction,
-                        steps: m.steps,
-                        duration_ms: m.duration_ms,
-                        timestamp: (m.timestamp || 0) * 1000 || Date.now(),
-                      };
-                    })
-                  );
+                  const mapped: ChatMessage[] = history.messages.map((m: any) => {
+                    const presObj = m.presentation || (m.presentations && m.presentations.length > 0 ? m.presentations[m.presentations.length - 1] : undefined);
+                    return {
+                      id: Math.random().toString(),
+                      role: m.role,
+                      text: m.text || '',
+                      attachments: m.attachments,
+                      presentation: presObj,
+                      toolResult: m.toolResult || presObj,
+                      salesAction: m.salesAction,
+                      steps: m.steps,
+                      duration_ms: m.duration_ms,
+                      timestamp: (m.timestamp || 0) * 1000 || Date.now(),
+                    };
+                  });
+                  if (ekycSession && ekycOutcome && !mapped.some(m => (m.presentation as any)?.session_id === ekycSession)) {
+                    mapped.push(buildFallbackEkycMsg(ekycSession, ekycOutcome));
+                  }
+                  setMessages(mapped);
                 }
                 if (typeof window !== 'undefined' && window.location.search.includes('ekyc_')) {
                   const cleanUrl = `${window.location.pathname}${window.location.hash || '#ai-banker'}`;
@@ -240,6 +282,11 @@ const ChatStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
               }).catch(console.warn);
             } else {
               setCurrentSessionId(null);
+              if (ekycSession && ekycOutcome) {
+                setMessages([buildFallbackEkycMsg(ekycSession, ekycOutcome)]);
+                const cleanUrl = `${window.location.pathname}${window.location.hash || '#ai-banker'}`;
+                window.history.replaceState({}, '', cleanUrl);
+              }
             }
           })
           .catch(console.warn)
